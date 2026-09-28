@@ -111,7 +111,8 @@ flowchart LR
 | Orchestration | **Microsoft Agent Framework** Workflows for the phase pipeline, gates and checkpoints; MAF agents for non-coding LLM steps; Claude Code CLI for coding ([orchestration-maf.md](orchestration-maf.md)) |
 | In-process event bus | `System.Threading.Channels` + PostgreSQL `LISTEN/NOTIFY` |
 | Logging / tracing | `ILogger` + OpenTelemetry (traces per job, metrics for cost and turns) |
-| Local dev | `docker compose` for Postgres (or .NET Aspire AppHost) |
+| Local dev | **.NET Aspire** (AppHost: PostgreSQL + Host + Vite; ServiceDefaults: OTel, health checks). It is dev-time only; production runs the Host directly under systemd. |
+| CI | **GitHub Actions** (.NET 10 SDK via `global.json`, **Node 24**, **npm**) |
 
 ### 2.2 Architecture style: Clean Architecture + BFF
 
@@ -572,7 +573,9 @@ agentd/
 │   ├── Agentd.Bff/                         # BFF: /bff session endpoints, /api view models, SignalR hub,
 │   │                                       #      auth, antiforgery, CSP/security headers, SPA fallback
 │   ├── Agentd.Mcp/                         # MCP tools → Application commands (per-job bearer auth)
-│   └── Agentd.Host/                        # composition root: Program.cs, workers, appsettings, wwwroot/
+│   ├── Agentd.Host/                        # composition root: Program.cs, workers, appsettings, wwwroot/
+│   ├── Agentd.AppHost/                     # .NET Aspire: local orchestration (PostgreSQL, Host, Vite)
+│   └── Agentd.ServiceDefaults/             # Aspire service defaults: OTel, health checks, resilience
 ├── web/                                    # Vue 3 + Vite + daisyUI (Tailwind) SPA → talks only to the BFF
 │   ├── src/
 │   │   ├── api/                # http.ts (fetch wrapper + antiforgery), generated OpenAPI types, hub.ts
@@ -590,7 +593,6 @@ agentd/
 │   └── Agentd.ArchitectureTests/           # dependency rule
 ├── kit/                                    # default ai-sdlc kit shipped to repos (kit/v1/**, kit/schema/)
 ├── deploy/
-│   ├── docker-compose.yml      # PostgreSQL for local dev
 │   └── agentd.service          # systemd unit
 └── docs/
     ├── architect/  ui/  design-system/  security/
@@ -621,6 +623,8 @@ agentd/
 | 10 | Split the BFF into its own process? | Not in v1; it depends only on Application ports, so it can be split later |
 
 ## 9. References
+
+- **[../plan/README.md](../plan/README.md) — implementation plan: 11 phases, each reviewed before and after it is built**
 
 - [clean-architecture-bff.md](clean-architecture-bff.md) — layers, use cases, ports, BFF responsibilities, tests
 - [messaging-providers.md](messaging-providers.md) — chat provider pattern (Discord, Telegram, …)
