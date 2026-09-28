@@ -1,5 +1,8 @@
 # Discord reference
 
+This covers the Discord messaging provider (`Infrastructure.Messaging.Discord`). See
+[messaging-providers.md](../messaging-providers.md) for the provider contract.
+
 ## Bot setup
 
 1. Create an application at https://discord.com/developers/applications, then add a **Bot**.
@@ -7,7 +10,7 @@
 3. Invite the bot with the scopes `bot` and `applications.commands`, and these permissions:
    View Channel, Send Messages, Create Public Threads, Send Messages in Threads,
    Read Message History, Embed Links, Attach Files.
-4. Store the token in the `Agentd__Discord__BotToken` env var (or user-secrets in dev).
+4. Store the token in the `Agentd__Messaging__Providers__Discord__BotToken` env var (or user-secrets in dev).
 
 Gateway intents needed: `Guilds`, `GuildMessages`, `MessageContent`
 (Discord.Net: `GatewayIntents.Guilds | GatewayIntents.GuildMessages | GatewayIntents.MessageContent`).

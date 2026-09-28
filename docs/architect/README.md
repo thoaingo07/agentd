@@ -2,10 +2,13 @@
 
 `agentd` is a long-running background daemon that picks up Azure DevOps work items tagged
 for AI, runs one Claude Code agent per work item in its own git worktree, talks to the
-developer through Discord threads, and opens a Pull Request when the work is done.
+developer through chat (Discord, Telegram, … via **messaging providers**), and opens a Pull
+Request when the work is done.
 
-Discord is the main channel for conversation: every question, progress update, approval and
-final result flows through a Discord thread dedicated to that work item. A **Web UI** gives a
+Chat is the main channel for conversation: every question, progress update, approval and final
+result flows through a conversation dedicated to that work item. That is a thread on Discord or a
+forum topic on Telegram, and more platforms can be added as providers
+([messaging-providers.md](messaging-providers.md)). A **Web UI** gives a
 real-time view of every session: live transcripts, tool calls, state and cost.
 
 ---
@@ -18,15 +21,25 @@ real-time view of every session: live transcripts, tool calls, state and cost.
 - Authenticate with either the **Azure CLI** (`az login`) or a **Personal Access Token**.
 - Run **multiple agents concurrently**, each isolated in its own **git worktree**, with its
   own **Claude Code process and session**.
-- Route agent ↔ developer conversation through **one Discord thread per work item**.
+- Route agent ↔ developer conversation through **one chat conversation per work item**, using
+  **pluggable messaging providers** (Discord and Telegram first).
 - On completion, **push the branch, create a PR** linked to the work item, and announce it
-  in Discord.
+  in chat.
+- Run every job through a fixed workflow: **Design → Plan → Implement → Test → Review**,
+  with optional human gates ([workflow-and-learning.md](workflow-and-learning.md)).
+- **Initialize an ai-sdlc kit (`.agentd/`) in every repo**: phase instructions, templates,
+  review checklist, context and verify commands. The team owns and customizes it
+  ([ai-sdlc-kit.md](ai-sdlc-kit.md)).
+- **Learn from every run.** Distill the lessons into a reviewed `learnings.md` per repository,
+  which feeds future runs.
+- Run **each phase on a configurable model profile** (Claude subscriptions or API keys, DeepSeek,
+  GLM, Gemini, …) with fallbacks and per-profile cost tracking ([model-profiles.md](model-profiles.md)).
 - Survive daemon restarts without losing jobs or Claude sessions.
 - Provide a **Web UI to trace every session in real time**, including past sessions.
 
 **Non-goals (v1)**
 
-- The Web UI observes and controls agents; it does not replace Discord for conversation.
+- The Web UI observes and controls agents; it does not replace chat for conversation.
 - No auto-merge. A human always reviews and merges the PR.
 - No multi-host scheduling; one daemon per machine.
 
@@ -49,7 +62,7 @@ flowchart LR
         WT[Worktree Manager]
         RUN[Agent Runner]
         MCP[agentd MCP server<br/>ask_developer / report_progress / finish]
-        DISC[Discord Gateway]
+        DISC[Messaging Service<br/>providers: Discord · Telegram]
         PUB[PR Publisher]
         BUS{{Event Bus}}
         WEB[BFF — Agentd.Bff<br/>/bff + /api + SignalR + SPA]
@@ -60,7 +73,7 @@ flowchart LR
         C2[claude process #2<br/>worktree wi-102]
     end
 
-    DEV((Developer)) <--> DC[Discord channel<br/>+ threads]
+    DEV((Developer)) <--> DC[Discord threads /<br/>Telegram topics]
     DEV <--> UI[Web UI<br/>browser]
 
     WI -- WIQL poll --> POLL --> SCHED
@@ -89,7 +102,7 @@ flowchart LR
 | Azure DevOps API | typed `HttpClient` against the REST API (`api-version=7.1`), with Polly resilience via `Microsoft.Extensions.Http.Resilience` |
 | Claude processes | `System.Diagnostics.Process` (or CliWrap) running the `claude` CLI, with stream-json read line by line from stdout |
 | MCP server (agent → daemon) | official C# MCP SDK (`ModelContextProtocol.AspNetCore`), mapped at `/mcp` on the same host |
-| Discord | **Discord.Net** (gateway + slash commands) |
+| Messaging | Provider pattern ([messaging-providers.md](messaging-providers.md)): **Discord.Net** (Discord), **Telegram.Bot** (Telegram) |
 | Real-time to browser | **SignalR** hub (WebSockets, with automatic fallback) |
 | Web UI | **Vue 3 + TypeScript + Vite**, Pinia stores, **daisyUI** on Tailwind CSS, headless parts from **base-ui-vue**. See §3.9, [docs/ui](../ui/README.md) and [docs/design-system](../design-system/README.md). |
 | In-process event bus | `System.Threading.Channels` + PostgreSQL `LISTEN/NOTIFY` |
@@ -103,7 +116,7 @@ flowchart LR
   - `Agentd.Application` holds the use cases and the **ports** (`IWorkItemSource`, `IChatChannel`,
     `IAgentRunner`, `IWorktreeManager`, `IJobRepository`, `IEventStore`, …).
   - The `Agentd.Infrastructure.*` projects hold one adapter per external system (Persistence,
-    AzureDevOps, Discord, Claude, Git).
+    AzureDevOps, Messaging.Discord, Messaging.Telegram, Claude, Git).
   - The presentation projects are the **driving adapters**: `Agentd.Bff` for the browser and
     `Agentd.Mcp` for the agents.
   - `Agentd.Host` is the composition root.
@@ -112,7 +125,7 @@ flowchart LR
   - The Vue SPA talks only to `Agentd.Bff`, on the same origin.
   - The BFF owns login (Discord OAuth, server-side), the HttpOnly session cookie, antiforgery, CSP,
     the SignalR hub and **screen-shaped `/api` endpoints**.
-  - No token ever reaches the browser, and ADO/Discord credentials never leave the server.
+  - No token ever reaches the browser, and ADO and chat bot credentials never leave the server.
 
 Full design: **[clean-architecture-bff.md](clean-architecture-bff.md)**.
 
@@ -125,7 +138,8 @@ Full design: **[clean-architecture-bff.md](clean-architecture-bff.md)**.
 Standard .NET configuration: `appsettings.json` → `appsettings.{Environment}.json` → environment
 variables → user-secrets in dev. Settings bind to strongly typed options classes (`IOptions<T>`)
 and are validated at startup. Secrets are only supplied through env vars or a secret store, e.g.
-`Agentd__AzureDevOps__Pat`, `Agentd__Discord__BotToken` and `ConnectionStrings__Agentd`.
+`Agentd__AzureDevOps__Pat`, `Agentd__Messaging__Providers__Discord__BotToken`,
+`Agentd__Messaging__Providers__Telegram__BotToken` and `ConnectionStrings__Agentd`.
 
 ```jsonc
 {
@@ -146,7 +160,10 @@ and are validated at startup. Secrets are only supplied through env vars or a se
         "LocalPath": "/home/ulab/tngo/github/agentd",
         "Remote": "origin",
         "BaseBranch": "main",
-        "Match": { "AreaPath": "MyProject\\Platform" }   // or a tag like repo:agentd
+        "Match": { "AreaPath": "MyProject\\Platform" },  // or a tag like repo:agentd
+        "RequireKit": true,                              // job waits until .agentd/ kit exists & validates
+        "Limits": { "AllowedProfiles": ["claude-max-1", "claude-api", "glm-flash"], "MaxTurns": 200 }
+        // team-owned settings (verify, gates, model prefs, messaging) live in the repo's .agentd/kit.json
       }
     ],
     "Agents": {
@@ -155,7 +172,7 @@ and are validated at startup. Secrets are only supplied through env vars or a se
       "BranchPrefix": "ai/",
       "Claude": {
         "Binary": "claude",
-        "Model": "claude-opus-5-5",
+        // model and credentials come from Models:Profiles + Models:Routing (model-profiles.md)
         "PermissionMode": "acceptEdits",
         "AllowedTools": ["Read", "Edit", "Write", "Bash(git:*)", "Bash(dotnet test:*)"],
         "MaxTurns": 200,
@@ -163,10 +180,15 @@ and are validated at startup. Secrets are only supplied through env vars or a se
         "WaitForHumanTimeout": "3.00:00:00" // give up waiting for an answer
       }
     },
-    "Discord": {
-      "GuildId": "123...",
-      "ChannelId": "456...",           // parent channel; one thread per work item
-      "AllowedUserIds": ["789..."]     // only these users can steer agents
+    "Messaging": {                     // see messaging-providers.md §6
+      "DefaultProviders": ["discord"],
+      "Users": [                       // only these users can steer agents
+        { "Name": "tngo", "Discord": "789...", "Telegram": "123456789" }
+      ],
+      "Providers": {
+        "Discord":  { "Enabled": true, "GuildId": "123...", "ChannelId": "456..." },
+        "Telegram": { "Enabled": true, "ChatId": "-1001234567890", "Mode": "LongPolling" }
+      }
     },
     "Web": {
       "Urls": "http://127.0.0.1:7780",
@@ -193,7 +215,7 @@ The operations it needs:
   `SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = @project AND [System.Tags] CONTAINS 'ai-workflow' AND [System.Tags] NOT CONTAINS 'ai-in-progress' AND [System.State] IN ('New','Active')`
 - **Read**: fetch the title, description, acceptance criteria, repro steps, comments and attachments.
 - **Claim**: add `claimTag` (JSON Patch) so other daemons and later polls skip the item, then post a
-  comment linking to the Discord thread.
+  comment linking to the job's chat conversation(s).
 - **Complete**: add a comment with the PR link, then optionally move the state (for example to `Resolved`).
 
 See [references/azure-devops.md](references/azure-devops.md).
@@ -216,8 +238,8 @@ stateDiagram-v2
     Queued --> Preparing: slot free
     Preparing --> Running: worktree + thread ready
     Running --> WaitingForHuman: ask_developer
-    WaitingForHuman --> Running: reply in Discord thread (resume session)
-    Running --> Publishing: finish()
+    WaitingForHuman --> Running: reply in chat or Web UI (resume session)
+    Running --> Publishing: finish() after Review passes
     Publishing --> Done: PR created
     Running --> Failed: crash / timeout / max turns
     WaitingForHuman --> Failed: wait timeout
@@ -236,7 +258,7 @@ stateDiagram-v2
 | `work_item_id` | primary key |
 | `repo`, `branch`, `worktree_path` | workspace |
 | `claude_session_id` | UUID passed to `claude --session-id`, reused with `--resume` |
-| `discord_thread_id` | routes Discord messages to this job |
+| *(`conversations` table)* | one row per provider conversation (thread/topic) that routes chat messages to this job; see [messaging-providers.md §7](messaging-providers.md#7-persistence-domain--persistence) |
 | `state`, `attempt`, `last_error` | lifecycle |
 | `pr_url` | result |
 | `created_at`, `updated_at` | timeouts and recovery |
@@ -268,6 +290,13 @@ git -C <repo> worktree add <worktreeRoot>/<repo>/wi-<id> -b ai/<id>-<slug> origi
 
 ### 3.6 Agent Runner (one Claude process per job)
 
+`Running` is divided into the workflow phases **Design → Plan → Implement → Test → Review**
+(see [workflow-and-learning.md](workflow-and-learning.md)). Each phase runs on the **model
+profile** chosen by the routing rules, which can be a Claude subscription, an API key, DeepSeek,
+GLM, Gemini or another provider (see [model-profiles.md](model-profiles.md)). The profile decides
+the process environment (`ANTHROPIC_BASE_URL`, credential, model, `CLAUDE_CONFIG_DIR`). A session
+is pinned to one profile, and switching profile starts a new session seeded with the phase artifacts.
+
 Each job gets its **own `claude` process** running in its worktree, with a **session ID owned by
 the daemon**:
 
@@ -289,10 +318,10 @@ claude -p "<developer reply>" --resume <uuid> ...same flags...
   comments, the repo and branch, plus instructions to commit to the branch and call `finish` when
   done.
 - **stdout (stream-json)** is parsed for tool use, cost and errors. Condensed progress is
-  forwarded to Discord (rate-limited), and the full log is written to
+  forwarded to chat (rate-limited), and the full log is written to
   `~/.agentd/logs/wi-<id>.jsonl`.
-- **Environment:** the process gets its own `HOME`-independent env, with no ADO PAT or Discord
-  token. The agent never talks to Discord or ADO directly; it only calls the agentd MCP tools.
+- **Environment:** the process gets its own `HOME`-independent env, with no ADO PAT or chat bot
+  tokens. The agent never talks to chat platforms or ADO directly; it only calls the agentd MCP tools.
 
 **Why the process exits while waiting for a human.** When the agent asks a question, its
 turn ends and the process exits. The session lives on disk, so the reply resumes it with
@@ -312,25 +341,36 @@ agent structured tools instead of the daemon having to parse free text:
 
 | Tool | Effect |
 |---|---|
-| `ask_developer(question, options?)` | Posts the question in the job's Discord thread and sets the job to `WaitingForHuman`. The tool returns *"Question posted. End your turn now."* |
-| `report_progress(message)` | Posts a short status line to the thread. |
-| `finish(summary, pr_title, pr_description)` | Marks the work complete, and the daemon moves to `Publishing`. |
+| `ask_developer(question, options?)` | Posts the question to the job's chat conversation(s), with options rendered as buttons where supported, and sets the job to `WaitingForHuman`. The tool returns *"Question posted. End your turn now."* |
+| `report_progress(message)` | Updates the status message in each conversation (edited in place where supported). |
+| `complete_phase(phase, summary, artifact_markdown, applied_learnings[])` | Stores the phase artifact and advances the workflow (or opens a gate). |
+| `record_learning(phase, kind, statement, evidence)` / `get_learnings(phase, paths?)` | Capture a candidate learning / fetch approved learnings ([workflow-and-learning.md](workflow-and-learning.md)). |
+| `finish(summary, pr_title, pr_description)` | Marks the work complete (only after Review passes), and the daemon moves to `Publishing`. |
 | `get_work_item()` | Re-reads the latest work item and its comments. |
 
-### 3.8 Discord Gateway
+### 3.8 Messaging (provider pattern)
 
-A **Discord.Net** bot (`DiscordSocketClient` hosted as a `BackgroundService`) that requires the **Message Content** privileged intent.
+Chat goes through the `IMessagingProvider` port, with one adapter per platform: **Discord** (a
+thread per job) and **Telegram** (a forum topic per job). Everything that is not platform-specific
+is written once in the Application layer:
 
-- **One thread per work item**, created in `channelId` when the job starts. It is named
-  `WI-1234 · <title>`, and its first message holds a link to the work item plus the agent's plan.
-- **Inbound routing:** a message in a thread → look up the job by `discord_thread_id` → if it is
-  `WaitingForHuman`, resume the Claude session with the message text. If the agent is `Running`,
-  queue the message and deliver it as the next turn.
-- **Access control:** messages from users not in `allowedUserIds` are ignored. This matters because
-  developer text becomes prompt input.
-- **Commands in a thread** (slash commands or `!` prefix): `status`, `cancel`, `retry`, `logs`,
-  `pause`.
-- **Commands in the parent channel:** `list` (all jobs) and `run <id>` (start a work item now).
+- **Outbound (`MessagingService`):** routing to the job's providers, fan-out, chunking to each
+  provider's length limit, editing progress messages in place, and a transactional outbox with retry.
+- **Inbound (`HandleInboundMessage`):**
+  - dedupe;
+  - **per-provider user allowlist**, since developer text becomes prompt input;
+  - routing by conversation → job;
+  - provider-neutral commands: `status`, `cancel`, `retry`, `logs`, `pause`, and `list` / `run <id>`
+    in the parent space.
+- **Replies:** if a job is `WaitingForHuman`, a reply resumes the Claude session. If it is `Running`,
+  the reply is queued as the next turn.
+- **Multiple providers per job:** a job may be on several providers at once. Replies from any of
+  them, or from the Web UI, are mirrored to the others.
+- **Choosing providers:** by `Messaging:DefaultProviders`, per repo, or with a `chat:<provider>`
+  work item tag.
+
+Full design: **[messaging-providers.md](messaging-providers.md)**. Platform notes:
+[Discord](references/discord.md) · [Telegram](references/telegram.md).
 
 ### 3.9 Event Bus and Web UI (real-time session tracing)
 
@@ -341,7 +381,7 @@ A **Discord.Net** bot (`DiscordSocketClient` hosted as a `BackgroundService`) th
 |---|---|
 | Agent Runner (stream-json parser) | `assistant.text`, `tool.call`, `tool.result`, `turn.result` (turns, tokens, cost), `process.started` / `process.exited` |
 | Scheduler | `job.state_changed`, `job.created`, `job.error` |
-| Discord Gateway | `discord.outbound`, `discord.inbound` (the developer's replies) |
+| Messaging Service | `message.outbound`, `message.inbound` (the developer's replies), each with a `provider` field |
 | PR Publisher | `pr.pushed`, `pr.created`, `verify.output` |
 
 Events are appended to the PostgreSQL `events` table **before** they are fanned out. The table uses
@@ -396,14 +436,14 @@ and component styling rules are in **[docs/design-system](../design-system/READM
 | `GET /bff/antiforgery` | issues the antiforgery request token in the response body; the cookie half is HttpOnly ([Security §2](../security/README.md#2-cookies-and-antiforgery)) |
 | `GET /api/dashboard` | screen-shaped: stats + active jobs in one call |
 | `GET /api/history?state=&repo=&q=&page=` | finished, failed and cancelled jobs, paged |
-| `GET /api/jobs/{id}` | job detail, including links to the work item, Discord thread and PR |
+| `GET /api/jobs/{id}` | job detail, including links to the work item, chat conversations and PR |
 | `GET /api/jobs/{id}/events?after=<seq>` / `?before=<seq>&limit=<n>` | paged history: replay forward, or page back for "load earlier" |
 | SignalR `/hubs/events` → `Subscribe(jobId?, afterSeq)` | live events for the Vue UI; replays from `afterSeq` after a reconnect |
 | `GET /api/jobs/{id}/diff` | `git diff <base>...HEAD` for the worktree |
-| `POST /api/jobs/{id}/cancel` / `retry` / `messages` | same controls as the Discord commands; `message` is recorded and mirrored to the Discord thread so both channels keep one history |
+| `POST /api/jobs/{id}/cancel` / `retry` / `messages` | same controls as the chat commands; a message is recorded and mirrored to all of the job's chat conversations so every channel keeps one history |
 | `POST /api/workitems/{id}/run` | start a work item immediately |
 | `/mcp` | `Agentd.Mcp`, not the BFF: the MCP endpoint for Claude processes (per-job token, not browser-facing) |
-| `/healthz` | health checks (Postgres, Discord connection, Azure DevOps token) |
+| `/healthz` | health checks (Postgres, each messaging provider, Azure DevOps token) |
 
 **Web UI screens:**
 
@@ -424,15 +464,14 @@ cookie covers the REST calls and the SignalR connection alike, with no tokens st
 
 ### 3.10 PR Publisher
 
-1. Check that the worktree has commits ahead of the base. If there are none, report that to
-   Discord and stop.
-2. Optionally run a configured verification command (tests or lint). If it fails, send the output
-   back to the agent as a new turn, up to N times.
+1. Check that the worktree has commits ahead of the base. If there are none, report that in chat and stop.
+2. Re-run the verify commands as a final guard. The real test loop happens in the **Test** phase, and
+   review in the **Review** phase, both before `finish`.
 3. `git push -u origin ai/<id>-<slug>`.
 4. Create the PR with the ADO REST API (or `az repos pr create`), passing the source and target
    branches, the title and description from `finish()`, and `workItemRefs: [{id}]` so the work item
    is linked.
-5. Post the PR link to the Discord thread and as a comment on the work item.
+5. Post the PR link to the job's chat conversations and as a comment on the work item.
 6. Optional: when the PR later gets review comments, feed them back into the same session.
 
 ---
@@ -444,14 +483,14 @@ sequenceDiagram
     participant ADO as Azure DevOps
     participant D as agentd
     participant C as claude (worktree)
-    participant DC as Discord thread
+    participant DC as Chat conversation<br/>(Discord thread / Telegram topic)
     actor Dev as Developer
 
     D->>ADO: WIQL poll (tag = ai-workflow)
     ADO-->>D: WI-1234
     D->>ADO: add tag ai-in-progress
     D->>D: git worktree add ai/1234-...
-    D->>DC: create thread "WI-1234 · Fix login"
+    D->>DC: open conversation "WI-1234 · Fix login"
     D->>C: claude -p <task> --session-id S
     C->>D: report_progress("Reproduced bug")
     D->>DC: 🔧 Reproduced bug
@@ -459,7 +498,7 @@ sequenceDiagram
     D->>DC: ❓ Keep legacy endpoint?
     C-->>D: (turn ends, process exits)
     Dev->>DC: "No, remove it"
-    DC->>D: message in thread
+    DC->>D: message in conversation
     D->>C: claude -p "No, remove it" --resume S
     C->>D: finish(summary, title, description)
     D->>ADO: git push + create PR (linked to WI-1234)
@@ -472,12 +511,12 @@ sequenceDiagram
 
 ## 5. Security considerations
 
-- **Secrets:** the PAT and Discord bot token come only from env vars or a secret store. Neither
+- **Secrets:** the PAT and the chat bot tokens come only from env vars or a secret store. Neither
   is ever passed to Claude processes.
 - **Least-privilege PAT:** Work Items (Read & Write) and Code (Read & Write). Prefer `azcli`
   auth with a scoped identity where possible.
-- **Prompt injection:** work item text and Discord messages are untrusted input. Mitigations:
-  - allowlist the Discord users who can steer agents;
+- **Prompt injection:** work item text and chat messages are untrusted input. Mitigations:
+  - allowlist the chat users (per provider) who can steer agents;
   - restrict Claude's tools with `--allowedTools` and `permissionMode`, and never use
     `bypassPermissions` outside a sandbox or container;
   - keep network access for agents minimal.
@@ -494,7 +533,7 @@ sequenceDiagram
 
 - The Web UI (§3.9) is the main observability surface: live and replayable traces for every session.
 - Structured daemon logs, plus a per-job `stream-json` transcript.
-- The `status` command in Discord shows: state, elapsed time, turns, token and cost totals, and the
+- The `status` chat command shows: state, elapsed time, turns, token and cost totals, and the
   last tool used.
 - Daily summary message in the parent channel (optional).
 
@@ -510,7 +549,8 @@ agentd/
 │   ├── Agentd.Application/                 # use cases (commands/queries), ports, read models, Result<T>
 │   ├── Agentd.Infrastructure.Persistence/  # EF Core + Npgsql, migrations, repositories, event store, NOTIFY
 │   ├── Agentd.Infrastructure.AzureDevOps/  # token providers, WIQL/work items/comments/PR HTTP clients
-│   ├── Agentd.Infrastructure.Discord/      # Discord.Net client, IChatChannel, slash commands, inbound routing
+│   ├── Agentd.Infrastructure.Messaging.Discord/   # IMessagingProvider: Discord.Net, threads, slash commands
+│   ├── Agentd.Infrastructure.Messaging.Telegram/  # IMessagingProvider: Telegram.Bot, forum topics, long polling
 │   ├── Agentd.Infrastructure.Claude/       # claude process runner, stream-json parser
 │   ├── Agentd.Infrastructure.Git/          # worktrees, push, diff
 │   ├── Agentd.Bff/                         # BFF: /bff session endpoints, /api view models, SignalR hub,
@@ -532,6 +572,7 @@ agentd/
 │   ├── Agentd.Infrastructure.Tests/        # Testcontainers for PostgreSQL, recorded fixtures
 │   ├── Agentd.Bff.Tests/                   # WebApplicationFactory: auth, antiforgery, CSP
 │   └── Agentd.ArchitectureTests/           # dependency rule
+├── kit/                                    # default ai-sdlc kit shipped to repos (kit/v1/**, kit/schema/)
 ├── deploy/
 │   ├── docker-compose.yml      # PostgreSQL for local dev
 │   └── agentd.service          # systemd unit
@@ -551,7 +592,12 @@ agentd/
 | 4 | How a work item maps to a repo | area path or `repo:<name>` tag |
 | 5 | Container sandbox per agent in v1? | Worktree only in v1; containers in v2 |
 | 6 | ~~Web UI framework~~ | **Decided:** Vue 3 + Pinia + daisyUI + base-ui-vue (§3.9) |
-| 7 | Discord library: Discord.Net vs NetCord | Discord.Net (mature, widely used); NetCord if newer Discord features are needed |
+| 7 | Discord library: Discord.Net vs NetCord | Discord.Net (mature, widely used); NetCord if newer Discord features are needed. It stays swappable inside the provider. |
+| 12 | ~~Workflow~~ | **Decided:** Design → Plan → Implement → Test → Review + learning loop ([workflow-and-learning.md](workflow-and-learning.md)) |
+| 13 | ~~Models~~ | **Decided:** per-phase model profiles with fallback chains ([model-profiles.md](model-profiles.md)) |
+| 15 | ~~Per-repo process knowledge~~ | **Decided:** ai-sdlc kit in `.agentd/`, initialized by agentd and owned by the team ([ai-sdlc-kit.md](ai-sdlc-kit.md)) |
+| 14 | Gemini integration | LiteLLM-style gateway via `ANTHROPIC_BASE_URL` first; a `GeminiCliRunner` only if tool-use quality needs it |
+| 11 | ~~Chat platform~~ | **Decided:** provider pattern; Discord + Telegram first ([messaging-providers.md](messaging-providers.md)) |
 | 8 | Web UI auth for remote access | localhost + tunnel in v1; Discord OAuth2 through the BFF in v2 |
 | 9 | ~~Solution structure~~ | **Decided:** Clean Architecture + in-process BFF ([clean-architecture-bff.md](clean-architecture-bff.md)) |
 | 10 | Split the BFF into its own process? | Not in v1; it depends only on Application ports, so it can be split later |
@@ -559,8 +605,13 @@ agentd/
 ## 9. References
 
 - [clean-architecture-bff.md](clean-architecture-bff.md) — layers, use cases, ports, BFF responsibilities, tests
+- [messaging-providers.md](messaging-providers.md) — chat provider pattern (Discord, Telegram, …)
+- [workflow-and-learning.md](workflow-and-learning.md) — phases, gates, learnings capture → distill → review → apply
+- [model-profiles.md](model-profiles.md) — per-phase model and provider routing, fallbacks, cost
+- [ai-sdlc-kit.md](ai-sdlc-kit.md) — per-repo `.agentd/` kit: init, customize, upgrade, validate
 - [references/azure-devops.md](references/azure-devops.md) — auth, WIQL, work item & PR REST calls
 - [references/discord.md](references/discord.md) — bot setup, intents, threads
+- [references/telegram.md](references/telegram.md) — bot setup, forum topics, long polling, inline keyboards
 - [references/claude-code.md](references/claude-code.md) — headless CLI flags, sessions, MCP config
 - [../ui/README.md](../ui/README.md) — Web UI screens, Pinia stores, components
 - [../design-system/README.md](../design-system/README.md) — colors, theme, tokens, component styling

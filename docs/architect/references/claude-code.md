@@ -18,6 +18,21 @@ agentd runs one `claude` process per job, in that job's worktree.
 | `--append-system-prompt "<text>"` | agentd rules (use MCP tools, commit often, call `finish`) |
 | `--mcp-config <file.json>` | registers the agentd MCP server for this job |
 
+## Environment per model profile
+
+See [model-profiles.md](../model-profiles.md). The runner sets these per process:
+
+| Env var | Use |
+|---|---|
+| `ANTHROPIC_BASE_URL` | an Anthropic-compatible endpoint (DeepSeek, GLM, a gateway for Gemini, …); unset for Anthropic |
+| `ANTHROPIC_AUTH_TOKEN` / `ANTHROPIC_API_KEY` | the profile's credential |
+| `ANTHROPIC_MODEL` | the main model at that provider (plus `--model`) |
+| `ANTHROPIC_DEFAULT_HAIKU_MODEL` | the cheap model used for background tasks |
+| `CLAUDE_CONFIG_DIR` | an isolated config, credentials and session store, one per subscription account |
+| `API_TIMEOUT_MS` | request timeout for slower providers |
+
+Sessions live under `CLAUDE_CONFIG_DIR`, so `--resume` only works with the same profile.
+
 ## Per-job MCP config example
 
 ```json
@@ -54,7 +69,8 @@ var psi = new ProcessStartInfo(opts.Binary)
 };
 foreach (var arg in BuildArgs(job, prompt)) psi.ArgumentList.Add(arg);   // never build a shell string
 psi.Environment.Remove("Agentd__AzureDevOps__Pat");                      // strip daemon secrets
-psi.Environment.Remove("Agentd__Discord__BotToken");
+psi.Environment.Remove("Agentd__Messaging__Providers__Discord__BotToken");
+psi.Environment.Remove("Agentd__Messaging__Providers__Telegram__BotToken");
 
 using var proc = Process.Start(psi)!;
 while (await proc.StandardOutput.ReadLineAsync(ct) is { } line)

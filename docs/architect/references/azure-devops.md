@@ -70,7 +70,7 @@ The `test` on `/rev` gives optimistic concurrency, so two daemons cannot claim t
 
 ```http
 POST /{project}/_apis/wit/workItems/{id}/comments?api-version=7.1-preview.4
-{ "text": "agentd picked this up — Discord thread: <link>" }
+{ "text": "agentd picked this up — chat: <conversation link(s)>" }
 ```
 
 ## Create a Pull Request linked to the work item

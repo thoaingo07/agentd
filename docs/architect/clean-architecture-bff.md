@@ -1,7 +1,7 @@
 # agentd — Clean Architecture + BFF
 
 This describes how the .NET 10 solution is structured. The **domain and use cases sit at the
-center** and know nothing about Azure DevOps, Discord, Claude, PostgreSQL or HTTP. The browser
+center** and know nothing about Azure DevOps, Discord, Telegram, Claude, PostgreSQL or HTTP. The browser
 talks only to a **Backend-for-Frontend (BFF)**, which owns the session, the cookies and the
 UI-shaped API, so **no token ever reaches the browser**.
 
@@ -20,7 +20,7 @@ flowchart TB
     subgraph I[Infrastructure — driven adapters]
         PER[Persistence<br/>EF Core + Npgsql]
         ADO[AzureDevOps]
-        DIS[Discord]
+        DIS[Messaging.Discord<br/>Messaging.Telegram]
         CLA[Claude<br/>process runner]
         GIT[Git<br/>worktrees]
     end
@@ -40,7 +40,7 @@ flowchart TB
 | Project | May reference | Must not reference |
 |---|---|---|
 | `Agentd.Domain` | nothing (BCL only) | everything else, EF Core, ASP.NET Core |
-| `Agentd.Application` | Domain, `Microsoft.Extensions.*.Abstractions` | Infrastructure, Presentation, EF Core, ASP.NET Core, Discord.Net |
+| `Agentd.Application` | Domain, `Microsoft.Extensions.*.Abstractions` | Infrastructure, Presentation, EF Core, ASP.NET Core, Discord.Net, Telegram.Bot |
 | `Agentd.Infrastructure.*` | Application, Domain, its external SDK | Presentation, other Infrastructure projects |
 | `Agentd.Bff`, `Agentd.Mcp` | Application, Domain (read-only types) | Infrastructure |
 | `Agentd.Host` | everything | — |
@@ -93,13 +93,18 @@ classes registered in DI, and endpoints and workers call them directly.
 | Kind | Use case | Called by |
 |---|---|---|
 | Command | `PollWorkItems` | Host worker (timer) |
-| Command | `ClaimWorkItem` | `PollWorkItems`, BFF `POST /api/workitems/{id}/run`, Discord `/agentd run` |
+| Command | `ClaimWorkItem` | `PollWorkItems`, BFF `POST /api/workitems/{id}/run`, chat `run` command |
 | Command | `StartNextJob` | Host scheduler worker (when a slot is free) |
 | Command | `RecordAgentOutput` | Claude runner (per stream-json line) |
 | Command | `AskDeveloper` / `ReportProgress` / `FinishWork` | MCP tools |
-| Command | `SubmitDeveloperMessage` | Discord inbound, BFF `POST /api/jobs/{id}/messages` |
+| Command | `CompletePhase` / `ApproveGate` / `RejectGate` | MCP `complete_phase`; chat buttons, BFF |
+| Command | `RecordLearning` / `RunRetrospective` / `DistillLearnings` | MCP, post-run, `LearningDistillationWorker` |
+| Command | `InitKit` / `UpgradeKit` / `ValidateKit` / `LoadKitForJob` | CLI verbs, chat `init`, BFF Repositories page, job start |
+| Query | `GetLearnings` | MCP `get_learnings`, phase prompt builder, BFF |
+| Command | `HandleInboundMessage` | every messaging provider's listener (dedupe → authorize → route → command or message) |
+| Command | `SubmitDeveloperMessage` | `HandleInboundMessage`, BFF `POST /api/jobs/{id}/messages` |
 | Command | `PublishPullRequest` | after `FinishWork` |
-| Command | `CancelJob` / `RetryJob` | BFF, Discord |
+| Command | `CancelJob` / `RetryJob` | BFF, chat commands |
 | Command | `RecoverJobsOnStartup` | Host startup |
 | Query | `GetDashboard`, `GetJob`, `GetJobEvents`, `GetJobDiff`, `SearchHistory` | BFF |
 
@@ -121,10 +126,16 @@ public interface IQueryHandler<in TQuery, TResult>     { Task<TResult> Handle(TQ
 | `IEventStore` (append, read after/before seq), `IEventPublisher` (live fan-out) | Persistence (+ `LISTEN/NOTIFY`) |
 | `IWorkItemSource` (query, get, claim, comment) | AzureDevOps |
 | `IPullRequestService` (push, create PR) | AzureDevOps + Git |
-| `IChatChannel` (create thread, post, post file) | Discord |
-| `IAgentRunner` (start/resume a session, cancel) | Claude |
+| `IMessagingProvider` (open conversation, send, edit, close, link, health) + `IMessagingProviderRegistry` | Messaging.Discord, Messaging.Telegram, … ([messaging-providers.md](messaging-providers.md)) |
+| `IAgentRunner` (start/resume a session on a model profile, cancel) | Claude (`ClaudeCodeRunner`; profile → env) |
+| `IModelRouter`, `IProfileHealth` (phase → ordered profiles; breaker, budget) | Host config + Persistence ([model-profiles.md](model-profiles.md)) |
+| `IKitStore` (read the kit snapshot from the base branch; init and upgrade branches; 3-way merge) | Git + AzureDevOps ([ai-sdlc-kit.md](ai-sdlc-kit.md)) |
+| `ILearningStore` (approved learnings, candidates, learnings PR) | Git + Persistence + AzureDevOps ([workflow-and-learning.md](workflow-and-learning.md)) |
 | `IWorktreeManager` (create, remove, diff, prune) | Git |
 | `IClock`, `IIdGenerator` | Host (defaults) |
+
+The provider-agnostic `MessagingService` (routing, fan-out, chunking, mirroring, outbox) is an
+Application service built on top of `IMessagingProvider`.
 
 The Application layer also defines **read models** returned by queries, such as `JobSummary`,
 `JobDetail`, `AgentEventDto` and `DashboardStats`. They are plain records that the BFF maps to its
@@ -140,7 +151,8 @@ One project per external system, so that a dependency (e.g. Discord.Net) stays i
 |---|---|
 | `Infrastructure.Persistence` | `AgentdDbContext`, Fluent configurations, migrations, repositories, event store (partitioned `events` table), outbox/`NOTIFY` publisher, `FOR UPDATE SKIP LOCKED` dequeue |
 | `Infrastructure.AzureDevOps` | `AzureCliCredential` / PAT token providers, typed `HttpClient`s (WIQL, work items, comments, PRs), resilience |
-| `Infrastructure.Discord` | `DiscordSocketClient` hosted service, `IChatChannel`, slash commands. Inbound messages call Application commands (`SubmitDeveloperMessage`, `CancelJob`, …). |
+| `Infrastructure.Messaging.Discord` | `DiscordMessagingProvider`, gateway listener, slash commands, Discord markdown renderer. Inbound events → `HandleInboundMessage`. |
+| `Infrastructure.Messaging.Telegram` | `TelegramMessagingProvider`, long-polling (or webhook) listener, bot commands, inline keyboards, HTML renderer. Inbound updates → `HandleInboundMessage`. |
 | `Infrastructure.Claude` | `ClaudeProcessRunner` (`ProcessStartInfo.ArgumentList`, secret-stripped env), stream-json parser → `RecordAgentOutput` |
 | `Infrastructure.Git` | `git` CLI wrapper for worktrees, push, diff |
 
@@ -204,10 +216,10 @@ antiforgery setup or view models with the BFF.
 ## 6. Host (`Agentd.Host`): composition root
 
 - `Program.cs` wires everything: `AddDomain()`, `AddApplication()`, `AddPersistence()`,
-  `AddAzureDevOps()`, `AddDiscord()`, `AddClaude()`, `AddGit()`, `AddBff()`, `AddMcp()`.
+  `AddAzureDevOps()`, `AddMessagingDiscord()`, `AddMessagingTelegram()`, `AddClaude()`, `AddGit()`, `AddBff()`, `AddMcp()`.
 - **Workers** (`BackgroundService`, driving adapters triggered by time):
   `WorkItemPollingWorker` → `PollWorkItems`, `SchedulerWorker` → `StartNextJob`,
-  `RetentionWorker` → drops old event partitions, and `StartupRecovery` → `RecoverJobsOnStartup`.
+  `MessagingDispatcherWorker` → delivers the outbox, `RetentionWorker` → drops old event partitions, and `StartupRecovery` → `RecoverJobsOnStartup`.
 - Holds `wwwroot/` (the Vite build output), `appsettings*.json`, OpenTelemetry and health checks.
 - Contains no business logic.
 
@@ -221,7 +233,7 @@ antiforgery setup or view models with the BFF.
 | `Agentd.Application.Tests` | handlers with in-memory fakes of the ports |
 | `Agentd.Infrastructure.Tests` | Persistence against real PostgreSQL (Testcontainers); the stream-json parser against recorded fixtures; ADO clients against recorded HTTP |
 | `Agentd.Bff.Tests` | `WebApplicationFactory`: auth, antiforgery (unsafe methods without the header → 400), CSP header present, view-model shape |
-| `Agentd.ArchitectureTests` | enforces §1. For example: Domain has no reference outside the BCL; Application does not reference `Microsoft.EntityFrameworkCore`, `Microsoft.AspNetCore.*` or `Discord`; Bff/Mcp do not reference `Agentd.Infrastructure.*`. |
+| `Agentd.ArchitectureTests` | enforces §1. For example: Domain has no reference outside the BCL; Application does not reference `Microsoft.EntityFrameworkCore`, `Microsoft.AspNetCore.*` `Discord` or `Telegram`; Bff/Mcp do not reference `Agentd.Infrastructure.*`; no `Infrastructure.Messaging.*` project references another. |
 
 ---
 
@@ -236,7 +248,7 @@ antiforgery setup or view models with the BFF.
 | Worktree Manager | `Infrastructure.Git` behind `IWorktreeManager` |
 | Agent Runner | `Infrastructure.Claude` behind `IAgentRunner` |
 | agentd MCP server | `Agentd.Mcp` (Presentation) |
-| Discord Gateway | `Infrastructure.Discord` (`IChatChannel` outbound; inbound calls Application commands) |
+| Messaging (Discord, Telegram, …) | `IMessagingProvider` port + `MessagingService` / `HandleInboundMessage` in Application; one `Infrastructure.Messaging.*` project per platform |
 | Event Bus | `IEventStore` / `IEventPublisher` ports → Persistence + in-process channels |
 | Web Server / Web UI | `Agentd.Bff` + `web/` |
 | PR Publisher | `PublishPullRequest` use case → `IPullRequestService` |

@@ -86,7 +86,7 @@ Extra tokens not covered by daisyUI:
 | `assistant.text` | plain transcript text on `base-100`, with a small green "Claude" label |
 | `tool.call` / `tool.result` | collapsible card on `base-200`: tool name in mono, one-line summary; expanding shows the full input and output |
 | `ask_developer` | `chat-start` bubble with `bg-warning/15` and a `border-warning` left border |
-| `discord.inbound` / UI message | `chat-end` bubble, `bg-primary/15` |
+| `message.inbound` / UI message | `chat-end` bubble, `bg-primary/15`, with a small provider label (Discord · Telegram · Web) |
 | `job.state_changed` | full-width `divider` with a state badge and time |
 | `turn.result` | small muted line: turns · tokens · cost |
 | `job.error` | `alert alert-error alert-soft` |

@@ -15,7 +15,7 @@ All browser-facing protection lives in the **BFF** (`Agentd.Bff`). The SPA never
 
 | Threat | Mitigation |
 |---|---|
-| XSS through agent output, work item text or Discord messages rendered in the UI | Vue text interpolation only (no `v-html`); strict CSP (§3); Trusted Types (§3.4) |
+| XSS through agent output, work item text or chat messages rendered in the UI | Vue text interpolation only (no `v-html`); strict CSP (§3); Trusted Types (§3.4) |
 | Token theft via XSS | no tokens in JS-readable storage; every cookie is `HttpOnly` (§2) |
 | CSRF against `/api/*` actions (cancel, retry, message, run) | antiforgery token in a header + `SameSite=Strict` cookies (§2) |
 | Cross-site WebSocket hijacking of `/hubs/events` | `Origin` check on the hub + `SameSite=Strict` (§2.5) |

@@ -2,8 +2,8 @@
 
 The Web UI shows every agent session in real time: what each agent is doing, which work item it
 is on, and where it needs a human. You can also cancel, retry, or message an agent from it.
-Discord remains the main conversation channel, and messages sent from the UI are mirrored into
-the job's Discord thread.
+Chat (Discord, Telegram, … through messaging providers) remains the main conversation channel, and
+messages sent from the UI are mirrored into all of the job's chat conversations.
 
 - **Stack:** Vue 3 (`<script setup>`, TypeScript) · Vite · Vue Router · **Pinia (plain reactive
   stores)** · daisyUI 5 / Tailwind CSS 4 · base-ui-vue primitives · `@microsoft/signalr`
@@ -42,6 +42,9 @@ Adding anything else needs a note in this section explaining why.
 | `/` | `DashboardView` | all active jobs, live |
 | `/jobs/:id` | `SessionView` | live trace of one job (tabs: Transcript · Diff · Details) |
 | `/history` | `HistoryView` | finished, failed and cancelled jobs, with search and filters |
+| `/learnings` | `LearningsView` | approved learnings per repo, pending candidates, distill runs and Learnings PRs, and global-learning approval cards |
+| `/repos` | `ReposView` | registered repositories: **kit status** (version, valid or invalid with errors, customized files, upgrade available), with **Initialize kit** / **Upgrade kit** buttons that open kit PRs |
+| `/models` | `ModelsView` | model profiles: health (circuit breaker), concurrency in use, today's cost vs budget, outcomes per phase |
 | `/settings` | `SettingsView` | read-only config summary, theme, connection info |
 
 ---
@@ -91,7 +94,7 @@ Concurrency  ███████████░░░  3 / 3 slots            
 
 - Rows update live from the `jobs` store (state, elapsed, turns, cost). A changed cell flashes
   briefly with `bg-primary/10`.
-- Clicking a row opens `/jobs/:id`. A row action menu offers Open in Discord, Open work item,
+- Clicking a row opens `/jobs/:id`. A row action menu offers Open chat (one entry per provider), Open work item,
   Open PR, Cancel and Retry.
 - Waiting rows sort first and are tinted `bg-warning/10`.
 - **Empty state:** "No active jobs. Tag a work item with `ai-workflow` to start one." plus a
@@ -99,10 +102,16 @@ Concurrency  ███████████░░░  3 / 3 slots            
 
 ### 4.2 Session (`/jobs/:id`)
 
+Below the header, a **phase stepper** (Design → Plan → Implement → Test → Review) shows the current
+phase, loop counts (e.g. `Test ↺2`) and each phase's model profile and cost. An open gate shows
+**Approve / Reject** buttons. A fourth tab, **Artifacts**, shows `design.md`, `plan.md`, the test
+report, `review.md` and the retrospective. See
+[workflow-and-learning.md](../architect/workflow-and-learning.md).
+
 ```
 ← Dashboard
 WI-1234 · Fix login redirect                      ● Running   ⏱ 12m   34 turns   $0.81
-agentd · ai/1234-fix-login · session 8f3c…      [Discord ↗] [Work item ↗] [PR ↗]   [Cancel] [Retry]
+agentd · ai/1234-fix-login · session 8f3c…      [Discord ↗][Telegram ↗] [Work item ↗] [PR ↗]   [Cancel] [Retry]
 
 [ Transcript | Diff | Details ]                                                     AgTabs
 ┌──────────────────────────────────────────────────────────────┬───────────────────────────┐
@@ -115,11 +124,11 @@ agentd · ai/1234-fix-login · session 8f3c…      [Discord ↗] [Work item ↗
 │   │ - return res.redirect(req.query.next)                    │ Turns   34 / 200          │
 │   │ + return res.redirect(safeNext(req.query.next))          │ ██████░░░░░░░░░░          │
 │ ⚠ Question  Keep the legacy /login endpoint?                 │ Tokens  412k              │
-│                             No, remove it. — tngo (Discord) ▸│ Cost    $0.81             │
+│                            No, remove it. — tngo (Telegram) ▸│ Cost    $0.81             │
 │ ─ 34 turns · 412k tokens · $0.81 ─                           │                           │
 │                              [ Load earlier ]  (top)         │                           │
 ├──────────────────────────────────────────────────────────────┴───────────────────────────┤
-│ 💬 Message the agent… (also posted to the Discord thread)                         [Send] │
+│ 💬 Message the agent… (mirrored to Discord + Telegram)                            [Send] │
 └──────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -342,7 +351,7 @@ The full policy is in **[docs/security](../security/README.md)**. The UI-facing 
 - Agent output is **untrusted**. Render it as text or through the markdown-lite renderer, never
   with `v-html`. The work item description is the one exception: it is sanitized server-side
   before it is sent.
-- External links (work item, PR, Discord) use `rel="noopener noreferrer"` and open in a new tab.
+- External links (work item, PR, chat conversations) use `rel="noopener noreferrer"` and open in a new tab.
 - The UI never stores tokens. Auth is a same-origin HTTP-only cookie.
 
 ---
@@ -364,7 +373,7 @@ web/
 │   │   ├── ui/               # Ag* reusable components (base-ui-vue + daisyUI)
 │   │   ├── icons/            # inline SVG SFCs
 │   │   └── *.vue             # feature components (§7)
-│   ├── views/                # DashboardView, SessionView, HistoryView, SettingsView
+│   ├── views/                # DashboardView, SessionView, HistoryView, ReposView, LearningsView, ModelsView, SettingsView
 │   ├── utils/                # diff.ts, format.ts (durations, cost), markdown-lite.ts
 │   └── styles/app.css        # Tailwind + daisyUI + agentd themes
 └── tests/                    # vitest: stores (event dedupe, windowing, reconnect), components
