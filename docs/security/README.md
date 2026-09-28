@@ -8,6 +8,7 @@ sandboxing) are covered in [Architecture §5](../architect/README.md#5-security-
 Related: [UI spec](../ui/README.md) · [Design System](../design-system/README.md) · [Clean Architecture + BFF](../architect/clean-architecture-bff.md)
 
 All browser-facing protection lives in the **BFF** (`Agentd.Bff`). The SPA never holds a credential.
+Sign-in is **SSO with Microsoft Entra ID or Google (OIDC, server-side)**, and roles are Viewer, Operator and Admin. See **[authentication.md](authentication.md)**.
 
 ---
 
@@ -31,7 +32,7 @@ All browser-facing protection lives in the **BFF** (`Agentd.Bff`). The SPA never
 
 | Cookie | Purpose | Flags |
 |---|---|---|
-| `__Host-agentd.auth` | auth session (Discord OAuth mode) | `HttpOnly`, `Secure`, `SameSite=Strict`, `Path=/` |
+| `__Host-agentd.auth` | auth session (SSO mode, [authentication.md](authentication.md)) | `HttpOnly`, `Secure`, `SameSite=Strict`, `Path=/` |
 | `__Host-agentd.af` | antiforgery **cookie token** | `HttpOnly`, `Secure`, `SameSite=Strict`, `Path=/` |
 
 - **No cookie is readable by JavaScript.** This deliberately differs from the common SPA
@@ -41,8 +42,9 @@ All browser-facing protection lives in the **BFF** (`Agentd.Bff`). The SPA never
   rejects it, drop the prefix in the `Development` environment only.
 - `SameSite=Strict` is safe here because agentd is never embedded in, or navigated to with side
   effects from, another site.
-  - **Exception:** the OAuth callback. The correlation and nonce cookies that ASP.NET Core issues
-    for the Discord handshake must use `SameSite=Lax`, which is the handler's default.
+  - **Exception:** the OIDC handshake. The short-lived correlation and nonce cookies use
+    `SameSite=Lax`, which is the handler's default. That works because the callback uses
+    `response_mode=query` (a GET redirect). See [authentication.md §1](authentication.md#1-flow).
 
 ### 2.2 How the SPA gets the request token without a readable cookie
 
@@ -80,7 +82,7 @@ builder.Services.AddAntiforgery(o =>
     o.SuppressXFrameOptionsHeader = true;   // CSP frame-ancestors covers it (§3)
 });
 
-builder.Services.ConfigureApplicationCookie(o => { /* only in DiscordOAuth mode */
+builder.Services.ConfigureApplicationCookie(o => { /* SSO mode; full setup in authentication.md §3 */
     o.Cookie.Name = "__Host-agentd.auth";
     o.Cookie.HttpOnly = true;
     o.Cookie.SecurePolicy = CookieSecurePolicy.Always;
@@ -225,7 +227,7 @@ Reporting-Endpoints: csp="/api/csp-report"
 | No inline `<style>` / `style="..."` in HTML | all CSS comes from the built `/assets/*.css`. Vue `:style` bindings and base-ui-vue positioning set styles through the CSSOM (`el.style.*`), which `style-src 'self'` allows. |
 | No external fonts, CDNs or analytics | system font stack (Design System §3), icons as inline SVG components |
 | `connect-src 'self'` | REST and SignalR are same-origin. CSP Level 3 browsers match `ws:`/`wss:` to the same origin under `'self'`. |
-| `form-action 'self'` | make **login a link** (`<a href="/bff/login">`, a GET navigation), not a form POST. A POST that redirects to `discord.com` would be blocked. Logout is a same-origin `POST /bff/logout` with the antiforgery header. |
+| `form-action 'self'` | make **login a link** (`<a href="/bff/login">`, a GET navigation), not a form POST. A POST that redirects to the IdP (`login.microsoftonline.com`, `accounts.google.com`) would be blocked. Logout is a same-origin `POST /bff/logout` with the antiforgery header. |
 
 ### 3.3 Development
 

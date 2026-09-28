@@ -12,6 +12,10 @@ Related: [Architecture](README.md) · [Clean Architecture + BFF](clean-architect
 
 ## 1. The five phases
 
+The pipeline is executed as a **Microsoft Agent Framework workflow**: executors per phase,
+conditional edges for the loops, request ports for gates and `ask_developer`, and checkpoints in
+PostgreSQL. See [orchestration-maf.md](orchestration-maf.md).
+
 ```mermaid
 flowchart LR
     D[Design] --> P[Plan] --> I[Implement] --> T[Test] --> R[Review] --> PR[[Publish PR]]

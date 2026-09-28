@@ -105,6 +105,7 @@ flowchart LR
 | Messaging | Provider pattern ([messaging-providers.md](messaging-providers.md)): **Discord.Net** (Discord), **Telegram.Bot** (Telegram) |
 | Real-time to browser | **SignalR** hub (WebSockets, with automatic fallback) |
 | Web UI | **Vue 3 + TypeScript + Vite**, Pinia stores, **daisyUI** on Tailwind CSS, headless parts from **base-ui-vue**. See §3.9, [docs/ui](../ui/README.md) and [docs/design-system](../design-system/README.md). |
+| Orchestration | **Microsoft Agent Framework** Workflows for the phase pipeline, gates and checkpoints; MAF agents for non-coding LLM steps; Claude Code CLI for coding ([orchestration-maf.md](orchestration-maf.md)) |
 | In-process event bus | `System.Threading.Channels` + PostgreSQL `LISTEN/NOTIFY` |
 | Logging / tracing | `ILogger` + OpenTelemetry (traces per job, metrics for cost and turns) |
 | Local dev | `docker compose` for Postgres (or .NET Aspire AppHost) |
@@ -123,7 +124,7 @@ flowchart LR
   - Dependencies point inward only, which is enforced by architecture tests.
 - **BFF.**
   - The Vue SPA talks only to `Agentd.Bff`, on the same origin.
-  - The BFF owns login (Discord OAuth, server-side), the HttpOnly session cookie, antiforgery, CSP,
+  - The BFF owns login (**SSO via Microsoft Entra ID or Google**, OIDC, server-side), the HttpOnly session cookie, antiforgery, CSP,
     the SignalR hub and **screen-shaped `/api` endpoints**.
   - No token ever reaches the browser, and ADO and chat bot credentials never leave the server.
 
@@ -180,11 +181,17 @@ and are validated at startup. Secrets are only supplied through env vars or a se
         "WaitForHumanTimeout": "3.00:00:00" // give up waiting for an answer
       }
     },
+    "Users": [                         // one directory for web SSO + chat (security/authentication.md §4)
+      { "Name": "tngo", "Email": "tngo@example.com", "Roles": ["Admin"],
+        "Identities": { "Discord": "789...", "Telegram": "123456789" } }
+    ],
+    "Auth": {                          // security/authentication.md §6
+      "Mode": "Sso",                   // None (loopback only) | Sso
+      "Providers": { "Microsoft": { "Enabled": true, "TenantId": "…", "ClientId": "…" },
+                     "Google":    { "Enabled": true, "ClientId": "…", "AllowedHostedDomains": ["example.com"] } }
+    },
     "Messaging": {                     // see messaging-providers.md §6
       "DefaultProviders": ["discord"],
-      "Users": [                       // only these users can steer agents
-        { "Name": "tngo", "Discord": "789...", "Telegram": "123456789" }
-      ],
       "Providers": {
         "Discord":  { "Enabled": true, "GuildId": "123...", "ChannelId": "456..." },
         "Telegram": { "Enabled": true, "ChatId": "-1001234567890", "Mode": "LongPolling" }
@@ -192,7 +199,6 @@ and are validated at startup. Secrets are only supplied through env vars or a se
     },
     "Web": {
       "Urls": "http://127.0.0.1:7780",
-      "Auth": "None",                  // None | DiscordOAuth
       "EventRetentionDays": 30
     }
   }
@@ -230,7 +236,9 @@ See [references/azure-devops.md](references/azure-devops.md).
 ### 3.4 Scheduler / Supervisor (the core)
 
 This component owns the **job state machine**, enforces `maxConcurrent`, and is the only component
-that writes to the state store.
+that writes to the state store. The phase pipeline inside `Running` is executed by a **Microsoft
+Agent Framework workflow** (checkpointed in PostgreSQL). The Domain `Job` stays the source of truth
+([orchestration-maf.md](orchestration-maf.md)).
 
 ```mermaid
 stateDiagram-v2
@@ -432,7 +440,7 @@ and component styling rules are in **[docs/design-system](../design-system/READM
 | Endpoint | Purpose |
 |---|---|
 | `/` (static SPA) | Vue app: Dashboard, Session trace, Diff, History pages |
-| `GET /bff/login?returnUrl=` / `POST /bff/logout` / `GET /bff/user` | server-side Discord OAuth session (HttpOnly cookie) |
+| `GET /bff/login?provider=microsoft\|google&returnUrl=` / `POST /bff/logout` / `GET /bff/user` / `GET /bff/providers` | server-side OIDC SSO session (HttpOnly cookie); see [authentication.md](../security/authentication.md) |
 | `GET /bff/antiforgery` | issues the antiforgery request token in the response body; the cookie half is HttpOnly ([Security §2](../security/README.md#2-cookies-and-antiforgery)) |
 | `GET /api/dashboard` | screen-shaped: stats + active jobs in one call |
 | `GET /api/history?state=&repo=&q=&page=` | finished, failed and cancelled jobs, paged |
@@ -457,9 +465,10 @@ and component styling rules are in **[docs/design-system](../design-system/READM
 4. **History:** finished and failed jobs, with the full replay, PR link and cost.
 
 **Auth.** The server listens on localhost only by default. Remote access goes through a reverse
-proxy or a tunnel (e.g. Tailscale or Cloudflare Access), or through ASP.NET Core authentication
-with **Discord OAuth2** (`AspNet.Security.OAuth.Discord`) and a cookie session, where an
-authorization policy restricts access to `AllowedUserIds`. The SPA and API share one origin, so the
+proxy or a tunnel (e.g. Tailscale or Cloudflare Access), with **SSO through Microsoft Entra ID or
+Google** (OIDC code flow + PKCE, run by the BFF) and a cookie session. Access is limited to the user
+directory, and role policies apply: Viewer, Operator, Admin
+([authentication.md](../security/authentication.md)). The SPA and API share one origin, so the
 cookie covers the REST calls and the SignalR connection alike, with no tokens stored in the browser. Secrets and env are redacted from events before they are stored.
 
 ### 3.10 PR Publisher
@@ -553,6 +562,7 @@ agentd/
 │   ├── Agentd.Infrastructure.Messaging.Telegram/  # IMessagingProvider: Telegram.Bot, forum topics, long polling
 │   ├── Agentd.Infrastructure.Claude/       # claude process runner, stream-json parser
 │   ├── Agentd.Infrastructure.Git/          # worktrees, push, diff
+│   ├── Agentd.Infrastructure.Orchestration/ # MAF workflows, executors, checkpoint store, MAF agents
 │   ├── Agentd.Bff/                         # BFF: /bff session endpoints, /api view models, SignalR hub,
 │   │                                       #      auth, antiforgery, CSP/security headers, SPA fallback
 │   ├── Agentd.Mcp/                         # MCP tools → Application commands (per-job bearer auth)
@@ -595,10 +605,11 @@ agentd/
 | 7 | Discord library: Discord.Net vs NetCord | Discord.Net (mature, widely used); NetCord if newer Discord features are needed. It stays swappable inside the provider. |
 | 12 | ~~Workflow~~ | **Decided:** Design → Plan → Implement → Test → Review + learning loop ([workflow-and-learning.md](workflow-and-learning.md)) |
 | 13 | ~~Models~~ | **Decided:** per-phase model profiles with fallback chains ([model-profiles.md](model-profiles.md)) |
+| 16 | ~~Orchestration framework~~ | **Decided:** Microsoft Agent Framework Workflows + MAF agents for non-coding steps; Claude Code stays the coding runner; MAF Harness Agent is benchmark-gated ([orchestration-maf.md](orchestration-maf.md)) |
 | 15 | ~~Per-repo process knowledge~~ | **Decided:** ai-sdlc kit in `.agentd/`, initialized by agentd and owned by the team ([ai-sdlc-kit.md](ai-sdlc-kit.md)) |
 | 14 | Gemini integration | LiteLLM-style gateway via `ANTHROPIC_BASE_URL` first; a `GeminiCliRunner` only if tool-use quality needs it |
 | 11 | ~~Chat platform~~ | **Decided:** provider pattern; Discord + Telegram first ([messaging-providers.md](messaging-providers.md)) |
-| 8 | Web UI auth for remote access | localhost + tunnel in v1; Discord OAuth2 through the BFF in v2 |
+| 8 | ~~Web UI auth~~ | **Decided:** OIDC SSO (Microsoft Entra ID, Google) through the BFF; `Mode: None` only on loopback ([authentication.md](../security/authentication.md)) |
 | 9 | ~~Solution structure~~ | **Decided:** Clean Architecture + in-process BFF ([clean-architecture-bff.md](clean-architecture-bff.md)) |
 | 10 | Split the BFF into its own process? | Not in v1; it depends only on Application ports, so it can be split later |
 
@@ -609,6 +620,7 @@ agentd/
 - [workflow-and-learning.md](workflow-and-learning.md) — phases, gates, learnings capture → distill → review → apply
 - [model-profiles.md](model-profiles.md) — per-phase model and provider routing, fallbacks, cost
 - [ai-sdlc-kit.md](ai-sdlc-kit.md) — per-repo `.agentd/` kit: init, customize, upgrade, validate
+- [orchestration-maf.md](orchestration-maf.md) — Microsoft Agent Framework workflow graph, checkpoints, MAF agents
 - [references/azure-devops.md](references/azure-devops.md) — auth, WIQL, work item & PR REST calls
 - [references/discord.md](references/discord.md) — bot setup, intents, threads
 - [references/telegram.md](references/telegram.md) — bot setup, forum topics, long polling, inline keyboards
@@ -616,3 +628,4 @@ agentd/
 - [../ui/README.md](../ui/README.md) — Web UI screens, Pinia stores, components
 - [../design-system/README.md](../design-system/README.md) — colors, theme, tokens, component styling
 - [../security/README.md](../security/README.md) — antiforgery with HttpOnly cookies, CSP, security headers
+- [../security/authentication.md](../security/authentication.md) — SSO (Microsoft Entra ID, Google), user directory, roles, sessions

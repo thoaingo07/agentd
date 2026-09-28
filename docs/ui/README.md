@@ -45,6 +45,7 @@ Adding anything else needs a note in this section explaining why.
 | `/learnings` | `LearningsView` | approved learnings per repo, pending candidates, distill runs and Learnings PRs, and global-learning approval cards |
 | `/repos` | `ReposView` | registered repositories: **kit status** (version, valid or invalid with errors, customized files, upgrade available), with **Initialize kit** / **Upgrade kit** buttons that open kit PRs |
 | `/models` | `ModelsView` | model profiles: health (circuit breaker), concurrency in use, today's cost vs budget, outcomes per phase |
+| `/login` | `LoginView` | SSO buttons (Microsoft, Google) from `/bff/providers`; shows `access_denied` errors |
 | `/settings` | `SettingsView` | read-only config summary, theme, connection info |
 
 ---
@@ -275,8 +276,9 @@ export const useEventsStore = defineStore('events', () => {
 
 ### 5.4 `session`
 
-This store holds the current user from `GET /bff/user`, or `null` on 401. It exposes `login()`,
-which navigates to `/bff/login?returnUrl=…`, and `logout()`, which sends `POST /bff/logout` and then
+This store holds the current user from `GET /bff/user` (`name`, `roles`, `provider`), or `null` on 401. It exposes
+`login(provider)`, which navigates to `/bff/login?provider=microsoft|google&returnUrl=…`, a `hasRole()` helper for showing or hiding
+Operator and Admin actions (the server enforces them regardless), and `logout()`, which sends `POST /bff/logout` and then
 calls `resetXsrf()`. In `Auth: None` mode, `/bff/user` returns a local pseudo-user.
 
 ### 5.5 `ui`
@@ -296,7 +298,7 @@ toast queue, per-job event filters, and the follow mode flag per job.
 | `hub.ts` | the SignalR connection factory and event names |
 
 Errors surface as a daisyUI `alert` in the affected view, plus a toast for failed actions. A `401`
-sends the browser to `/bff/login?returnUrl=<current path>` (only in Discord OAuth mode).
+sends the browser to the `/login` page with `returnUrl=<current path>`, which offers **Sign in with Microsoft / Google** (links to `/bff/login?provider=…`; see [authentication.md §7](../security/authentication.md#7-web-ui)).
 
 ---
 
@@ -347,7 +349,7 @@ The full policy is in **[docs/security](../security/README.md)**. The UI-facing 
   Use the runtime-only Vue build only.
 - **HttpOnly cookies only.** The antiforgery request token lives in memory (`http.ts`), and
   `resetXsrf()` is called after login and logout.
-- **Login** is a link to `/bff/login` (GET), not a form POST, because of `form-action 'self'`.
+- **Login** is SSO (Microsoft or Google) through links to `/bff/login?provider=…` (GET), not a form POST, because of `form-action 'self'`. No IdP JavaScript is loaded.
 - Agent output is **untrusted**. Render it as text or through the markdown-lite renderer, never
   with `v-html`. The work item description is the one exception: it is sanitized server-side
   before it is sent.

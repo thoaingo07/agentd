@@ -31,7 +31,7 @@ profile is the **process environment**:
 | **Anthropic API key** | `ANTHROPIC_API_KEY` |
 | **DeepSeek** | DeepSeek's Anthropic-compatible endpoint + API key |
 | **GLM (Zhipu / Z.ai)** | GLM's Anthropic-compatible endpoint + API key (or a GLM coding-plan key) |
-| **Gemini** | Gemini has no Anthropic-compatible endpoint, so traffic goes through a local **translating gateway** (for example a LiteLLM proxy on `127.0.0.1`) that exposes an Anthropic-style API in front of the Gemini API. Alternatively, add a second `IAgentRunner` implementation that drives the Gemini CLI (§7). |
+| **Gemini** | **Non-coding steps** (retrospective, curator, bootstrap, optional reviewer) use MAF's native Gemini connector ([orchestration-maf.md §5](orchestration-maf.md#5-non-coding-agents-on-maf)). **Coding phases:** Gemini has no Anthropic-compatible endpoint, so traffic goes through a local **translating gateway** (for example a LiteLLM proxy on `127.0.0.1`) that exposes an Anthropic-style API in front of the Gemini API. Alternatively, add a second `IAgentRunner` implementation that drives the Gemini CLI (§7). |
 | **Any other compatible endpoint or gateway** | `Kind: AnthropicCompatible` with a base URL |
 
 Endpoint URLs and model IDs are **configuration**, not code. Providers rename models often. Check

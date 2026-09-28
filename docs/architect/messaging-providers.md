@@ -162,12 +162,14 @@ provider listener → InboundMessage → HandleInboundMessage
 
 ## 6. Configuration
 
+Chat identities are part of the shared **user directory** (top-level `Users`, with
+`Identities.Discord` / `Identities.Telegram`), which also backs web SSO and roles
+([authentication.md §4](../security/authentication.md#4-users-identities-and-roles)). Chat actions
+follow the same roles. For example, only an `Operator` can reply to an agent or `cancel` a job.
+
 ```jsonc
 "Messaging": {
   "DefaultProviders": ["discord"],            // conversations opened for every job
-  "Users": [                                  // allowlist + identity mapping
-    { "Name": "tngo", "Discord": "789...", "Telegram": "123456789" }
-  ],
   "Providers": {
     "Discord": {
       "Enabled": true,

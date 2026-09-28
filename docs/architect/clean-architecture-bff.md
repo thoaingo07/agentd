@@ -132,6 +132,7 @@ public interface IQueryHandler<in TQuery, TResult>     { Task<TResult> Handle(TQ
 | `IKitStore` (read the kit snapshot from the base branch; init and upgrade branches; 3-way merge) | Git + AzureDevOps ([ai-sdlc-kit.md](ai-sdlc-kit.md)) |
 | `ILearningStore` (approved learnings, candidates, learnings PR) | Git + Persistence + AzureDevOps ([workflow-and-learning.md](workflow-and-learning.md)) |
 | `IWorktreeManager` (create, remove, diff, prune) | Git |
+| `IJobWorkflowEngine` (start, resume with a human response, cancel) | Orchestration: Microsoft Agent Framework workflows ([orchestration-maf.md](orchestration-maf.md)) |
 | `IClock`, `IIdGenerator` | Host (defaults) |
 
 The provider-agnostic `MessagingService` (routing, fan-out, chunking, mirroring, outbox) is an
@@ -155,6 +156,7 @@ One project per external system, so that a dependency (e.g. Discord.Net) stays i
 | `Infrastructure.Messaging.Telegram` | `TelegramMessagingProvider`, long-polling (or webhook) listener, bot commands, inline keyboards, HTML renderer. Inbound updates → `HandleInboundMessage`. |
 | `Infrastructure.Claude` | `ClaudeProcessRunner` (`ProcessStartInfo.ArgumentList`, secret-stripped env), stream-json parser → `RecordAgentOutput` |
 | `Infrastructure.Git` | `git` CLI wrapper for worktrees, push, diff |
+| `Infrastructure.Orchestration` | MAF workflow graph (versioned), executors, request ports, PostgreSQL checkpoint store, `IChatClientFactory`, MAF agents (retro, curator, bootstrap). The **only** project referencing `Microsoft.Agents.AI*`. |
 
 Each project exposes a single `AddXxx(this IServiceCollection, IConfiguration)` extension, which the
 Host calls.
@@ -170,8 +172,8 @@ concerns:
 
 | Responsibility | Details |
 |---|---|
-| **Session & auth** | Discord OAuth2 login handled server-side; the session is an HttpOnly cookie. **No access or refresh tokens in the browser.** Downstream credentials (ADO token/PAT, Discord bot token) never leave the server. |
-| **Session endpoints** (`/bff/*`) | `GET /bff/login?returnUrl=` (challenge → Discord), `POST /bff/logout`, `GET /bff/user` (the current user, or 401), `GET /bff/antiforgery` (request token in the body) |
+| **Session & auth** | SSO with Microsoft Entra ID / Google (OIDC code + PKCE) handled server-side ([authentication.md](../security/authentication.md)); the session is an HttpOnly cookie. **No access or refresh tokens in the browser.** Downstream credentials (ADO token/PAT, Discord bot token) never leave the server. |
+| **Session endpoints** (`/bff/*`) | `GET /bff/login?provider=&returnUrl=` (challenge → Entra ID / Google), `GET /bff/providers`, `POST /bff/logout`, `GET /bff/user` (the current user, or 401), `GET /bff/antiforgery` (request token in the body) |
 | **UI-shaped API** (`/api/*`) | one endpoint per screen need, returning **view models**, not domain or Application types: `GET /api/dashboard` (stats + active jobs in one call), `GET /api/jobs/{id}`, `GET /api/jobs/{id}/events`, `GET /api/jobs/{id}/diff`, `GET /api/history`, `POST /api/jobs/{id}/cancel`, … |
 | **Real-time** | SignalR hub `/hubs/events` (read-only subscribe), fed by `IEventPublisher` |
 | **Protection** | antiforgery filter on `/api` and `/bff` unsafe methods; CSP and security headers; Origin check on the hub ([Security](../security/README.md)) |
