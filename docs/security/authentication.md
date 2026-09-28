@@ -168,7 +168,8 @@ wherever they act:
     "Name": "tngo",
     "Email": "tngo@example.com",
     "Roles": ["Admin"],
-    "Identities": { "Discord": "789...", "Telegram": "123456789" }   // chat identities
+    "Identities": { "Discord": "789...", "Telegram": "123456789",     // chat identities
+                    "AzureDevOps": "tngo@example.com" }             // ADO identity: authorizes PR comments to trigger fixes
   }
 ]
 ```
@@ -192,8 +193,8 @@ wherever they act:
 
 | Role | Web UI / API | Chat |
 |---|---|---|
-| `Viewer` | dashboards, traces, diffs, history, learnings; SignalR subscribe | `status`, `logs`, `list` |
-| `Operator` | + message agents, approve or reject gates, cancel, retry, run a work item | + reply to agents, `cancel`, `retry`, `run` |
+| `Viewer` | dashboards (incl. the PR dashboard), traces, diffs, history, learnings, review results; SignalR subscribe | `status`, `logs`, `list` |
+| `Operator` | + message agents, approve or reject gates, cancel, retry, run a work item; **run PR reviews, fix now, toggle PR monitoring, create hotfixes** | + reply to agents, `cancel`, `retry`, `run`, `review`, `fix`, `monitor`, `hotfix` |
 | `Admin` | + repositories and kit init/upgrade, model profiles, users, approve global learnings | + `init <repo>` |
 
 ```csharp

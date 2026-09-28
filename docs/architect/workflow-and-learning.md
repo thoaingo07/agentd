@@ -35,7 +35,7 @@ flowchart LR
 | **Review** | an independent check before a human sees it | **separate reviewer session** (read-only tools) | `review.md`: findings by severity, and verdict | no blocking findings; otherwise back to Implement, at most `MaxReviewLoops` times |
 
 - **Each phase's instructions, artifact template and review checklist come from the repo's
-  ai-sdlc kit** (`.agentd/phases/*.md`, `.agentd/templates/*.md`, `.agentd/checklists/review.md`),
+  ai-sdlc kit** (`.agentd/phases/*.md`, `.agentd/templates/*.md`, `.agentd/reviewers/*.md`),
   which is initialized by agentd and customized by the team ([ai-sdlc-kit.md](ai-sdlc-kit.md)).
 - Each phase runs on the **model profile** chosen for it ([model-profiles.md](model-profiles.md)), e.g.
   Claude for Design and Plan, a fast model for Implement and Test, and a different family for Review.
@@ -264,5 +264,5 @@ The agentd config holds only the defaults and the daemon-wide learning settings:
 | `CompletePhase`, `ApproveGate` / `RejectGate`, `RecordLearning`, `RunRetrospective`, `DistillLearnings`, `GetLearnings` use cases; `ILearningStore` port (reads and writes `learnings.md` via Git, candidates via the DB) | Application |
 | learnings file parser and renderer, Git branch/PR for the Learnings PR, and ADO PR-comment polling | Infrastructure (Git, AzureDevOps, Persistence) |
 | `complete_phase`, `record_learning`, `get_learnings` MCP tools | `Agentd.Mcp` |
-| `LearningDistillationWorker`, `PullRequestFeedbackWorker` | Host workers |
+| `LearningDistillationWorker`, `PullRequestMonitorWorker` ([pr-reviewer-and-monitor.md](pr-reviewer-and-monitor.md)) | Host workers |
 | phase stepper, artifacts, Learnings page, gate approve/reject | `Agentd.Bff` + `web/` |

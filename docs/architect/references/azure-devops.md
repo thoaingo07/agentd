@@ -89,6 +89,44 @@ POST /{project}/_apis/git/repositories/{repositoryId}/pullrequests?api-version=7
 CLI equivalent:
 `az repos pr create --source-branch ai/1234-fix-login --target-branch main --title ... --description ... --work-items 1234`
 
+## Pull request monitoring & review
+
+```http
+GET  /{project}/_apis/git/repositories/{repo}/pullrequests?searchCriteria.status=active&api-version=7.1
+GET  /{project}/_apis/git/repositories/{repo}/pullRequests/{prId}/threads?api-version=7.1
+GET  /{project}/_apis/git/repositories/{repo}/pullRequests/{prId}/iterations?api-version=7.1
+GET  /{project}/_apis/policy/evaluations?artifactId=vstfs:///CodeReview/CodeReviewId/{projectId}/{prId}&api-version=7.1-preview.1
+GET  /{project}/_apis/build/builds/{buildId}/timeline?api-version=7.1        # locate failed tasks, then fetch their logs
+```
+
+The PR object carries `mergeStatus` (`succeeded`, `conflicts`, …), `lastMergeSourceCommit` and
+`reviewers[].vote` (10 approved, 5 approved with suggestions, 0 no vote, -5 waiting for author,
+-10 rejected).
+
+Post a finding as a file/line thread:
+
+```http
+POST /{project}/_apis/git/repositories/{repo}/pullRequests/{prId}/threads?api-version=7.1
+{
+  "comments": [ { "parentCommentId": 0, "commentType": 1, "content": "[security] Missing antiforgery filter …\n<!-- agentd:finding:<fingerprint> -->" } ],
+  "status": "active",
+  "threadContext": { "filePath": "/src/Agentd.Bff/Endpoints/JobEndpoints.cs",
+                     "rightFileStart": { "line": 42, "offset": 1 }, "rightFileEnd": { "line": 42, "offset": 1 } }
+}
+```
+
+Reply to a thread and resolve it:
+
+```http
+POST  /{project}/_apis/git/repositories/{repo}/pullRequests/{prId}/threads/{threadId}/comments?api-version=7.1
+{ "parentCommentId": 1, "commentType": 1, "content": "Fixed in abc123: …" }
+
+PATCH /{project}/_apis/git/repositories/{repo}/pullRequests/{prId}/threads/{threadId}?api-version=7.1
+{ "status": "fixed" }        // active | fixed | wontFix | closed | byDesign | pending
+```
+
+PAT scopes add **Build (Read)** (for failure logs), on top of Work Items and Code (Read & Write).
+
 ## Links
 
 - WIQL: https://learn.microsoft.com/rest/api/azure/devops/wit/wiql

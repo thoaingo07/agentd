@@ -15,7 +15,7 @@ Related: [Workflow & Learning](workflow-and-learning.md) · [Model Profiles](mod
 
 ```
 .agentd/
-├── kit.json                 # kit version + repo settings (verify, gates, routing prefs, messaging, paths)
+├── kit.json                 # kit version + repo settings (verify, gates, routing prefs, messaging, paths, pr, hotfix)
 ├── README.md                # what the kit is and how to customize it (for humans)
 ├── context.md               # repo knowledge: architecture, domain glossary, build/run, where things live
 ├── learnings.md             # distilled learnings (managed by the learning loop; human-editable)
@@ -24,14 +24,24 @@ Related: [Workflow & Learning](workflow-and-learning.md) · [Model Profiles](mod
 │   ├── plan.md
 │   ├── implement.md
 │   ├── test.md
-│   └── review.md
+│   ├── review.md
+│   ├── pr-fix.md            # PR Monitor fix rounds: review threads, CI failures, conflicts
+│   └── hotfix.md            # expedited fix on a release branch
 ├── templates/               # required structure of each phase artifact
 │   ├── design.md
 │   ├── plan.md
 │   ├── test-report.md
-│   └── review.md
-├── checklists/
-│   └── review.md            # team review standards, used by the reviewer session
+│   ├── review.md
+│   ├── pr-review-summary.md # summary comment posted by PR Reviewer
+│   ├── pr-fix-report.md     # summary of each PR fix round
+│   └── hotfix.md            # hotfix PR description
+├── reviewers/               # predefined reviewers (one file each: frontmatter + instructions)
+│   ├── README.md
+│   ├── general.md
+│   ├── security.md
+│   ├── architecture.md
+│   ├── tests.md
+│   └── performance.md
 └── hooks/
     └── setup.sh             # optional: run after the worktree is created (restore, codegen, …)
 ```
@@ -108,7 +118,7 @@ It runs these steps:
    - `context.md`: the detected stack, solution layout, entry points and existing docs;
    - `kit.json` `verify`: the detected build, test and lint commands (`*.sln*` → dotnet,
      `package.json` scripts → npm, and so on);
-   - `checklists/review.md`: conventions inferred from linters and config (`.editorconfig`,
+   - `reviewers/general.md`: conventions inferred from linters and config (`.editorconfig`,
      `eslint`, analyzers).
 
    Everything it infers is marked `<!-- inferred: please verify -->`.
@@ -179,7 +189,8 @@ For each phase, the phase prompt is assembled from these parts, in order:
 3. `.agentd/templates/<phase>.md` as the required artifact structure;
 4. `.agentd/context.md` + `paths.context` files + existing `CLAUDE.md` / `AGENTS.md` (within a size budget);
 5. the learnings for this phase, plus path-matched learnings from `.agentd/learnings.md`;
-6. for **review**, additionally `checklists/review.md`.
+6. for **review**, additionally the selected `reviewers/*.md` (`workflow.review.reviewers`). Reviewers
+   are shared with PR Reviewer; see [pr-reviewer-and-monitor.md](pr-reviewer-and-monitor.md).
 
 **Layering** (lowest → highest):
 

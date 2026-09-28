@@ -42,6 +42,8 @@ Adding anything else needs a note in this section explaining why.
 | `/` | `DashboardView` | all active jobs, live |
 | `/jobs/:id` | `SessionView` | live trace of one job (tabs: Transcript · Diff · Details) |
 | `/history` | `HistoryView` | finished, failed and cancelled jobs, with search and filters |
+| `/prs` | `PullRequestsView` | **PR dashboard**: all open PRs across repos, with run review / fix now / monitor / hotfix |
+| `/prs/:repo/:id` | `PullRequestView` | review runs & findings per reviewer, fix rounds, live trace |
 | `/learnings` | `LearningsView` | approved learnings per repo, pending candidates, distill runs and Learnings PRs, and global-learning approval cards |
 | `/repos` | `ReposView` | registered repositories: **kit status** (version, valid or invalid with errors, customized files, upgrade available), with **Initialize kit** / **Upgrade kit** buttons that open kit PRs |
 | `/models` | `ModelsView` | model profiles: health (circuit breaker), concurrency in use, today's cost vs budget, outcomes per phase |
@@ -171,7 +173,47 @@ agentd · ai/1234-fix-login · session 8f3c…      [Discord ↗][Telegram ↗] 
 - A row opens the same `SessionView`. With no live events, it runs as a replay using the same
   components.
 
-### 4.4 Settings
+### 4.4 Pull requests
+
+**Dashboard (`/prs`)**
+
+```
+┌ Open PRs 14 ┐ ┌ Needs attention 4 ┐ ┌ CI failing 2 ┐ ┌ Conflicts 1 ┐ ┌ Fixing now 1 ┐
+[ All | agentd | Mine | Needs attention | CI failing | Conflicts ]     Repo: [all ▾]   🔍
+
+ Repo    PR     Title                       Author   Target   CI   Votes     Threads  Merge   agentd
+ ───────────────────────────────────────────────────────────────────────────────────────────────────────
+ agentd  #123   Fix login redirect (WI-1234) agentd  main     ✗    ⏳ 1/2    3 active  ✓      ● Fixing r2   [⋯]
+ api     #88    Add audit log                tngo    main     ✓    ✓ 2/2    0         ⚠      👁 Monitored   [⋯]
+ web     #41    Bump vite                    agentd  main     ✓    ⏳ 0/1    1 active  ✓      ✓ Reviewed    [⋯]
+```
+
+- The data comes from the `pullRequests` store (`GET /api/prs`), with live updates from `pr.*` events.
+- **Needs attention** = CI failing, conflicts, "waiting for author" votes, or active threads older
+  than a day.
+- The row menu (`[⋯]`), for Operators: **Run review…**, **Fix now…**, **Monitor on/off**,
+  **Create hotfix…**, **Open in Azure DevOps ↗**.
+- **Run review** dialog (`AgModal`):
+  - a checkbox list of the repo's **predefined reviewers**, from `GET /api/repos/{repo}/reviewers`
+    (the kit's `.agentd/reviewers/*.md`), each showing its title, description and `appliesTo`;
+  - `defaultReviewers` are preselected, and reviewers whose paths don't match the PR are greyed
+    out, with the reason;
+  - a toggle to **Post to PR** or **Dry run (UI only)**;
+  - an optional model override, limited to the allowed profiles.
+- **Fix now** dialog: an optional instruction ("make the build green; don't touch the API"), then
+  `POST …/fix`.
+
+**PR detail (`/prs/:repo/:id`)**
+
+- **Header:** title, branches, CI, votes, merge status, monitoring toggle, and links.
+- **Tabs:**
+  - **Reviews:** runs by head commit, with findings grouped by reviewer and severity, each linked
+    to its ADO thread and status;
+  - **Fix rounds:** a timeline of triage → commits → replies, per round;
+  - **Trace:** the same `EventList` as the session view, for the active review or fix job;
+  - **Threads:** active and resolved, with who triggered what.
+
+### 4.5 Settings
 
 - Theme: System / Light / Dark (`AgToggleGroup`).
 - Connection: hub URL, state, last event `seq`, and a reconnect button.
@@ -370,12 +412,12 @@ web/
 │   ├── App.vue               # shell: navbar, <router-view>, toasts
 │   ├── router.ts
 │   ├── api/                  # http.ts, hub.ts, types.ts, schema.d.ts (generated)
-│   ├── stores/               # session.ts, connection.ts, jobs.ts, events.ts, ui.ts
+│   ├── stores/               # session.ts, connection.ts, jobs.ts, events.ts, pullRequests.ts, ui.ts
 │   ├── components/
 │   │   ├── ui/               # Ag* reusable components (base-ui-vue + daisyUI)
 │   │   ├── icons/            # inline SVG SFCs
 │   │   └── *.vue             # feature components (§7)
-│   ├── views/                # DashboardView, SessionView, HistoryView, ReposView, LearningsView, ModelsView, SettingsView
+│   ├── views/                # DashboardView, SessionView, HistoryView, PullRequestsView, PullRequestView, ReposView, LearningsView, ModelsView, SettingsView
 │   ├── utils/                # diff.ts, format.ts (durations, cost), markdown-lite.ts
 │   └── styles/app.css        # Tailwind + daisyUI + agentd themes
 └── tests/                    # vitest: stores (event dedupe, windowing, reconnect), components

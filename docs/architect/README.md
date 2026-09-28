@@ -25,6 +25,9 @@ real-time view of every session: live transcripts, tool calls, state and cost.
   **pluggable messaging providers** (Discord and Telegram first).
 - On completion, **push the branch, create a PR** linked to the work item, and announce it
   in chat.
+- **Keep PRs moving after they open.** PR Reviewer runs the repo's predefined reviewers on any open
+  PR, PR Monitor keeps fixing review comments, CI failures and conflicts, and hotfixes get an
+  expedited flow with an automatic backport ([pr-reviewer-and-monitor.md](pr-reviewer-and-monitor.md)).
 - Run every job through a fixed workflow: **Design → Plan → Implement → Test → Review**,
   with optional human gates ([workflow-and-learning.md](workflow-and-learning.md)).
 - **Initialize an ai-sdlc kit (`.agentd/`) in every repo**: phase instructions, templates,
@@ -183,7 +186,7 @@ and are validated at startup. Secrets are only supplied through env vars or a se
     },
     "Users": [                         // one directory for web SSO + chat (security/authentication.md §4)
       { "Name": "tngo", "Email": "tngo@example.com", "Roles": ["Admin"],
-        "Identities": { "Discord": "789...", "Telegram": "123456789" } }
+        "Identities": { "Discord": "789...", "Telegram": "123456789", "AzureDevOps": "tngo@example.com" } }
     ],
     "Auth": {                          // security/authentication.md §6
       "Mode": "Sso",                   // None (loopback only) | Sso
@@ -450,6 +453,9 @@ and component styling rules are in **[docs/design-system](../design-system/READM
 | `GET /api/jobs/{id}/diff` | `git diff <base>...HEAD` for the worktree |
 | `POST /api/jobs/{id}/cancel` / `retry` / `messages` | same controls as the chat commands; a message is recorded and mirrored to all of the job's chat conversations so every channel keeps one history |
 | `POST /api/workitems/{id}/run` | start a work item immediately |
+| `GET /api/prs?repo=&filter=` / `GET /api/prs/{repo}/{id}` | PR dashboard: open PRs with CI, votes, conflicts, threads, agentd status |
+| `POST /api/prs/{repo}/{id}/reviews` `{ reviewers[], post }` / `…/fix` `{ instruction? }` / `…/monitor` `{ enabled }` | run predefined reviewers, fix now, toggle monitoring (Operator) |
+| `GET /api/repos/{repo}/reviewers` / `POST /api/hotfixes` | reviewer catalog from the kit / start a hotfix (Operator) |
 | `/mcp` | `Agentd.Mcp`, not the BFF: the MCP endpoint for Claude processes (per-job token, not browser-facing) |
 | `/healthz` | health checks (Postgres, each messaging provider, Azure DevOps token) |
 
@@ -605,6 +611,7 @@ agentd/
 | 7 | Discord library: Discord.Net vs NetCord | Discord.Net (mature, widely used); NetCord if newer Discord features are needed. It stays swappable inside the provider. |
 | 12 | ~~Workflow~~ | **Decided:** Design → Plan → Implement → Test → Review + learning loop ([workflow-and-learning.md](workflow-and-learning.md)) |
 | 13 | ~~Models~~ | **Decided:** per-phase model profiles with fallback chains ([model-profiles.md](model-profiles.md)) |
+| 17 | ~~PR lifecycle~~ | **Decided:** PR Reviewer (kit-defined reviewers), PR Monitor (fix rounds, no force-push), hotfix + backport ([pr-reviewer-and-monitor.md](pr-reviewer-and-monitor.md)) |
 | 16 | ~~Orchestration framework~~ | **Decided:** Microsoft Agent Framework Workflows + MAF agents for non-coding steps; Claude Code stays the coding runner; MAF Harness Agent is benchmark-gated ([orchestration-maf.md](orchestration-maf.md)) |
 | 15 | ~~Per-repo process knowledge~~ | **Decided:** ai-sdlc kit in `.agentd/`, initialized by agentd and owned by the team ([ai-sdlc-kit.md](ai-sdlc-kit.md)) |
 | 14 | Gemini integration | LiteLLM-style gateway via `ANTHROPIC_BASE_URL` first; a `GeminiCliRunner` only if tool-use quality needs it |
@@ -621,6 +628,7 @@ agentd/
 - [model-profiles.md](model-profiles.md) — per-phase model and provider routing, fallbacks, cost
 - [ai-sdlc-kit.md](ai-sdlc-kit.md) — per-repo `.agentd/` kit: init, customize, upgrade, validate
 - [orchestration-maf.md](orchestration-maf.md) — Microsoft Agent Framework workflow graph, checkpoints, MAF agents
+- [pr-reviewer-and-monitor.md](pr-reviewer-and-monitor.md) — predefined PR reviewers, PR monitoring & fix rounds, hotfixes
 - [references/azure-devops.md](references/azure-devops.md) — auth, WIQL, work item & PR REST calls
 - [references/discord.md](references/discord.md) — bot setup, intents, threads
 - [references/telegram.md](references/telegram.md) — bot setup, forum topics, long polling, inline keyboards

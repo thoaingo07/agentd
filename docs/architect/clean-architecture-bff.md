@@ -100,6 +100,7 @@ classes registered in DI, and endpoints and workers call them directly.
 | Command | `CompletePhase` / `ApproveGate` / `RejectGate` | MCP `complete_phase`; chat buttons, BFF |
 | Command | `RecordLearning` / `RunRetrospective` / `DistillLearnings` | MCP, post-run, `LearningDistillationWorker` |
 | Command | `InitKit` / `UpgradeKit` / `ValidateKit` / `LoadKitForJob` | CLI verbs, chat `init`, BFF Repositories page, job start |
+| Command | `SyncPullRequests` / `StartPrReview` / `PostReview` / `StartPrFollowUp` / `ReplyToThreads` / `StartHotfix` / `StartBackport` | `PullRequestMonitorWorker`, BFF PR dashboard, chat ([pr-reviewer-and-monitor.md](pr-reviewer-and-monitor.md)) |
 | Query | `GetLearnings` | MCP `get_learnings`, phase prompt builder, BFF |
 | Command | `HandleInboundMessage` | every messaging provider's listener (dedupe → authorize → route → command or message) |
 | Command | `SubmitDeveloperMessage` | `HandleInboundMessage`, BFF `POST /api/jobs/{id}/messages` |
@@ -125,7 +126,8 @@ public interface IQueryHandler<in TQuery, TResult>     { Task<TResult> Handle(TQ
 | `IJobRepository`, `IUnitOfWork` | Persistence |
 | `IEventStore` (append, read after/before seq), `IEventPublisher` (live fan-out) | Persistence (+ `LISTEN/NOTIFY`) |
 | `IWorkItemSource` (query, get, claim, comment) | AzureDevOps |
-| `IPullRequestService` (push, create PR) | AzureDevOps + Git |
+| `IPullRequestService` (push, create PR, list active PRs, threads, votes, policy/build status, merge status) | AzureDevOps + Git |
+| `IReviewerCatalog` (predefined reviewers from `.agentd/reviewers/`) | Git (kit store) |
 | `IMessagingProvider` (open conversation, send, edit, close, link, health) + `IMessagingProviderRegistry` | Messaging.Discord, Messaging.Telegram, … ([messaging-providers.md](messaging-providers.md)) |
 | `IAgentRunner` (start/resume a session on a model profile, cancel) | Claude (`ClaudeCodeRunner`; profile → env) |
 | `IModelRouter`, `IProfileHealth` (phase → ordered profiles; breaker, budget) | Host config + Persistence ([model-profiles.md](model-profiles.md)) |
