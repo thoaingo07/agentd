@@ -15,6 +15,7 @@ Design refs: [Clean Architecture + BFF](../../architect/clean-architecture-bff.m
 | Local orchestration | **.NET Aspire** (AppHost + ServiceDefaults), no docker compose |
 | Node version | **Node 24** (pinned in `.nvmrc`, `package.json` `engines`, and CI) |
 | Web package manager | **npm** (`package-lock.json` committed, `npm ci` in CI) |
+| Data access | **PostgreSQL functions/procedures via Npgsql, no EF Core** (Dapper for result mapping only) |
 | .NET test framework | **MSTest on Microsoft.Testing.Platform** (`MSTest.Sdk`, `dotnet test` in MTP mode, built-in asserts) |
 
 ---
@@ -44,12 +45,12 @@ Design refs: [Clean Architecture + BFF](../../architect/clean-architecture-bff.m
   - strongly typed options with `ValidateOnStart`, `appsettings*.json`, user-secrets for
     development;
   - `builder.AddServiceDefaults()`;
-  - PostgreSQL via Aspire's Npgsql EF Core client integration (`AddNpgsqlDbContext<AgentdDbContext>("agentd")`),
+  - PostgreSQL via Aspire's Npgsql client integration (`AddNpgsqlDataSource("agentd")`),
     which adds pooling, health checks and tracing.
 - **Runs without Aspire too:** in production, the Host takes `ConnectionStrings__agentd` and OTLP
   settings from environment or config and runs under systemd (Phase 10). **Aspire is a
   development-time orchestrator, not a runtime dependency.**
-- **Persistence:** `AgentdDbContext`, a first migration (`jobs`, `events`), and migrations applied at
+- **Persistence:** **no EF Core**; Npgsql + PostgreSQL functions ([data-access.md](../../architect/data-access.md)): the `DatabaseMigrator` (versioned SQL + repeatable routines), a first migration (`jobs`, `events`) with its first routines, and migrations applied at
   startup in Development only.
 - **`web/`:**
   - Vue 3 + TypeScript + Vite + Pinia + Vue Router + Tailwind 4 + daisyUI 5;
@@ -76,28 +77,28 @@ Detailed tasks: [tasks/README.md](tasks/README.md)
 
 | ID | Task | Depends on | Size | Status |
 |---|---|---|---|---|
-| T0.1 | [Repository conventions & build settings](tasks/01-repo-conventions.md) | — | S | ☐ |
-| T0.2 | [Solution & project scaffold](tasks/02-solution-scaffold.md) | T0.1 | S | ☐ |
-| T0.3 | [Agentd.ServiceDefaults](tasks/03-service-defaults.md) | T0.2 | S | ☐ |
-| T0.4 | [Agentd.AppHost (Aspire)](tasks/04-aspire-apphost.md) | T0.2, T0.3 | M | ☐ |
-| T0.5 | [Host startup & options](tasks/05-host-startup-and-options.md) | T0.3 | S | ☐ |
-| T0.6 | [Persistence baseline](tasks/06-persistence-baseline.md) | T0.4, T0.5 | M | ☐ |
-| T0.7 | [Web scaffold, theme & shell](tasks/07-web-scaffold-and-theme.md) | T0.1 | M | ☐ |
-| T0.8 | [Host serves the SPA](tasks/08-host-serves-spa.md) | T0.5, T0.7 | S | ☐ |
-| T0.9 | [Architecture tests](tasks/09-architecture-tests.md) | T0.2 | S | ☐ |
-| T0.10 | [CI with GitHub Actions](tasks/10-ci-github-actions.md) | T0.1–T0.9 | S | ☐ |
-| T0.11 | [Developer README](tasks/11-developer-readme.md) | T0.4, T0.7, T0.10 | S | ☐ |
+| T0.1 | [Repository conventions & build settings](tasks/01-repo-conventions.md) | — | S | ☑ |
+| T0.2 | [Solution & project scaffold](tasks/02-solution-scaffold.md) | T0.1 | S | ☑ |
+| T0.3 | [Agentd.ServiceDefaults](tasks/03-service-defaults.md) | T0.2 | S | ☑ |
+| T0.4 | [Agentd.AppHost (Aspire)](tasks/04-aspire-apphost.md) | T0.2, T0.3 | M | ☑ |
+| T0.5 | [Host startup & options](tasks/05-host-startup-and-options.md) | T0.3 | S | ☑ |
+| T0.6 | [Persistence baseline](tasks/06-persistence-baseline.md) | T0.4, T0.5 | M | ☑ |
+| T0.7 | [Web scaffold, theme & shell](tasks/07-web-scaffold-and-theme.md) | T0.1 | M | ☑ |
+| T0.8 | [Host serves the SPA](tasks/08-host-serves-spa.md) | T0.5, T0.7 | S | ☑ |
+| T0.9 | [Architecture tests](tasks/09-architecture-tests.md) | T0.2 | S | ☑ |
+| T0.10 | [CI with GitHub Actions](tasks/10-ci-github-actions.md) | T0.1–T0.9 | S | ☑ |
+| T0.11 | [Developer README](tasks/11-developer-readme.md) | T0.4, T0.7, T0.10 | S | ☑ |
 
 ## Exit criteria (the demo)
 
-- `dotnet run --project src/Agentd.AppHost` → the **Aspire dashboard** shows `postgres`, `agentd`
-  (the Host) and `web` (Vite) as healthy. Opening the web endpoint shows the empty agentd shell in
+- `dotnet run --project src/Agentd.AppHost` → the **Aspire dashboard** shows `postgres`, `agentd-host`
+  and `web` (Vite) as healthy. Opening the web endpoint shows the empty agentd shell in
   green, the light/dark toggle works, and edits to a `.vue` file hot-reload.
 - `/healthz` is healthy, and it turns unhealthy when the PostgreSQL resource is stopped from the
   dashboard. Host logs and traces appear in the Aspire dashboard.
 - **Without Aspire:** `ConnectionStrings__agentd=… dotnet run --project src/Agentd.Host` serves the
   built UI from `wwwroot`.
-- Adding a forbidden reference (e.g. Application → EF Core) makes the architecture tests fail.
+- Adding a forbidden reference (e.g. Application → Npgsql) makes the architecture tests fail.
 - The **GitHub Actions** CI run is green on the PR.
 
 ## Remaining open questions

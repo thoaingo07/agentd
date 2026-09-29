@@ -31,7 +31,7 @@ Implement the provider-agnostic outbound side once:
    Task EnqueueAsync(JobId job, OutboundMessage message, EnqueueOptions? options, CancellationToken ct);
    // options: OnlyProviders, ExceptProviders (mirroring), ReplaceStatusMessage (progress)
    ```
-   Writes one `outbound_messages` row per target conversation, using the same `DbContext` and
+   Writes one `outbound_messages` row per target conversation, in the same database call (routine) and
    transaction as the calling use case (unit of work).
 3. **Chunking** (`MessageChunker.Split(markdown, maxLength)`):
    - split on paragraph boundaries, then on lines;

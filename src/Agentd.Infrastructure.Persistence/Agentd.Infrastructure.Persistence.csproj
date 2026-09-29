@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\Agentd.Application\Agentd.Application.csproj" />
+    <ProjectReference Include="..\Agentd.Domain\Agentd.Domain.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Npgsql" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- SQL ships inside the assembly; logical names are paths relative to Database/, e.g. "Migrations/0001_initial.sql". -->
+    <EmbeddedResource Include="Database\**\*.sql" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Agentd.Infrastructure.Tests" />
+  </ItemGroup>
+</Project>

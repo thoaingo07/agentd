@@ -1,0 +1,78 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dotnet:
+    runs-on: ubuntu-latest
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      DOTNET_NOLOGO: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore Agentd.slnx
+
+      - name: Format
+        run: dotnet format Agentd.slnx --verify-no-changes --no-restore
+
+      - name: Build
+        run: dotnet build Agentd.slnx --no-restore -c Release
+
+      # MSTest on Microsoft.Testing.Platform: dotnet test runs in MTP mode (global.json "test.runner").
+      # Integration tests use Testcontainers with the runner's Docker; Aspire (AppHost) tests are excluded.
+      - name: Test
+        run: >-
+          dotnet test --solution Agentd.slnx --no-build -c Release
+          --filter "TestCategory!=Aspire"
+          --report-trx --results-directory TestResults
+          --coverage --coverage-output-format cobertura
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dotnet-test-results
+          path: TestResults
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run test -- --run
+      - run: npm run build
+
+      - name: No inline script/style in built index.html (CSP)
+        run: |
+          if grep -Eq '<script>|<style' ../src/Agentd.Host/wwwroot/index.html; then
+            echo "::error::Inline <script> or <style> found in index.html; the CSP forbids inline code."
+            exit 1
+          fi

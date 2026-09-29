@@ -1,0 +1,5 @@
+<Project Sdk="MSTest.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Agentd.Domain\Agentd.Domain.csproj" />
+  </ItemGroup>
+</Project>

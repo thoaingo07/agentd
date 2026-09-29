@@ -1,0 +1,21 @@
+version: 2
+updates:
+  - package-ecosystem: nuget
+    directory: /
+    schedule: { interval: weekly }
+    groups:
+      aspire: { patterns: ["Aspire.*"] }
+      opentelemetry: { patterns: ["OpenTelemetry.*"] }
+      microsoft-extensions: { patterns: ["Microsoft.Extensions.*", "Microsoft.AspNetCore.*"] }
+
+  - package-ecosystem: npm
+    directory: /web
+    schedule: { interval: weekly }
+    groups:
+      vue: { patterns: ["vue", "vue-*", "@vue/*", "pinia", "@vitejs/*", "vite"] }
+      lint: { patterns: ["eslint*", "@eslint/*", "typescript-eslint", "globals"] }
+      styling: { patterns: ["tailwindcss", "@tailwindcss/*", "daisyui"] }
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly }

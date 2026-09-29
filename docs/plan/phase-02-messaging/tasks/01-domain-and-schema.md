@@ -2,7 +2,7 @@
 
 | Phase | Depends on | Size | Layer / project |
 |---|---|---|---|
-| 2 | Phase 1 (`Job` aggregate, `AgentdDbContext`) | M | Agentd.Domain, Agentd.Infrastructure.Persistence |
+| 2 | Phase 1 (`Job` aggregate, persistence routines) | M | Agentd.Domain, Agentd.Infrastructure.Persistence |
 
 ## Goal
 Add the domain concepts that messaging needs: the `WaitingForHuman` job state, a per-provider
@@ -16,8 +16,9 @@ conversations, the outbox, inbound idempotency, and the v0 user directory.
 - `src/Agentd.Domain/Messaging/Conversation.cs` — create: entity owned by `Job`.
 - `src/Agentd.Domain/Messaging/Events.cs` — create: `DeveloperQuestionAsked`, `DeveloperReplied`, `ConversationOpened`.
 - `src/Agentd.Domain/Users/User.cs`, `UserIdentity.cs` — create: directory v0 entities.
-- `src/Agentd.Infrastructure.Persistence/Configurations/*.cs` — create: Fluent mappings.
-- `src/Agentd.Infrastructure.Persistence/Migrations/<ts>_Messaging.cs` — create: migration.
+- `src/Agentd.Infrastructure.Persistence/Database/Migrations/000N_messaging.sql` — create: tables and indexes.
+- `src/Agentd.Infrastructure.Persistence/Database/Routines/{conversation,outbox,inbound,user}/*.sql` — create: the routines for these tables ([data-access.md](../../../architect/data-access.md)).
+- `src/Agentd.Infrastructure.Persistence/Repositories/*.cs` — create: repositories that call those routines.
 
 ## Implementation
 1. **State machine.** Allowed transitions:

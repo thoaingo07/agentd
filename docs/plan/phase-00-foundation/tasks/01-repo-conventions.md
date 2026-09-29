@@ -14,7 +14,7 @@ versioning. From here on, every project inherits the same rules.
 - `Directory.Packages.props`: create. Central package versions.
 - `.editorconfig`: create. C#, TS and Vue formatting and analyzer severities.
 - `.nvmrc`: create. Contains `24`.
-- `.gitignore`: modify. .NET, Node, Aspire and IDE outputs; `src/Agentd.Host/wwwroot/*` except `.gitkeep`.
+- `.gitignore`: modify. .NET, Node, Aspire and IDE outputs; `src/Agentd.Host/wwwroot/` (build output; Vite's `emptyOutDir` would delete a `.gitkeep` anyway).
 - `.gitattributes`: create. `* text=auto eol=lf`.
 
 ## Implementation
@@ -49,7 +49,7 @@ versioning. From here on, every project inherits the same rules.
    </Project>
    ```
 3. `Directory.Packages.props`: an empty `<ItemGroup>` to start. Each later task adds its
-   `PackageVersion` entries here. Aspire, EF Core, Npgsql and the test packages are pinned to the
+   `PackageVersion` entries here. Aspire, Npgsql, Dapper and the test packages are pinned to the
    **latest stable versions at implementation time**. Record the chosen versions in the PR
    description.
 4. `.editorconfig`: the standard .NET conventions (file-scoped namespaces, `var` where the type is

@@ -24,14 +24,15 @@ references and package references, so it never erodes silently.
    | Project | Must not reference (projects) | Must not reference (packages / frameworks, by prefix) |
    |---|---|---|
    | Domain | any `Agentd.*` | anything except analyzers |
-   | Application | `Agentd.Infrastructure.*`, `Agentd.Bff`, `Agentd.Mcp`, `Agentd.Host` | `Microsoft.EntityFrameworkCore`, `Npgsql`, `Microsoft.AspNetCore.App` (framework), `Discord`, `Telegram`, `Microsoft.Agents.AI` |
+   | Application | `Agentd.Infrastructure.*`, `Agentd.Bff`, `Agentd.Mcp`, `Agentd.Host` | `Npgsql`, `Dapper`, `Microsoft.EntityFrameworkCore` (banned everywhere), `Microsoft.AspNetCore.App` (framework), `Discord`, `Telegram`, `Microsoft.Agents.AI` |
    | Infrastructure.* | `Agentd.Bff`, `Agentd.Mcp`, `Agentd.Host`, other `Agentd.Infrastructure.*` | — |
-   | Bff, Mcp | `Agentd.Infrastructure.*`, `Agentd.Host` | `Microsoft.EntityFrameworkCore`, `Npgsql` |
+   | Bff, Mcp | `Agentd.Infrastructure.*`, `Agentd.Host` | `Npgsql`, `Dapper` |
+   | **all projects** | — | `Microsoft.EntityFrameworkCore*` (no ORM; see data-access.md) |
    | any except Host | `Agentd.ServiceDefaults` | — |
 
    Allowed for Application: `Microsoft.Extensions.*.Abstractions`.
 3. The failure message names the project, the forbidden dependency and the rule, e.g.
-   `Agentd.Application → Microsoft.EntityFrameworkCore violates "Application is framework-free"`.
+   `Agentd.Application → Npgsql violates "Application is framework-free"`.
 4. Phase 4 adds a rule: only `Agentd.Infrastructure.Orchestration` may reference `Microsoft.Agents.AI*`.
    Keep the rules table easy to extend.
 
@@ -41,5 +42,5 @@ references and package references, so it never erodes silently.
 
 ## Done when
 - [ ] All rules pass on the current solution.
-- [ ] Temporarily adding `<PackageReference Include="Microsoft.EntityFrameworkCore" />` to
+- [ ] Temporarily adding `<PackageReference Include="Npgsql" />` to
       Application makes `dotnet test` fail with a readable message.
