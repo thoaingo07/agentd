@@ -15,4 +15,15 @@ public sealed record Repository(
     AzureDevOpsRepo AzureDevOps,
     string BaseBranch,
     string? MatchTag,
-    IReadOnlyList<string> MatchAreaPaths);
+    IReadOnlyList<string> MatchAreaPaths)
+{
+    /// <summary>A registration from a URL; the name defaults to the repository name in the URL.</summary>
+    public static Repository From(RemoteUrl url, string? name, string baseBranch, string? matchTag, IReadOnlyList<string>? areaPaths) =>
+        new(
+            RepositoryName.From(string.IsNullOrWhiteSpace(name) ? url.AzureDevOps.Name : name),
+            url.Value,
+            url.AzureDevOps,
+            baseBranch,
+            string.IsNullOrWhiteSpace(matchTag) ? null : matchTag.Trim(),
+            areaPaths ?? []);
+}

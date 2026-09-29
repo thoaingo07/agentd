@@ -10,3 +10,6 @@ public sealed class InitialSchema : SqlMigration;
 
 [Migration(2026_09_30_0001, "Walking skeleton: full job record, one active job per work item")]
 public sealed class WalkingSkeleton : SqlMigration;
+
+[Migration(2026_09_30_0002, "Repositories registered by URL")]
+public sealed class Repositories : SqlMigration;

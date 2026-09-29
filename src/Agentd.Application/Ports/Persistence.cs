@@ -41,4 +41,9 @@ public interface IRepositoryRegistry
     Task<IReadOnlyList<Repository>> ListAsync(CancellationToken cancellationToken);
 
     Task<Repository?> GetAsync(RepositoryName name, CancellationToken cancellationToken);
+
+    /// <summary>Inserts or updates by name. Conflict if another repository already uses the same URL.</summary>
+    Task<Result> UpsertAsync(Repository repository, CancellationToken cancellationToken);
+
+    Task<bool> RemoveAsync(RepositoryName name, CancellationToken cancellationToken);
 }

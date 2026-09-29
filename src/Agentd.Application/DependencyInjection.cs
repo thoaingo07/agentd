@@ -1,8 +1,10 @@
 using Agentd.Application.Abstractions;
 using Agentd.Application.Jobs;
 using Agentd.Application.Ports;
+using Agentd.Application.Repositories;
 using Agentd.Domain.Jobs;
 using Agentd.Domain.Jobs.ValueObjects;
+using Agentd.Domain.Repositories;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Agentd.Application;
@@ -23,6 +25,8 @@ public static class DependencyInjection
         services.AddScoped<ICommandHandler<CancelJob, Unit>, CancelJobHandler>();
         services.AddScoped<ICommandHandler<RecoverJobsOnStartup, RecoveryPlan>, RecoverJobsOnStartupHandler>();
         services.AddScoped<IQueryHandler<GetJobStatus, IReadOnlyList<JobStatusRow>>, GetJobStatusHandler>();
+        services.AddScoped<ICommandHandler<AddRepository, Repository>, AddRepositoryHandler>();
+        services.AddScoped<ICommandHandler<RemoveRepository, Unit>, RemoveRepositoryHandler>();
         return services;
     }
 }

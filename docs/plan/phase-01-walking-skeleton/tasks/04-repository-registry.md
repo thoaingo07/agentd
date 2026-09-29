@@ -51,6 +51,12 @@ matched to a repository by a **`repo:<name>` tag** (wins) or else by **area path
 - `AddRepository` with a fake `IGitRemote` detects `develop`; an explicit `--base` wins.
 - Store round-trip against PostgreSQL (Integration).
 
+## As built
+- The config seed (`RepositorySeedOptions`, `Agentd:Repositories:Items`) is defined here and applied
+  on startup by the workers (T1.11).
+- Without a tag or area path, `repo add` defaults the match rule to the tag `repo:<name>`.
+- `repository_remove` is a soft delete (`enabled = false`), so job history keeps its repository name.
+
 ## Done when
 - [ ] `agentd repo add <url>` (T1.12) registers a repo and detects its default branch.
 - [ ] Matching is covered by tests for tags, area paths, ambiguity and no match.

@@ -3,6 +3,13 @@ using Agentd.Domain.Repositories;
 
 namespace Agentd.Application.Ports;
 
+/// <summary>Queries a git remote without cloning (implemented in Infrastructure.Git).</summary>
+public interface IGitRemote
+{
+    /// <summary>The remote's default branch (from <c>git ls-remote --symref &lt;url&gt; HEAD</c>), e.g. "develop".</summary>
+    Task<string> GetDefaultBranchAsync(string remoteUrl, CancellationToken cancellationToken);
+}
+
 /// <summary>Managed clones and per-job worktrees (implemented in Infrastructure.Git).</summary>
 public interface IWorktreeManager
 {

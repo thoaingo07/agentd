@@ -143,11 +143,38 @@ internal sealed class FakeRegistry : IRepositoryRegistry
 
     public Task<Repository?> GetAsync(RepositoryName name, CancellationToken cancellationToken) =>
         Task.FromResult(Repositories.FirstOrDefault(r => r.Name == name));
+
+    public Task<Result> UpsertAsync(Repository repository, CancellationToken cancellationToken)
+    {
+        if (Repositories.Any(r => r.Name != repository.Name && string.Equals(r.RemoteUrl, repository.RemoteUrl, StringComparison.OrdinalIgnoreCase)))
+        {
+            return Task.FromResult(Result.Fail(DomainError.Conflict("url in use")));
+        }
+
+        Repositories.RemoveAll(r => r.Name == repository.Name);
+        Repositories.Add(repository);
+        return Task.FromResult(Result.Ok);
+    }
+
+    public Task<bool> RemoveAsync(RepositoryName name, CancellationToken cancellationToken) =>
+        Task.FromResult(Repositories.RemoveAll(r => r.Name == name) > 0);
+}
+
+internal sealed class FakeGitRemote : IGitRemote
+{
+    public string DefaultBranch { get; set; } = "develop";
+
+    public bool Unreachable { get; set; }
+
+    public Task<string> GetDefaultBranchAsync(string remoteUrl, CancellationToken cancellationToken) =>
+        Unreachable ? throw new InvalidOperationException("Permission denied (publickey)") : Task.FromResult(DefaultBranch);
 }
 
 internal sealed class FakeWorktrees : IWorktreeManager
 {
     public List<string> Created { get; } = [];
+
+    public List<string> Cloned { get; } = [];
 
     public List<string> Pushed { get; } = [];
 
@@ -155,7 +182,11 @@ internal sealed class FakeWorktrees : IWorktreeManager
 
     public bool FailCreate { get; set; }
 
-    public Task EnsureCloneAsync(Repository repository, CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task EnsureCloneAsync(Repository repository, CancellationToken cancellationToken)
+    {
+        Cloned.Add(repository.Name.Value);
+        return Task.CompletedTask;
+    }
 
     public Task<WorktreePath> CreateAsync(Repository repository, WorkItemId workItem, BranchName branch, CancellationToken cancellationToken)
     {
