@@ -1,19 +1,11 @@
-<Project Sdk="Microsoft.NET.Sdk.Razor">
-  <!-- Backend-for-Frontend: SPA shell (Razor + Vite manifest), and later /bff + /api endpoints. -->
-  <PropertyGroup>
-    <AddRazorSupportForMvc>true</AddRazorSupportForMvc>
-  </PropertyGroup>
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Backend-for-Frontend: /bff (session, antiforgery) and /api (screen-shaped JSON) + SignalR hub (Phase 3+).
+       The HTML shell and the Vue apps live in Agentd.Web. -->
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.SpaServices.Extensions" />
-  </ItemGroup>
-  <ItemGroup>
     <ProjectReference Include="..\Agentd.Application\Agentd.Application.csproj" />
     <ProjectReference Include="..\Agentd.Domain\Agentd.Domain.csproj" />
-  </ItemGroup>
-  <ItemGroup>
-    <InternalsVisibleTo Include="Agentd.Bff.Tests" />
   </ItemGroup>
 </Project>

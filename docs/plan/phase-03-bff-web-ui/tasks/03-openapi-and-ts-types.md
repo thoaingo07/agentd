@@ -7,15 +7,15 @@
 ## Goal
 Make the BFF contract the single source of truth for the frontend. ASP.NET Core generates an
 OpenAPI document from the BFF endpoints only, and `openapi-typescript` turns it into
-`web/src/api/schema.d.ts` (types only, no runtime code). CI fails if the committed types drift from
+`src/Agentd.Web/ClientApps/shared/api/schema.d.ts` (types only, no runtime code). CI fails if the committed types drift from
 the server.
 
 ## Files
 - `src/Agentd.Bff/BffModule.cs` — modify: `services.AddOpenApi("v1", …)`, `app.MapOpenApi("/openapi/{documentName}.json")`.
 - `src/Agentd.Bff/OpenApi/BffOnlyDocumentFilter.cs` — create: keep only `/api/*` and `/bff/*` paths (exclude `/mcp`, `/healthz`, hubs).
-- `web/package.json` — modify: `"gen:api"` script; `openapi-typescript` as a devDependency (version pinned by the lockfile).
-- `web/src/api/schema.d.ts` — create (generated, committed).
-- `web/src/api/types.ts` — create: friendly aliases.
+- `src/Agentd.Web/package.json` — modify: `"gen:api"` script; `openapi-typescript` as a devDependency (version pinned by the lockfile).
+- `src/Agentd.Web/ClientApps/shared/api/schema.d.ts` — create (generated, committed).
+- `src/Agentd.Web/ClientApps/shared/api/types.ts` — create: friendly aliases.
 - `.github/workflows/ci.yml` — modify: a drift check step.
 
 ## Implementation
@@ -35,7 +35,7 @@ the server.
    `export type JobSummary = components['schemas']['JobSummaryVm']`, plus `JobDetail`, `AgentEvent`,
    `EventPage`, `Dashboard`, `HistoryPage` and `Diff`. It also defines a `JobState` union type,
    because OpenAPI enums may arrive as strings.
-7. **CI drift check:** `dotnet build` → `npm run gen:api` → `git diff --exit-code web/src/api/schema.d.ts`.
+7. **CI drift check:** `dotnet build` → `npm run gen:api` → `git diff --exit-code src/Agentd.Web/ClientApps/shared/api/schema.d.ts`.
    If they differ, fail with the message "run `npm run gen:api` and commit".
 
 ## Tests

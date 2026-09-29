@@ -4,6 +4,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Agentd.Bff\Agentd.Bff.csproj" />
+    <ProjectReference Include="..\Agentd.Web\Agentd.Web.csproj" />
     <ProjectReference Include="..\Agentd.Mcp\Agentd.Mcp.csproj" />
     <ProjectReference Include="..\Agentd.Infrastructure.Persistence\Agentd.Infrastructure.Persistence.csproj" />
     <ProjectReference Include="..\Agentd.ServiceDefaults\Agentd.ServiceDefaults.csproj" />
@@ -11,8 +12,4 @@
   <ItemGroup>
     <PackageReference Include="Aspire.Npgsql" />
   </ItemGroup>
-  <!-- Opt-in web build (CI / publish): dotnet build -p:BuildWeb=true -->
-  <Target Name="BuildWeb" BeforeTargets="BeforeBuild" Condition="'$(BuildWeb)' == 'true'">
-    <Exec WorkingDirectory="$(MSBuildProjectDirectory)/../../web" Command="npm ci &amp;&amp; npm run build" />
-  </Target>
 </Project>

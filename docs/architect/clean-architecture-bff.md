@@ -179,8 +179,8 @@ concerns:
 | **UI-shaped API** (`/api/*`) | one endpoint per screen need, returning **view models**, not domain or Application types: `GET /api/dashboard` (stats + active jobs in one call), `GET /api/jobs/{id}`, `GET /api/jobs/{id}/events`, `GET /api/jobs/{id}/diff`, `GET /api/history`, `POST /api/jobs/{id}/cancel`, … |
 | **Real-time** | SignalR hub `/hubs/events` (read-only subscribe), fed by `IEventPublisher` |
 | **Protection** | antiforgery filter on `/api` and `/bff` unsafe methods; CSP and security headers; Origin check on the hub ([Security](../security/README.md)) |
-| **SPA hosting** | Razor shell (`SpaController`, `Views/Spa/Index.cshtml`). Production: assets from Vite's `.vite/manifest.json`. Development: Vite paths + HMR proxied to the dev server (`UseProxyToSpaDevelopmentServer`). See [Architecture §3.9](README.md#39-event-bus-and-web-ui-real-time-session-tracing). |
-| **API contract** | the OpenAPI document is generated from BFF endpoints only; `web/` generates its TS types from it |
+| **SPA hosting** | *Moved to `Agentd.Web`* (Razor class library: `_Layout.cshtml`, `ViteHelper`, `ClientApps/<app>`). The BFF only serves data for it. Production: assets from Vite's `.vite/manifest.json`. Development: Vite paths + HMR proxied to the dev server (`UseProxyToSpaDevelopmentServer`). See [Architecture §3.9](README.md#39-event-bus-and-web-ui-real-time-session-tracing). |
+| **API contract** | the OpenAPI document is generated from BFF endpoints only; `src/Agentd.Web/` generates its TS types from it |
 
 Endpoints stay thin: *bind → call the use case → map the `Result` to HTTP / view model*.
 
@@ -224,7 +224,7 @@ antiforgery setup or view models with the BFF.
 - **Workers** (`BackgroundService`, driving adapters triggered by time):
   `WorkItemPollingWorker` → `PollWorkItems`, `SchedulerWorker` → `StartNextJob`,
   `MessagingDispatcherWorker` → delivers the outbox, `RetentionWorker` → drops old event partitions, and `StartupRecovery` → `RecoverJobsOnStartup`.
-- Holds `wwwroot/` (the Vite build output), `appsettings*.json`, OpenTelemetry and health checks.
+- Holds `appsettings*.json`, OpenTelemetry and health checks. The Vite build output lives in `Agentd.Web/wwwroot` (static web assets).
 - Contains no business logic.
 
 ---
@@ -254,5 +254,5 @@ antiforgery setup or view models with the BFF.
 | agentd MCP server | `Agentd.Mcp` (Presentation) |
 | Messaging (Discord, Telegram, …) | `IMessagingProvider` port + `MessagingService` / `HandleInboundMessage` in Application; one `Infrastructure.Messaging.*` project per platform |
 | Event Bus | `IEventStore` / `IEventPublisher` ports → Persistence + in-process channels |
-| Web Server / Web UI | `Agentd.Bff` + `web/` |
+| Web Server / Web UI | `Agentd.Bff` + `src/Agentd.Web/` |
 | PR Publisher | `PublishPullRequest` use case → `IPullRequestService` |

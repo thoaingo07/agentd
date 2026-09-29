@@ -23,7 +23,7 @@ The design lives in [`docs/architect`](docs/architect/README.md), and the phased
   dotnet test --filter "TestCategory!=Integration"     # fast unit tests only
   dotnet test --filter "TestCategory!=Aspire" --report-trx --coverage   # what CI runs
   ```
-- Web (`web/`) tests use **vitest**, and browser end-to-end tests use **Playwright**, run through npm.
+- Web (`src/Agentd.Web/`) tests use **vitest**, and browser end-to-end tests use **Playwright**, run through npm.
 
 ## Stack & conventions (decided)
 
@@ -54,9 +54,10 @@ The design lives in [`docs/architect`](docs/architect/README.md), and the phased
   - Vue 3 + TypeScript + Vite, Pinia setup stores (no TanStack or other data-fetching libraries),
     daisyUI 5 on Tailwind 4 (the agentd green theme), and base-ui-vue for reusable `Ag*` components;
   - follow [`docs/ui`](docs/ui/README.md) and [`docs/design-system`](docs/design-system/README.md);
-  - **the HTML shell is a Razor view** in `Agentd.Bff` (`Views/Spa/Index.cshtml`). There's no
-    `index.html`. Production reads Vite's `.vite/manifest.json`; Development proxies the Vite paths
-    and HMR through the Host (`UseProxyToSpaDevelopmentServer`). Open the app on the Host URL, not
+  - **`src/Agentd.Web`** holds all Vue apps (`ClientApps/<app>/main.ts`, one `package.json` at the
+    project root), `Views/Shared/_Layout.cshtml` and `ViteHelper`. The HTML shell is a Razor view; there's no
+    `index.html`. Production reads `wwwroot/manifest.json` (served under `/_content/Agentd.Web/`);
+    Development proxies that prefix, including HMR, to the Vite dev server (`UseProxyToSpaDevelopmentServer`). Open the app on the Host URL, not
     the Vite port.
 - **Browser security:**
   - strict CSP with no inline scripts or styles and no `eval`;

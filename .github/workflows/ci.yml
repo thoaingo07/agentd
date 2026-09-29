@@ -54,7 +54,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: web
+        working-directory: src/Agentd.Web
     steps:
       - uses: actions/checkout@v4
 
@@ -62,7 +62,7 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
-          cache-dependency-path: web/package-lock.json
+          cache-dependency-path: src/Agentd.Web/package-lock.json
 
       - run: npm ci
       - run: npm run typecheck
@@ -70,5 +70,5 @@ jobs:
       - run: npm run test -- --run
       - run: npm run build
 
-      - name: Vite manifest produced (the Razor shell reads it)
-        run: test -f ../src/Agentd.Host/wwwroot/.vite/manifest.json
+      - name: Vite manifest produced (ViteHelper reads it)
+        run: test -f wwwroot/manifest.json

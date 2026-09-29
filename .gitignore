@@ -16,11 +16,11 @@ TestResults/
 
 # Node / web
 node_modules/
-web/dist/
 playwright-report/
 test-results/
 
-# Host static output (built from web/)
+# Vite build output (Agentd.Web static web assets)
+src/Agentd.Web/wwwroot/
 src/Agentd.Host/wwwroot/
 
 # Local config & secrets

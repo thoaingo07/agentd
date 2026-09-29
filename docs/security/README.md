@@ -139,7 +139,7 @@ Notes:
 - Even in `Auth: None` mode (localhost only), antiforgery stays on. It stops a malicious web page
   in the developer's own browser from driving `http://127.0.0.1:7780/api/...`.
 
-### 2.4 Client (`web/src/api/http.ts`)
+### 2.4 Client (`src/Agentd.Web/ClientApps/shared/api/http.ts`)
 
 ```ts
 let xsrf: string | null = null                        // memory only
@@ -221,7 +221,7 @@ Reporting-Endpoints: csp="/api/csp-report"
 
 | Rule | How |
 |---|---|
-| No inline `<script>` in the HTML shell | The shell is the BFF's Razor view; it only emits `<script src>`, `<link>` and `modulepreload` tags from Vite's manifest (`Agentd.Bff.Tests` checks for inline code). The pre-paint theme loader is an external file, `public/theme-init.js`, loaded with a plain `<script src>` in `<head>`. |
+| No inline `<script>` in the HTML shell | The shell is `Agentd.Web`'s Razor layout (`ViteHelper`); it only emits `<script src>`, `<link>` and `modulepreload` tags from Vite's manifest (`Agentd.Bff.Tests` checks for inline code). The pre-paint theme loader is an external file, `public/theme-init.js`, loaded with a plain `<script src>` in `<head>`. |
 | No `eval` / `new Function` | use the **runtime-only** Vue build (the Vite default: SFC templates are precompiled). Never alias `vue` to `vue/dist/vue.esm-bundler.js`, and never use in-DOM or string templates. |
 | No inline event handlers (`onclick="..."`) | Vue `@click` bindings are attached with `addEventListener`, so they are fine. |
 | No inline `<style>` / `style="..."` in HTML | all CSS comes from the built `/assets/*.css`. Vue `:style` bindings and base-ui-vue positioning set styles through the CSSOM (`el.style.*`), which `style-src 'self'` allows. |

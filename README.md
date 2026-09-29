@@ -19,7 +19,7 @@ talks to developers through Discord/Telegram, and opens a pull request when the 
 ## Run locally (Aspire)
 
 ```bash
-(cd web && npm ci)
+(cd src/Agentd.Web && npm ci)
 dotnet run --project src/Agentd.AppHost
 ```
 
@@ -39,7 +39,7 @@ finishes. Stop everything with `Ctrl+C`.
 ```bash
 export ConnectionStrings__agentd="Host=localhost;Database=agentd;Username=…;Password=…"
 dotnet run --project src/Agentd.Migrator                   # apply schema migrations + routines, then exit
-dotnet run --project src/Agentd.Host -p:BuildWeb=true      # builds web/ (assets + .vite/manifest.json) into wwwroot; Razor shell on 127.0.0.1:7780
+dotnet run --project src/Agentd.Host -p:BuildWeb=true      # builds the client apps (Agentd.Web/wwwroot + manifest.json), serves on 127.0.0.1:7780
 ```
 
 ## Tests
@@ -50,7 +50,7 @@ dotnet run --project src/Agentd.Host -p:BuildWeb=true      # builds web/ (assets
 dotnet test                                        # everything (Integration tests need Docker)
 dotnet test --filter "TestCategory!=Integration"   # fast unit tests only
 dotnet run --project tests/Agentd.Domain.Tests     # run a single test project directly
-(cd web && npm test)                               # web unit tests (vitest)
+(cd src/Agentd.Web && npm test)                               # web unit tests (vitest)
 ```
 
 ## Project layout
@@ -61,13 +61,13 @@ src/
   Agentd.Application/                use cases + ports
   Agentd.Infrastructure.Persistence/ repositories: PostgreSQL routines via Npgsql (no ORM)
   Agentd.Migrator/                   standalone schema migrator: FluentMigrator + raw SQL + routines
-  Agentd.Bff/                        backend-for-frontend: Razor SPA shell (Vite manifest / dev proxy), endpoints
+  Agentd.Bff/                        backend-for-frontend: /bff + /api + SignalR for the web UI
+  Agentd.Web/                        web UI: Razor layout + ViteHelper + ClientApps/<app> (Vue SPAs, package.json here)
   Agentd.Mcp/                        MCP tools (agents)
-  Agentd.Host/                       composition root; wwwroot/ holds the Vite build output
+  Agentd.Host/                       composition root
   Agentd.ServiceDefaults/            OpenTelemetry, health checks, resilience
   Agentd.AppHost/                    .NET Aspire local orchestration (dev only)
 tests/                               MSTest projects, one per layer, plus architecture tests
-web/                                 Vue 3 + Vite + Pinia + Tailwind/daisyUI
 ```
 
 The dependency rule (Clean Architecture) is enforced by `tests/Agentd.ArchitectureTests`; see

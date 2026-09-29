@@ -12,13 +12,13 @@ Prove the Phase 3 exit criteria automatically in CI:
 - the live stream survives a reconnect without gaps or duplicates.
 
 ## Files
-- `web/e2e/playwright.config.ts` — create: base URL from `E2E_BASE_URL`; Chromium + Firefox.
-- `web/e2e/fixtures.ts` — create: a CSP-violation collector, and seeding helpers (via a test-only API).
-- `web/e2e/csp.spec.ts`, `antiforgery.spec.ts`, `cookies.spec.ts`, `live-stream.spec.ts` — create.
+- `src/Agentd.Web/e2e/playwright.config.ts` — create: base URL from `E2E_BASE_URL`; Chromium + Firefox.
+- `src/Agentd.Web/e2e/fixtures.ts` — create: a CSP-violation collector, and seeding helpers (via a test-only API).
+- `src/Agentd.Web/e2e/csp.spec.ts`, `antiforgery.spec.ts`, `cookies.spec.ts`, `live-stream.spec.ts` — create.
 - `src/Agentd.Bff/Testing/TestSeedEndpoints.cs` — create: `/__test/*` endpoints, **mapped only when `Environment == "E2E"`**.
 - `tests/Agentd.Bff.Tests/Security/*.cs` — modify/create: consolidate the T3.4–T3.6 header, antiforgery and origin tests.
 - `.github/workflows/ci.yml` — modify: an `e2e` job.
-- `web/package.json` — modify: `@playwright/test` devDependency and a `test:e2e` script.
+- `src/Agentd.Web/package.json` — modify: `@playwright/test` devDependency and a `test:e2e` script.
 
 ## Implementation
 1. **E2E host:**

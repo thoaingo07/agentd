@@ -1,6 +1,6 @@
 using System.Net;
 
-namespace Agentd.Bff.Tests;
+namespace Agentd.Web.Tests;
 
 [TestClass]
 public sealed class SpaHostingModeTests
@@ -28,8 +28,8 @@ public sealed class SpaHostingModeTests
 
         var html = await client.GetStringAsync(new Uri("/", UriKind.Relative));
 
-        StringAssert.Contains(html, """<script type="module" src="/@vite/client"></script>""");
-        StringAssert.Contains(html, """<script type="module" src="/src/main.ts"></script>""");
+        StringAssert.Contains(html, """<script type="module" src="/_content/Agentd.Web/@vite/client"></script>""");
+        StringAssert.Contains(html, """<script type="module" src="/_content/Agentd.Web/ClientApps/dashboard/main.ts"></script>""");
     }
 
     [TestMethod]
@@ -43,6 +43,6 @@ public sealed class SpaHostingModeTests
 
         var html = await client.GetStringAsync(new Uri("/", UriKind.Relative));
 
-        StringAssert.Contains(html, "/@vite/client");
+        StringAssert.Contains(html, "/_content/Agentd.Web/@vite/client");
     }
 }

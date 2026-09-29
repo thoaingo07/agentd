@@ -168,4 +168,4 @@ provider-specific content, so **a session is pinned to one profile**.
 | `ClaudeCodeRunner : IAgentRunner`: builds the env per profile (base URL, key, model, config dir) and launches `claude` | `Infrastructure.Claude` |
 | Future `GeminiCliRunner : IAgentRunner` (or any other agent CLI) | a new `Infrastructure.<Runner>` project; the `IAgentRunner` port is unchanged |
 | Per-profile semaphores, circuit breakers, budget counters | Infrastructure + Persistence |
-| Profile, cost and health views | `Agentd.Bff` + `web/` |
+| Profile, cost and health views | `Agentd.Bff` + `src/Agentd.Web/` |

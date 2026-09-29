@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
-import { useUiStore } from '../src/stores/ui'
+import { useUiStore } from '../ClientApps/dashboard/stores/ui'
 
 describe('ui store', () => {
   beforeEach(() => {

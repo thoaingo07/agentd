@@ -14,8 +14,8 @@ script. Trusted Types start in **report-only** mode.
 - `src/Agentd.Bff/Security/CspPolicy.cs` — create: builds the enforced and report-only header values.
 - `src/Agentd.Bff/Endpoints/CspReportEndpoint.cs` — create: `POST /api/csp-report`, outside the antiforgery groups.
 - `src/Agentd.Host/Program.cs` — modify: `app.UseSecurityHeaders()` first in the pipeline.
-- `src/Agentd.Bff/Views/Spa/Index.cshtml` — verify: no inline script or style; loads `/theme-init.js` with `<script src>`.
-- `web/vite.config.ts` — verify: runtime-only Vue (no `vue` alias to the full build); `build.modulePreload` doesn't inject inline code.
+- `src/Agentd.Web/Views/Shared/_Layout.cshtml` — verify: no inline script or style; loads `/theme-init.js` with `<script src>`.
+- `src/Agentd.Web/vite.config.ts` — verify: runtime-only Vue (no `vue` alias to the full build); `build.modulePreload` doesn't inject inline code.
 
 ## Implementation
 1. **Enforced policy** (a single header line; see [security §3.1](../../../security/README.md#31-policy-production)):

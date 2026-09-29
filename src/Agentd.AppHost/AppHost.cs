@@ -19,7 +19,7 @@ var host = builder.AddProject<Projects.Agentd_Host>("agentd-host")
 
 // Vite serves modules + HMR only; the page itself is rendered by the Host (Razor), which proxies
 // Vite paths to this dev server, so the browser only ever talks to the Host's origin.
-var web = builder.AddViteApp("web", "../../web");
+var web = builder.AddViteApp("web", "../Agentd.Web");
 host.WithReference(web);
 
 await builder.Build().RunAsync().ConfigureAwait(false);

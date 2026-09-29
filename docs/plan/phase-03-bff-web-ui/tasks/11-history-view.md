@@ -11,8 +11,8 @@ them in the same Session view as a replay (the same components, with no live eve
 ## Files
 - `src/Agentd.Application/Queries/SearchHistory.cs` — modify (from T3.2): filters, sorting, paging.
 - `src/Agentd.Infrastructure.Persistence/Queries/HistoryQuery.cs` — create: an efficient SQL query.
-- `web/src/views/HistoryView.vue` — create.
-- `web/src/stores/history.ts` — create: a small store (page state, filters, results).
+- `src/Agentd.Web/ClientApps/dashboard/views/HistoryView.vue` — create.
+- `src/Agentd.Web/ClientApps/dashboard/stores/history.ts` — create: a small store (page state, filters, results).
 
 ## Implementation
 1. **Query:** `GET /api/history?state=&repo=&q=&from=&to=&page=1&pageSize=25`.

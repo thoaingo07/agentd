@@ -12,16 +12,16 @@ Build `/jobs/:id`, the page for tracing one session live:
 - a message composer that resumes waiting jobs.
 
 ## Files
-- `web/src/views/SessionView.vue` — create: header, `AgTabs` (Transcript · Diff · Details), composer.
-- `web/src/components/EventList.vue` — create: windowing, follow mode, "N new events ↓", load earlier.
-- `web/src/components/EventItem.vue` — create: a switch on `event.type`.
-- `web/src/components/AssistantText.vue`, `ToolCallCard.vue`, `QuestionBubble.vue`, `ReplyBubble.vue`,
+- `src/Agentd.Web/ClientApps/dashboard/views/SessionView.vue` — create: header, `AgTabs` (Transcript · Diff · Details), composer.
+- `src/Agentd.Web/ClientApps/dashboard/components/EventList.vue` — create: windowing, follow mode, "N new events ↓", load earlier.
+- `src/Agentd.Web/ClientApps/dashboard/components/EventItem.vue` — create: a switch on `event.type`.
+- `src/Agentd.Web/ClientApps/dashboard/components/AssistantText.vue`, `ToolCallCard.vue`, `QuestionBubble.vue`, `ReplyBubble.vue`,
   `StateDivider.vue`, `TurnSummary.vue`, `ErrorAlert.vue` — create.
-- `web/src/components/DiffView.vue` — create.
-- `web/src/components/MessageComposer.vue` — create.
-- `web/src/utils/diff.ts` — create: the unified-diff parser.
-- `web/src/utils/markdown-lite.ts` — create: markdown → VNode tree (no HTML strings).
-- `web/src/utils/format.ts` — create: durations, cost, relative time.
+- `src/Agentd.Web/ClientApps/dashboard/components/DiffView.vue` — create.
+- `src/Agentd.Web/ClientApps/dashboard/components/MessageComposer.vue` — create.
+- `src/Agentd.Web/ClientApps/shared/utils/diff.ts` — create: the unified-diff parser.
+- `src/Agentd.Web/ClientApps/shared/utils/markdown-lite.ts` — create: markdown → VNode tree (no HTML strings).
+- `src/Agentd.Web/ClientApps/shared/utils/format.ts` — create: durations, cost, relative time.
 
 ## Implementation
 1. **Header:**

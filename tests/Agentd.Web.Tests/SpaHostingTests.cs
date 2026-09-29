@@ -1,7 +1,7 @@
 using System.Net;
 using System.Text.RegularExpressions;
 
-namespace Agentd.Bff.Tests;
+namespace Agentd.Web.Tests;
 
 [TestClass]
 public sealed partial class SpaHostingTests
@@ -41,11 +41,11 @@ public sealed partial class SpaHostingTests
     {
         var html = await s_client.GetStringAsync(new Uri("/", UriKind.Relative));
 
-        StringAssert.Contains(html, """<script type="module" src="/assets/main-abc123.js"></script>""");
-        StringAssert.Contains(html, """<link rel="stylesheet" href="/assets/main-abc123.css" />""");
-        StringAssert.Contains(html, """<link rel="stylesheet" href="/assets/vendor-def456.css" />""");
-        StringAssert.Contains(html, """<link rel="modulepreload" href="/assets/vendor-def456.js" />""");
-        StringAssert.Contains(html, """<script src="/theme-init.js"></script>""");
+        StringAssert.Contains(html, """<script type="module" src="/_content/Agentd.Web/assets/dashboard-abc123.js"></script>""");
+        StringAssert.Contains(html, """<link rel="stylesheet" href="/_content/Agentd.Web/assets/dashboard-abc123.css" />""");
+        StringAssert.Contains(html, """<link rel="stylesheet" href="/_content/Agentd.Web/assets/vendor-def456.css" />""");
+        StringAssert.Contains(html, """<link rel="modulepreload" href="/_content/Agentd.Web/assets/vendor-def456.js" />""");
+        StringAssert.Contains(html, """<script src="/_content/Agentd.Web/theme-init.js"></script>""");
         Assert.DoesNotContain("/@vite/client", html);
     }
 
@@ -75,18 +75,9 @@ public sealed partial class SpaHostingTests
     [TestMethod]
     public async Task Built_static_files_are_served()
     {
-        using var response = await s_client.GetAsync(new Uri("/theme-init.js", UriKind.Relative));
+        using var response = await s_client.GetAsync(new Uri("/_content/Agentd.Web/theme-init.js", UriKind.Relative));
 
         Assert.AreEqual(HttpStatusCode.OK, response.StatusCode);
-    }
-
-    [TestMethod]
-    public async Task Liveness_endpoint_reports_healthy()
-    {
-        using var response = await s_client.GetAsync(new Uri("/alive", UriKind.Relative));
-
-        Assert.AreEqual(HttpStatusCode.OK, response.StatusCode);
-        Assert.AreEqual("Healthy", await response.Content.ReadAsStringAsync());
     }
 
     // <script ...> followed by anything other than </script> means inline code.

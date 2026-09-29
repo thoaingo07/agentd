@@ -1,4 +1,4 @@
-using Agentd.Bff.Vite;
+using Agentd.Web.Vite;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -7,20 +7,21 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
-namespace Agentd.Bff;
+namespace Agentd.Web;
 
 /// <summary>
-/// Hosts the Vue SPA through a Razor view. Production: assets from Vite's manifest in wwwroot.
-/// Development: modules and HMR proxied to the Vite dev server (same origin as the Host).
+/// Hosts the Vue apps through Razor views. Production: assets from Vite's manifest (this library's
+/// static web assets). Development: everything under the Vite base is proxied to the Vite dev server,
+/// including HMR, so the browser only talks to the Host's origin.
 /// </summary>
-public static class SpaHosting
+public static class WebHosting
 {
-    /// <summary>Server-owned path prefixes that must never be answered by the SPA shell.</summary>
+    /// <summary>Server-owned path prefixes that must never be answered by an SPA shell.</summary>
     private static readonly string[] s_reservedPrefixes = ["/api", "/bff", "/hubs", "/mcp"];
 
-    public static IServiceCollection AddSpaHosting(this IServiceCollection services, IConfiguration configuration)
+    public static IServiceCollection AddWebHosting(this IServiceCollection services, IConfiguration configuration)
     {
-        services.AddControllersWithViews().AddApplicationPart(typeof(SpaHosting).Assembly);
+        services.AddControllersWithViews().AddApplicationPart(typeof(WebHosting).Assembly);
         services.AddOptions<ViteOptions>()
             .Bind(configuration.GetSection(ViteOptions.Section))
             .PostConfigure(o =>
@@ -31,20 +32,19 @@ public static class SpaHosting
                     o.DevServerUrl = url;
                 }
             });
-        services.AddSingleton<ViteManifest>();
-        services.AddSingleton<ViteAssetResolver>();
+        services.AddSingleton<ViteHelper>();
         return services;
     }
 
-    public static WebApplication UseSpaHosting(this WebApplication app)
+    public static WebApplication UseWebHosting(this WebApplication app)
     {
         var vite = app.Services.GetRequiredService<IOptions<ViteOptions>>().Value;
 
         if (app.Environment.IsDevelopment() && vite.DevServerUrl is { } devServer)
         {
-            // Vite modules, public files and the HMR websocket go to the dev server; the page stays on this origin.
+            var basePath = new PathString(vite.Base.TrimEnd('/'));
             app.MapWhen(
-                ctx => vite.DevServerPaths.Any(p => ctx.Request.Path.StartsWithSegments(p, StringComparison.Ordinal)),
+                ctx => ctx.Request.Path.StartsWithSegments(basePath, StringComparison.Ordinal),
                 branch => branch.UseSpa(spa => spa.UseProxyToSpaDevelopmentServer(devServer)));
         }
 
@@ -58,8 +58,8 @@ public static class SpaHosting
             app.Map(prefix, () => Results.NotFound()).WithOrder(int.MaxValue - 1);
         }
 
-        app.MapControllerRoute("spa-root", "/", new { controller = "Spa", action = "Index" });
-        app.MapFallbackToController("Index", "Spa");
+        app.MapControllerRoute("dashboard", "/", new { controller = "Spa", action = "Dashboard" });
+        app.MapFallbackToController("Dashboard", "Spa");
         return app;
     }
 }
