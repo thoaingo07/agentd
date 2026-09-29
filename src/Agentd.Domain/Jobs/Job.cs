@@ -39,6 +39,9 @@ public sealed class Job : AggregateRoot<JobId>
 
     public string? LastError { get; private set; }
 
+    /// <summary>Earliest time a deferred job may start again (e.g. after a usage limit resets).</summary>
+    public DateTimeOffset? NotBefore { get; private set; }
+
     public DateTimeOffset CreatedAt { get; private set; }
 
     public DateTimeOffset UpdatedAt { get; private set; }
@@ -83,6 +86,7 @@ public sealed class Job : AggregateRoot<JobId>
             Attempt = s.Attempt,
             ResumeCount = s.ResumeCount,
             LastError = s.LastError,
+            NotBefore = s.NotBefore,
             CreatedAt = s.CreatedAt,
             UpdatedAt = s.UpdatedAt,
             Version = s.Version,
@@ -117,6 +121,7 @@ public sealed class Job : AggregateRoot<JobId>
         Worktree = worktree;
         Branch = branch;
         Session = session;
+        NotBefore = null;
         Transition(JobState.Running, new JobStarted(branch, worktree, session, Now));
         return Result.Ok;
     }
@@ -184,6 +189,23 @@ public sealed class Job : AggregateRoot<JobId>
         return Result.Ok;
     }
 
+    /// <summary>
+    /// Puts a running job back in the queue without losing its session (e.g. the Claude subscription
+    /// hit its usage limit). It resumes with the same session once <paramref name="notBefore"/> passes.
+    /// </summary>
+    public Result Defer(DateTimeOffset? notBefore, string reason)
+    {
+        if (Require("defer", JobState.Running) is { } error)
+        {
+            return error;
+        }
+
+        NotBefore = notBefore;
+        LastError = reason;
+        Transition(JobState.Queued, new JobDeferred(notBefore, reason, Now));
+        return Result.Ok;
+    }
+
     /// <summary>Records that a running job is being resumed after the daemon restarted.</summary>
     public Result MarkRecovered()
     {
@@ -224,6 +246,7 @@ public sealed record JobSnapshot(
     int Attempt,
     int ResumeCount,
     string? LastError,
+    DateTimeOffset? NotBefore,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
     long Version);

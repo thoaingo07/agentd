@@ -20,3 +20,5 @@ public sealed record JobCancelled(string By, JobState FromState, DateTimeOffset 
 public sealed record JobRetried(int Attempt, DateTimeOffset OccurredAt) : IDomainEvent;
 
 public sealed record JobRecovered(int ResumeCount, DateTimeOffset OccurredAt) : IDomainEvent;
+
+public sealed record JobDeferred(DateTimeOffset? NotBefore, string Reason, DateTimeOffset OccurredAt) : IDomainEvent;

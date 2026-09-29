@@ -25,6 +25,7 @@ public sealed class JobTransitionTests
         ["Cancel"] = j => j.Cancel("tngo"),
         ["Retry"] = j => j.Retry(),
         ["MarkRecovered"] = j => j.MarkRecovered(),
+        ["Defer"] = j => j.Defer(DateTimeOffset.UnixEpoch, "usage limit"),
     };
 
     private static readonly Dictionary<(JobState From, string Op), (JobState To, Type Event)> s_allowed = new()
@@ -34,6 +35,7 @@ public sealed class JobTransitionTests
         [(JobState.Running, "Finish")] = (JobState.Publishing, typeof(JobFinished)),
         [(JobState.Publishing, "Complete")] = (JobState.Done, typeof(PullRequestCreated)),
         [(JobState.Running, "MarkRecovered")] = (JobState.Running, typeof(JobRecovered)),
+        [(JobState.Running, "Defer")] = (JobState.Queued, typeof(JobDeferred)),
         [(JobState.Failed, "Retry")] = (JobState.Queued, typeof(JobRetried)),
         [(JobState.Queued, "Fail")] = (JobState.Failed, typeof(JobFailed)),
         [(JobState.Preparing, "Fail")] = (JobState.Failed, typeof(JobFailed)),
@@ -99,6 +101,20 @@ public sealed class JobTransitionTests
     }
 
     [TestMethod]
+    public void Defer_keeps_the_session_and_sets_NotBefore()
+    {
+        var job = JobIn(JobState.Running);
+        var session = job.Session;
+        var resetAt = new DateTimeOffset(2026, 9, 29, 14, 5, 0, TimeSpan.Zero);
+
+        job.Defer(resetAt, "usage limit");
+
+        Assert.AreEqual(JobState.Queued, job.State);
+        Assert.AreEqual(session, job.Session);
+        Assert.AreEqual(resetAt, job.NotBefore);
+    }
+
+    [TestMethod]
     public void MarkRecovered_counts_resumes()
     {
         var job = JobIn(JobState.Running);
@@ -125,7 +141,7 @@ public sealed class JobTransitionTests
     public void Rehydrate_restores_state_without_raising_events()
     {
         var snapshot = new JobSnapshot(new JobId(42), WorkItemId.From(9), RepositoryName.From("r"), "t", JobState.Running,
-            s_branch, s_worktree, s_session, null, 2, 1, null, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, 5);
+            s_branch, s_worktree, s_session, null, 2, 1, null, null, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, 5);
 
         var job = Job.Rehydrate(snapshot, FakeClock.Default());
 
