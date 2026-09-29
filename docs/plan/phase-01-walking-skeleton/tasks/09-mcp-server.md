@@ -1,0 +1,55 @@
+# T1.9 — MCP server with per-job token auth
+
+| Phase | Depends on | Size | Layer / project |
+|---|---|---|---|
+| 1 | T1.2, T1.7 | M | `Agentd.Mcp` (+ `Agentd.Host` wiring) |
+
+## Goal
+Expose `/mcp` so each Claude process can call agentd's tools: `finish`, `report_progress` (logged
+only in Phase 1) and `get_work_item`. Each call is authenticated with a **per-job bearer token**, so
+the daemon always knows which job is calling and one job can never act on another.
+
+## Files
+- `src/Agentd.Mcp/McpTokenIssuer.cs` — create: `IMcpTokenIssuer` (issue, validate, revoke).
+- `src/Agentd.Mcp/Auth/JobTokenAuthenticationHandler.cs` — create: its own authentication scheme `McpJobToken`.
+- `src/Agentd.Mcp/Tools/AgentdTools.cs` — create: tool methods.
+- `src/Agentd.Mcp/DependencyInjection.cs` — create: `AddAgentdMcp()`, `MapAgentdMcp()`.
+- `src/Agentd.Host/Program.cs` — modify: map `/mcp`.
+- `tests/Agentd.Bff.Tests/Mcp/*` or a new `tests/Agentd.Mcp.Tests` — create (`WebApplicationFactory`).
+
+## Implementation
+1. **Tokens:**
+   - 32 random bytes, base64url-encoded;
+   - stored **hashed** (SHA-256) in memory: `hash → (jobId, expiresAt)`;
+   - issued when a job starts a run and revoked when the job reaches a terminal state;
+   - after a daemon restart, recovery (T1.11) issues fresh tokens and rewrites `mcp.json` before
+     resuming.
+2. **Authentication handler:** reads `Authorization: Bearer`, validates the token, and sets a
+   principal with the claim `agentd:job_id`. It **rejects any request that has an `Origin` header**
+   (browsers always send one; the CLI does not). It has no cookie scheme.
+3. **The MCP server:** use the official C# MCP SDK (`ModelContextProtocol.AspNetCore`) with the HTTP
+   transport: `builder.Services.AddMcpServer().WithHttpTransport().WithTools<AgentdTools>()` and
+   `app.MapMcp("/mcp").RequireAuthorization("McpJob")`. *Verify the method names against the pinned
+   SDK version.*
+4. **Tools** (the job ID always comes from the principal, never from tool arguments):
+   - `finish(summary, pr_title, pr_description)` → `FinishWork`. Returns "Work recorded. agentd
+     will open the PR; end your turn now." Errors (wrong state) come back as tool errors with a
+     readable message.
+   - `report_progress(message)` → log + an event `progress.reported` (chat delivery comes in Phase 2).
+   - `get_work_item()` → the current work item details (a text rendering).
+5. **Binding:** `/mcp` is served on the same Kestrel as the Host. In Phase 1 the Host listens on
+   loopback only, so `/mcp` is loopback-only too.
+
+## Tests
+- Integration tests:
+  - no token → 401;
+  - a wrong or revoked token → 401;
+  - a request with an `Origin` header → 403;
+  - job A's token can't finish job B (the job ID comes only from the token);
+  - `finish` moves a Running job to Publishing;
+  - `finish` on a non-Running job → a tool error.
+- End-to-end: a real `claude` run in a scratch repo calls `finish` through the generated `mcp.json`.
+
+## Done when
+- [ ] Claude can list and call the three tools with its per-job token.
+- [ ] Tokens are never logged or stored in plaintext, and are revoked when the job ends.

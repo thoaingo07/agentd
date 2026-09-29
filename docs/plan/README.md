@@ -28,17 +28,17 @@ flowchart LR
 
 | # | Phase | Outcome (the demo) | Size | Plan review | Build review |
 |---|---|---|---|---|---|
-| 0 | [Foundation](phase-00-foundation.md) | Aspire AppHost runs PostgreSQL + Host + Vite; empty green Vue shell and `/healthz`; architecture tests; GitHub Actions CI | M | ◐ decisions made | ☐ |
-| 1 | [Walking skeleton](phase-01-walking-skeleton.md) | Tag a work item `ai-workflow` → Claude works in a worktree → a PR is opened and linked | L | ☐ pending | ☐ |
-| 2 | [Messaging](phase-02-messaging.md) | The agent asks a question in a Discord thread / Telegram topic; the reply resumes the session | L | ☐ pending | ☐ |
-| 3 | [BFF + Web UI v1](phase-03-bff-web-ui.md) | Live dashboard and session trace in the browser, under strict CSP and antiforgery | L | ☐ pending | ☐ |
-| 4 | [Workflow phases + kit v1](phase-04-workflow-and-kit.md) | Jobs run Design → Plan → Implement → Test → Review on MAF, with a plan gate, and survive restarts; `.agentd/` kit init | XL | ☐ pending | ☐ |
-| 5 | [SSO + roles](phase-05-sso-and-roles.md) | Sign in with Microsoft or Google; Viewer / Operator / Admin enforced in the UI, API and chat | M | ☐ pending | ☐ |
-| 6 | [Model profiles](phase-06-model-profiles.md) | Implement runs on DeepSeek/GLM, Review on another family; fallback on errors; cost per phase | L | ☐ pending | ☐ |
-| 7 | [PR Reviewer + dashboard](phase-07-pr-reviewer.md) | `/prs` lists open PRs; pick kit reviewers → findings are posted as PR threads | L | ☐ pending | ☐ |
-| 8 | [PR Monitor + hotfix](phase-08-pr-monitor-hotfix.md) | A review comment or red CI → agentd pushes a fix and resolves threads; hotfix + backport | L | ☐ pending | ☐ |
-| 9 | [Learning loop](phase-09-learning-loop.md) | Runs produce candidates → a Learnings PR → merged learnings appear in later prompts | M | ☐ pending | ☐ |
-| 10 | [Hardening & ops](phase-10-hardening-ops.md) | Kit upgrade, retention, backups, systemd deploy, MAF Harness benchmark, runbook | M | ☐ pending | ☐ |
+| 0 | [Foundation](phase-00-foundation/README.md) | Aspire AppHost runs PostgreSQL + Host + Vite; empty green Vue shell and `/healthz`; architecture tests; GitHub Actions CI | M | ◐ decisions made | ☐ |
+| 1 | [Walking skeleton](phase-01-walking-skeleton/README.md) | Tag a work item `ai-workflow` → Claude works in a worktree → a PR is opened and linked | L | ☐ pending | ☐ |
+| 2 | [Messaging](phase-02-messaging/README.md) | The agent asks a question in a Discord thread / Telegram topic; the reply resumes the session | L | ☐ pending | ☐ |
+| 3 | [BFF + Web UI v1](phase-03-bff-web-ui/README.md) | Live dashboard and session trace in the browser, under strict CSP and antiforgery | L | ☐ pending | ☐ |
+| 4 | [Workflow phases + kit v1](phase-04-workflow-and-kit/README.md) | Jobs run Design → Plan → Implement → Test → Review on MAF, with a plan gate, and survive restarts; `.agentd/` kit init | XL | ☐ pending | ☐ |
+| 5 | [SSO + roles](phase-05-sso-and-roles/README.md) | Sign in with Microsoft or Google; Viewer / Operator / Admin enforced in the UI, API and chat | M | ☐ pending | ☐ |
+| 6 | [Model profiles](phase-06-model-profiles/README.md) | Implement runs on DeepSeek/GLM, Review on another family; fallback on errors; cost per phase | L | ☐ pending | ☐ |
+| 7 | [PR Reviewer + dashboard](phase-07-pr-reviewer/README.md) | `/prs` lists open PRs; pick kit reviewers → findings are posted as PR threads | L | ☐ pending | ☐ |
+| 8 | [PR Monitor + hotfix](phase-08-pr-monitor-hotfix/README.md) | A review comment or red CI → agentd pushes a fix and resolves threads; hotfix + backport | L | ☐ pending | ☐ |
+| 9 | [Learning loop](phase-09-learning-loop/README.md) | Runs produce candidates → a Learnings PR → merged learnings appear in later prompts | M | ☐ pending | ☐ |
+| 10 | [Hardening & ops](phase-10-hardening-ops/README.md) | Kit upgrade, retention, backups, systemd deploy, MAF Harness benchmark, runbook | M | ☐ pending | ☐ |
 
 Sizes are relative (S < M < L < XL), not calendar estimates.
 
@@ -46,6 +46,22 @@ Phase 5 can move **before** Phase 4 if the Web UI must be reachable from anywher
 `localhost`. Until SSO ships, agentd refuses to bind to non-loopback addresses.
 
 ---
+
+## Folder layout
+
+```
+docs/plan/
+├── README.md                      # this index
+└── phase-NN-<name>/
+    ├── README.md                  # the phase plan: goal, scope, exit criteria, open questions
+    └── tasks/
+        ├── README.md              # task index: ID, dependencies, size, status
+        └── NN-<task>.md           # one task: files, implementation steps, tests, done-when checklist
+```
+
+Detailed task files exist for **Phases 0–4** (the main workflow). Phases 5–10 have a task index,
+and their detail files are written when each phase starts, so they reflect what the earlier phases
+actually delivered.
 
 ## How each phase is run
 
