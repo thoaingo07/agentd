@@ -1,65 +1,56 @@
-# T1.4 — Repository registration and work item → repo matching
+# T1.4 — Repository registry (any repo, managed clones) and work item → repo matching
 
 | Phase | Depends on | Size | Layer / project |
 |---|---|---|---|
-| 1 | T1.2, Phase 0 (options) | S | `Agentd.Application` + `Agentd.Host` |
+| 1 | T1.2, T1.3 | M | `Agentd.Domain`, `Agentd.Application`, `Agentd.Migrator`, `Agentd.Infrastructure.Persistence` |
 
 ## Goal
-agentd must know which local repository a work item belongs to. Repositories are registered in
-the operator config, and each work item is matched by **area path** or a **`repo:<name>` tag**.
+agentd works on **any repository**, registered by URL, not by a local path
+([deployment.md §3](../../../architect/deployment.md#3-any-repository-managed-clones)).
+Registrations are stored in the database, and the config file can seed them. Each work item is
+matched to a repository by a **`repo:<name>` tag** (wins) or else by **area path** (decided).
 
 ## Files
-- `src/Agentd.Application/Repositories/RepositoryConfig.cs` — create: the options record.
-- `src/Agentd.Application/Repositories/RepositoryRegistry.cs` — create: `IRepositoryRegistry`.
-- `src/Agentd.Host/Options/AgentdOptions.cs` — modify: add `Repositories`.
-- `src/Agentd.Host/appsettings.json` — modify: an example entry.
-- `tests/Agentd.Application.Tests/Repositories/RepositoryRegistryTests.cs` — create.
+- `src/Agentd.Domain/Repositories/Repository.cs`: create. Name, `RemoteUrl`, provider coordinates
+  (`AzureDevOpsRepo(org, project, repo)`), `BaseBranch`, match rules, limits.
+- `src/Agentd.Domain/Repositories/RemoteUrl.cs`: create. Parses Azure DevOps SSH/HTTPS URLs
+  (`git@ssh.dev.azure.com:v3/{org}/{project}/{repo}`, `{org}@vs-ssh.visualstudio.com:v3/…`,
+  `https://dev.azure.com/{org}/{project}/_git/{repo}`, `https://{org}.visualstudio.com/{project}/_git/{repo}`)
+  and SSH host aliases (`git@erm-azdo:v3/…`).
+- `src/Agentd.Application/Repositories/IRepositoryRegistry.cs`, `RepositoryMatcher.cs`, `AddRepository.cs`: create.
+- `src/Agentd.Migrator/Migrations/{version}_repositories.up.sql` + `Routines/repository/*.sql`: create.
+- `src/Agentd.Infrastructure.Persistence/Repositories/RepositoryStore.cs`: create.
+- `tests/Agentd.Domain.Tests/Repositories/RemoteUrlTests.cs`, `tests/Agentd.Application.Tests/Repositories/*`: create.
 
 ## Implementation
-1. **Config shape** (operator-owned; see architecture §3.1 and ai-sdlc-kit §5):
-   ```jsonc
-   "Agentd": {
-     "Repositories": [
-       {
-         "Name": "agentd",
-         "LocalPath": "/home/ulab/tngo/github/agentd",
-         "Remote": "origin",
-         "BaseBranch": "main",
-         "AdoRepository": "agentd",                      // ADO repo name or ID, used for PR creation
-         "Match": { "AreaPaths": ["MyProject\\Platform"], "Tag": "repo:agentd" },
-         "Limits": { "MaxTurns": 200 }
-       }
-     ]
-   }
-   ```
-2. **Validation at startup** (`IValidateOptions`):
-   - names are unique;
-   - `LocalPath` exists and is a git repo (`.git` present);
-   - `BaseBranch` is not empty;
-   - at least one match rule is set.
-3. **Matching order:**
+1. **Table `agentd.repositories`:** `name` (PK), `remote_url`, `provider`, `organization`,
+   `project`, `repo`, `base_branch`, `match_tag`, `match_area_paths text[]`, `limits jsonb`,
+   `enabled`, `created_at`, `version`. Routines: `repository_upsert`, `repository_get`,
+   `repository_list`, `repository_remove`.
+2. **`AddRepository(url, name?, baseBranch?, tag?, areaPaths?)`:**
+   - parse the URL, and default the name to the repo name;
+   - if no base branch is given, **detect it** from the remote HEAD via `IGitRemote.GetDefaultBranchAsync`
+     (for `sysmin` that's `develop`);
+   - upsert the registration, then ensure the bare clone exists (T1.6).
+3. **Config seeding:** `Agentd:Repositories[]` entries (`Url`, optional `Name`, `BaseBranch`,
+   `Match`) are upserted on startup, so a declarative setup still works.
+4. **Matching order:**
    1. an exact `repo:<name>` tag on the work item;
-   2. **the longest** area path prefix match (case-insensitive, `\` separators);
-   3. none → `null`.
+   2. the **longest** area-path prefix match (case-insensitive, `\` separators);
+   3. none → no match.
 
-   If several repos match at the same precedence level, the result is `Ambiguous` and the claim is
-   refused with a clear work item comment.
-4. **No-match handling** (in `ClaimWorkItem`): comment once on the work item ("agentd: no repository
-   matches this item; add a `repo:<name>` tag"), then remember it in memory so it isn't re-commented
-   on every poll. Don't claim it.
+   Several matches at the same level → `Ambiguous`. On no match or ambiguity, comment **once** on the
+   work item ("agentd: no repository matches; add a `repo:<name>` tag") and don't claim it.
+5. **Development sandbox** (appsettings.Development.json seed):
+   `{ "Url": "git@erm-azdo:v3/ermsystem/Portal/sysmin", "Match": { "Tag": "repo:sysmin" } }`.
 
 ## Tests
-- `Agentd.Application.Tests`:
-  - tag beats area path;
-  - the longest area-path prefix wins;
-  - case-insensitivity;
-  - ambiguous → no claim + one comment;
-  - no match → no claim + one comment;
-  - an invalid config fails validation with readable messages.
+- `RemoteUrl`: every URL form above, including the `erm-azdo` alias; invalid URLs are rejected.
+- The matcher: the tag beats the area path; the longest prefix wins; case-insensitivity; ambiguous and
+  no match → no claim + exactly one comment.
+- `AddRepository` with a fake `IGitRemote` detects `develop`; an explicit `--base` wins.
+- Store round-trip against PostgreSQL (Integration).
 
 ## Done when
-- [ ] Startup fails fast with a clear message for invalid repository config.
+- [ ] `agentd repo add <url>` (T1.12) registers a repo and detects its default branch.
 - [ ] Matching is covered by tests for tags, area paths, ambiguity and no match.
-
-## Open decision
-- Which rule should be **primary** in your org: area path or the `repo:` tag? (Architecture decision #4.) Both are implemented; the tag wins when present.

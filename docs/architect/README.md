@@ -619,6 +619,7 @@ agentd/
 | 7 | Discord library: Discord.Net vs NetCord | Discord.Net (mature, widely used); NetCord if newer Discord features are needed. It stays swappable inside the provider. |
 | 12 | ~~Workflow~~ | **Decided:** Design → Plan → Implement → Test → Review + learning loop ([workflow-and-learning.md](workflow-and-learning.md)) |
 | 13 | ~~Models~~ | **Decided:** per-phase model profiles with fallback chains ([model-profiles.md](model-profiles.md)) |
+| 18 | ~~Deployment target~~ | **Decided:** standalone VPS, any repo; NetClaw-style single binary + config home + Docker ([deployment.md](deployment.md)) |
 | 17 | ~~PR lifecycle~~ | **Decided:** PR Reviewer (kit-defined reviewers), PR Monitor (fix rounds, no force-push), hotfix + backport ([pr-reviewer-and-monitor.md](pr-reviewer-and-monitor.md)) |
 | 16 | ~~Orchestration framework~~ | **Decided:** Microsoft Agent Framework Workflows + MAF agents for non-coding steps; Claude Code stays the coding runner; MAF Harness Agent is benchmark-gated ([orchestration-maf.md](orchestration-maf.md)) |
 | 15 | ~~Per-repo process knowledge~~ | **Decided:** ai-sdlc kit in `.agentd/`, initialized by agentd and owned by the team ([ai-sdlc-kit.md](ai-sdlc-kit.md)) |
@@ -639,6 +640,7 @@ agentd/
 - [model-profiles.md](model-profiles.md) — per-phase model and provider routing, fallbacks, cost
 - [ai-sdlc-kit.md](ai-sdlc-kit.md) — per-repo `.agentd/` kit: init, customize, upgrade, validate
 - [orchestration-maf.md](orchestration-maf.md) — Microsoft Agent Framework workflow graph, checkpoints, MAF agents
+- [deployment.md](deployment.md) — standalone VPS (any repo): `agentd` daemon + CLI, `~/.agentd` config home, secrets, systemd, Docker, releases
 - [pr-reviewer-and-monitor.md](pr-reviewer-and-monitor.md) — predefined PR reviewers, PR monitoring & fix rounds, hotfixes
 - [references/azure-devops.md](references/azure-devops.md) — auth, WIQL, work item & PR REST calls
 - [references/discord.md](references/discord.md) — bot setup, intents, threads

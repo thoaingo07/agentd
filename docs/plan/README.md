@@ -12,6 +12,8 @@ reviewed twice, **before** it starts (is this plan the right direction?) and **a
 ```mermaid
 flowchart LR
     P0[0 · Foundation] --> P1[1 · Walking skeleton<br/>ADO → Claude → PR]
+    P3 --> P1b[1b · Portable distribution<br/>VPS, any repo, setup UI]
+    P1 --> P1b
     P1 --> P2[2 · Messaging<br/>Discord + Telegram]
     P1 --> P3[3 · BFF + Web UI v1<br/>+ browser security]
     P2 --> P4[4 · Workflow phases<br/>MAF + ai-sdlc kit v1]
@@ -30,6 +32,7 @@ flowchart LR
 |---|---|---|---|---|---|
 | 0 | [Foundation](phase-00-foundation/README.md) | Aspire AppHost runs PostgreSQL + Host + Vite; empty green Vue shell and `/healthz`; architecture tests; GitHub Actions CI | M | ☑ approved | ◐ built, awaiting review |
 | 1 | [Walking skeleton](phase-01-walking-skeleton/README.md) | Tag a work item `ai-workflow` → Claude works in a worktree → a PR is opened and linked | L | ☐ pending | ☐ |
+| 1b | [Portable distribution](phase-01b-portable-distribution/README.md) *(runs after Phase 3)* | On a fresh VPS: `install.sh` → `daemon install` → **web setup wizard** (DB, ADO PAT, SSH key, Claude, repo) → `doctor` all ✅ → tagged work item → PR. Docker Compose works too. | XL | ☐ pending | ☐ |
 | 2 | [Messaging](phase-02-messaging/README.md) | The agent asks a question in a Discord thread / Telegram topic; the reply resumes the session | L | ☐ pending | ☐ |
 | 3 | [BFF + Web UI v1](phase-03-bff-web-ui/README.md) | Live dashboard and session trace in the browser, under strict CSP and antiforgery | L | ☐ pending | ☐ |
 | 4 | [Workflow phases + kit v1](phase-04-workflow-and-kit/README.md) | Jobs run Design → Plan → Implement → Test → Review on MAF, with a plan gate, and survive restarts; `.agentd/` kit init | XL | ☐ pending | ☐ |
