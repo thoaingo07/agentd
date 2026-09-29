@@ -18,7 +18,8 @@ references and package references, so it never erodes silently.
    `src/**/*.csproj` with `System.Xml.Linq` and collect `ProjectReference` names,
    `PackageReference` IDs and `FrameworkReference` names. Resolve the repo root by walking up from
    `AppContext.BaseDirectory` to the directory containing `Agentd.slnx`.
-2. Rules (data-driven, one `[Theory]` row per rule):
+2. Rules (data-driven: one MSTest `[TestMethod]` fed by `[DynamicData]`, one row per rule, so each
+   rule shows up as its own test case):
 
    | Project | Must not reference (projects) | Must not reference (packages / frameworks, by prefix) |
    |---|---|---|

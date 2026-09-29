@@ -50,8 +50,10 @@ and the Vite dev server, with the Aspire dashboard showing all three.
 ## Tests
 - A manual smoke test, recorded in the PR: the screenshot of the dashboard shows `postgres`, `agentd`
   and `web` running and healthy.
-- Optional (CI later): an `Aspire.Hosting.Testing` test that starts the AppHost and asserts that
-  `GET /healthz` on `agentd` returns 200. It is marked `[Trait("Category","Aspire")]` and skipped in
+- Optional (CI later): an `Aspire.Hosting.Testing` test (MSTest; `MSTest.Sdk` can enable Aspire
+  testing with `<EnableAspireTesting>true</EnableAspireTesting>`, so verify that property against
+  the pinned version) that starts the AppHost and asserts that `GET /healthz` on `agentd` returns
+  200. It is marked `[TestCategory("Aspire")]` and skipped in
   CI unless Docker is available.
 
 ## Done when

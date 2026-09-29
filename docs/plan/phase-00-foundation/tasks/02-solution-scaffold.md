@@ -18,10 +18,11 @@ rule holds from the first commit.
 - `src/Agentd.Host/Agentd.Host.csproj`: create (`Microsoft.NET.Sdk.Web`).
 - `src/Agentd.ServiceDefaults/…csproj`: create (T0.3 fills it).
 - `src/Agentd.AppHost/…csproj`: create (T0.4 fills it).
-- `tests/Agentd.{Domain,Application,Infrastructure,Bff,Architecture}Tests/…csproj`: create (xUnit).
+- `tests/Agentd.{Domain,Application,Infrastructure,Bff,Architecture}Tests/…csproj`: create, using **MSTest on Microsoft.Testing.Platform** (`<Project Sdk="MSTest.Sdk">`).
 
 ## Implementation
-1. Create the projects with `dotnet new classlib|web|xunit`, then delete the template sample files.
+1. Create the projects with `dotnet new classlib|web|mstest`, then delete the template sample files.
+   Test projects use `<Project Sdk="MSTest.Sdk">`, with the version from `global.json` (T0.1).
 2. Add them to `Agentd.slnx` with the solution folders `src` and `tests`.
 3. Project references. **This table is the dependency rule:**
 
@@ -43,12 +44,34 @@ rule holds from the first commit.
 4. Add a placeholder type per library, e.g. `Agentd.Domain.AssemblyMarker`, so each assembly is non-empty.
 5. Host `Program.cs` is a minimal `WebApplication` for now. Add `public partial class Program;` so
    `WebApplicationFactory` can see it.
-6. Test packages go in `Directory.Packages.props`: `xunit.v3` (or `xunit` 2.x; pick one and use it
-   everywhere), `Microsoft.NET.Test.Sdk`, `xunit.runner.visualstudio`, `FluentAssertions` or
-   `Shouldly` (one of them), and `Microsoft.AspNetCore.Mvc.Testing` (Bff.Tests).
+6. **Test stack: MSTest + Microsoft.Testing.Platform (MTP).**
+   - `MSTest.Sdk` brings the MSTest framework, analyzers, the MTP runner, and the default extensions
+     profile (TRX reports + code coverage). There's no `Microsoft.NET.Test.Sdk`, and no
+     VSTest adapter.
+   - Test projects are **executables** (MTP). `dotnet test` in MTP mode (T0.1) and `dotnet run`
+     both run them.
+   - **Assertions:** MSTest's built-in `Assert`, `CollectionAssert` and `StringAssert`. No third-party
+     assertion library.
+   - Extra packages go in `Directory.Packages.props`: `Microsoft.AspNetCore.Mvc.Testing`
+     (Bff.Tests) and `Testcontainers.PostgreSql` (Infrastructure.Tests).
+   - Check that `MSTest.Sdk` works with central package management. The SDK supplies its own package
+     versions; follow the MSTest docs if it needs an override.
+   - Parallelization: unit test projects declare
+     `[assembly: Parallelize(Scope = ExecutionScope.MethodLevel)]`. Integration tests that share a
+     container use `ClassLevel`, plus `[DoNotParallelize]` where needed.
+   - Categories: `[TestCategory("Integration")]` (needs Docker) and `[TestCategory("Aspire")]`
+     (starts the AppHost).
 
 ## Tests
-- A trivial `[Fact]` in each test project, so the pipeline is proven end to end.
+- A trivial test in each test project, so the pipeline is proven end to end:
+  ```csharp
+  [TestClass]
+  public sealed class SmokeTests
+  {
+      [TestMethod]
+      public void Pipeline_runs() => Assert.IsTrue(true);
+  }
+  ```
 
 ## Done when
 - [ ] `dotnet build Agentd.slnx` succeeds with zero warnings.

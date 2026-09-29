@@ -74,7 +74,7 @@ or more correct. It is not a run log.
 | Kind | Example |
 |---|---|
 | `convention` | "API endpoints live in `src/Agentd.Bff/Endpoints/*Endpoints.cs`, one static class per resource." |
-| `command` | "Run integration tests with `dotnet test tests/Agentd.Infrastructure.Tests --filter Category!=Slow`; the full suite needs Docker." |
+| `command` | "Run integration tests with `dotnet test --project tests/Agentd.Infrastructure.Tests --filter "TestCategory!=Slow"`; the full suite needs Docker." |
 | `pitfall` | "EF migrations must be generated from `src/Agentd.Host` (`--startup-project`); from the Persistence project they fail silently." |
 | `decision` | "The developer prefers removing legacy endpoints over deprecating them (WI-1234, WI-1302)." |
 | `review` | "Human reviewers reject PRs without a test for each acceptance criterion." |
@@ -116,7 +116,7 @@ reviewed like code, useful to human developers too, and portable to any other ag
 ## Test
 ### L-015 · Integration tests need Docker running
 - **Kind:** command · **Paths:** `tests/Agentd.Infrastructure.Tests/**`
-- **Rule:** Run `docker info` first; if Docker is unavailable, run with `--filter Category!=Integration` and say so in the test report.
+- **Rule:** Run `docker info` first; if Docker is unavailable, run with `--filter "TestCategory!=Integration"` and say so in the test report.
 - **Why:** Testcontainers hangs for 5 min when Docker is down.
 - **Evidence:** WI-1251 · **Confidence:** medium · **Seen:** 1 · **Last confirmed:** 2026-09-24
 

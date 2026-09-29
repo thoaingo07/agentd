@@ -21,8 +21,16 @@ versioning. From here on, every project inherits the same rules.
 1. `global.json`: pin the SDK band that is installed and used in CI (currently `10.0.301`), with
    `"rollForward": "latestFeature"` so CI and developers can use newer feature bands.
    ```json
-   { "sdk": { "version": "10.0.301", "rollForward": "latestFeature" } }
+   {
+     "sdk": { "version": "10.0.301", "rollForward": "latestFeature" },
+     "test": { "runner": "Microsoft.Testing.Platform" },
+     "msbuild-sdks": { "MSTest.Sdk": "<latest stable MSTest version>" }
+   }
    ```
+   - `test.runner` puts `dotnet test` into **Microsoft.Testing.Platform (MTP) mode** on .NET 10
+     (verify the exact setting against the installed SDK).
+   - `msbuild-sdks` pins **one MSTest.Sdk version for every test project**, so test projects
+     declare `<Project Sdk="MSTest.Sdk">` with no version.
 2. `Directory.Build.props`:
    ```xml
    <Project>

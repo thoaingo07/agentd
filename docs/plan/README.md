@@ -80,7 +80,7 @@ actually delivered.
   secrets, and the browser rules (CSP, antiforgery, HttpOnly) apply from Phase 3 onwards.
 - **Each phase leaves the system usable.** No half-finished features on `main`; incomplete work is
   hidden behind a config flag.
-- **Tests travel with the code:** unit tests for Domain and Application, Testcontainers for
+- **Tests travel with the code (MSTest on Microsoft.Testing.Platform):** unit tests for Domain and Application, Testcontainers for
   PostgreSQL, recorded fixtures for Azure DevOps, Discord, Telegram and stream-json.
 - **Docs stay true.** If the build deviates from `docs/architect`, the design doc is updated in the
   same PR.

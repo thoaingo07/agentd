@@ -15,6 +15,7 @@ Design refs: [Clean Architecture + BFF](../../architect/clean-architecture-bff.m
 | Local orchestration | **.NET Aspire** (AppHost + ServiceDefaults), no docker compose |
 | Node version | **Node 24** (pinned in `.nvmrc`, `package.json` `engines`, and CI) |
 | Web package manager | **npm** (`package-lock.json` committed, `npm ci` in CI) |
+| .NET test framework | **MSTest on Microsoft.Testing.Platform** (`MSTest.Sdk`, `dotnet test` in MTP mode, built-in asserts) |
 
 ---
 

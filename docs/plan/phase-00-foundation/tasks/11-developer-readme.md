@@ -27,7 +27,11 @@ Sections:
    export ConnectionStrings__agentd="Host=localhost;Database=agentd;Username=…;Password=…"
    dotnet run --project src/Agentd.Host -p:BuildWeb=true
    ```
-5. **Tests**: `dotnet test` (needs Docker for Testcontainers), and `cd web && npm test`.
+5. **Tests**: MSTest on Microsoft.Testing.Platform.
+   - `dotnet test` runs everything; the `Integration` category needs Docker for Testcontainers.
+   - `dotnet test --filter "TestCategory!=Integration"` runs the fast unit tests only.
+   - A single test project can also run directly: `dotnet run --project tests/Agentd.Domain.Tests`.
+   - Web tests: `cd web && npm test`.
 6. **Project layout**: a short tree with one line per project, linking to the Clean Architecture doc.
 7. **Conventions**: branch names `phase/NN-name` or `feat/…`; CI must be green; architecture tests
    are the dependency rule.

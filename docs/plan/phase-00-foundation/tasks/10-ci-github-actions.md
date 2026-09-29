@@ -35,7 +35,12 @@ jobs:
       - run: dotnet restore Agentd.slnx
       - run: dotnet format Agentd.slnx --verify-no-changes --no-restore
       - run: dotnet build Agentd.slnx --no-restore -c Release
-      - run: dotnet test Agentd.slnx --no-build -c Release --logger "trx" --results-directory TestResults
+      # MSTest on Microsoft.Testing.Platform: dotnet test runs in MTP mode (global.json "test.runner").
+      - run: >
+          dotnet test --solution Agentd.slnx --no-build -c Release
+          --filter "TestCategory!=Aspire"
+          --report-trx --results-directory TestResults
+          --coverage --coverage-output-format cobertura
         # Testcontainers uses the runner's Docker; Aspire-category tests are filtered out here.
         env: { DOTNET_CLI_TELEMETRY_OPTOUT: "1" }
       - uses: actions/upload-artifact@v4
@@ -59,7 +64,11 @@ jobs:
 ```
 - Pin the action versions to the current majors at implementation time. Consider pinning to SHAs
   in Phase 10.
-- Exclude Aspire-hosting tests with `--filter "Category!=Aspire"`.
+- Exclude Aspire-hosting tests with `--filter "TestCategory!=Aspire"` (MSTest filter syntax).
+- The MTP options (`--solution`, `--report-trx`, `--coverage`) come from .NET 10's MTP-mode
+  `dotnet test` and the MSTest.Sdk default extensions. Verify the exact option names against the
+  pinned SDK and MSTest versions.
+- Optional: publish the TRX files as a check summary, and upload the Cobertura coverage report as an artifact.
 - **Branch protection on `main`** (a manual GitHub setting): require the `ci / dotnet` and `ci / web`
   checks, and require PRs.
 

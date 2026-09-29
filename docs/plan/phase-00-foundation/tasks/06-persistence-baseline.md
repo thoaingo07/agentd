@@ -50,8 +50,13 @@ Core client integration, with migrations applied automatically **only in Develop
    outside Persistence references `AgentdDbContext` except the Host's registration.
 
 ## Tests
-- `Infrastructure.Tests` (Testcontainers PostgreSQL): apply the migrations to a fresh container;
-  insert a job + event; read them back; the `jsonb` payload round-trips.
+- `Infrastructure.Tests` (MSTest, `[TestCategory("Integration")]`): one Testcontainers PostgreSQL
+  container per test assembly, started in `[AssemblyInitialize]` and disposed in
+  `[AssemblyCleanup]`. Each test class gets its own database, created in `[ClassInitialize]`, so
+  classes can run in parallel. The tests:
+  - apply the migrations;
+  - insert a job + event;
+  - read them back, and check that the `jsonb` payload round-trips.
 - A test that fails if there are model changes without a migration (`HasPendingModelChanges()`, or
   the current EF API; verify).
 

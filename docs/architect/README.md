@@ -112,6 +112,7 @@ flowchart LR
 | In-process event bus | `System.Threading.Channels` + PostgreSQL `LISTEN/NOTIFY` |
 | Logging / tracing | `ILogger` + OpenTelemetry (traces per job, metrics for cost and turns) |
 | Local dev | **.NET Aspire** (AppHost: PostgreSQL + Host + Vite; ServiceDefaults: OTel, health checks). It is dev-time only; production runs the Host directly under systemd. |
+| Testing | **MSTest on Microsoft.Testing.Platform** (`MSTest.Sdk`); Testcontainers for PostgreSQL; `Aspire.Hosting.Testing` for AppHost tests; vitest + Playwright for `web/` |
 | CI | **GitHub Actions** (.NET 10 SDK via `global.json`, **Node 24**, **npm**) |
 
 ### 2.2 Architecture style: Clean Architecture + BFF
