@@ -25,7 +25,7 @@ public sealed class DependencyRuleTests
     [TestMethod]
     public void Expected_projects_are_discovered()
     {
-        foreach (var name in new[] { "Agentd.Domain", "Agentd.Application", "Agentd.Infrastructure.Persistence", "Agentd.Bff", "Agentd.Mcp", "Agentd.Host", "Agentd.Migrator" })
+        foreach (var name in new[] { "Agentd.Domain", "Agentd.Application", "Agentd.Infrastructure.Persistence", "Agentd.Bff", "Agentd.Mcp", "Agentd.Host", "Agentd.Migrator", "Agentd.Web" })
         {
             Assert.IsTrue(ProjectGraph.Source.ContainsKey(name), $"{name} not found under src/");
         }

@@ -4,6 +4,11 @@
 |---|---|---|---|
 | 0 | T0.1–T0.9 | S | .github/workflows |
 
+> **Moved after Phase 0:** `web/` is now **`src/Agentd.Web`**, a Razor class library whose
+> `ClientApps/<app>/` folders hold the Vue SPAs and whose `package.json` sits at the project root. It
+> also has `_Layout.cshtml` + `ViteHelper`, with assets under `/_content/Agentd.Web/`. See
+> [Architecture §3.9 → Serving](../../../architect/README.md) and [UI §10](../../../ui/README.md#10-folder-structure).
+
 ## Goal
 Every PR and every push to `main` is built, formatted, type-checked, linted and tested, for both
 .NET and web. Merging a red build is blocked.

@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* The HTML shell is a Razor view in this project; scan the views for utility classes too. */
+@source "../../../Views";
+
 @plugin "daisyui" {
   themes: false;               /* only our themes */
 }

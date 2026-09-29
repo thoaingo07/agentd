@@ -256,4 +256,4 @@ The operator side of the config shrinks to:
 | `InitKit`, `UpgradeKit`, `ValidateKit`, `LoadKitForJob` use cases; `IKitStore` port | Application |
 | reading the kit from the base branch, 3-way merge (`git merge-file`), kit PRs | `Infrastructure.Git` + `Infrastructure.AzureDevOps` |
 | `agentd kit init|upgrade|validate` CLI verbs | `Agentd.Host` |
-| Repositories page: kit status (version, valid, customized files, upgrade available), init and upgrade buttons | `Agentd.Bff` + `web/` |
+| Repositories page: kit status (version, valid, customized files, upgrade available), init and upgrade buttons | `Agentd.Bff` + `src/Agentd.Web/` |

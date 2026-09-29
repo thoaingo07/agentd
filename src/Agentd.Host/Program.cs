@@ -1,9 +1,13 @@
 using Agentd.Host;
 using Agentd.Host.Options;
 using Agentd.Infrastructure.Persistence;
+using Agentd.Web;
 using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Serve Razor class library static assets (Agentd.Web's Vite build under /_content/Agentd.Web/) in every environment.
+builder.WebHost.UseStaticWebAssets();
 
 builder.AddServiceDefaults();
 
@@ -17,15 +21,12 @@ HostUrls.ApplyDefault(builder);
 // PostgreSQL: pooled NpgsqlDataSource with health check and tracing (connection string "agentd").
 builder.AddNpgsqlDataSource("agentd");
 builder.Services.AddPersistence();
+builder.Services.AddWebHosting(builder.Configuration);
 
 var app = builder.Build();
 
-app.UseDefaultFiles();
-app.UseStaticFiles();
-
 app.MapDefaultEndpoints();
-ReservedPaths.MapNotFound(app);          // /api, /bff, /hubs, /mcp never fall through to the SPA
-app.MapFallbackToFile("index.html");
+app.UseWebHosting();                      // Razor shells for ClientApps/* (Vite manifest in production, dev-server proxy in Development)
 
 await app.RunAsync().ConfigureAwait(false);
 

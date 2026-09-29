@@ -54,7 +54,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: web
+        working-directory: src/Agentd.Web
     steps:
       - uses: actions/checkout@v4
 
@@ -62,7 +62,7 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
-          cache-dependency-path: web/package-lock.json
+          cache-dependency-path: src/Agentd.Web/package-lock.json
 
       - run: npm ci
       - run: npm run typecheck
@@ -70,9 +70,5 @@ jobs:
       - run: npm run test -- --run
       - run: npm run build
 
-      - name: No inline script/style in built index.html (CSP)
-        run: |
-          if grep -Eq '<script>|<style' ../src/Agentd.Host/wwwroot/index.html; then
-            echo "::error::Inline <script> or <style> found in index.html; the CSP forbids inline code."
-            exit 1
-          fi
+      - name: Vite manifest produced (ViteHelper reads it)
+        run: test -f wwwroot/manifest.json

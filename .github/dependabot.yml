@@ -8,7 +8,7 @@ updates:
       nuget: { patterns: ["*"] }
 
   - package-ecosystem: npm
-    directory: /web
+    directory: /src/Agentd.Web
     schedule: { interval: monthly }
     groups:
       npm: { patterns: ["*"] }

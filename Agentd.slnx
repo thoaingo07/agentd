@@ -9,6 +9,7 @@
     <Project Path="src/Agentd.Mcp/Agentd.Mcp.csproj" />
     <Project Path="src/Agentd.Migrator/Agentd.Migrator.csproj" />
     <Project Path="src/Agentd.ServiceDefaults/Agentd.ServiceDefaults.csproj" />
+    <Project Path="src/Agentd.Web/Agentd.Web.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Agentd.Application.Tests/Agentd.Application.Tests.csproj" />
@@ -17,5 +18,6 @@
     <Project Path="tests/Agentd.Domain.Tests/Agentd.Domain.Tests.csproj" />
     <Project Path="tests/Agentd.Infrastructure.Tests/Agentd.Infrastructure.Tests.csproj" />
     <Project Path="tests/Agentd.Migrator.Tests/Agentd.Migrator.Tests.csproj" />
+    <Project Path="tests/Agentd.Web.Tests/Agentd.Web.Tests.csproj" />
   </Folder>
 </Solution>

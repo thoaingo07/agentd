@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+  <!--
+    Web UI host: Razor shell (_Layout + one view per SPA), ViteHelper (manifest / dev server), and the
+    Vue apps under ClientApps/ (one package.json for all). Vite builds into wwwroot/, served as this
+    library's static web assets under /_content/Agentd.Web/.
+  -->
+  <PropertyGroup>
+    <AddRazorSupportForMvc>true</AddRazorSupportForMvc>
+    <!-- Keep MSBuild away from the JS toolchain and sources. -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);node_modules/**;ClientApps/**;tests/**;public/**</DefaultItemExcludes>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.SpaServices.Extensions" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Agentd.Web.Tests" />
+  </ItemGroup>
+  <!-- Opt-in (CI / publish): build the Vue apps first so wwwroot/ is part of the static web assets. -->
+  <Target Name="BuildClientApps" BeforeTargets="BeforeBuild" Condition="'$(BuildWeb)' == 'true'">
+    <Exec WorkingDirectory="$(MSBuildProjectDirectory)" Command="npm ci &amp;&amp; npm run build" />
+  </Target>
+</Project>

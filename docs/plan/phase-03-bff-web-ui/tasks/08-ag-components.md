@@ -11,11 +11,11 @@ Tailwind classes driven by `data-*` state attributes. Feature code imports only 
 never base-ui-vue directly.
 
 ## Files
-- `web/src/components/ui/AgButton.vue`, `AgCollapsible.vue`, `AgTabs.vue`, `AgTooltip.vue`,
+- `src/Agentd.Web/ClientApps/shared/components/ui/AgButton.vue`, `AgCollapsible.vue`, `AgTabs.vue`, `AgTooltip.vue`,
   `AgToggleGroup.vue`, `AgMeter.vue`, `AgModal.vue`, `AgToast.vue` (+ `AgToastHost.vue`), `AgStateBadge.vue` — create.
-- `web/src/components/ui/index.ts` — create: barrel export.
-- `web/src/components/icons/*.vue` — create: inline SVG icons (clock, check, x-octagon, message-question, …).
-- `web/package.json` — modify: add `base-ui-vue` (version pinned by the lockfile).
+- `src/Agentd.Web/ClientApps/shared/components/ui/index.ts` — create: barrel export.
+- `src/Agentd.Web/ClientApps/shared/components/icons/*.vue` — create: inline SVG icons (clock, check, x-octagon, message-question, …).
+- `src/Agentd.Web/package.json` — modify: add `base-ui-vue` (version pinned by the lockfile).
 - `web/eslint.config.*` — modify: a `no-restricted-imports` rule that blocks `base-ui-vue` outside `components/ui/`.
 
 ## Implementation
