@@ -1,5 +1,10 @@
 <Project Sdk="MSTest.Sdk">
   <ItemGroup>
     <ProjectReference Include="..\..\src\Agentd.Infrastructure.Persistence\Agentd.Infrastructure.Persistence.csproj" />
+    <!-- The real schema for integration tests. -->
+    <ProjectReference Include="..\..\src\Agentd.Migrator\Agentd.Migrator.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Testcontainers.PostgreSql" />
   </ItemGroup>
 </Project>

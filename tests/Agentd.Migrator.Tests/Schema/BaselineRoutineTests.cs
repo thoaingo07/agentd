@@ -23,16 +23,16 @@ public sealed class BaselineRoutineTests
     public static async Task CleanupAsync() => await s_db.DisposeAsync();
 
     [TestMethod]
-    public async Task Job_create_returns_queued_job_at_version_1()
+    public async Task Job_insert_returns_id_and_version_1_and_records_events()
     {
-        await using var cmd = s_db.CreateCommand("SELECT id, state, version FROM agentd.job_create($1)");
+        await using var cmd = s_db.CreateCommand("SELECT id, version FROM agentd.job_insert($1, 'sysmin', 'Fix', 'Queued', 1, now(), $2)");
         cmd.Parameters.Add(new NpgsqlParameter { Value = 1234, NpgsqlDbType = NpgsqlDbType.Integer });
+        cmd.Parameters.Add(new NpgsqlParameter { Value = """[{"type":"JobQueued","payload":{"x":1}}]""", NpgsqlDbType = NpgsqlDbType.Jsonb });
         await using var reader = await cmd.ExecuteReaderAsync();
 
         Assert.IsTrue(await reader.ReadAsync());
         Assert.IsGreaterThan(0L, reader.GetInt64(0));
-        Assert.AreEqual("Queued", reader.GetString(1));
-        Assert.AreEqual(1L, reader.GetInt64(2));
+        Assert.AreEqual(1L, reader.GetInt64(1));
     }
 
     [TestMethod]

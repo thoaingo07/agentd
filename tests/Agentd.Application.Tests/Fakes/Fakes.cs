@@ -84,8 +84,7 @@ internal sealed class InMemoryJobs(IClock clock) : IJobRepository
     private void Store(Job job)
     {
         SavedEventTypes.AddRange(job.DequeueEvents().Select(e => e.GetType().Name));
-        _rows[job.Id.Value] = new JobSnapshot(job.Id, job.WorkItemId, job.Repository, job.Title, job.State, job.Branch, job.Worktree,
-            job.Session, job.PullRequest, job.Attempt, job.ResumeCount, job.LastError, job.NotBefore, job.CreatedAt, job.UpdatedAt, job.Version);
+        _rows[job.Id.Value] = job.ToSnapshot();
     }
 }
 

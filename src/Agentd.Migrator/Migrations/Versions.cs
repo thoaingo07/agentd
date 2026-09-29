@@ -7,3 +7,6 @@ namespace Agentd.Migrator.Migrations;
 
 [Migration(2026_09_29_0001, "Initial schema: jobs, events")]
 public sealed class InitialSchema : SqlMigration;
+
+[Migration(2026_09_30_0001, "Walking skeleton: full job record, one active job per work item")]
+public sealed class WalkingSkeleton : SqlMigration;

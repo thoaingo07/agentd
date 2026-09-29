@@ -141,7 +141,7 @@ public sealed class JobTransitionTests
     public void Rehydrate_restores_state_without_raising_events()
     {
         var snapshot = new JobSnapshot(new JobId(42), WorkItemId.From(9), RepositoryName.From("r"), "t", JobState.Running,
-            s_branch, s_worktree, s_session, null, 2, 1, null, null, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, 5);
+            s_branch, s_worktree, s_session, null, null, 2, 1, null, null, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, 5);
 
         var job = Job.Rehydrate(snapshot, FakeClock.Default());
 

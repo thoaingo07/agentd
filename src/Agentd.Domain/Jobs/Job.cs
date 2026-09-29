@@ -83,6 +83,7 @@ public sealed class Job : AggregateRoot<JobId>
             Worktree = s.Worktree,
             Session = s.Session,
             PullRequest = s.PullRequest,
+            Draft = s.Draft,
             Attempt = s.Attempt,
             ResumeCount = s.ResumeCount,
             LastError = s.LastError,
@@ -92,6 +93,11 @@ public sealed class Job : AggregateRoot<JobId>
             Version = s.Version,
         };
     }
+
+    /// <summary>Current state as a snapshot, for storage.</summary>
+    public JobSnapshot ToSnapshot() => new(
+        Id, WorkItemId, Repository, Title, State, Branch, Worktree, Session, PullRequest, Draft,
+        Attempt, ResumeCount, LastError, NotBefore, CreatedAt, UpdatedAt, Version);
 
     /// <summary>Called by storage after an insert or save.</summary>
     public void Persisted(JobId id, long version)
@@ -232,7 +238,7 @@ public sealed class Job : AggregateRoot<JobId>
     }
 }
 
-/// <summary>Stored state of a job, used to rehydrate the aggregate.</summary>
+/// <summary>Stored state of a job, used to rehydrate the aggregate (and produced by <see cref="Job.ToSnapshot"/>).</summary>
 public sealed record JobSnapshot(
     JobId Id,
     WorkItemId WorkItemId,
@@ -243,6 +249,7 @@ public sealed record JobSnapshot(
     WorktreePath? Worktree,
     ClaudeSessionId? Session,
     PullRequestUrl? PullRequest,
+    PullRequestDraft? Draft,
     int Attempt,
     int ResumeCount,
     string? LastError,

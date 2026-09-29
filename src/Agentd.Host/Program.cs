@@ -20,6 +20,7 @@ HostUrls.ApplyDefault(builder);
 
 // PostgreSQL: pooled NpgsqlDataSource with health check and tracing (connection string "agentd").
 builder.AddNpgsqlDataSource("agentd");
+builder.Services.AddSingleton<Agentd.Domain.Common.IClock, SystemClock>();
 builder.Services.AddPersistence();
 builder.Services.AddWebHosting(builder.Configuration);
 
