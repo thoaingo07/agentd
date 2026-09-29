@@ -1,0 +1,33 @@
+# .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+TestResults/
+*.trx
+*.coverage
+*.cobertura.xml
+
+# IDE
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Node / web
+node_modules/
+web/dist/
+playwright-report/
+test-results/
+
+# Host static output (built from web/)
+src/Agentd.Host/wwwroot/
+
+# Local config & secrets
+*.local.json
+.env
+.env.*
+
+# Claude Code local state
+.claude/scheduled_tasks.lock
+.claude/settings.local.json

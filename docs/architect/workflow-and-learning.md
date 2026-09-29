@@ -75,7 +75,7 @@ or more correct. It is not a run log.
 |---|---|
 | `convention` | "API endpoints live in `src/Agentd.Bff/Endpoints/*Endpoints.cs`, one static class per resource." |
 | `command` | "Run integration tests with `dotnet test --project tests/Agentd.Infrastructure.Tests --filter "TestCategory!=Slow"`; the full suite needs Docker." |
-| `pitfall` | "EF migrations must be generated from `src/Agentd.Host` (`--startup-project`); from the Persistence project they fail silently." |
+| `pitfall` | "Changing a routine's return columns needs a versioned migration that drops the old function first; `CREATE OR REPLACE` can't change a return type." |
 | `decision` | "The developer prefers removing legacy endpoints over deprecating them (WI-1234, WI-1302)." |
 | `review` | "Human reviewers reject PRs without a test for each acceptance criterion." |
 | `workflow` | "For dependency bumps, skip the Design phase; Plan is enough." |

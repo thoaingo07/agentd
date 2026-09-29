@@ -18,7 +18,7 @@ flowchart TB
         MCP[Agentd.Mcp<br/>agents: ask_developer, finish, ...]
     end
     subgraph I[Infrastructure — driven adapters]
-        PER[Persistence<br/>EF Core + Npgsql]
+        PER[Persistence<br/>Npgsql + PL/pgSQL routines]
         ADO[AzureDevOps]
         DIS[Messaging.Discord<br/>Messaging.Telegram]
         CLA[Claude<br/>process runner]
@@ -39,8 +39,8 @@ flowchart TB
 
 | Project | May reference | Must not reference |
 |---|---|---|
-| `Agentd.Domain` | nothing (BCL only) | everything else, EF Core, ASP.NET Core |
-| `Agentd.Application` | Domain, `Microsoft.Extensions.*.Abstractions` | Infrastructure, Presentation, EF Core, ASP.NET Core, Discord.Net, Telegram.Bot |
+| `Agentd.Domain` | nothing (BCL only) | everything else, Npgsql, ASP.NET Core |
+| `Agentd.Application` | Domain, `Microsoft.Extensions.*.Abstractions` | Infrastructure, Presentation, Npgsql, Dapper, ASP.NET Core, Discord.Net, Telegram.Bot |
 | `Agentd.Infrastructure.*` | Application, Domain, its external SDK | Presentation, other Infrastructure projects |
 | `Agentd.Bff`, `Agentd.Mcp` | Application, Domain (read-only types) | Infrastructure |
 | `Agentd.Host` | everything | — |
@@ -51,7 +51,7 @@ This is enforced two ways: project references, and **architecture tests** (§7).
 
 ## 2. Domain (`Agentd.Domain`)
 
-Pure C# with no framework attributes. EF mapping lives in Persistence.
+Pure C# with no framework attributes. Mapping to and from database rows lives in the Persistence repositories ([data-access.md](data-access.md)).
 
 - **Aggregate `Job`.** It owns the state machine from [Architecture §3.4](README.md#34-scheduler--supervisor-the-core).
   Transitions are methods, so an invalid transition cannot be expressed:
@@ -123,7 +123,7 @@ public interface IQueryHandler<in TQuery, TResult>     { Task<TResult> Handle(TQ
 
 | Port | Implemented in |
 |---|---|
-| `IJobRepository`, `IUnitOfWork` | Persistence |
+| `IJobRepository`, `IUnitOfWork` (an explicit `NpgsqlTransaction` scope; no ORM) | Persistence (PostgreSQL functions; [data-access.md](data-access.md)) |
 | `IEventStore` (append, read after/before seq), `IEventPublisher` (live fan-out) | Persistence (+ `LISTEN/NOTIFY`) |
 | `IWorkItemSource` (query, get, claim, comment) | AzureDevOps |
 | `IPullRequestService` (push, create PR, list active PRs, threads, votes, policy/build status, merge status) | AzureDevOps + Git |
@@ -152,7 +152,7 @@ One project per external system, so that a dependency (e.g. Discord.Net) stays i
 
 | Project | Contents |
 |---|---|
-| `Infrastructure.Persistence` | `AgentdDbContext`, Fluent configurations, migrations, repositories, event store (partitioned `events` table), outbox/`NOTIFY` publisher, `FOR UPDATE SKIP LOCKED` dequeue |
+| `Infrastructure.Persistence` | `NpgsqlDataSource`, SQL migrations + PL/pgSQL routines (`DatabaseMigrator`), repositories calling routines, event store (partitioned `events` table), outbox/`NOTIFY` publisher, `FOR UPDATE SKIP LOCKED` dequeue |
 | `Infrastructure.AzureDevOps` | `AzureCliCredential` / PAT token providers, typed `HttpClient`s (WIQL, work items, comments, PRs), resilience |
 | `Infrastructure.Messaging.Discord` | `DiscordMessagingProvider`, gateway listener, slash commands, Discord markdown renderer. Inbound events → `HandleInboundMessage`. |
 | `Infrastructure.Messaging.Telegram` | `TelegramMessagingProvider`, long-polling (or webhook) listener, bot commands, inline keyboards, HTML renderer. Inbound updates → `HandleInboundMessage`. |
@@ -237,7 +237,7 @@ antiforgery setup or view models with the BFF.
 | `Agentd.Application.Tests` | handlers with in-memory fakes of the ports |
 | `Agentd.Infrastructure.Tests` | Persistence against real PostgreSQL (Testcontainers); the stream-json parser against recorded fixtures; ADO clients against recorded HTTP |
 | `Agentd.Bff.Tests` | `WebApplicationFactory`: auth, antiforgery (unsafe methods without the header → 400), CSP header present, view-model shape |
-| `Agentd.ArchitectureTests` | enforces §1. For example: Domain has no reference outside the BCL; Application does not reference `Microsoft.EntityFrameworkCore`, `Microsoft.AspNetCore.*` `Discord` or `Telegram`; Bff/Mcp do not reference `Agentd.Infrastructure.*`; no `Infrastructure.Messaging.*` project references another. |
+| `Agentd.ArchitectureTests` | enforces §1. For example: Domain has no reference outside the BCL; Application does not reference `Npgsql`, `Dapper`, `Microsoft.AspNetCore.*` `Discord` or `Telegram`; Bff/Mcp do not reference `Agentd.Infrastructure.*`; no `Infrastructure.Messaging.*` project references another. |
 
 ---
 

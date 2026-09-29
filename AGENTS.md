@@ -27,7 +27,17 @@ The design lives in [`docs/architect`](docs/architect/README.md), and the phased
 
 ## Stack & conventions (decided)
 
-- **.NET 10**, **PostgreSQL**, EF Core + Npgsql.
+- **.NET 10**, **PostgreSQL**.
+- **Data access: PostgreSQL functions and procedures only. There is NO EF Core or other ORM.**
+  See [`docs/architect/data-access.md`](docs/architect/data-access.md).
+  - Call routines with Npgsql, using typed positional parameters and never string concatenation.
+    Dapper is allowed for mapping results only.
+  - Schema changes are versioned SQL scripts in `Database/Migrations/NNNN_*.sql` (immutable once
+    applied). Routines are repeatable `CREATE OR REPLACE` scripts in `Database/Routines/**`.
+  - **Thread safety:** `NpgsqlDataSource` is the only singleton. Open one connection per operation
+    and never share a connection or command across threads.
+  - Every routine gets integration tests, including a parallel-callers test for concurrency-critical
+    ones.
 - **Clean Architecture + BFF:** dependencies point inward only (Domain ← Application ← Infrastructure /
   Presentation). The architecture tests in `tests/Agentd.ArchitectureTests` enforce this; never
   weaken them to make a build pass.

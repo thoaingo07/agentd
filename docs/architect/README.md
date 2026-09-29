@@ -100,7 +100,7 @@ flowchart LR
 | Runtime | **.NET 10** (LTS). One ASP.NET Core process that hosts everything. |
 | Architecture | **Clean Architecture** (Domain → Application → Infrastructure / Presentation) with a **BFF** for the browser. See §2.2. |
 | Hosting | Generic Host; the timer-driven workers (poller, scheduler, retention) are `BackgroundService`s in the composition root. It runs as a systemd unit (`Microsoft.Extensions.Hosting.Systemd`) or a Windows Service. |
-| Database | **PostgreSQL 16+** via **EF Core + Npgsql**, with migrations checked in |
+| Database | **PostgreSQL 16+**, with all access through **PostgreSQL functions/procedures** called via **Npgsql** (Dapper for result mapping only); **no EF Core**. Versioned SQL migrations + repeatable routines, applied by an in-house runner ([data-access.md](data-access.md)). |
 | Azure DevOps auth | `Azure.Identity` → `AzureCliCredential` (az cli mode) or PAT; both behind `IAzureDevOpsTokenProvider` |
 | Azure DevOps API | typed `HttpClient` against the REST API (`api-version=7.1`), with Polly resilience via `Microsoft.Extensions.Http.Resilience` |
 | Claude processes | `System.Diagnostics.Process` (or CliWrap) running the `claude` CLI, with stream-json read line by line from stdout |
@@ -264,7 +264,7 @@ stateDiagram-v2
     Cancelled --> [*]
 ```
 
-**Job record** (PostgreSQL `jobs` table, EF Core entity `Job`):
+**Job record** (PostgreSQL `agentd.jobs` table, accessed via `agentd.job_*` functions):
 
 | field | purpose |
 |---|---|
@@ -275,7 +275,7 @@ stateDiagram-v2
 | `state`, `attempt`, `last_error` | lifecycle |
 | `pr_url` | result |
 | `created_at`, `updated_at` | timeouts and recovery |
-| `xmin` (row version) | optimistic concurrency on state transitions |
+| `version` | optimistic concurrency on state transitions (checked inside `agentd.job_save`) |
 
 **Dequeue.** `SELECT ... WHERE state = 'Queued' ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1`.
 This works safely today, and it lets more than one daemon host share the queue later without
@@ -564,7 +564,7 @@ agentd/
 ├── src/
 │   ├── Agentd.Domain/                      # Job aggregate, state machine, value objects, domain events (BCL only)
 │   ├── Agentd.Application/                 # use cases (commands/queries), ports, read models, Result<T>
-│   ├── Agentd.Infrastructure.Persistence/  # EF Core + Npgsql, migrations, repositories, event store, NOTIFY
+│   ├── Agentd.Infrastructure.Persistence/  # Npgsql, SQL migrations + PL/pgSQL routines, repositories, event store, NOTIFY
 │   ├── Agentd.Infrastructure.AzureDevOps/  # token providers, WIQL/work items/comments/PR HTTP clients
 │   ├── Agentd.Infrastructure.Messaging.Discord/   # IMessagingProvider: Discord.Net, threads, slash commands
 │   ├── Agentd.Infrastructure.Messaging.Telegram/  # IMessagingProvider: Telegram.Bot, forum topics, long polling
@@ -628,6 +628,7 @@ agentd/
 - **[../plan/README.md](../plan/README.md) — implementation plan: 11 phases, each reviewed before and after it is built**
 
 - [clean-architecture-bff.md](clean-architecture-bff.md) — layers, use cases, ports, BFF responsibilities, tests
+- [data-access.md](data-access.md) — PostgreSQL functions/procedures, SQL migrations, thread-safety rules
 - [messaging-providers.md](messaging-providers.md) — chat provider pattern (Discord, Telegram, …)
 - [workflow-and-learning.md](workflow-and-learning.md) — phases, gates, learnings capture → distill → review → apply
 - [model-profiles.md](model-profiles.md) — per-phase model and provider routing, fallbacks, cost

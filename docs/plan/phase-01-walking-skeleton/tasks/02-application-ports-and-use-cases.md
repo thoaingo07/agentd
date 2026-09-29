@@ -72,8 +72,11 @@ implement the ports.
    - Query `GetJobStatus` for the CLI (T1.12).
 4. **Prompt builder** (`TaskPromptBuilder`): renders the work item into a Markdown task prompt, plus
    fixed rules: work only in this repo, commit with clear messages, call `finish` when done.
-5. **Transactions:** handlers call `IUnitOfWork.SaveChangesAsync` once. Domain events are appended to
-   the event store in the same transaction (T1.3).
+5. **Transactions:** a handler usually needs **one** `IJobRepository.SaveAsync(job)`. It calls
+   `agentd.job_save`, which writes the state **and** appends the domain events atomically (T1.3).
+   When a use case must change several things atomically, it uses `IUnitOfWork`
+   (`BeginAsync` / `CommitAsync`), which wraps one `NpgsqlTransaction` that the repositories share
+   for that call only. No ORM change tracking is involved.
 
 ## Tests
 - `Agentd.Application.Tests` with in-memory fakes for every port:

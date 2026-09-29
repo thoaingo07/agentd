@@ -120,7 +120,8 @@ builder.Services
 // Data Protection keys in PostgreSQL, so sessions survive restarts and deploys.
 builder.Services.AddDataProtection()
     .SetApplicationName("agentd")
-    .PersistKeysToDbContext<AgentdDbContext>();
+    .AddKeyManagementOptions(o => o.XmlRepository =
+        sp.GetRequiredService<PostgresXmlRepository>());   // IXmlRepository over agentd.dp_key_* routines
 ```
 
 ### BFF session endpoints
