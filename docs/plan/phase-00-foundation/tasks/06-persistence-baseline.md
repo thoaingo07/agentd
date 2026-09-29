@@ -4,6 +4,11 @@
 |---|---|---|---|
 | 0 | T0.4, T0.5 | M | Agentd.Infrastructure.Persistence, Agentd.Host |
 
+> **Superseded after Phase 0:** the schema moved to the standalone **`Agentd.Migrator`** project,
+> which uses **FluentMigrator with raw SQL scripts**, and the Host no longer migrates. See
+> [data-access.md §2 and §4](../../../architect/data-access.md#4-running-migrations-agentdmigrator).
+> This task is kept as the Phase 0 record.
+
 ## Goal
 The data-access foundation from [data-access.md](../../../architect/data-access.md):
 - a pooled `NpgsqlDataSource` registered through **Aspire's Npgsql client integration**;

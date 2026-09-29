@@ -8,6 +8,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Agentd.Host\Agentd.Host.csproj" />
+    <ProjectReference Include="..\Agentd.Migrator\Agentd.Migrator.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Aspire.Hosting.PostgreSQL" />

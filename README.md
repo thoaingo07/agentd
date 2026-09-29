@@ -31,12 +31,14 @@ open:
 - **`agentd-host`**: the agentd Host (`http://127.0.0.1:7780`, `/healthz`, `/alive`);
 - **`postgres`**: PostgreSQL, with data kept in the `agentd-pgdata` volume.
 
-In Development, the Host applies database migrations on startup. Stop everything with `Ctrl+C`.
+Aspire runs **`agentd-migrator`** first, which applies the schema and exits. The Host starts after it
+finishes. Stop everything with `Ctrl+C`.
 
 ## Run without Aspire (production-like)
 
 ```bash
 export ConnectionStrings__agentd="Host=localhost;Database=agentd;Username=…;Password=…"
+dotnet run --project src/Agentd.Migrator                   # apply schema migrations + routines, then exit
 dotnet run --project src/Agentd.Host -p:BuildWeb=true      # builds web/ into wwwroot, serves on 127.0.0.1:7780
 ```
 
@@ -57,7 +59,8 @@ dotnet run --project tests/Agentd.Domain.Tests     # run a single test project d
 src/
   Agentd.Domain/                     domain model (no dependencies)
   Agentd.Application/                use cases + ports
-  Agentd.Infrastructure.Persistence/ PostgreSQL via Npgsql: SQL migrations + PL/pgSQL routines (no ORM)
+  Agentd.Infrastructure.Persistence/ repositories: PostgreSQL routines via Npgsql (no ORM)
+  Agentd.Migrator/                   standalone schema migrator: FluentMigrator + raw SQL + routines
   Agentd.Bff/                        backend-for-frontend endpoints (browser)
   Agentd.Mcp/                        MCP tools (agents)
   Agentd.Host/                       composition root; serves the built SPA from wwwroot/

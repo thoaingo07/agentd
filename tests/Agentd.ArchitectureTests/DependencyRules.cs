@@ -62,9 +62,19 @@ internal static class DependencyRules
             [Infrastructure, "Agentd.Host", "Agentd.ServiceDefaults"],
             ["Npgsql", "Dapper"]),
 
-        new("Only Host references ServiceDefaults",
-            n => n != "Agentd.Host",
+        new("Only executables (Host, Migrator) reference ServiceDefaults",
+            n => n is not ("Agentd.Host" or "Agentd.Migrator"),
             ["Agentd.ServiceDefaults"],
+            []),
+
+        new("Migrator is standalone (owns the schema; no application code)",
+            n => n == "Agentd.Migrator",
+            ["Agentd.Domain", "Agentd.Application", Infrastructure, "Agentd.Bff", "Agentd.Mcp", "Agentd.Host"],
+            []),
+
+        new("Nothing but the AppHost references the Migrator",
+            n => n != "Agentd.AppHost",
+            ["Agentd.Migrator"],
             []),
 
         new("No ORM anywhere (PostgreSQL functions via Npgsql; see docs/architect/data-access.md)",

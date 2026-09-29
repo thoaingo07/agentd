@@ -1,10 +1,9 @@
 using System.Collections.Concurrent;
-using Agentd.Infrastructure.Persistence.Migrations;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using NpgsqlTypes;
 
-namespace Agentd.Infrastructure.Tests.Persistence;
+namespace Agentd.Migrator.Tests.Schema;
 
 [TestClass]
 [TestCategory("Integration")]
@@ -15,8 +14,9 @@ public sealed class BaselineRoutineTests
     [ClassInitialize]
     public static async Task InitAsync(TestContext _)
     {
-        s_db = await PostgresFixture.CreateDatabaseAsync("baseline_routines");
-        await new DatabaseMigrator(s_db, NullLogger<DatabaseMigrator>.Instance).MigrateAsync(CancellationToken.None);
+        var cs = await PostgresFixture.CreateDatabaseAsync("baseline_routines");
+        await new SchemaMigrator(cs, NullLoggerFactory.Instance).MigrateAsync(CancellationToken.None);
+        s_db = NpgsqlDataSource.Create(cs);
     }
 
     [ClassCleanup]

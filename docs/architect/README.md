@@ -100,7 +100,7 @@ flowchart LR
 | Runtime | **.NET 10** (LTS). One ASP.NET Core process that hosts everything. |
 | Architecture | **Clean Architecture** (Domain → Application → Infrastructure / Presentation) with a **BFF** for the browser. See §2.2. |
 | Hosting | Generic Host; the timer-driven workers (poller, scheduler, retention) are `BackgroundService`s in the composition root. It runs as a systemd unit (`Microsoft.Extensions.Hosting.Systemd`) or a Windows Service. |
-| Database | **PostgreSQL 16+**, with all access through **PostgreSQL functions/procedures** called via **Npgsql** (Dapper for result mapping only); **no EF Core**. Versioned SQL migrations + repeatable routines, applied by an in-house runner ([data-access.md](data-access.md)). |
+| Database | **PostgreSQL 16+**, with all access through **PostgreSQL functions/procedures** called via **Npgsql** (Dapper for result mapping only); **no EF Core**. Raw SQL migrations + repeatable routines in the standalone **`Agentd.Migrator`** (FluentMigrator), run before the Host ([data-access.md](data-access.md)). |
 | Azure DevOps auth | `Azure.Identity` → `AzureCliCredential` (az cli mode) or PAT; both behind `IAzureDevOpsTokenProvider` |
 | Azure DevOps API | typed `HttpClient` against the REST API (`api-version=7.1`), with Polly resilience via `Microsoft.Extensions.Http.Resilience` |
 | Claude processes | `System.Diagnostics.Process` (or CliWrap) running the `claude` CLI, with stream-json read line by line from stdout |
@@ -564,7 +564,8 @@ agentd/
 ├── src/
 │   ├── Agentd.Domain/                      # Job aggregate, state machine, value objects, domain events (BCL only)
 │   ├── Agentd.Application/                 # use cases (commands/queries), ports, read models, Result<T>
-│   ├── Agentd.Infrastructure.Persistence/  # Npgsql, SQL migrations + PL/pgSQL routines, repositories, event store, NOTIFY
+│   ├── Agentd.Infrastructure.Persistence/  # Npgsql repositories calling PL/pgSQL routines, event store, NOTIFY
+│   ├── Agentd.Migrator/                    # standalone schema migrator: FluentMigrator + raw SQL migrations + routines
 │   ├── Agentd.Infrastructure.AzureDevOps/  # token providers, WIQL/work items/comments/PR HTTP clients
 │   ├── Agentd.Infrastructure.Messaging.Discord/   # IMessagingProvider: Discord.Net, threads, slash commands
 │   ├── Agentd.Infrastructure.Messaging.Telegram/  # IMessagingProvider: Telegram.Bot, forum topics, long polling

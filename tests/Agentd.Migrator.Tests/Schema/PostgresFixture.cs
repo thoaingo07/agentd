@@ -1,7 +1,7 @@
 using Npgsql;
 using Testcontainers.PostgreSql;
 
-namespace Agentd.Infrastructure.Tests.Persistence;
+namespace Agentd.Migrator.Tests.Schema;
 
 /// <summary>One PostgreSQL container per test assembly; each test class creates its own database.</summary>
 [TestClass]
@@ -25,8 +25,8 @@ public static class PostgresFixture
         }
     }
 
-    /// <summary>Creates a fresh, empty database and returns a data source for it.</summary>
-    public static async Task<NpgsqlDataSource> CreateDatabaseAsync(string name)
+    /// <summary>Creates a fresh, empty database and returns its connection string.</summary>
+    public static async Task<string> CreateDatabaseAsync(string name)
     {
         var admin = s_container?.GetConnectionString() ?? throw new InvalidOperationException("Container not started.");
         await using (var adminSource = NpgsqlDataSource.Create(admin))
@@ -35,7 +35,6 @@ public static class PostgresFixture
             await cmd.ExecuteNonQueryAsync().ConfigureAwait(false);
         }
 
-        var builder = new NpgsqlConnectionStringBuilder(admin) { Database = name };
-        return NpgsqlDataSource.Create(builder.ConnectionString);
+        return new NpgsqlConnectionStringBuilder(admin) { Database = name }.ConnectionString;
     }
 }

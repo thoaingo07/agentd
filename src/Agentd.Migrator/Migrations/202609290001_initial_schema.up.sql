@@ -1,4 +1,7 @@
--- 0001_initial: core tables. Versioned migrations are immutable once applied.
+-- 202609290001 initial schema: jobs and the append-only event log.
+-- Applied migrations are immutable; add a new migration instead of editing this file.
+CREATE SCHEMA IF NOT EXISTS agentd;
+
 CREATE TABLE agentd.jobs (
     id            bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     work_item_id  int         NOT NULL,

@@ -32,8 +32,14 @@ The design lives in [`docs/architect`](docs/architect/README.md), and the phased
   See [`docs/architect/data-access.md`](docs/architect/data-access.md).
   - Call routines with Npgsql, using typed positional parameters and never string concatenation.
     Dapper is allowed for mapping results only.
-  - Schema changes are versioned SQL scripts in `Database/Migrations/NNNN_*.sql` (immutable once
-    applied). Routines are repeatable `CREATE OR REPLACE` scripts in `Database/Routines/**`.
+  - **The schema lives in the standalone `src/Agentd.Migrator` project (FluentMigrator + raw SQL).**
+    - New migration: add `Migrations/{yyyyMMddNNNN}_{name}.up.sql` (plus an optional `.down.sql`)
+      and a one-line `[Migration(yyyy_MM_dd_NNNN, "…")] public sealed class X : SqlMigration;` in
+      `Migrations/Versions.cs`.
+    - Applied migrations are immutable.
+    - Routines are repeatable `CREATE OR REPLACE` scripts in `Routines/**`, re-applied on every run.
+    - The Host never migrates. Run `dotnet run --project src/Agentd.Migrator`; Aspire does this
+      automatically.
   - **Thread safety:** `NpgsqlDataSource` is the only singleton. Open one connection per operation
     and never share a connection or command across threads.
   - Every routine gets integration tests, including a parallel-callers test for concurrency-critical

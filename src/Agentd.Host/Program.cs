@@ -1,7 +1,6 @@
 using Agentd.Host;
 using Agentd.Host.Options;
 using Agentd.Infrastructure.Persistence;
-using Agentd.Infrastructure.Persistence.Migrations;
 using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -20,11 +19,6 @@ builder.AddNpgsqlDataSource("agentd");
 builder.Services.AddPersistence();
 
 var app = builder.Build();
-
-if (app.Environment.IsDevelopment())
-{
-    await app.Services.GetRequiredService<DatabaseMigrator>().MigrateAsync(CancellationToken.None).ConfigureAwait(false);
-}
 
 app.UseDefaultFiles();
 app.UseStaticFiles();

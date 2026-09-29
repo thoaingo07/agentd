@@ -1,0 +1,8 @@
+<Project Sdk="MSTest.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Agentd.Migrator\Agentd.Migrator.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Testcontainers.PostgreSql" />
+  </ItemGroup>
+</Project>

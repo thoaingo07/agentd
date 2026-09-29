@@ -2,7 +2,7 @@
 
 | Phase | Depends on | Size | Layer / project |
 |---|---|---|---|
-| 1 | T1.1, T1.2, Phase 0 (migration runner, first migration) | M | `Agentd.Infrastructure.Persistence` |
+| 1 | T1.1, T1.2, Phase 0 (`Agentd.Migrator`, first migration) | M | `Agentd.Migrator`, `Agentd.Infrastructure.Persistence` |
 
 ## Goal
 Persist the `Job` aggregate and the event log in PostgreSQL **through functions and procedures only**
@@ -10,11 +10,11 @@ Persist the `Job` aggregate and the event log in PostgreSQL **through functions 
 several scheduler loops (or, later, several hosts) never start the same job twice.
 
 ## Files
-- `src/Agentd.Infrastructure.Persistence/Database/Migrations/0002_walking_skeleton.sql`: create.
+- `src/Agentd.Migrator/Migrations/{yyyyMMddNNNN}_walking_skeleton.up.sql` (+ `.down.sql`) and a line in `Versions.cs`: create.
   New `jobs` columns, `events.type` index, and the unique active-job index.
-- `src/Agentd.Infrastructure.Persistence/Database/Routines/job/*.sql`: create. `job_create`,
+- `src/Agentd.Migrator/Routines/job/*.sql`: create. `job_create`,
   `job_get`, `job_dequeue`, `job_save`, `job_list_active`.
-- `src/Agentd.Infrastructure.Persistence/Database/Routines/event/*.sql`: create. `event_append`,
+- `src/Agentd.Migrator/Routines/event/*.sql`: create. `event_append`,
   `event_append_batch`, `event_page`.
 - `src/Agentd.Infrastructure.Persistence/Repositories/JobRepository.cs`: create. `IJobRepository`.
 - `src/Agentd.Infrastructure.Persistence/Repositories/EventStore.cs`: create. `IEventStore`.
@@ -23,7 +23,7 @@ several scheduler loops (or, later, several hosts) never start the same job twic
 - `tests/Agentd.Infrastructure.Tests/Persistence/*Tests.cs`: create (MSTest, Testcontainers).
 
 ## Implementation
-1. **`jobs` table** (extends the Phase 0 table, in migration `0002`):
+1. **`jobs` table** (extends the Phase 0 table, in the new migration):
 
    | column | type | notes |
    |---|---|---|
@@ -80,7 +80,7 @@ several scheduler loops (or, later, several hosts) never start the same job twic
   - `event_append_batch` ordering and `event_page` paging.
 
 ## Done when
-- [ ] `0002` applies cleanly on an empty database and on the Phase 0 database, and the routines
-      re-apply idempotently.
+- [ ] The new migration applies cleanly on an empty database and on the Phase 0 database, and the
+      routines re-apply idempotently.
 - [ ] The concurrency tests pass reliably (run 20× in CI without flakes).
 - [ ] No Npgsql or Dapper types leak into Application or Domain (architecture tests green).

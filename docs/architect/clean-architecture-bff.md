@@ -152,7 +152,7 @@ One project per external system, so that a dependency (e.g. Discord.Net) stays i
 
 | Project | Contents |
 |---|---|
-| `Infrastructure.Persistence` | `NpgsqlDataSource`, SQL migrations + PL/pgSQL routines (`DatabaseMigrator`), repositories calling routines, event store (partitioned `events` table), outbox/`NOTIFY` publisher, `FOR UPDATE SKIP LOCKED` dequeue |
+| `Infrastructure.Persistence` | `NpgsqlDataSource`, repositories calling PL/pgSQL routines (the schema itself is owned by the standalone `Agentd.Migrator`: FluentMigrator + raw SQL), event store (partitioned `events` table), outbox/`NOTIFY` publisher, `FOR UPDATE SKIP LOCKED` dequeue |
 | `Infrastructure.AzureDevOps` | `AzureCliCredential` / PAT token providers, typed `HttpClient`s (WIQL, work items, comments, PRs), resilience |
 | `Infrastructure.Messaging.Discord` | `DiscordMessagingProvider`, gateway listener, slash commands, Discord markdown renderer. Inbound events → `HandleInboundMessage`. |
 | `Infrastructure.Messaging.Telegram` | `TelegramMessagingProvider`, long-polling (or webhook) listener, bot commands, inline keyboards, HTML renderer. Inbound updates → `HandleInboundMessage`. |
