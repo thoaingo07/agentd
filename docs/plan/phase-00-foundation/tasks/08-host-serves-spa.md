@@ -4,6 +4,10 @@
 |---|---|---|---|
 | 0 | T0.5, T0.7 | S | Agentd.Host, Bff.Tests |
 
+> **Updated after Phase 0:** the SPA is now served by a Razor view in `Agentd.Bff`, which reads Vite's
+> manifest in production and proxies to the Vite dev server in development. It replaces
+> `MapFallbackToFile("index.html")`. See [Architecture §3.9 → Serving](../../../architect/README.md).
+
 ## Goal
 The Host serves the built Vue app from `wwwroot`, with client-side routes falling back to
 `index.html`, so production is one deployable. It must not interfere with `/api`, `/bff`, `/hubs`,

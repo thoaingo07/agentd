@@ -432,13 +432,22 @@ and component styling rules are in **[docs/design-system](../design-system/READM
 3. After a reconnect (SignalR `withAutomaticReconnect()`), the page subscribes again with its latest
    `seq`, so no events are lost or duplicated. The client de-duplicates by `seq`.
 
-**Serving:**
+**Serving: Razor shell + Vite ([backend integration](https://vite.dev/guide/backend-integration)):**
 
-- **Production:** `npm run build` writes to `src/Agentd.Host/wwwroot/`, and the host serves it with
-  `MapStaticAssets()` plus `MapFallbackToFile("index.html")` for client-side routes. It is still one
-  deployable.
-- **Development:** the Vite dev server (`npm run dev`) proxies `/bff`, `/api`, `/hubs` and `/healthz` to the
-  daemon, which gives hot reload without CORS.
+- The HTML shell is a **Razor view** in `Agentd.Bff` (`SpaController` → `Views/Spa/Index.cshtml`),
+  returned for `/` and every client-side route (`MapFallbackToController`). `/api`, `/bff`, `/hubs`
+  and `/mcp` never fall back to it.
+- **Production:** `npm run build` writes hashed assets and **`.vite/manifest.json`** into
+  `src/Agentd.Host/wwwroot/`. `ViteManifest` reads the manifest, and the view emits the entry's
+  `<script type="module">`, its CSS `<link>`s (including imported chunks) and `modulepreload` hints.
+  All are external files, so the CSP stays `script-src 'self'`. If the manifest is missing, the view
+  returns a 503 with guidance. It is still one deployable.
+- **Development:** the view emits `/@vite/client` + `/src/main.ts`. The Host forwards the Vite paths
+  (`/@vite`, `/@id`, `/@fs`, `/src`, `/node_modules`, `/__vite_hmr`, `/theme-init.js`) to the Vite
+  dev server with SpaServices' `UseProxyToSpaDevelopmentServer`, **including the HMR websocket**. The
+  browser only ever talks to the Host's origin: no CORS, and the same cookies and CSP as in
+  production. Aspire gives the Host the dev server URL (`host.WithReference(web)`); outside Aspire,
+  set `Agentd:Web:Vite:DevServerUrl`.
 
 **BFF endpoints** (`Agentd.Bff`, in the same host, bound to `127.0.0.1` by default; see [clean-architecture-bff.md §5.1](clean-architecture-bff.md#51-agentdbff-backend-for-frontend-browser)):
 

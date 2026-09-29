@@ -1,3 +1,4 @@
+using Agentd.Bff;
 using Agentd.Host;
 using Agentd.Host.Options;
 using Agentd.Infrastructure.Persistence;
@@ -17,15 +18,12 @@ HostUrls.ApplyDefault(builder);
 // PostgreSQL: pooled NpgsqlDataSource with health check and tracing (connection string "agentd").
 builder.AddNpgsqlDataSource("agentd");
 builder.Services.AddPersistence();
+builder.Services.AddSpaHosting(builder.Configuration);
 
 var app = builder.Build();
 
-app.UseDefaultFiles();
-app.UseStaticFiles();
-
 app.MapDefaultEndpoints();
-ReservedPaths.MapNotFound(app);          // /api, /bff, /hubs, /mcp never fall through to the SPA
-app.MapFallbackToFile("index.html");
+app.UseSpaHosting();                     // Razor shell + Vite (manifest in production, dev-server proxy in Development)
 
 await app.RunAsync().ConfigureAwait(false);
 

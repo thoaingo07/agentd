@@ -1,9 +1,19 @@
-<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+  <!-- Backend-for-Frontend: SPA shell (Razor + Vite manifest), and later /bff + /api endpoints. -->
+  <PropertyGroup>
+    <AddRazorSupportForMvc>true</AddRazorSupportForMvc>
+  </PropertyGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.SpaServices.Extensions" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\Agentd.Application\Agentd.Application.csproj" />
     <ProjectReference Include="..\Agentd.Domain\Agentd.Domain.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Agentd.Bff.Tests" />
   </ItemGroup>
 </Project>

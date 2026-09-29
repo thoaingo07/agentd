@@ -53,7 +53,11 @@ The design lives in [`docs/architect`](docs/architect/README.md), and the phased
 - **Web UI:**
   - Vue 3 + TypeScript + Vite, Pinia setup stores (no TanStack or other data-fetching libraries),
     daisyUI 5 on Tailwind 4 (the agentd green theme), and base-ui-vue for reusable `Ag*` components;
-  - follow [`docs/ui`](docs/ui/README.md) and [`docs/design-system`](docs/design-system/README.md).
+  - follow [`docs/ui`](docs/ui/README.md) and [`docs/design-system`](docs/design-system/README.md);
+  - **the HTML shell is a Razor view** in `Agentd.Bff` (`Views/Spa/Index.cshtml`). There's no
+    `index.html`. Production reads Vite's `.vite/manifest.json`; Development proxies the Vite paths
+    and HMR through the Host (`UseProxyToSpaDevelopmentServer`). Open the app on the Host URL, not
+    the Vite port.
 - **Browser security:**
   - strict CSP with no inline scripts or styles and no `eval`;
   - never use `v-html`;

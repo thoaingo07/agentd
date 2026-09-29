@@ -26,9 +26,9 @@ dotnet run --project src/Agentd.AppHost
 The console prints the **Aspire dashboard** URL (with a login token). From the dashboard you can
 open:
 
-- **`web`**: the Vite dev server with hot reload (it proxies `/api`, `/bff`, `/hubs` and `/healthz`
-  to the Host);
-- **`agentd-host`**: the agentd Host (`http://127.0.0.1:7780`, `/healthz`, `/alive`);
+- **`agentd-host`**: **open the app here** (`http://127.0.0.1:7780`). The Host renders the Razor
+  shell and proxies the Vite modules and hot reload (HMR) to the dev server;
+- **`web`**: the Vite dev server (assets and HMR only; it isn't opened directly);
 - **`postgres`**: PostgreSQL, with data kept in the `agentd-pgdata` volume.
 
 Aspire runs **`agentd-migrator`** first, which applies the schema and exits. The Host starts after it
@@ -39,7 +39,7 @@ finishes. Stop everything with `Ctrl+C`.
 ```bash
 export ConnectionStrings__agentd="Host=localhost;Database=agentd;Username=…;Password=…"
 dotnet run --project src/Agentd.Migrator                   # apply schema migrations + routines, then exit
-dotnet run --project src/Agentd.Host -p:BuildWeb=true      # builds web/ into wwwroot, serves on 127.0.0.1:7780
+dotnet run --project src/Agentd.Host -p:BuildWeb=true      # builds web/ (assets + .vite/manifest.json) into wwwroot; Razor shell on 127.0.0.1:7780
 ```
 
 ## Tests
@@ -61,9 +61,9 @@ src/
   Agentd.Application/                use cases + ports
   Agentd.Infrastructure.Persistence/ repositories: PostgreSQL routines via Npgsql (no ORM)
   Agentd.Migrator/                   standalone schema migrator: FluentMigrator + raw SQL + routines
-  Agentd.Bff/                        backend-for-frontend endpoints (browser)
+  Agentd.Bff/                        backend-for-frontend: Razor SPA shell (Vite manifest / dev proxy), endpoints
   Agentd.Mcp/                        MCP tools (agents)
-  Agentd.Host/                       composition root; serves the built SPA from wwwroot/
+  Agentd.Host/                       composition root; wwwroot/ holds the Vite build output
   Agentd.ServiceDefaults/            OpenTelemetry, health checks, resilience
   Agentd.AppHost/                    .NET Aspire local orchestration (dev only)
 tests/                               MSTest projects, one per layer, plus architecture tests

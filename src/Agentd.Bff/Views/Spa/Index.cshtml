@@ -1,0 +1,29 @@
+@model ViteAssets
+@{
+    Layout = null;
+}
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>agentd</title>
+    @* External (CSP-safe) pre-paint theme loader. No inline scripts or styles anywhere. *@
+    <script src="/theme-init.js"></script>
+    @foreach (var href in Model.Styles)
+    {
+        <link rel="stylesheet" href="@href" />
+    }
+    @foreach (var href in Model.Preloads)
+    {
+        <link rel="modulepreload" href="@href" />
+    }
+    @foreach (var src in Model.Scripts)
+    {
+        <script type="module" src="@src"></script>
+    }
+</head>
+<body class="bg-base-100 text-base-content">
+    <div id="app"></div>
+</body>
+</html>

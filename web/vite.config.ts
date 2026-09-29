@@ -2,26 +2,20 @@ import { defineConfig } from 'vitest/config'
 import vue from '@vitejs/plugin-vue'
 import tailwindcss from '@tailwindcss/vite'
 
-// Host (agentd) URL for the dev proxy. Under Aspire the AppHost injects the reference as an
-// environment variable; standalone we fall back to the Host's default loopback address.
-// (resource "agentd-host" → AGENTD_HOST_HTTP, or the service-discovery form services__agentd-host__http__0)
-const hostUrl =
-  process.env.AGENTD_HOST_HTTP ??
-  process.env['services__agentd-host__http__0'] ??
-  'http://127.0.0.1:7780'
-
-const proxied = ['/api', '/bff', '/hubs', '/healthz', '/alive']
-
+// Backend integration (https://vite.dev/guide/backend-integration): the HTML shell is rendered by the
+// agentd Host (Razor). In production the Host reads .vite/manifest.json; in development it proxies the
+// Vite paths (/@vite, /src, /__vite_hmr, …) to this dev server, so the browser stays on the Host origin.
 export default defineConfig({
   plugins: [vue(), tailwindcss()],
   server: {
-    proxy: Object.fromEntries(
-      proxied.map((path) => [path, { target: hostUrl, changeOrigin: false, ws: path === '/hubs' }]),
-    ),
+    // HMR websocket goes through the Host proxy on a path that can't collide with app routes.
+    hmr: { path: '/__vite_hmr' },
   },
   build: {
+    manifest: true, // → wwwroot/.vite/manifest.json
     outDir: '../src/Agentd.Host/wwwroot',
     emptyOutDir: true,
+    rollupOptions: { input: 'src/main.ts' },
   },
   test: {
     environment: 'jsdom',

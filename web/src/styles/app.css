@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* The HTML shell is a Razor view in the BFF; scan it for utility classes too. */
+@source "../../../src/Agentd.Bff/Views";
+
 @plugin "daisyui" {
   themes: false;               /* only our themes */
 }

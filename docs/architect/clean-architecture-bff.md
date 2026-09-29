@@ -179,7 +179,7 @@ concerns:
 | **UI-shaped API** (`/api/*`) | one endpoint per screen need, returning **view models**, not domain or Application types: `GET /api/dashboard` (stats + active jobs in one call), `GET /api/jobs/{id}`, `GET /api/jobs/{id}/events`, `GET /api/jobs/{id}/diff`, `GET /api/history`, `POST /api/jobs/{id}/cancel`, … |
 | **Real-time** | SignalR hub `/hubs/events` (read-only subscribe), fed by `IEventPublisher` |
 | **Protection** | antiforgery filter on `/api` and `/bff` unsafe methods; CSP and security headers; Origin check on the hub ([Security](../security/README.md)) |
-| **SPA hosting** | `MapStaticAssets()` + `MapFallbackToFile("index.html")` |
+| **SPA hosting** | Razor shell (`SpaController`, `Views/Spa/Index.cshtml`). Production: assets from Vite's `.vite/manifest.json`. Development: Vite paths + HMR proxied to the dev server (`UseProxyToSpaDevelopmentServer`). See [Architecture §3.9](README.md#39-event-bus-and-web-ui-real-time-session-tracing). |
 | **API contract** | the OpenAPI document is generated from BFF endpoints only; `web/` generates its TS types from it |
 
 Endpoints stay thin: *bind → call the use case → map the `Result` to HTTP / view model*.

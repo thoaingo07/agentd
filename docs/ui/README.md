@@ -386,8 +386,9 @@ sends the browser to the `/login` page with `returnUrl=<current path>`, which of
 
 The full policy is in **[docs/security](../security/README.md)**. The UI-facing rules:
 
-- **Strict CSP** (`script-src 'self'`, `style-src 'self'`, no inline, no eval). `index.html`
-  contains no inline script or style, and the pre-paint theme loader is `public/theme-init.js`.
+- **Strict CSP** (`script-src 'self'`, `style-src 'self'`, no inline, no eval). The HTML shell is the
+  BFF's Razor view (`Agentd.Bff/Views/Spa/Index.cshtml`). It contains no inline script or style, and
+  the pre-paint theme loader is `public/theme-init.js`.
   Use the runtime-only Vue build only.
 - **HttpOnly cookies only.** The antiforgery request token lives in memory (`http.ts`), and
   `resetXsrf()` is called after login and logout.
@@ -404,7 +405,7 @@ The full policy is in **[docs/security](../security/README.md)**. The UI-facing 
 
 ```
 web/
-├── index.html                # no inline script/style (CSP)
+├── (no index.html)           # the HTML shell is a Razor view in Agentd.Bff; Vite runs in backend-integration mode
 ├── public/theme-init.js      # sets data-theme before first paint (external file, CSP-safe)
 ├── vite.config.ts            # proxy /bff, /api, /hubs, /healthz → daemon; outDir → ../src/Agentd.Host/wwwroot
 ├── src/
