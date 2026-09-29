@@ -139,7 +139,7 @@ Notes:
 - Even in `Auth: None` mode (localhost only), antiforgery stays on. It stops a malicious web page
   in the developer's own browser from driving `http://127.0.0.1:7780/api/...`.
 
-### 2.4 Client (`web/src/api/http.ts`)
+### 2.4 Client (`src/Agentd.Web/ClientApps/shared/api/http.ts`)
 
 ```ts
 let xsrf: string | null = null                        // memory only
@@ -221,7 +221,7 @@ Reporting-Endpoints: csp="/api/csp-report"
 
 | Rule | How |
 |---|---|
-| No inline `<script>` in `index.html` | Vite production builds emit `<script type="module" src="/assets/...">` only. The pre-paint theme loader is an external file, `public/theme-init.js`, loaded with a plain `<script src>` in `<head>`. |
+| No inline `<script>` in the HTML shell | The shell is `Agentd.Web`'s Razor layout (`ViteHelper`); it only emits `<script src>`, `<link>` and `modulepreload` tags from Vite's manifest (`Agentd.Bff.Tests` checks for inline code). The pre-paint theme loader is an external file, `public/theme-init.js`, loaded with a plain `<script src>` in `<head>`. |
 | No `eval` / `new Function` | use the **runtime-only** Vue build (the Vite default: SFC templates are precompiled). Never alias `vue` to `vue/dist/vue.esm-bundler.js`, and never use in-DOM or string templates. |
 | No inline event handlers (`onclick="..."`) | Vue `@click` bindings are attached with `addEventListener`, so they are fine. |
 | No inline `<style>` / `style="..."` in HTML | all CSS comes from the built `/assets/*.css`. Vue `:style` bindings and base-ui-vue positioning set styles through the CSSOM (`el.style.*`), which `style-src 'self'` allows. |
@@ -272,7 +272,7 @@ Set in one `UseSecurityHeaders()` middleware for every response:
 | `Cross-Origin-Resource-Policy` | `same-origin` |
 | `Permissions-Policy` | `camera=(), microphone=(), geolocation=(), payment=(), usb=()` |
 | `Strict-Transport-Security` | `max-age=31536000` (only when served over TLS or behind a TLS proxy) |
-| `Cache-Control` | `no-store` for `/api/*`; `public, max-age=31536000, immutable` for hashed `/assets/*`; `no-cache` for `index.html` |
+| `Cache-Control` | `no-store` for `/api/*`; `public, max-age=31536000, immutable` for hashed `/assets/*`; `no-cache` for the Razor shell (`/` and client routes) |
 
 CORS: **not enabled.** The UI and API are the same origin, and no cross-origin clients are supported.
 
@@ -281,7 +281,7 @@ CORS: **not enabled.** The UI and API are the same origin, and no cross-origin c
 ## 5. Checklist (per PR touching web/ or the host)
 
 - [ ] No `v-html`, `innerHTML`, `eval`, `new Function`, or string templates.
-- [ ] No inline `<script>` / `<style>` / `style=""` / `on*=""` in `index.html` or public files.
+- [ ] No inline `<script>` / `<style>` / `style=""` / `on*=""` in the Razor shell (`Views/Spa/Index.cshtml`) or public files.
 - [ ] No new external origin in the CSP; any new directive is justified in this document.
 - [ ] New unsafe-method endpoints live under the `/api` or `/bff` group, so the antiforgery filter applies.
 - [ ] GET endpoints have no side effects.

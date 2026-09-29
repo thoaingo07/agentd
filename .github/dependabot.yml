@@ -1,21 +1,20 @@
+# Version updates: monthly, one grouped PR per ecosystem (at most ~3 PRs/month).
 version: 2
 updates:
   - package-ecosystem: nuget
     directory: /
-    schedule: { interval: weekly }
+    schedule: { interval: monthly }
     groups:
-      aspire: { patterns: ["Aspire.*"] }
-      opentelemetry: { patterns: ["OpenTelemetry.*"] }
-      microsoft-extensions: { patterns: ["Microsoft.Extensions.*", "Microsoft.AspNetCore.*"] }
+      nuget: { patterns: ["*"] }
 
   - package-ecosystem: npm
-    directory: /web
-    schedule: { interval: weekly }
+    directory: /src/Agentd.Web
+    schedule: { interval: monthly }
     groups:
-      vue: { patterns: ["vue", "vue-*", "@vue/*", "pinia", "@vitejs/*", "vite"] }
-      lint: { patterns: ["eslint*", "@eslint/*", "typescript-eslint", "globals"] }
-      styling: { patterns: ["tailwindcss", "@tailwindcss/*", "daisyui"] }
+      npm: { patterns: ["*"] }
 
   - package-ecosystem: github-actions
     directory: /
-    schedule: { interval: weekly }
+    schedule: { interval: monthly }
+    groups:
+      github-actions: { patterns: ["*"] }

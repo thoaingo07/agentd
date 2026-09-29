@@ -2,7 +2,4 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Agentd.Infrastructure.Persistence\Agentd.Infrastructure.Persistence.csproj" />
   </ItemGroup>
-  <ItemGroup>
-    <PackageReference Include="Testcontainers.PostgreSql" />
-  </ItemGroup>
 </Project>

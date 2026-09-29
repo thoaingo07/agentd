@@ -2,7 +2,7 @@
 
 | Phase | Depends on | Size | Layer / project |
 |---|---|---|---|
-| 4 | T4.6, T4.10, T4.11, Phase 3 (BFF + Web UI v1) | M | `Agentd.Bff`, `web/` |
+| 4 | T4.6, T4.10, T4.11, Phase 3 (BFF + Web UI v1) | M | `Agentd.Bff`, `src/Agentd.Web/` |
 
 ## Goal
 Make the workflow visible and controllable in the browser: the current phase with its loop counts,
@@ -12,12 +12,12 @@ every artifact, gate approve/reject, and a **Repos** page showing each repo's ki
 ## Files
 - `src/Agentd.Bff/Endpoints/JobEndpoints.cs` — modify: add `phases[]` and `openGate` to the job view model; `GET /api/jobs/{id}/artifacts`, `GET /api/jobs/{id}/artifacts/{artifactId}`; `POST /api/jobs/{id}/gates/{phase}/approve|reject` (`{ reason? }`).
 - `src/Agentd.Bff/Endpoints/RepoEndpoints.cs` — create: `GET /api/repos` (kit status), `POST /api/repos/{repo}/kit/init` (`{ bootstrap: bool }`), `POST /api/repos/{repo}/kit/validate`.
-- `web/src/components/PhaseStepper.vue` — create.
-- `web/src/components/GateBanner.vue` — create: approve / reject (with a reason modal).
-- `web/src/components/ArtifactViewer.vue` — create: markdown-lite render of the artifact.
-- `web/src/views/SessionView.vue` — modify: stepper under the header, a 4th tab **Artifacts**, and the gate banner.
-- `web/src/views/ReposView.vue` + `web/src/stores/repos.ts` — create.
-- `web/src/router.ts`, navbar — modify: the `/repos` route.
+- `src/Agentd.Web/ClientApps/dashboard/components/PhaseStepper.vue` — create.
+- `src/Agentd.Web/ClientApps/dashboard/components/GateBanner.vue` — create: approve / reject (with a reason modal).
+- `src/Agentd.Web/ClientApps/dashboard/components/ArtifactViewer.vue` — create: markdown-lite render of the artifact.
+- `src/Agentd.Web/ClientApps/dashboard/views/SessionView.vue` — modify: stepper under the header, a 4th tab **Artifacts**, and the gate banner.
+- `src/Agentd.Web/ClientApps/dashboard/views/ReposView.vue` + `src/Agentd.Web/ClientApps/dashboard/stores/repos.ts` — create.
+- `src/Agentd.Web/ClientApps/dashboard/router.ts`, navbar — modify: the `/repos` route.
 
 ## Implementation
 1. **View models:**

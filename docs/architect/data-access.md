@@ -1,8 +1,9 @@
 # agentd — Data access: PostgreSQL functions & procedures
 
 **Decision:** all database access goes through **PostgreSQL functions and procedures** (PL/pgSQL),
-called from C# with **Npgsql**. **There is no ORM (no EF Core).** The schema is managed by
-**versioned SQL migration scripts** and applied by a small in-house runner.
+called from C# with **Npgsql**. **There is no ORM (no EF Core).** The schema is owned by the
+standalone **`Agentd.Migrator`** project: **raw SQL migration scripts**, versioned and run by
+**[FluentMigrator](https://github.com/fluentmigrator/fluentmigrator)**.
 
 Related: [Clean Architecture + BFF](clean-architecture-bff.md) · [Architecture §2.1](README.md#21-tech-stack)
 
@@ -29,30 +30,26 @@ Related: [Clean Architecture + BFF](clean-architecture-bff.md) · [Architecture 
 ## 2. Layout
 
 ```
-src/Agentd.Infrastructure.Persistence/
-├── Database/
-│   ├── Migrations/                 # versioned, run once, in order (tables, indexes, types)
-│   │   ├── 0001_initial.sql
-│   │   └── 0002_….sql
-│   └── Routines/                   # repeatable: CREATE OR REPLACE functions/procedures
-│       ├── job/                    #   one folder per aggregate/feature
-│       │   ├── job_create.sql
-│       │   ├── job_dequeue.sql
-│       │   └── job_transition.sql
-│       └── event/
-│           ├── event_append.sql
-│           └── event_page.sql
+src/Agentd.Migrator/                       # standalone console app: owns the schema, runs, exits (0 = ok)
 ├── Migrations/
-│   └── DatabaseMigrator.cs         # the runner (§4)
-├── Repositories/                   # implement Application ports by calling routines
-│   └── JobRepository.cs
-└── DependencyInjection.cs          # AddPersistence(): NpgsqlDataSource, repositories, migrator
+│   ├── Versions.cs                        # one line per migration: [Migration(2026_09_29_0001, "…")] class X : SqlMigration;
+│   ├── SqlMigration.cs                    # base class: runs Migrations/{version}_*.up.sql / .down.sql
+│   ├── AgentdVersionTable.cs              # FluentMigrator version table → agentd.schema_version
+│   ├── 202609290001_initial_schema.up.sql # raw SQL, immutable once applied
+│   └── 202609290001_initial_schema.down.sql   (optional)
+├── Routines/                              # repeatable: CREATE OR REPLACE functions/procedures
+│   ├── ApplyRoutines.cs                   # [Maintenance(AfterAll)]: re-applies every routine on each run
+│   ├── job/job_create.sql, job_dequeue.sql, …
+│   └── event/event_append.sql, …
+├── SchemaMigrator.cs                      # advisory lock + FluentMigrator MigrateUp
+└── Program.cs
+
+src/Agentd.Infrastructure.Persistence/     # repositories only: call routines by name via Npgsql
+└── Repositories/JobRepository.cs, …
 ```
 
-SQL files are **embedded resources** (`<EmbeddedResource Include="Database/**/*.sql" />`), so the
-deployable carries its schema.
-
----
+All `.sql` files are **embedded resources**, so the Migrator carries its schema. Nothing references
+the Migrator except the Aspire AppHost and its tests; the architecture tests enforce this.
 
 ## 3. Conventions
 
@@ -73,7 +70,7 @@ deployable carries its schema.
 ### Example: job dequeue
 
 ```sql
--- Database/Routines/job/job_dequeue.sql
+-- src/Agentd.Migrator/Routines/job/job_dequeue.sql
 CREATE OR REPLACE FUNCTION agentd.job_dequeue(p_worker text)
 RETURNS TABLE (id bigint, work_item_id int, state text, version bigint)
 LANGUAGE plpgsql AS $$
@@ -111,36 +108,56 @@ for the case.
 
 ---
 
-## 4. Migration runner (`DatabaseMigrator`)
+## 4. Running migrations (`Agentd.Migrator`)
 
-On startup (Development, and as an explicit `agentd db migrate` command in production):
+`Agentd.Migrator` is a console app. It reads `ConnectionStrings:agentd`, migrates, and exits with
+**0 on success** or **1 on failure**.
 
-1. Take a **PostgreSQL advisory lock** (`pg_advisory_lock(hashtext('agentd.migrate'))`), so
-   concurrent instances never migrate at the same time.
-2. Ensure `agentd.schema_migrations (version text PK, checksum text, applied_at timestamptz)` exists.
-3. **Versioned scripts:** apply every `Migrations/NNNN_*.sql` that isn't recorded yet, **in order,
-   each in its own transaction**, and record its SHA-256 checksum.
-   - If a recorded script's checksum has changed, **fail fast**: applied migrations are immutable.
-4. **Repeatable routines:** for every `Routines/**/*.sql`, compare its checksum with
-   `agentd.schema_routines`. Re-run it (`CREATE OR REPLACE`) when it's new or changed. All
-   routines are applied in one transaction, after the migrations.
-5. Release the lock, and log what was applied.
+- **Aspire (development):** the AppHost runs it after PostgreSQL is up, and the Host starts only
+  after it **finished successfully**:
+  `builder.AddProject<Projects.Agentd_Host>(…).WaitForCompletion(migrator)`.
+- **Production:** it runs as its own step before the Host (for example a systemd `Type=oneshot`
+  unit that the Host unit `Requires`/`After`s; see Phase 10). **The Host never migrates.**
 
-Changing a function's **signature** (parameters or return columns) needs a versioned migration
-that `DROP`s the old one first, because `CREATE OR REPLACE` can't change a return type.
+What a run does (`SchemaMigrator`):
+
+1. Take a **PostgreSQL advisory lock** (`pg_advisory_lock(hashtext('agentd.migrate'))`) on a
+   dedicated connection, so concurrent migrators run one after another. FluentMigrator doesn't
+   serialize runners by itself.
+2. **FluentMigrator `MigrateUp()`:**
+   - **versioned migrations:** each `SqlMigration` runs its raw `Migrations/{version}_*.up.sql`
+     **in its own transaction**, in version order, and is recorded in `agentd.schema_version`;
+   - **routines:** the `ApplyRoutines` maintenance migration (`MigrationStage.AfterAll`) re-runs
+     every `Routines/**/*.sql` (all `CREATE OR REPLACE`) **on every run**, in one transaction.
+     Routines are idempotent, so nothing needs tracking.
+3. Release the lock, and log the versions applied.
+
+Rules:
+
+- **Versions are `yyyyMMddNNNN`** (e.g. `2026_09_29_0001`), so migrations from parallel branches
+  don't collide.
+- **Applied migrations are immutable:** fix forward with a new migration. FluentMigrator tracks
+  versions, not file contents, so review enforces this.
+- `.down.sql` is optional. Write one when a rollback is realistic (e.g. a new table); omit it for
+  data migrations.
+- Changing a routine's **signature or return columns** needs a versioned migration that `DROP`s the
+  old one first, because `CREATE OR REPLACE` can't change a return type.
 
 ---
 
 ## 5. Testing
 
 - `Agentd.Infrastructure.Tests` (MSTest, `[TestCategory("Integration")]`): one Testcontainers
-  PostgreSQL per assembly. `DatabaseMigrator` runs against it in `[AssemblyInitialize]`, so **the
-  migrations are tested every run**.
+  PostgreSQL per assembly. `SchemaMigrator` (from `Agentd.Migrator`) builds the schema in
+  `[AssemblyInitialize]`, so **the real migrations are tested on every run**.
 - **Every routine has tests:** the happy path, the not-found / conflict SQLSTATEs, and a
   **concurrency test** where several parallel tasks call it at once (e.g. 20 workers calling
   `job_dequeue` claim 20 distinct jobs and none twice).
-- The runner has its own tests: idempotent re-runs, fail-fast on a changed checksum, and routine
-  re-apply on change.
+- `Agentd.Migrator.Tests` covers the runner:
+  - a first run applies the migrations and routines, and a second run applies nothing;
+  - routines are restored on every run;
+  - concurrent migrators apply each migration once;
+  - every `SqlMigration` class has its `.up.sql`.
 
 ---
 

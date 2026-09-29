@@ -265,4 +265,4 @@ The agentd config holds only the defaults and the daemon-wide learning settings:
 | learnings file parser and renderer, Git branch/PR for the Learnings PR, and ADO PR-comment polling | Infrastructure (Git, AzureDevOps, Persistence) |
 | `complete_phase`, `record_learning`, `get_learnings` MCP tools | `Agentd.Mcp` |
 | `LearningDistillationWorker`, `PullRequestMonitorWorker` ([pr-reviewer-and-monitor.md](pr-reviewer-and-monitor.md)) | Host workers |
-| phase stepper, artifacts, Learnings page, gate approve/reject | `Agentd.Bff` + `web/` |
+| phase stepper, artifacts, Learnings page, gate approve/reject | `Agentd.Bff` + `src/Agentd.Web/` |

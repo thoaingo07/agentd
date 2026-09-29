@@ -330,7 +330,7 @@ toast queue, per-job event filters, and the follow mode flag per job.
 
 ---
 
-## 6. API layer (`web/src/api/`)
+## 6. API layer (`src/Agentd.Web/ClientApps/shared/api/`)
 
 | File | Content |
 |---|---|
@@ -386,8 +386,9 @@ sends the browser to the `/login` page with `returnUrl=<current path>`, which of
 
 The full policy is in **[docs/security](../security/README.md)**. The UI-facing rules:
 
-- **Strict CSP** (`script-src 'self'`, `style-src 'self'`, no inline, no eval). `index.html`
-  contains no inline script or style, and the pre-paint theme loader is `public/theme-init.js`.
+- **Strict CSP** (`script-src 'self'`, `style-src 'self'`, no inline, no eval). The HTML shell is the
+  Razor layout in `Agentd.Web` (`Views/Shared/_Layout.cshtml`). It contains no inline script or style, and
+  the pre-paint theme loader is `public/theme-init.js`.
   Use the runtime-only Vue build only.
 - **HttpOnly cookies only.** The antiforgery request token lives in memory (`http.ts`), and
   `resetXsrf()` is called after login and logout.
@@ -403,25 +404,36 @@ The full policy is in **[docs/security](../security/README.md)**. The UI-facing 
 ## 10. Folder structure
 
 ```
-web/
-├── index.html                # no inline script/style (CSP)
-├── public/theme-init.js      # sets data-theme before first paint (external file, CSP-safe)
-├── vite.config.ts            # proxy /bff, /api, /hubs, /healthz → daemon; outDir → ../src/Agentd.Host/wwwroot
-├── src/
-│   ├── main.ts               # createApp, pinia, router, connection.start()
-│   ├── App.vue               # shell: navbar, <router-view>, toasts
-│   ├── router.ts
-│   ├── api/                  # http.ts, hub.ts, types.ts, schema.d.ts (generated)
-│   ├── stores/               # session.ts, connection.ts, jobs.ts, events.ts, pullRequests.ts, ui.ts
-│   ├── components/
-│   │   ├── ui/               # Ag* reusable components (base-ui-vue + daisyUI)
-│   │   ├── icons/            # inline SVG SFCs
-│   │   └── *.vue             # feature components (§7)
-│   ├── views/                # DashboardView, SessionView, HistoryView, PullRequestsView, PullRequestView, ReposView, LearningsView, ModelsView, SettingsView
-│   ├── utils/                # diff.ts, format.ts (durations, cost), markdown-lite.ts
-│   └── styles/app.css        # Tailwind + daisyUI + agentd themes
-└── tests/                    # vitest: stores (event dedupe, windowing, reconnect), components
+src/Agentd.Web/                     # Razor class library + all Vue apps (one package.json)
+├── Agentd.Web.csproj               # Razor SDK; -p:BuildWeb=true runs npm ci + build before dotnet build
+├── Views/
+│   ├── Shared/_Layout.cshtml       # <head>: theme-init + @Vite.Tags(app); no inline code (CSP)
+│   └── Spa/dashboard.cshtml        # one view per app: sets ViewData["App"], renders <div id="app">
+├── Controllers/SpaController.cs    # one action per app; the dashboard is "/" + client-route fallback
+├── Vite/ViteHelper.cs              # reads/caches manifest.json, renders tags; dev-server mode in Development
+├── WebHosting.cs                   # AddWebHosting / UseWebHosting (dev proxy of /_content/Agentd.Web → Vite)
+├── package.json, vite.config.ts    # Vite backend integration; every ClientApps/<app>/main.ts is an entry
+├── public/theme-init.js            # sets data-theme before first paint (external file, CSP-safe)
+├── ClientApps/
+│   ├── shared/                     # used by several apps
+│   │   ├── styles/app.css          # Tailwind + daisyUI + agentd themes
+│   │   ├── api/                    # http.ts, hub.ts, types.ts, schema.d.ts (generated)
+│   │   ├── components/ui/          # Ag* reusable components (base-ui-vue + daisyUI)
+│   │   ├── components/icons/       # inline SVG SFCs
+│   │   └── utils/                  # diff.ts, format.ts (durations, cost), markdown-lite.ts
+│   └── dashboard/                  # the agentd UI
+│       ├── main.ts                 # createApp, pinia, router, connection.start()
+│       ├── App.vue, router.ts
+│       ├── stores/                 # session.ts, connection.ts, jobs.ts, events.ts, pullRequests.ts, ui.ts
+│       ├── components/             # feature components (§7)
+│       └── views/                  # DashboardView, SessionView, HistoryView, PullRequestsView, …, SettingsView
+├── tests/                          # vitest: stores (event dedupe, windowing, reconnect), components
+└── wwwroot/                        # Vite build output, served under /_content/Agentd.Web/ (git-ignored)
 ```
+
+**Adding another SPA:** create `ClientApps/<app>/main.ts`, add `Views/Spa/<app>.cshtml` (setting
+`ViewData["App"] = "<app>"`) and an action on `SpaController` with its route. Vite picks the new entry
+up automatically, and `ViteHelper.Tags("<app>")` renders it.
 
 ## 11. Testing focus
 

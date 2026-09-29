@@ -1,4 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <!-- Backend-for-Frontend: /bff (session, antiforgery) and /api (screen-shaped JSON) + SignalR hub (Phase 3+).
+       The HTML shell and the Vue apps live in Agentd.Web. -->
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>

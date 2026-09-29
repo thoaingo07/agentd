@@ -100,7 +100,7 @@ flowchart LR
 | Runtime | **.NET 10** (LTS). One ASP.NET Core process that hosts everything. |
 | Architecture | **Clean Architecture** (Domain → Application → Infrastructure / Presentation) with a **BFF** for the browser. See §2.2. |
 | Hosting | Generic Host; the timer-driven workers (poller, scheduler, retention) are `BackgroundService`s in the composition root. It runs as a systemd unit (`Microsoft.Extensions.Hosting.Systemd`) or a Windows Service. |
-| Database | **PostgreSQL 16+**, with all access through **PostgreSQL functions/procedures** called via **Npgsql** (Dapper for result mapping only); **no EF Core**. Versioned SQL migrations + repeatable routines, applied by an in-house runner ([data-access.md](data-access.md)). |
+| Database | **PostgreSQL 16+**, with all access through **PostgreSQL functions/procedures** called via **Npgsql** (Dapper for result mapping only); **no EF Core**. Raw SQL migrations + repeatable routines in the standalone **`Agentd.Migrator`** (FluentMigrator), run before the Host ([data-access.md](data-access.md)). |
 | Azure DevOps auth | `Azure.Identity` → `AzureCliCredential` (az cli mode) or PAT; both behind `IAzureDevOpsTokenProvider` |
 | Azure DevOps API | typed `HttpClient` against the REST API (`api-version=7.1`), with Polly resilience via `Microsoft.Extensions.Http.Resilience` |
 | Claude processes | `System.Diagnostics.Process` (or CliWrap) running the `claude` CLI, with stream-json read line by line from stdout |
@@ -112,7 +112,7 @@ flowchart LR
 | In-process event bus | `System.Threading.Channels` + PostgreSQL `LISTEN/NOTIFY` |
 | Logging / tracing | `ILogger` + OpenTelemetry (traces per job, metrics for cost and turns) |
 | Local dev | **.NET Aspire** (AppHost: PostgreSQL + Host + Vite; ServiceDefaults: OTel, health checks). It is dev-time only; production runs the Host directly under systemd. |
-| Testing | **MSTest on Microsoft.Testing.Platform** (`MSTest.Sdk`); Testcontainers for PostgreSQL; `Aspire.Hosting.Testing` for AppHost tests; vitest + Playwright for `web/` |
+| Testing | **MSTest on Microsoft.Testing.Platform** (`MSTest.Sdk`); Testcontainers for PostgreSQL; `Aspire.Hosting.Testing` for AppHost tests; vitest + Playwright for `src/Agentd.Web/` |
 | CI | **GitHub Actions** (.NET 10 SDK via `global.json`, **Node 24**, **npm**) |
 
 ### 2.2 Architecture style: Clean Architecture + BFF
@@ -405,7 +405,7 @@ process) in sync. As a result, the UI can always replay history and then follow 
 without gaps.
 
 **UI technology: Vue 3 + daisyUI, with base-ui-vue primitives.** The UI is a single-page app in
-`web/`, built with Vite and served as static files by the daemon. It keeps runtime dependencies
+`src/Agentd.Web/`, built with Vite and served as static files by the daemon. It keeps runtime dependencies
 deliberately small: **no data-fetching, caching or virtualization libraries** (no TanStack etc.).
 
 | Concern | Choice |
@@ -413,7 +413,7 @@ deliberately small: **no data-fetching, caching or virtualization libraries** (n
 | Framework | Vue 3 (Composition API, `<script setup>`) + TypeScript, built with Vite |
 | Routing | Vue Router |
 | State + server data | **Plain Pinia setup stores.** Each store owns its own `fetch` calls, loading/error flags and live-event merging. No query cache library. |
-| HTTP | a thin typed `fetch` wrapper (`web/src/api/http.ts`) |
+| HTTP | a thin typed `fetch` wrapper (`src/Agentd.Web/ClientApps/shared/api/http.ts`) |
 | Live events | `@microsoft/signalr` client, owned by one `connection` store; events are routed into the `jobs` and `events` stores |
 | Styling | **daisyUI 5** on Tailwind CSS 4, with a custom green `agentd` theme (the Vue green `#42b883`) in light and dark variants |
 | Interactive primitives | **base-ui-vue** ([baseui-vue.com](https://baseui-vue.com)): unstyled, accessible parts (Collapsible, Tabs, Tooltip, Scroll Area, Switch, Toggle Group, Progress, Meter), styled with daisyUI/Tailwind classes via the `class` prop and `data-*` state attributes |
@@ -432,13 +432,25 @@ and component styling rules are in **[docs/design-system](../design-system/READM
 3. After a reconnect (SignalR `withAutomaticReconnect()`), the page subscribes again with its latest
    `seq`, so no events are lost or duplicated. The client de-duplicates by `seq`.
 
-**Serving:**
+**Serving: Razor shell + Vite ([backend integration](https://vite.dev/guide/backend-integration)):**
 
-- **Production:** `npm run build` writes to `src/Agentd.Host/wwwroot/`, and the host serves it with
-  `MapStaticAssets()` plus `MapFallbackToFile("index.html")` for client-side routes. It is still one
-  deployable.
-- **Development:** the Vite dev server (`npm run dev`) proxies `/bff`, `/api`, `/hubs` and `/healthz` to the
-  daemon, which gives hot reload without CORS.
+- **`Agentd.Web`** (a Razor class library) hosts the Vue apps. It contains **`ClientApps/`** (one
+  folder per SPA; `package.json` sits at the project root), `Views/Shared/_Layout.cshtml`, one view
+  per app, and **`ViteHelper`**, which reads the manifest and renders the tags. The dashboard shell is
+  returned for `/` and every client-side route. `/api`, `/bff`, `/hubs` and `/mcp` never fall back to
+  it. `Agentd.Bff` stays API-only.
+- **Production:** `npm run build` (or `dotnet build -p:BuildWeb=true`) writes hashed assets and
+  **`manifest.json`** into `src/Agentd.Web/wwwroot/`. They are served as the library's static web
+  assets under **`/_content/Agentd.Web/`** (the Vite `base`). `ViteHelper` emits each app's
+  `<script type="module">`, CSS `<link>`s (including imported chunks) and `modulepreload` hints. All
+  are external files, so the CSP stays `script-src 'self'`. If the build is missing, the page returns
+  a 503 with guidance. It is still one deployable.
+- **Development:** the layout emits `/_content/Agentd.Web/@vite/client` plus the app's `main.ts`. The
+  Host proxies **everything under `/_content/Agentd.Web/`** to the Vite dev server with SpaServices'
+  `UseProxyToSpaDevelopmentServer`, **including the HMR websocket** (`…/__vite_hmr`). The browser only
+  ever talks to the Host's origin: no CORS, and the same cookies and CSP as in production. Aspire
+  gives the Host the dev server URL (`host.WithReference(web)`); outside Aspire, set
+  `Agentd:Web:Vite:DevServerUrl`.
 
 **BFF endpoints** (`Agentd.Bff`, in the same host, bound to `127.0.0.1` by default; see [clean-architecture-bff.md §5.1](clean-architecture-bff.md#51-agentdbff-backend-for-frontend-browser)):
 
@@ -564,7 +576,8 @@ agentd/
 ├── src/
 │   ├── Agentd.Domain/                      # Job aggregate, state machine, value objects, domain events (BCL only)
 │   ├── Agentd.Application/                 # use cases (commands/queries), ports, read models, Result<T>
-│   ├── Agentd.Infrastructure.Persistence/  # Npgsql, SQL migrations + PL/pgSQL routines, repositories, event store, NOTIFY
+│   ├── Agentd.Infrastructure.Persistence/  # Npgsql repositories calling PL/pgSQL routines, event store, NOTIFY
+│   ├── Agentd.Migrator/                    # standalone schema migrator: FluentMigrator + raw SQL migrations + routines
 │   ├── Agentd.Infrastructure.AzureDevOps/  # token providers, WIQL/work items/comments/PR HTTP clients
 │   ├── Agentd.Infrastructure.Messaging.Discord/   # IMessagingProvider: Discord.Net, threads, slash commands
 │   ├── Agentd.Infrastructure.Messaging.Telegram/  # IMessagingProvider: Telegram.Bot, forum topics, long polling
@@ -572,20 +585,12 @@ agentd/
 │   ├── Agentd.Infrastructure.Git/          # worktrees, push, diff
 │   ├── Agentd.Infrastructure.Orchestration/ # MAF workflows, executors, checkpoint store, MAF agents
 │   ├── Agentd.Bff/                         # BFF: /bff session endpoints, /api view models, SignalR hub,
-│   │                                       #      auth, antiforgery, CSP/security headers, SPA fallback
+│   │                                       #      auth, antiforgery, CSP/security headers
 │   ├── Agentd.Mcp/                         # MCP tools → Application commands (per-job bearer auth)
-│   ├── Agentd.Host/                        # composition root: Program.cs, workers, appsettings, wwwroot/
+│   ├── Agentd.Web/                         # Razor shell + ViteHelper + ClientApps/<app> (Vue SPAs, one package.json)
+│   ├── Agentd.Host/                        # composition root: Program.cs, workers, appsettings
 │   ├── Agentd.AppHost/                     # .NET Aspire: local orchestration (PostgreSQL, Host, Vite)
 │   └── Agentd.ServiceDefaults/             # Aspire service defaults: OTel, health checks, resilience
-├── web/                                    # Vue 3 + Vite + daisyUI (Tailwind) SPA → talks only to the BFF
-│   ├── src/
-│   │   ├── api/                # http.ts (fetch wrapper + antiforgery), generated OpenAPI types, hub.ts
-│   │   ├── stores/             # Pinia: session, connection, jobs, events, ui
-│   │   ├── components/ui/      # reusable AgButton, AgCollapsible, AgTabs... (base-ui-vue + daisyUI)
-│   │   ├── components/         # feature components: EventItem, ToolCallCard, StateBadge, DiffView
-│   │   ├── views/              # Dashboard, SessionTrace, History, Settings
-│   │   └── styles/app.css      # Tailwind + daisyUI + agentd theme
-│   └── vite.config.ts          # dev proxy → daemon; build output → src/Agentd.Host/wwwroot
 ├── tests/
 │   ├── Agentd.Domain.Tests/
 │   ├── Agentd.Application.Tests/

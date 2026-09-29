@@ -129,7 +129,7 @@ Numbers in tables use `tabular-nums`.
 
 ## 5. Theme implementation
 
-`web/src/styles/app.css`:
+`src/Agentd.Web/ClientApps/shared/styles/app.css`:
 
 ```css
 @import "tailwindcss";
@@ -242,7 +242,7 @@ an **external** script, because the CSP forbids inline scripts ([Security §3](.
 | Interactive behavior with state, keyboard handling and ARIA (collapsible, tabs, tooltip, switch, toggle group, scroll area, progress, meter, form fields) | **base-ui-vue** part, styled with daisyUI/Tailwind classes |
 | Dialogs, dropdowns, toasts (not in base-ui-vue) | daisyUI `modal` on native `<dialog>`, `dropdown` with the Popover API, and `toast` driven by the `ui` store |
 
-### 6.2 Reusable components (`web/src/components/ui/`)
+### 6.2 Reusable components (`src/Agentd.Web/ClientApps/shared/components/ui/`)
 
 Every reusable component is an `Ag*` wrapper. It composes base-ui-vue parts (see the
 [base-ui-vue quick start](https://baseui-vue.com/docs/overview/quick-start)) and applies the
@@ -266,7 +266,7 @@ the styling decisions in one folder.
 ### 6.3 Pattern example
 
 ```vue
-<!-- web/src/components/ui/AgCollapsible.vue -->
+<!-- src/Agentd.Web/ClientApps/shared/components/ui/AgCollapsible.vue -->
 <script setup lang="ts">
 import { CollapsiblePanel, CollapsibleRoot, CollapsibleTrigger } from 'base-ui-vue'
 
@@ -295,7 +295,7 @@ defineProps<{ title: string; defaultOpen?: boolean }>()
 ```
 
 ```vue
-<!-- web/src/components/ui/AgTabs.vue (tab strip part) -->
+<!-- src/Agentd.Web/ClientApps/shared/components/ui/AgTabs.vue (tab strip part) -->
 <TabsList class="relative flex gap-1 border-b border-base-300">
   <TabsTab
     v-for="t in tabs" :key="t.value" :value="t.value"
@@ -327,7 +327,7 @@ Conventions:
 
 ## 8. Iconography
 
-Inline SVG icons (Lucide-style, 1.5px stroke, 16px or 20px), copied into `web/src/components/icons/` as
+Inline SVG icons (Lucide-style, 1.5px stroke, 16px or 20px), copied into `src/Agentd.Web/ClientApps/shared/components/icons/` as
 tiny SFCs. There is no icon library dependency. Icons are always paired with a text label or
 `aria-label`.
 

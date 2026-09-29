@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Standalone database migrator (FluentMigrator): applies versioned migrations (raw SQL scripts) and the
+    repeatable PL/pgSQL routines (Routines/**/*.sql), then exits (0 = success).
+    Runs before the Host (Aspire: WaitForCompletion; production: its own step).
+    Owns the database schema; see docs/architect/data-access.md.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <UserSecretsId>agentd-migrator</UserSecretsId>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Agentd.ServiceDefaults\Agentd.ServiceDefaults.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="FluentMigrator" />
+    <PackageReference Include="FluentMigrator.Runner.Core" />
+    <PackageReference Include="FluentMigrator.Runner.Postgres" />
+    <PackageReference Include="Npgsql" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- All SQL ships inside the assembly; logical names are paths, e.g. "Migrations/202609290001_initial_schema.up.sql". -->
+    <EmbeddedResource Include="Migrations\**\*.sql" LogicalName="Migrations/%(RecursiveDir)%(Filename)%(Extension)" />
+    <EmbeddedResource Include="Routines\**\*.sql" LogicalName="Routines/%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Agentd.Migrator.Tests" />
+  </ItemGroup>
+</Project>

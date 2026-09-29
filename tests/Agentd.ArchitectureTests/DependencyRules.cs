@@ -57,14 +57,29 @@ internal static class DependencyRules
             ["Agentd.Bff", "Agentd.Mcp", "Agentd.Host", "Agentd.ServiceDefaults"],
             []),
 
-        new("Presentation (Bff, Mcp) never references Infrastructure",
-            n => n is "Agentd.Bff" or "Agentd.Mcp",
+        new("Presentation (Bff, Mcp, Web) never references Infrastructure",
+            n => n is "Agentd.Bff" or "Agentd.Mcp" or "Agentd.Web",
             [Infrastructure, "Agentd.Host", "Agentd.ServiceDefaults"],
             ["Npgsql", "Dapper"]),
 
-        new("Only Host references ServiceDefaults",
-            n => n != "Agentd.Host",
+        new("Only executables (Host, Migrator) reference ServiceDefaults",
+            n => n is not ("Agentd.Host" or "Agentd.Migrator"),
             ["Agentd.ServiceDefaults"],
+            []),
+
+        new("Migrator is standalone (owns the schema; no application code)",
+            n => n == "Agentd.Migrator",
+            ["Agentd.Domain", "Agentd.Application", Infrastructure, "Agentd.Bff", "Agentd.Mcp", "Agentd.Host"],
+            []),
+
+        new("Web UI hosting is self-contained (no application code; the BFF provides data)",
+            n => n == "Agentd.Web",
+            ["Agentd.Domain", "Agentd.Application", "Agentd.Bff", "Agentd.Mcp"],
+            []),
+
+        new("Nothing but the AppHost references the Migrator",
+            n => n != "Agentd.AppHost",
+            ["Agentd.Migrator"],
             []),
 
         new("No ORM anywhere (PostgreSQL functions via Npgsql; see docs/architect/data-access.md)",

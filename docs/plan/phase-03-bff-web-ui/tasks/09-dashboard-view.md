@@ -12,14 +12,14 @@ Turn the Phase 0 empty shell into the real app frame:
   the **Run work item…** action.
 
 ## Files
-- `web/src/router.ts` — modify: routes `/`, `/jobs/:id`, `/history`, `/settings`, and a 404.
-- `web/src/App.vue` — modify: navbar, `<router-view>`, `AgToastHost`, `TooltipProvider`; mobile drawer.
-- `web/src/components/ConnectionIndicator.vue` — create.
-- `web/src/components/StatsBar.vue` — create: daisyUI `stats` + `AgMeter`.
-- `web/src/components/JobTable.vue` — create: reused by History (T3.11).
-- `web/src/components/RunWorkItemModal.vue` — create.
-- `web/src/views/DashboardView.vue` — create.
-- `web/src/views/SettingsView.vue` — create: theme, connection info, read-only config summary.
+- `src/Agentd.Web/ClientApps/dashboard/router.ts` — modify: routes `/`, `/jobs/:id`, `/history`, `/settings`, and a 404.
+- `src/Agentd.Web/ClientApps/dashboard/App.vue` — modify: navbar, `<router-view>`, `AgToastHost`, `TooltipProvider`; mobile drawer.
+- `src/Agentd.Web/ClientApps/dashboard/components/ConnectionIndicator.vue` — create.
+- `src/Agentd.Web/ClientApps/dashboard/components/StatsBar.vue` — create: daisyUI `stats` + `AgMeter`.
+- `src/Agentd.Web/ClientApps/dashboard/components/JobTable.vue` — create: reused by History (T3.11).
+- `src/Agentd.Web/ClientApps/dashboard/components/RunWorkItemModal.vue` — create.
+- `src/Agentd.Web/ClientApps/dashboard/views/DashboardView.vue` — create.
+- `src/Agentd.Web/ClientApps/dashboard/views/SettingsView.vue` — create: theme, connection info, read-only config summary.
 - `src/Agentd.Bff/Endpoints/ConfigEndpoints.cs` — create: `GET /api/config` (redacted summary).
 
 ## Implementation

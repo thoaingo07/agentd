@@ -52,7 +52,7 @@ the team owns and edits them.
 name: security
 title: Security reviewer
 description: AuthN/AuthZ, input validation, secrets, injection, CSP/cookie rules.
-appliesTo: ["src/**", "web/src/**"]          # a reviewer is skipped when no changed file matches
+appliesTo: ["src/**", "src/Agentd.Web/ClientApps/dashboard/**"]          # a reviewer is skipped when no changed file matches
 autoOn: ["src/Agentd.Bff/**", "**/Auth*/**"]  # auto-run when these paths change (§3.3)
 severityThreshold: medium                     # only post findings at this level or higher
 maxFindings: 15
@@ -66,7 +66,7 @@ tools: read-only                              # always read-only; stated for cla
 - ...
 
 ## Ignore
-- Generated files under `web/src/api/schema.d.ts`.
+- Generated files under `src/Agentd.Web/ClientApps/shared/api/schema.d.ts`.
 
 ## Output
 Use the finding format in the core rules. Cite file and line. Suggest a concrete fix.
@@ -301,7 +301,7 @@ across registered repos, with CI, votes, conflicts, active threads and agentd st
 | `IReviewerCatalog` (loads `.agentd/reviewers/*.md` from the kit snapshot) | Application port → `Infrastructure.Git` (kit store) |
 | Review fan-out/fan-in workflow, the `PrFollowUp` / `Hotfix` workflows, and the triage agent | `Infrastructure.Orchestration` (MAF) |
 | `PullRequestMonitorWorker` (replaces `PullRequestFeedbackWorker`) | `Agentd.Host` |
-| `/api/prs/*` endpoints, the PR dashboard | `Agentd.Bff` + `web/` |
+| `/api/prs/*` endpoints, the PR dashboard | `Agentd.Bff` + `src/Agentd.Web/` |
 
 ### Data model
 

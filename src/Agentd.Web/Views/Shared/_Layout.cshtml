@@ -1,0 +1,18 @@
+@{
+    // Each SPA view sets ViewData["App"] to its folder name under ClientApps/.
+    var app = (string)ViewData["App"]!;
+}
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@(ViewData["Title"] ?? "agentd")</title>
+    @* External (CSP-safe) pre-paint theme loader, then the app's styles/preloads/entry. No inline code. *@
+    <script src="@Vite.Url("theme-init.js")"></script>
+    @Vite.Tags(app)
+</head>
+<body class="bg-base-100 text-base-content">
+    @RenderBody()
+</body>
+</html>
