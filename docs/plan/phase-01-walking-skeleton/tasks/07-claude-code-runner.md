@@ -37,7 +37,13 @@ log, enforce timeouts and cancellation, and make sure **no daemon secret ever re
    - **removes** every key starting with `Agentd__`, plus `ConnectionStrings__*`, `AZURE_*`,
      `ASPNETCORE_*`, `DOTNET_*` and `OTEL_*`;
    - keeps `PATH`, `HOME`, `LANG` and git/ssh variables;
-   - adds only what Claude needs (the Anthropic credential from the single Phase 1 profile config).
+   - adds only what Claude needs for the single Phase 1 profile, which is a **Claude subscription**
+     (the user has no API key):
+     - **dev machine:** nothing extra, so it uses the logged-in `~/.claude` subscription
+       (`claude auth status --json` → `authMethod: claude.ai`);
+     - **optional:** `ConfigDir` (sets `CLAUDE_CONFIG_DIR` to a dedicated login) or an `OAuthToken`
+       secret from `claude setup-token`, injected as the documented environment variable;
+     - **never** an `ANTHROPIC_API_KEY` unless a profile explicitly has one.
 4. **Process:**
    - `WorkingDirectory` = the worktree, `UseShellExecute = false`, stdout and stderr redirected;
    - start it and register it in an in-memory map `jobId → Process` (for `IsRunning` and `Cancel`).
@@ -50,6 +56,11 @@ log, enforce timeouts and cancellation, and make sure **no daemon secret ever re
 7. **Cancellation:** `Cancel(jobId)` → kill the process tree → the outcome is `Cancelled`.
 8. **Exit:** await the exit, then return `Exited(code)` together with the last `result` event summary
    (turns, error subtype).
+9. **Subscription usage limits:** if the `result` event (or stderr) reports a usage or rate limit,
+   return `UsageLimited(resetAt?)` instead of a failure. The use case then **re-queues** the job
+   (`not_before` = the reset time, or a backoff) and keeps its session, so it resumes later with
+   `--resume` ([model-profiles.md §4a](../../../architect/model-profiles.md#4a-subscription-usage-limits)).
+   Default `MaxConcurrent: 1` for the subscription profile.
 
 ## Tests
 - `Agentd.Infrastructure.Tests` with a **fake `claude`** (a small script that prints fixture
