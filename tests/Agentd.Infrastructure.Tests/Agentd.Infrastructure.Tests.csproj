@@ -2,6 +2,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Agentd.Infrastructure.Persistence\Agentd.Infrastructure.Persistence.csproj" />
     <ProjectReference Include="..\..\src\Agentd.Infrastructure.AzureDevOps\Agentd.Infrastructure.AzureDevOps.csproj" />
+    <ProjectReference Include="..\..\src\Agentd.Infrastructure.Git\Agentd.Infrastructure.Git.csproj" />
     <!-- The real schema for integration tests. -->
     <ProjectReference Include="..\..\src\Agentd.Migrator\Agentd.Migrator.csproj" />
   </ItemGroup>

@@ -1,0 +1,139 @@
+using System.Collections.Concurrent;
+using System.Globalization;
+using Agentd.Application.Ports;
+using Agentd.Domain.Jobs.ValueObjects;
+using Agentd.Domain.Repositories;
+using Microsoft.Extensions.Options;
+
+namespace Agentd.Infrastructure.Git;
+
+/// <summary>
+/// One managed bare clone per repository and one worktree per job (branch <c>ai/&lt;id&gt;-&lt;slug&gt;</c> from
+/// <c>origin/&lt;base&gt;</c>). Operations on the same repository are serialized; different repositories run in parallel.
+/// </summary>
+public sealed class GitWorktreeManager(GitCli git, IOptions<GitOptions> options) : IWorktreeManager
+{
+    private readonly ConcurrentDictionary<string, SemaphoreSlim> _locks = new(StringComparer.Ordinal);
+
+    public async Task EnsureCloneAsync(Repository repository, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(repository);
+        await WithRepoLockAsync(repository, () => EnsureCloneCoreAsync(repository, cancellationToken), cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<WorktreePath> CreateAsync(Repository repository, WorkItemId workItem, BranchName branch, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(repository);
+        return await WithRepoLockAsync(repository, async () =>
+        {
+            var clone = await EnsureCloneCoreAsync(repository, cancellationToken).ConfigureAwait(false);
+            var path = WorktreePathFor(repository, workItem);
+
+            if (Directory.Exists(path))
+            {
+                var current = await git.RunAsync(path, ["rev-parse", "--abbrev-ref", "HEAD"], cancellationToken, throwOnError: false).ConfigureAwait(false);
+                if (current.ExitCode == 0 && current.StandardOutput == branch.Value)
+                {
+                    return new WorktreePath(path);   // retry/resume: reuse the existing worktree
+                }
+
+                throw new GitException($"Worktree path {path} already exists for another branch ({current.StandardOutput}).");
+            }
+
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            var branchExists = (await git.RunAsync(clone, ["show-ref", "--verify", "--quiet", "refs/heads/" + branch.Value], cancellationToken, throwOnError: false).ConfigureAwait(false)).ExitCode == 0;
+            string[] add = branchExists
+                ? ["worktree", "add", path, branch.Value]
+                : ["worktree", "add", "-b", branch.Value, path, "origin/" + repository.BaseBranch];
+            await git.RunAsync(clone, add, cancellationToken).ConfigureAwait(false);
+            return new WorktreePath(path);
+        }, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<bool> HasCommitsAheadAsync(Repository repository, WorktreePath worktree, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(repository);
+        var count = await git.RunAsync(worktree.Value, ["rev-list", "--count", $"origin/{repository.BaseBranch}..HEAD"], cancellationToken).ConfigureAwait(false);
+        return int.Parse(count.StandardOutput, CultureInfo.InvariantCulture) > 0;
+    }
+
+    public async Task PushAsync(WorktreePath worktree, BranchName branch, CancellationToken cancellationToken) =>
+        await git.RunAsync(worktree.Value, BuildPushArgs(branch), cancellationToken).ConfigureAwait(false);
+
+    public async Task RemoveAsync(Repository repository, WorktreePath worktree, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(repository);
+        if (options.Value.KeepWorktrees)
+        {
+            return;
+        }
+
+        await WithRepoLockAsync(repository, async () =>
+        {
+            // --force: the worktree belongs to agentd; the branch (and its pushed commits) is kept.
+            await git.RunAsync(ClonePathFor(repository), ["worktree", "remove", "--force", worktree.Value], cancellationToken, throwOnError: false).ConfigureAwait(false);
+            return true;
+        }, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task PruneAsync(Repository repository, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(repository);
+        var clone = ClonePathFor(repository);
+        if (Directory.Exists(clone))
+        {
+            await git.RunAsync(clone, ["worktree", "prune"], cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>Push arguments. There is deliberately no way to request a force push.</summary>
+    internal static IReadOnlyList<string> BuildPushArgs(BranchName branch) => ["push", "--set-upstream", "origin", branch.Value];
+
+    internal string ClonePathFor(Repository repository) =>
+        Path.Combine(
+            GitOptions.Expand(options.Value.RepositoriesRoot),
+            Safe(repository.AzureDevOps.Organization),
+            Safe(repository.AzureDevOps.Project),
+            Safe(repository.AzureDevOps.Name) + ".git");
+
+    internal string WorktreePathFor(Repository repository, WorkItemId workItem) =>
+        Path.Combine(GitOptions.Expand(options.Value.WorktreeRoot), Safe(repository.Name.Value), $"wi-{workItem}");
+
+    private async Task<string> EnsureCloneCoreAsync(Repository repository, CancellationToken ct)
+    {
+        var clone = ClonePathFor(repository);
+        if (!Directory.Exists(Path.Combine(clone, "objects")))
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(clone)!);
+            await git.RunAsync(null, ["clone", "--bare", "--", repository.RemoteUrl, clone], ct).ConfigureAwait(false);
+            // Remote-tracking refs (origin/*) so worktrees can start from origin/<base>.
+            await git.RunAsync(clone, ["config", "remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*"], ct).ConfigureAwait(false);
+            await git.RunAsync(clone, ["config", "user.name", options.Value.CommitName], ct).ConfigureAwait(false);
+            await git.RunAsync(clone, ["config", "user.email", options.Value.CommitEmail], ct).ConfigureAwait(false);
+        }
+
+        await git.RunAsync(clone, ["fetch", "--prune", "origin"], ct).ConfigureAwait(false);
+        return clone;
+    }
+
+    private async Task<T> WithRepoLockAsync<T>(Repository repository, Func<Task<T>> action, CancellationToken ct)
+    {
+        var gate = _locks.GetOrAdd(ClonePathFor(repository), _ => new SemaphoreSlim(1, 1));
+        await gate.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            return await action().ConfigureAwait(false);
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    private static string Safe(string segment)
+    {
+        var invalid = Path.GetInvalidFileNameChars();
+        var cleaned = new string(segment.Select(c => invalid.Contains(c) || c is '/' or '\\' ? '_' : c).ToArray()).Trim('.', ' ');
+        return cleaned.Length == 0 ? "_" : cleaned;
+    }
+}

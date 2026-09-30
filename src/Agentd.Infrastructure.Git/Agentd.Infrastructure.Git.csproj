@@ -1,14 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- Azure DevOps REST client: work items (IWorkItemSource) and pull requests (IPullRequestService). -->
+  <!-- git CLI wrapper: managed bare clones, per-job worktrees, push (never force), remote queries. -->
   <ItemGroup>
     <ProjectReference Include="..\Agentd.Application\Agentd.Application.csproj" />
     <ProjectReference Include="..\Agentd.Domain\Agentd.Domain.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Azure.Identity" />
-    <PackageReference Include="Microsoft.Extensions.Http" />
     <PackageReference Include="Microsoft.Extensions.Options" />
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Agentd.Infrastructure.Tests" />
