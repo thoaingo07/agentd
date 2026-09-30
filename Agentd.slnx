@@ -20,6 +20,7 @@
     <Project Path="tests/Agentd.Bff.Tests/Agentd.Bff.Tests.csproj" />
     <Project Path="tests/Agentd.Domain.Tests/Agentd.Domain.Tests.csproj" />
     <Project Path="tests/Agentd.Infrastructure.Tests/Agentd.Infrastructure.Tests.csproj" />
+    <Project Path="tests/Agentd.Mcp.Tests/Agentd.Mcp.Tests.csproj" />
     <Project Path="tests/Agentd.Migrator.Tests/Agentd.Migrator.Tests.csproj" />
     <Project Path="tests/Agentd.Web.Tests/Agentd.Web.Tests.csproj" />
   </Folder>

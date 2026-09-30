@@ -1,0 +1,157 @@
+using System.Net;
+using System.Net.Http.Headers;
+using System.Text;
+using Agentd.Domain.Jobs;
+using Agentd.Domain.Jobs.ValueObjects;
+using ModelContextProtocol;
+using ModelContextProtocol.Protocol;
+
+namespace Agentd.Mcp.Tests;
+
+[TestClass]
+public sealed class McpEndpointTests
+{
+    private const string Initialize = """{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"t","version":"1"}}}""";
+
+    [TestMethod]
+    public async Task No_token_is_401()
+    {
+        await using var host = await McpTestHost.StartAsync();
+
+        using var response = await host.Http.SendAsync(Post(null));
+
+        Assert.AreEqual(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [TestMethod]
+    public async Task A_revoked_or_unknown_token_is_401()
+    {
+        await using var host = await McpTestHost.StartAsync();
+        var token = host.Tokens.Issue(new JobId(1));
+        host.Tokens.Revoke(new JobId(1));
+
+        using var revoked = await host.Http.SendAsync(Post(token));
+        using var unknown = await host.Http.SendAsync(Post("not-a-token"));
+
+        Assert.AreEqual(HttpStatusCode.Unauthorized, revoked.StatusCode);
+        Assert.AreEqual(HttpStatusCode.Unauthorized, unknown.StatusCode);
+    }
+
+    [TestMethod]
+    public async Task A_browser_request_is_403_even_with_a_valid_token()
+    {
+        await using var host = await McpTestHost.StartAsync();
+        var request = Post(host.Tokens.Issue(new JobId(1)));
+        request.Headers.Add("Origin", "https://evil.example");
+
+        using var response = await host.Http.SendAsync(request);
+
+        Assert.AreEqual(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [TestMethod]
+    public async Task The_agent_sees_exactly_the_agentd_tools()
+    {
+        await using var host = await McpTestHost.StartAsync();
+        await using var client = await host.ClientAsync(host.Tokens.Issue(new JobId(1)));
+
+        var tools = await client.ListToolsAsync();
+
+        CollectionAssert.AreEquivalent(new[] { "finish", "report_progress", "get_work_item" }, tools.Select(t => t.Name).ToList());
+        var finish = tools.Single(t => t.Name == "finish");
+        var schema = finish.JsonSchema.GetRawText();
+        Assert.DoesNotContain("\"user\"", schema, "the caller identity is never a tool argument");
+        Assert.DoesNotContain("claims", schema);
+        CollectionAssert.AreEquivalent(
+            new[] { "prTitle", "prDescription", "summary" },
+            finish.JsonSchema.GetProperty("properties").EnumerateObject().Select(p => p.Name).ToList());
+    }
+
+    [TestMethod]
+    public async Task Finish_publishes_the_job_behind_the_token()
+    {
+        await using var host = await McpTestHost.StartAsync();
+        host.RunningJob(id: 42, workItem: 1234);
+        await using var client = await host.ClientAsync(host.Tokens.Issue(new JobId(42)));
+
+        var result = await client.CallToolAsync("finish", Args(("prTitle", "Fix login"), ("prDescription", "Details"), ("summary", "Done")));
+
+        Assert.IsFalse(result.IsError ?? false, Text(result));
+        StringAssert.Contains(Text(result), "pullrequest/42");
+        Assert.AreEqual(JobState.Done, (await host.Jobs.GetAsync(new JobId(42), default))!.State);
+    }
+
+    [TestMethod]
+    public async Task A_token_can_only_act_on_its_own_job()
+    {
+        await using var host = await McpTestHost.StartAsync();
+        host.RunningJob(id: 1, workItem: 100);
+        host.RunningJob(id: 2, workItem: 200);
+        await using var client = await host.ClientAsync(host.Tokens.Issue(new JobId(1)));
+
+        await client.CallToolAsync("finish", Args(("prTitle", "T"), ("prDescription", "D"), ("summary", "S")));
+
+        Assert.AreEqual(JobState.Done, (await host.Jobs.GetAsync(new JobId(1), default))!.State);
+        Assert.AreEqual(JobState.Running, (await host.Jobs.GetAsync(new JobId(2), default))!.State, "job B is untouched");
+    }
+
+    [TestMethod]
+    public async Task Finish_on_a_job_that_is_not_running_is_a_tool_error()
+    {
+        await using var host = await McpTestHost.StartAsync();
+        host.RunningJob(id: 5, workItem: 500);
+        await using var client = await host.ClientAsync(host.Tokens.Issue(new JobId(5)));
+        await client.CallToolAsync("finish", Args(("prTitle", "T"), ("prDescription", "D"), ("summary", "S")));
+
+        var second = await CallAllowingErrorAsync(client, "finish", Args(("prTitle", "T"), ("prDescription", "D"), ("summary", "S")));
+
+        Assert.IsTrue(second.IsError ?? false);
+        StringAssert.Contains(Text(second), "finish failed");
+    }
+
+    [TestMethod]
+    public async Task Report_progress_records_an_event_and_get_work_item_renders_it()
+    {
+        await using var host = await McpTestHost.StartAsync();
+        host.RunningJob(id: 9, workItem: 900);
+        await using var client = await host.ClientAsync(host.Tokens.Issue(new JobId(9)));
+
+        await client.CallToolAsync("report_progress", Args(("message", "Reproduced the bug")));
+        var item = await client.CallToolAsync("get_work_item");
+
+        var progress = host.Events.Appended.Single(e => e.Type == "progress.reported");
+        Assert.AreEqual(9L, progress.JobId);
+        StringAssert.Contains(progress.Payload, "Reproduced the bug");
+        StringAssert.Contains(Text(item), "# 900: Fix login");
+        StringAssert.Contains(Text(item), "Redirects once.");
+    }
+
+    private static async Task<CallToolResult> CallAllowingErrorAsync(ModelContextProtocol.Client.McpClient client, string tool, IReadOnlyDictionary<string, object?> args)
+    {
+        try
+        {
+            return await client.CallToolAsync(tool, args);
+        }
+        catch (McpException ex)
+        {
+            return new CallToolResult { IsError = true, Content = [new TextContentBlock { Text = ex.Message }] };
+        }
+    }
+
+    private static Dictionary<string, object?> Args(params (string Key, object? Value)[] pairs) => pairs.ToDictionary(p => p.Key, p => p.Value);
+
+    private static string Text(CallToolResult result) => string.Join("\n", result.Content.OfType<TextContentBlock>().Select(c => c.Text));
+
+    private static HttpRequestMessage Post(string? token)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, "/mcp") { Content = new StringContent(Initialize, Encoding.UTF8, "application/json") };
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/event-stream"));
+        if (token is not null)
+        {
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        }
+
+        return request;
+    }
+}

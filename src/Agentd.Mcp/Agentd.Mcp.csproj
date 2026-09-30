@@ -1,9 +1,16 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <!-- Agent-facing presentation: the /mcp endpoint Claude Code calls back into (per-job bearer tokens). -->
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="ModelContextProtocol.AspNetCore" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\Agentd.Application\Agentd.Application.csproj" />
     <ProjectReference Include="..\Agentd.Domain\Agentd.Domain.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Agentd.Mcp.Tests" />
   </ItemGroup>
 </Project>

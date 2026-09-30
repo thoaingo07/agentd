@@ -19,6 +19,11 @@
     <PackageVersion Include="Azure.Identity" Version="1.21.0" />
     <PackageVersion Include="Microsoft.Extensions.Http" Version="10.0.12" />
   </ItemGroup>
+  <ItemGroup Label="MCP (agents → agentd)">
+    <PackageVersion Include="ModelContextProtocol" Version="2.2.0" />
+    <PackageVersion Include="ModelContextProtocol.AspNetCore" Version="2.2.0" />
+    <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.12" />
+  </ItemGroup>
   <ItemGroup Label="Web hosting">
     <PackageVersion Include="Microsoft.AspNetCore.SpaServices.Extensions" Version="10.0.12" />
   </ItemGroup>

@@ -1,0 +1,82 @@
+using System.ComponentModel;
+using System.Globalization;
+using System.Text;
+using System.Text.Json;
+using Agentd.Application.Abstractions;
+using Agentd.Application.Jobs;
+using Agentd.Application.Ports;
+using Agentd.Domain.Jobs.ValueObjects;
+using Microsoft.AspNetCore.Http;
+using ModelContextProtocol;
+using ModelContextProtocol.Server;
+
+namespace Agentd.Mcp;
+
+/// <summary>
+/// The tools a Claude Code agent uses to talk back to agentd. The job is always the bearer token's job,
+/// read from the authenticated HTTP request; it is never a tool argument the agent could set.
+/// </summary>
+[McpServerToolType]
+public sealed class AgentdTools(
+    IHttpContextAccessor http,
+    ICommandHandler<FinishWork, PullRequestRef> finish,
+    IJobRepository jobs,
+    IWorkItemSource workItems,
+    IEventStore events)
+{
+    [McpServerTool(Name = "finish"), Description(
+        "Call exactly once when the work item is complete and all changes are committed. agentd pushes your branch and " +
+        "opens the pull request. After calling this, end your turn.")]
+    public async Task<string> Finish(
+        [Description("Pull request title: short and specific, e.g. 'Fix login redirect loop (WI-1234)'.")] string prTitle,
+        [Description("Pull request description in Markdown: what changed, why, and how it was verified.")] string prDescription,
+        [Description("One or two sentences summarizing the outcome for the developer.")] string summary,
+        CancellationToken cancellationToken)
+    {
+        var jobId = CurrentJob();
+        var result = await finish.Handle(new FinishWork(jobId, prTitle, prDescription, summary), cancellationToken).ConfigureAwait(false);
+        return result.IsSuccess
+            ? $"Work recorded and pull request opened: {result.Value.Url}. End your turn now."
+            : throw new McpException($"finish failed: {result.Error.Message}");
+    }
+
+    [McpServerTool(Name = "report_progress"), Description("Report a short progress update for the developer (a sentence, not a log).")]
+    public async Task<string> ReportProgress(
+        [Description("What you just did or are about to do.")] string message,
+        CancellationToken cancellationToken)
+    {
+        var jobId = CurrentJob();
+        await events.AppendAsync(jobId, "progress.reported", JsonSerializer.Serialize(new { message }), cancellationToken).ConfigureAwait(false);
+        return "Noted.";
+    }
+
+    [McpServerTool(Name = "get_work_item"), Description("Get the latest version of your work item (title, description, acceptance criteria, comments).")]
+    public async Task<string> GetWorkItem(CancellationToken cancellationToken)
+    {
+        var job = await jobs.GetAsync(CurrentJob(), cancellationToken).ConfigureAwait(false)
+            ?? throw new McpException("Your job no longer exists.");
+        var item = await workItems.GetAsync(job.WorkItemId.Value, cancellationToken).ConfigureAwait(false)
+            ?? throw new McpException($"Work item {job.WorkItemId} no longer exists.");
+
+        var sb = new StringBuilder();
+        sb.AppendLine(CultureInfo.InvariantCulture, $"# {item.Id}: {item.Title} ({item.State})");
+        void Section(string title, string? body)
+        {
+            if (!string.IsNullOrWhiteSpace(body))
+            {
+                sb.AppendLine().AppendLine(CultureInfo.InvariantCulture, $"## {title}").AppendLine(body.Trim());
+            }
+        }
+
+        Section("Description", item.Description);
+        Section("Acceptance criteria", item.AcceptanceCriteria);
+        Section("Repro steps", item.ReproSteps);
+        Section("Comments", string.Join("\n", item.Comments.Select(c => $"- {c.Author} ({c.CreatedAt:yyyy-MM-dd}): {c.Text}")));
+        return sb.ToString();
+    }
+
+    private JobId CurrentJob() =>
+        http.HttpContext?.User.FindFirst(McpJobAuthenticationHandler.JobIdClaim)?.Value is { } id && long.TryParse(id, NumberStyles.None, CultureInfo.InvariantCulture, out var value)
+            ? new JobId(value)
+            : throw new McpException("Not authenticated as an agentd job.");
+}
