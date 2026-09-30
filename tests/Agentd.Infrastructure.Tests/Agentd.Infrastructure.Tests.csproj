@@ -3,11 +3,16 @@
     <ProjectReference Include="..\..\src\Agentd.Infrastructure.Persistence\Agentd.Infrastructure.Persistence.csproj" />
     <ProjectReference Include="..\..\src\Agentd.Infrastructure.AzureDevOps\Agentd.Infrastructure.AzureDevOps.csproj" />
     <ProjectReference Include="..\..\src\Agentd.Infrastructure.Git\Agentd.Infrastructure.Git.csproj" />
+    <ProjectReference Include="..\..\src\Agentd.Infrastructure.Claude\Agentd.Infrastructure.Claude.csproj" />
     <!-- The real schema for integration tests. -->
     <ProjectReference Include="..\..\src\Agentd.Migrator\Agentd.Migrator.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Testcontainers.PostgreSql" />
     <PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Real stream-json transcripts captured from Claude Code 2.1.284 (paths sanitized). -->
+    <None Update="Claude\Fixtures\*.jsonl" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

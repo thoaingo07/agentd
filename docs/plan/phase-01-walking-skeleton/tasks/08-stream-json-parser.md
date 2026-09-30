@@ -48,6 +48,14 @@ tracking (Phase 6).
   - a secret in a tool output is masked.
 - Order is preserved, and every input line yields at least one event.
 
+## As built
+- Fixtures are **real transcripts from Claude Code 2.1.284** (a text-only run and a Read-tool run),
+  with the `system/init` details of the local setup stripped.
+- The CLI emits a **`rate_limit_event`** (`status`, `resetsAt`, and `unifiedWindows` utilization for
+  `five_hour` / `seven_day`). `RunTracker` treats a non-`allowed` status (or a 429 result) as
+  **usage-limited**, with the reset time, so `HandleAgentExit` defers the job.
+- The CLI waits 3 s for stdin unless stdin is closed, so the runner must redirect stdin (T1.7).
+
 ## Done when
 - [ ] The fixtures come from a real `claude` run (committed and scrubbed).
 - [ ] The parser never throws on any input (a fuzz test over random lines).
