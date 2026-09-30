@@ -54,8 +54,8 @@ internal static class AdoHttp
         if (status is >= 300 and < 400 || status == 203 || (isHtml && response.IsSuccessStatusCode))
         {
             throw new AdoException(
-                "Azure DevOps rejected the credentials (redirected to sign-in). With Auth=AzCli the `az login` identity may not " +
-                "belong to the organization's tenant; use a PAT (Auth=Pat, secret Agentd:AzureDevOps:Pat).",
+                "Azure DevOps rejected the credentials (redirected to sign-in). Check `az login` (Auth=AzCli) or the PAT " +
+                "(Auth=Pat, secret Agentd:AzureDevOps:Pat) and that the identity has access to the organization.",
                 401);
         }
     }

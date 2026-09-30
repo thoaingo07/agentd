@@ -67,6 +67,21 @@ public sealed class PullRequestsAndAuthTests
         Assert.AreEqual(2, credential.Calls, "initial token + forced refresh");
     }
 
+    [TestMethod]
+    public async Task Requests_carry_the_msa_passthrough_and_no_redirect_headers()
+    {
+        HttpRequestMessage? seen = null;
+        using var provider = new AzCliAuthProvider(new CountingCredential());
+        using var handler = new AdoAuthHandler(provider) { InnerHandler = new Responder(req => { seen = req; return HttpStatusCode.OK; }) };
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://dev.azure.com/") };
+
+        using var _ = await http.GetAsync(new Uri("ermsystem/_apis/projects", UriKind.Relative));
+
+        Assert.AreEqual("true", seen!.Headers.GetValues("X-VSS-ForceMsaPassThrough").Single());
+        Assert.AreEqual("Suppress", seen.Headers.GetValues("X-TFS-FedAuthRedirect").Single());
+        Assert.AreEqual("Bearer", seen.Headers.Authorization!.Scheme);
+    }
+
     private sealed class CountingCredential : TokenCredential
     {
         public int Calls { get; private set; }

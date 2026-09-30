@@ -63,11 +63,20 @@ public sealed class PatAuthProvider(IOptions<AzureDevOpsOptions> options) : IAdo
     }
 }
 
-/// <summary>Adds the Authorization header; on 401 refreshes once and retries (az CLI token rotation).</summary>
+/// <summary>
+/// Adds the Authorization header plus two Azure DevOps headers, and on 401 refreshes once and retries
+/// (az CLI token rotation):
+/// <list type="bullet">
+/// <item><c>X-TFS-FedAuthRedirect: Suppress</c>: a rejected credential gets a 401 with a reason instead of a 302 to the sign-in page.</item>
+/// <item><c>X-VSS-ForceMsaPassThrough: true</c>: lets a Microsoft-account (MSA) identity that signed in to Entra as a guest
+/// (<c>live.com#…</c>) use its MSA identity in MSA-backed organizations. The Azure DevOps SDKs send the same header.</item>
+/// </list>
+/// </summary>
 public sealed class AdoAuthHandler(IAdoAuthProvider auth) : DelegatingHandler
 {
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
+        AddAdoHeaders(request);
         request.Headers.Authorization = await auth.GetAsync(forceRefresh: false, cancellationToken).ConfigureAwait(false);
         var response = await base.SendAsync(request, cancellationToken).ConfigureAwait(false);
         if (response.StatusCode != HttpStatusCode.Unauthorized)
@@ -77,8 +86,16 @@ public sealed class AdoAuthHandler(IAdoAuthProvider auth) : DelegatingHandler
 
         response.Dispose();
         using var retry = await CloneAsync(request).ConfigureAwait(false);
+        AddAdoHeaders(retry);
         retry.Headers.Authorization = await auth.GetAsync(forceRefresh: true, cancellationToken).ConfigureAwait(false);
         return await base.SendAsync(retry, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static void AddAdoHeaders(HttpRequestMessage request)
+    {
+        request.Headers.TryAddWithoutValidation("X-TFS-FedAuthRedirect", "Suppress");
+        request.Headers.TryAddWithoutValidation("X-VSS-ForceMsaPassThrough", "true");
+        request.Headers.Accept.ParseAdd("application/json");
     }
 
     private static async Task<HttpRequestMessage> CloneAsync(HttpRequestMessage request)
