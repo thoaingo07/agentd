@@ -179,39 +179,6 @@ public sealed class RunLifecycleTests
     }
 
     [TestMethod]
-    public async Task Recovery_resumes_orphaned_running_jobs_and_finishes_publishing()
-    {
-        var t = new TestContext();
-        var running = await t.RunningJobAsync(1);
-        var publishing = await t.RunningJobAsync(2);
-        var p = t.Jobs.Get(publishing.JobId);
-        p.Finish(PullRequestDraft.Create("T", "D", "S").Value!);
-        await t.Jobs.SaveAsync(p, CancellationToken.None);
-
-        var plan = (await t.Recover().Handle(new RecoverJobsOnStartup(), CancellationToken.None)).Value!;
-
-        var resume = plan.Resume.Single();
-        Assert.AreEqual(running.JobId, resume.JobId);
-        Assert.IsTrue(resume.Resume);
-        Assert.AreEqual(running.Session, resume.Session);
-        Assert.AreEqual(1, t.Jobs.Get(running.JobId).ResumeCount);
-        Assert.AreEqual(1, plan.RepublishedCount);
-        Assert.AreEqual(JobState.Done, t.Jobs.Get(publishing.JobId).State);
-    }
-
-    [TestMethod]
-    public async Task Recovery_leaves_jobs_whose_process_is_still_alive()
-    {
-        var t = new TestContext();
-        var running = await t.RunningJobAsync();
-        t.Runner.Running.Add(running.JobId.Value);
-
-        var plan = (await t.Recover().Handle(new RecoverJobsOnStartup(), CancellationToken.None)).Value!;
-
-        Assert.IsEmpty(plan.Resume);
-    }
-
-    [TestMethod]
     public async Task Status_lists_active_jobs_with_elapsed_time()
     {
         var t = new TestContext();

@@ -10,6 +10,7 @@ internal sealed class AgentdHostFactory(IReadOnlyDictionary<string, string?>? se
     {
         builder.UseEnvironment("Testing");
         builder.UseSetting("ConnectionStrings:agentd", "Host=127.0.0.1;Port=1;Database=unused");
+        builder.UseSetting("Agentd:Scheduler:Enabled", "false");   // no polling, scheduling or recovery in UI tests
         foreach (var (key, value) in settings ?? new Dictionary<string, string?>())
         {
             builder.UseSetting(key, value);

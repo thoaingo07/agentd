@@ -49,6 +49,27 @@ running when agentd stopped.
 - A manual demo check: kill agentd during a run → restart → the transcript continues in the same
   session.
 
+## As built
+- **`JobDispatcher`** (Application, singleton) holds the concurrency slots, runs agents in the background,
+  reports exits via `HandleAgentExit` and implements graceful shutdown, so it is unit-tested with fakes.
+  The Host workers only loop: `WorkItemPollingWorker` (poll, claim, wake the scheduler; back-off
+  `PollInterval` × 2^failures up to `MaxPollBackoff`) and `SchedulerWorker` (resume recovered runs first,
+  then dequeue; runs `RetryDuePublishes` every 30 s when idle).
+- **Options** `Agentd:Scheduler`: `Enabled`, `PollInterval`, `MaxPollBackoff`, `MaxConcurrent` (2),
+  `IdleDelay` (2 s), `ShutdownGrace` (10 s). `Enabled=false` turns off polling, scheduling and recovery
+  (UI tests, and **the Development config until the first live run is approved**).
+- **Recovery** (`StartupRecovery`, the first hosted service): seeds repositories from
+  `Agentd:Repositories:Items` (`SeedRepositories`: skips entries already registered with the same settings),
+  prunes worktrees, then `Preparing` → `Job.Requeue` (new transition, event `JobRequeued`),
+  orphaned `Running` → `MarkRecovered` + resume run, `Publishing` → publish again unless a retry is
+  scheduled later. A fresh MCP token and `mcp.json` come for free: the runner issues them per run.
+  Failures are logged; the host stays up for the UI.
+- **Shutdown:** agents killed after the grace period skip `HandleAgentExit`, so their jobs stay `Running`.
+- **Host wiring:** Application, Azure DevOps, Git, Claude and MCP are registered. Authentication and
+  authorization run after routing (`UseWebHosting(afterRouting: ...)`). When `Agentd:Claude:McpUrl` is
+  empty, it resolves to the server's own address + `/mcp` (`McpUrlFromServer`).
+- A `workers` health check reports poll timing and running agents (degraded while polling fails).
+
 ## Done when
 - [ ] The exit-criteria demos work: two jobs in parallel; restart mid-run resumes the same session.
 - [ ] No job is ever started twice (the dequeue test + logs during the demo).

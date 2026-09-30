@@ -27,6 +27,7 @@ public sealed class JobTransitionTests
         ["MarkRecovered"] = j => j.MarkRecovered(),
         ["Defer"] = j => j.Defer(DateTimeOffset.UnixEpoch, "usage limit"),
         ["PublishFailed"] = j => j.PublishFailed("push failed", 3, DateTimeOffset.UnixEpoch),
+        ["Requeue"] = j => j.Requeue("restarted"),
     };
 
     private static readonly Dictionary<(JobState From, string Op), (JobState To, Type Event)> s_allowed = new()
@@ -37,6 +38,7 @@ public sealed class JobTransitionTests
         [(JobState.Publishing, "Complete")] = (JobState.Done, typeof(PullRequestCreated)),
         [(JobState.Running, "MarkRecovered")] = (JobState.Running, typeof(JobRecovered)),
         [(JobState.Running, "Defer")] = (JobState.Queued, typeof(JobDeferred)),
+        [(JobState.Preparing, "Requeue")] = (JobState.Queued, typeof(JobRequeued)),
         [(JobState.Publishing, "PublishFailed")] = (JobState.Publishing, typeof(PublishRetryScheduled)),
         [(JobState.Failed, "Retry")] = (JobState.Queued, typeof(JobRetried)),
         [(JobState.Queued, "Fail")] = (JobState.Failed, typeof(JobFailed)),

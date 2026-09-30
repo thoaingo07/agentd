@@ -24,9 +24,12 @@ public static class DependencyInjection
         services.AddScoped<ICommandHandler<PublishPullRequest, PullRequestRef>, PublishPullRequestHandler>();
         services.AddScoped<ICommandHandler<CancelJob, Unit>, CancelJobHandler>();
         services.AddScoped<ICommandHandler<RecoverJobsOnStartup, RecoveryPlan>, RecoverJobsOnStartupHandler>();
+        services.AddScoped<ICommandHandler<RetryDuePublishes, int>, RetryDuePublishesHandler>();
+        services.AddSingleton<JobDispatcher>();
         services.AddScoped<IQueryHandler<GetJobStatus, IReadOnlyList<JobStatusRow>>, GetJobStatusHandler>();
         services.AddScoped<ICommandHandler<AddRepository, Repository>, AddRepositoryHandler>();
         services.AddScoped<ICommandHandler<RemoveRepository, Unit>, RemoveRepositoryHandler>();
+        services.AddScoped<ICommandHandler<SeedRepositories, SeedResult>, SeedRepositoriesHandler>();
         return services;
     }
 }

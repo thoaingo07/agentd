@@ -232,7 +232,13 @@ internal sealed class FakeWorktrees : IWorktreeManager
         return Task.CompletedTask;
     }
 
-    public Task PruneAsync(Repository repository, CancellationToken cancellationToken) => Task.CompletedTask;
+    public List<string> Pruned { get; } = [];
+
+    public Task PruneAsync(Repository repository, CancellationToken cancellationToken)
+    {
+        Pruned.Add(repository.Name.Value);
+        return Task.CompletedTask;
+    }
 }
 
 internal sealed class FakePullRequests : IPullRequestService
@@ -252,12 +258,33 @@ internal sealed class FakePullRequests : IPullRequestService
 
 internal sealed class FakeRunner : IAgentRunner
 {
+    private readonly ConcurrentDictionary<long, TaskCompletionSource<AgentRunOutcome>> _held = new();
+    private readonly ConcurrentQueue<AgentRunRequest> _started = new();
+
     public HashSet<long> Running { get; } = [];
 
     public List<long> CancelledJobs { get; } = [];
 
-    public Task<AgentRunOutcome> RunAsync(AgentRunRequest request, CancellationToken cancellationToken) =>
-        Task.FromResult<AgentRunOutcome>(new AgentRunOutcome.Exited(0, null));
+    /// <summary>When true, each run blocks until <see cref="Release"/> (or its token is cancelled).</summary>
+    public bool Hold { get; set; }
+
+    public IReadOnlyList<AgentRunRequest> Started => [.. _started];
+
+    public async Task<AgentRunOutcome> RunAsync(AgentRunRequest request, CancellationToken cancellationToken)
+    {
+        _started.Enqueue(request);
+        if (!Hold)
+        {
+            return new AgentRunOutcome.Exited(0, null);
+        }
+
+        var held = _held.GetOrAdd(request.JobId.Value, _ => new TaskCompletionSource<AgentRunOutcome>(TaskCreationOptions.RunContinuationsAsynchronously));
+        await using var registration = cancellationToken.Register(() => held.TrySetResult(new AgentRunOutcome.Cancelled()));
+        return await held.Task;
+    }
+
+    public void Release(JobId jobId, AgentRunOutcome outcome) =>
+        _held.GetOrAdd(jobId.Value, _ => new TaskCompletionSource<AgentRunOutcome>(TaskCreationOptions.RunContinuationsAsynchronously)).TrySetResult(outcome);
 
     public bool IsRunning(JobId jobId) => Running.Contains(jobId.Value);
 
@@ -312,7 +339,18 @@ internal sealed class TestContext
 
     public CancelJobHandler Cancel() => new(Jobs, Runner);
 
-    public RecoverJobsOnStartupHandler Recover() => new(Jobs, Runner, Publish());
+    public RecoverJobsOnStartupHandler Recover() => new(Jobs, Registry, Worktrees, Runner, Clock, Publish());
+
+    public RetryDuePublishesHandler RetryPublishes() => new(Jobs, Clock, Publish());
+
+    /// <summary>A job whose first push failed: Publishing, with a retry scheduled one minute ahead.</summary>
+    public async Task<AgentRunRequest> PublishFailedJobAsync(int id = 1234)
+    {
+        var request = await RunningJobAsync(id);
+        Worktrees.FailPushes = 1;
+        _ = await Finish().Handle(new FinishWork(request.JobId, "T", "D", "S"), CancellationToken.None);
+        return request;
+    }
 
     /// <summary>Claims work item <paramref name="id"/> and starts it, returning the agent request.</summary>
     public async Task<AgentRunRequest> RunningJobAsync(int id = 1234)

@@ -37,6 +37,7 @@ internal sealed class AgentdHostFactory(
         builder.UseEnvironment(environment);
         builder.UseWebRoot(_webRoot);
         builder.UseSetting("ConnectionStrings:agentd", "Host=127.0.0.1;Port=1;Database=unused");
+        builder.UseSetting("Agentd:Scheduler:Enabled", "false");   // no polling, scheduling or recovery in UI tests
         // A test-only file name, so a locally built Agentd.Web/wwwroot (static web assets) never interferes.
         builder.UseSetting("Agentd:Web:Vite:ManifestPath", TestManifestPath);
         foreach (var (key, value) in settings ?? new Dictionary<string, string?>())

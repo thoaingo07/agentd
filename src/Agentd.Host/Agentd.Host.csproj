@@ -7,6 +7,9 @@
     <ProjectReference Include="..\Agentd.Web\Agentd.Web.csproj" />
     <ProjectReference Include="..\Agentd.Mcp\Agentd.Mcp.csproj" />
     <ProjectReference Include="..\Agentd.Infrastructure.Persistence\Agentd.Infrastructure.Persistence.csproj" />
+    <ProjectReference Include="..\Agentd.Infrastructure.AzureDevOps\Agentd.Infrastructure.AzureDevOps.csproj" />
+    <ProjectReference Include="..\Agentd.Infrastructure.Git\Agentd.Infrastructure.Git.csproj" />
+    <ProjectReference Include="..\Agentd.Infrastructure.Claude\Agentd.Infrastructure.Claude.csproj" />
     <ProjectReference Include="..\Agentd.ServiceDefaults\Agentd.ServiceDefaults.csproj" />
   </ItemGroup>
   <ItemGroup>

@@ -77,4 +77,21 @@ public sealed class AddRepositoryTests
         Assert.IsTrue((await remove.Handle(new RemoveRepository(RepositoryName.From("sysmin")), CancellationToken.None)).IsSuccess);
         Assert.AreEqual("not_found", (await remove.Handle(new RemoveRepository(RepositoryName.From("sysmin")), CancellationToken.None)).Error?.Code);
     }
+
+    [TestMethod]
+    public async Task Seeding_registers_configured_repositories_once()
+    {
+        var seeds = new RepositorySeedOptions();
+        seeds.Items.Add(new RepositorySeed { Url = "git@erm-azdo:v3/ermsystem/Portal/sysmin", MatchTag = "repo:sysmin" });
+        seeds.Items.Add(new RepositorySeed { Url = "not a url" });
+        var handler = new SeedRepositoriesHandler(_registry, Handler(), Microsoft.Extensions.Options.Options.Create(seeds));
+
+        var first = (await handler.Handle(new SeedRepositories(), CancellationToken.None)).Value!;
+        var second = (await handler.Handle(new SeedRepositories(), CancellationToken.None)).Value!;
+
+        CollectionAssert.AreEqual(new[] { "sysmin" }, first.Seeded.ToArray());
+        Assert.HasCount(1, first.Errors);
+        Assert.IsEmpty(second.Seeded, "already registered with the same settings");
+        Assert.AreEqual("develop", _registry.Repositories.Single().BaseBranch);
+    }
 }

@@ -21,6 +21,8 @@ public sealed record JobRetried(int Attempt, DateTimeOffset OccurredAt) : IDomai
 
 public sealed record JobRecovered(int ResumeCount, DateTimeOffset OccurredAt) : IDomainEvent;
 
+public sealed record JobRequeued(string Reason, DateTimeOffset OccurredAt) : IDomainEvent;
+
 public sealed record JobDeferred(DateTimeOffset? NotBefore, string Reason, DateTimeOffset OccurredAt) : IDomainEvent;
 
 public sealed record PublishRetryScheduled(int Attempt, string Reason, DateTimeOffset RetryAt, DateTimeOffset OccurredAt) : IDomainEvent;

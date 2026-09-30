@@ -242,6 +242,21 @@ public sealed class Job : AggregateRoot<JobId>
         return Result.Ok;
     }
 
+    /// <summary>
+    /// Puts a job that was interrupted while being prepared (e.g. agentd restarted) back in the queue.
+    /// Preparation is idempotent: the worktree is re-created or reused.
+    /// </summary>
+    public Result Requeue(string reason)
+    {
+        if (Require("requeue", JobState.Preparing) is { } error)
+        {
+            return error;
+        }
+
+        Transition(JobState.Queued, new JobRequeued(reason, Now));
+        return Result.Ok;
+    }
+
     /// <summary>Records that a running job is being resumed after the daemon restarted.</summary>
     public Result MarkRecovered()
     {
