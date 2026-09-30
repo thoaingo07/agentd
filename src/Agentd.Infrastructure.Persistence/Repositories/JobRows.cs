@@ -47,6 +47,7 @@ internal static class JobRows
             draft,
             r.GetInt32(r.GetOrdinal("attempt")),
             r.GetInt32(r.GetOrdinal("resume_count")),
+            r.GetInt32(r.GetOrdinal("publish_attempts")),
             Str("last_error"),
             r.IsDBNull(notBeforeOrdinal) ? null : r.GetFieldValue<DateTimeOffset>(notBeforeOrdinal),
             r.GetFieldValue<DateTimeOffset>(r.GetOrdinal("created_at")),

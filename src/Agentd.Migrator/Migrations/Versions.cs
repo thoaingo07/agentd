@@ -13,3 +13,6 @@ public sealed class WalkingSkeleton : SqlMigration;
 
 [Migration(2026_09_30_0002, "Repositories registered by URL")]
 public sealed class Repositories : SqlMigration;
+
+[Migration(2026_09_30_0003, "Publish retry attempts")]
+public sealed class PublishAttempts : SqlMigration;

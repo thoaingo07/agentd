@@ -10,8 +10,12 @@ namespace Agentd.Application.Jobs;
 /// <summary>React to the agent process ending: finished jobs move on; anything else fails or is deferred.</summary>
 public sealed record HandleAgentExit(JobId JobId, AgentRunOutcome Outcome);
 
-public sealed class HandleAgentExitHandler(IJobRepository jobs, IClock clock, IOptions<JobOptions> options)
-    : ICommandHandler<HandleAgentExit, JobState>
+public sealed class HandleAgentExitHandler(
+    IJobRepository jobs,
+    IRepositoryRegistry repositories,
+    IWorktreeManager worktrees,
+    IClock clock,
+    IOptions<JobOptions> options) : ICommandHandler<HandleAgentExit, JobState>
 {
     public async Task<Result<JobState>> Handle(HandleAgentExit command, CancellationToken cancellationToken)
     {
@@ -22,7 +26,15 @@ public sealed class HandleAgentExitHandler(IJobRepository jobs, IClock clock, IO
             return DomainError.NotFound($"Job {command.JobId}");
         }
 
-        // Only a job still Running needs attention; finish/cancel already moved the others on.
+        // Finished (PR opened) or cancelled while the agent was still running: now that the process is gone,
+        // its worktree can be removed. (The branch and its commits stay in the clone and on the remote.)
+        if (job.State is JobState.Done or JobState.Cancelled)
+        {
+            await RemoveWorktreeAsync(job, cancellationToken).ConfigureAwait(false);
+            return job.State;
+        }
+
+        // Publishing (retrying) or any other non-running state: nothing to do here.
         if (job.State != JobState.Running)
         {
             return job.State;
@@ -44,5 +56,13 @@ public sealed class HandleAgentExitHandler(IJobRepository jobs, IClock clock, IO
 
         var saved = await jobs.SaveAsync(job, cancellationToken).ConfigureAwait(false);
         return saved.IsSuccess ? job.State : saved.Error;
+    }
+
+    private async Task RemoveWorktreeAsync(Domain.Jobs.Job job, CancellationToken ct)
+    {
+        if (job.Worktree is { } worktree && await repositories.GetAsync(job.Repository, ct).ConfigureAwait(false) is { } repository)
+        {
+            await worktrees.RemoveAsync(repository, worktree, ct).ConfigureAwait(false);
+        }
     }
 }

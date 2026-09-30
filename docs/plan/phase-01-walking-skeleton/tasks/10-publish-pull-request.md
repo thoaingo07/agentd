@@ -40,6 +40,18 @@ item. Running it twice (after a crash or retry) must not create duplicates.
   - the comment marker already exists → no second comment;
   - a push failure → stays Publishing with the error, and the retry succeeds.
 
+## As built
+- **Retries:** a push or API failure calls `Job.PublishFailed`. The job stays `Publishing` with
+  `LastError`, and `NotBefore` = now + `PublishRetryDelay` × 2^(attempts − 1). After
+  `PublishMaxAttempts` (3) it fails. `publish_attempts` is a new column (migration 202609300003, which
+  **drops the old `job_save` signature** so no stale overload remains; a Migrator test checks this).
+- **Comment idempotency** checks existing work item comments for the PR URL instead of an HTML marker:
+  agentd HTML-escapes its comments, so a hidden `<!-- -->` marker would show up as text.
+- **Worktree cleanup** happens in `HandleAgentExit` once the process has exited (Done or Cancelled),
+  not during publish, because `finish` runs inside the agent's turn with the worktree as its cwd. The
+  runner revokes the MCP token on exit.
+- Retrying publishing jobs whose `NotBefore` has passed is the scheduler's job (T1.11).
+
 ## Done when
 - [ ] Running publish twice for the same job creates exactly one PR and one comment (a test).
 - [ ] The sandbox demo shows a PR linked to the work item, and the work item has a comment with the PR link.

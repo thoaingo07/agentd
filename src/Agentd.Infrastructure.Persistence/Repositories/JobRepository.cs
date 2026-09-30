@@ -49,7 +49,7 @@ public sealed class JobRepository(NpgsqlDataSource dataSource, IClock clock) : I
         ArgumentNullException.ThrowIfNull(job);
         var events = job.DequeueEvents();
         await using var cmd = dataSource.CreateCommand(
-            "SELECT agentd.job_save($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)");
+            "SELECT agentd.job_save($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)");
         cmd.Parameters.Add(P(job.Id.Value, NpgsqlDbType.Bigint));
         cmd.Parameters.Add(P(job.Version, NpgsqlDbType.Bigint));
         cmd.Parameters.Add(P(job.State.ToString(), NpgsqlDbType.Text));
@@ -58,6 +58,7 @@ public sealed class JobRepository(NpgsqlDataSource dataSource, IClock clock) : I
         cmd.Parameters.Add(P(job.Session?.Value, NpgsqlDbType.Uuid));
         cmd.Parameters.Add(P(job.Attempt, NpgsqlDbType.Integer));
         cmd.Parameters.Add(P(job.ResumeCount, NpgsqlDbType.Integer));
+        cmd.Parameters.Add(P(job.PublishAttempts, NpgsqlDbType.Integer));
         cmd.Parameters.Add(P(job.LastError, NpgsqlDbType.Text));
         cmd.Parameters.Add(P(job.NotBefore, NpgsqlDbType.TimestampTz));
         cmd.Parameters.Add(P(job.Draft?.Title, NpgsqlDbType.Text));

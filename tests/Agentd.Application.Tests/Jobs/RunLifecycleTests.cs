@@ -105,7 +105,7 @@ public sealed class RunLifecycleTests
         var pr = await t.Finish().Handle(new FinishWork(request.JobId, "Fix login redirect", "Details", "Fixed it"), CancellationToken.None);
 
         Assert.IsTrue(pr.IsSuccess, pr.Error?.ToString());
-        Assert.AreEqual(("ai/1234-fix-login", "develop", "Fix login redirect"), t.PullRequests.Created.Single());
+        Assert.AreEqual(("ai/1234-fix-login", "develop", "Fix login redirect (WI-1234)"), t.PullRequests.Created.Single());
         Assert.AreEqual("ai/1234-fix-login", t.Worktrees.Pushed.Single());
         var job = t.Jobs.Get(request.JobId);
         Assert.AreEqual(JobState.Done, job.State);

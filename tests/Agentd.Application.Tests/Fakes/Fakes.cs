@@ -79,6 +79,9 @@ internal sealed class InMemoryJobs(IClock clock) : IJobRepository
 
     public Job Single() => Job.Rehydrate(_rows.Values.Single(), clock);
 
+    /// <summary>Test hook: simulate a lost save by rewriting the stored state.</summary>
+    public void ForceState(JobId id, JobState state) => _rows[id.Value] = _rows[id.Value] with { State = state };
+
     public Job Get(JobId id) => Job.Rehydrate(_rows[id.Value], clock);
 
     private void Store(Job job)
@@ -120,6 +123,11 @@ internal sealed class FakeWorkItems : IWorkItemSource
     public Task AddCommentAsync(int id, string text, CancellationToken cancellationToken)
     {
         Comments.Add((id, text));
+        if (Items.TryGetValue(id, out var item))
+        {
+            Items[id] = item with { Comments = [.. item.Comments, new WorkItemComment("agentd", DateTimeOffset.UnixEpoch, text)] };
+        }
+
         return Task.CompletedTask;
     }
 
@@ -182,6 +190,11 @@ internal sealed class FakeWorktrees : IWorktreeManager
 
     public bool FailCreate { get; set; }
 
+    /// <summary>Number of upcoming pushes that fail (transient remote errors).</summary>
+    public int FailPushes { get; set; }
+
+    public List<string> Removed { get; } = [];
+
     public Task EnsureCloneAsync(Repository repository, CancellationToken cancellationToken)
     {
         Cloned.Add(repository.Name.Value);
@@ -203,11 +216,21 @@ internal sealed class FakeWorktrees : IWorktreeManager
 
     public Task PushAsync(WorktreePath worktree, BranchName branch, CancellationToken cancellationToken)
     {
+        if (FailPushes > 0)
+        {
+            FailPushes--;
+            throw new InvalidOperationException("remote hung up unexpectedly");
+        }
+
         Pushed.Add(branch.Value);
         return Task.CompletedTask;
     }
 
-    public Task RemoveAsync(Repository repository, WorktreePath worktree, CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task RemoveAsync(Repository repository, WorktreePath worktree, CancellationToken cancellationToken)
+    {
+        Removed.Add(worktree.Value);
+        return Task.CompletedTask;
+    }
 
     public Task PruneAsync(Repository repository, CancellationToken cancellationToken) => Task.CompletedTask;
 }
@@ -281,9 +304,9 @@ internal sealed class TestContext
 
     public StartNextJobHandler StartNext() => new(Jobs, Registry, Worktrees, WorkItems, Options);
 
-    public HandleAgentExitHandler AgentExit() => new(Jobs, Clock, Options);
+    public HandleAgentExitHandler AgentExit() => new(Jobs, Registry, Worktrees, Clock, Options);
 
-    public PublishPullRequestHandler Publish() => new(Jobs, Registry, Worktrees, PullRequests, WorkItems);
+    public PublishPullRequestHandler Publish() => new(Jobs, Registry, Worktrees, PullRequests, WorkItems, Clock, Options);
 
     public FinishWorkHandler Finish() => new(Jobs, Publish());
 

@@ -37,6 +37,9 @@ public sealed class Job : AggregateRoot<JobId>
 
     public int ResumeCount { get; private set; }
 
+    /// <summary>Failed attempts to push/open the pull request while <see cref="JobState.Publishing"/>.</summary>
+    public int PublishAttempts { get; private set; }
+
     public string? LastError { get; private set; }
 
     /// <summary>Earliest time a deferred job may start again (e.g. after a usage limit resets).</summary>
@@ -86,6 +89,7 @@ public sealed class Job : AggregateRoot<JobId>
             Draft = s.Draft,
             Attempt = s.Attempt,
             ResumeCount = s.ResumeCount,
+            PublishAttempts = s.PublishAttempts,
             LastError = s.LastError,
             NotBefore = s.NotBefore,
             CreatedAt = s.CreatedAt,
@@ -97,7 +101,7 @@ public sealed class Job : AggregateRoot<JobId>
     /// <summary>Current state as a snapshot, for storage.</summary>
     public JobSnapshot ToSnapshot() => new(
         Id, WorkItemId, Repository, Title, State, Branch, Worktree, Session, PullRequest, Draft,
-        Attempt, ResumeCount, LastError, NotBefore, CreatedAt, UpdatedAt, Version);
+        Attempt, ResumeCount, PublishAttempts, LastError, NotBefore, CreatedAt, UpdatedAt, Version);
 
     /// <summary>Called by storage after an insert or save.</summary>
     public void Persisted(JobId id, long version)
@@ -153,6 +157,8 @@ public sealed class Job : AggregateRoot<JobId>
         }
 
         PullRequest = url;
+        LastError = null;
+        NotBefore = null;
         Transition(JobState.Done, new PullRequestCreated(url, Now));
         return Result.Ok;
     }
@@ -192,6 +198,30 @@ public sealed class Job : AggregateRoot<JobId>
         Attempt++;
         LastError = null;
         Transition(JobState.Queued, new JobRetried(Attempt, Now));
+        return Result.Ok;
+    }
+
+    /// <summary>
+    /// A push or pull-request API call failed. The job stays in <see cref="JobState.Publishing"/> and is
+    /// retried after <paramref name="retryAt"/>, until <paramref name="maxAttempts"/> failures, then it fails.
+    /// </summary>
+    public Result PublishFailed(string reason, int maxAttempts, DateTimeOffset retryAt)
+    {
+        if (Require("record a publish failure", JobState.Publishing) is { } error)
+        {
+            return error;
+        }
+
+        PublishAttempts++;
+        if (PublishAttempts >= maxAttempts)
+        {
+            return Fail($"Publishing failed after {PublishAttempts} attempts: {reason}");
+        }
+
+        LastError = reason;
+        NotBefore = retryAt;
+        Raise(new PublishRetryScheduled(PublishAttempts, reason, retryAt, Now));
+        UpdatedAt = Now;
         return Result.Ok;
     }
 
@@ -252,6 +282,7 @@ public sealed record JobSnapshot(
     PullRequestDraft? Draft,
     int Attempt,
     int ResumeCount,
+    int PublishAttempts,
     string? LastError,
     DateTimeOffset? NotBefore,
     DateTimeOffset CreatedAt,

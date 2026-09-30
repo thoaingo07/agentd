@@ -26,6 +26,7 @@ public sealed class JobTransitionTests
         ["Retry"] = j => j.Retry(),
         ["MarkRecovered"] = j => j.MarkRecovered(),
         ["Defer"] = j => j.Defer(DateTimeOffset.UnixEpoch, "usage limit"),
+        ["PublishFailed"] = j => j.PublishFailed("push failed", 3, DateTimeOffset.UnixEpoch),
     };
 
     private static readonly Dictionary<(JobState From, string Op), (JobState To, Type Event)> s_allowed = new()
@@ -36,6 +37,7 @@ public sealed class JobTransitionTests
         [(JobState.Publishing, "Complete")] = (JobState.Done, typeof(PullRequestCreated)),
         [(JobState.Running, "MarkRecovered")] = (JobState.Running, typeof(JobRecovered)),
         [(JobState.Running, "Defer")] = (JobState.Queued, typeof(JobDeferred)),
+        [(JobState.Publishing, "PublishFailed")] = (JobState.Publishing, typeof(PublishRetryScheduled)),
         [(JobState.Failed, "Retry")] = (JobState.Queued, typeof(JobRetried)),
         [(JobState.Queued, "Fail")] = (JobState.Failed, typeof(JobFailed)),
         [(JobState.Preparing, "Fail")] = (JobState.Failed, typeof(JobFailed)),
@@ -141,7 +143,7 @@ public sealed class JobTransitionTests
     public void Rehydrate_restores_state_without_raising_events()
     {
         var snapshot = new JobSnapshot(new JobId(42), WorkItemId.From(9), RepositoryName.From("r"), "t", JobState.Running,
-            s_branch, s_worktree, s_session, null, null, 2, 1, null, null, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, 5);
+            s_branch, s_worktree, s_session, null, null, 2, 1, 0, null, null, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, 5);
 
         var job = Job.Rehydrate(snapshot, FakeClock.Default());
 

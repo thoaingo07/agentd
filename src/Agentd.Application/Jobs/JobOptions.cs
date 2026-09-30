@@ -15,6 +15,12 @@ public sealed class JobOptions
 
     public string BranchPrefix { get; set; } = "ai/";
 
+    /// <summary>Failed push/PR attempts before a publishing job fails.</summary>
+    public int PublishMaxAttempts { get; set; } = 3;
+
+    /// <summary>First retry delay for publishing; doubles on each further attempt.</summary>
+    public TimeSpan PublishRetryDelay { get; set; } = TimeSpan.FromMinutes(1);
+
     /// <summary>Back-off when a usage limit reports no reset time.</summary>
     public TimeSpan UsageLimitBackoff { get; set; } = TimeSpan.FromMinutes(30);
 }
