@@ -1,3 +1,5 @@
 [*.cs]
 # Test names read as sentences: Method_Scenario_Expectation
 dotnet_diagnostic.CA1707.severity = none
+# Constant arrays in assertions are fine in tests
+dotnet_diagnostic.CA1861.severity = none

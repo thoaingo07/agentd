@@ -52,7 +52,7 @@ Detailed tasks: [tasks/README.md](tasks/README.md)
 | T1.4 | [Repository registration and matching](tasks/04-repository-registry.md) | T1.2 | S | ☑ |
 | T1.5 | [Azure DevOps client](tasks/05-azure-devops-client.md) | T1.2 | L | ☑ |
 | T1.6 | [Worktree manager and git push](tasks/06-worktree-manager.md) | T1.2, T1.4 | M | ☑ |
-| T1.7 | [`ClaudeCodeRunner`](tasks/07-claude-code-runner.md) | T1.2, T1.6, T1.8 | L | ☐ |
+| T1.7 | [`ClaudeCodeRunner`](tasks/07-claude-code-runner.md) | T1.2, T1.6, T1.8 | L | ☑ |
 | T1.8 | [stream-json parser](tasks/08-stream-json-parser.md) | T1.2 | S | ☑ |
 | T1.9 | [MCP server with per-job token auth](tasks/09-mcp-server.md) | T1.2, T1.7 | M | ☐ |
 | T1.10 | [`PublishPullRequest` (idempotent)](tasks/10-publish-pull-request.md) | T1.2, T1.5, T1.6, T1.9 | M | ☐ |

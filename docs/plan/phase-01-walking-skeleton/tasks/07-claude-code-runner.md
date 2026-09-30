@@ -74,6 +74,19 @@ log, enforce timeouts and cancellation, and make sure **no daemon secret ever re
     daemon, and the fake script dumps its environment → neither is present.
 - The transcript file exists and matches the stdout lines.
 
+## As built
+- `--allowedTools` is passed as **one comma-separated value**, so the variadic flag can't swallow
+  other arguments. stdin is redirected and closed immediately.
+- The environment is rebuilt from scratch: `Agentd__*`, `AGENTD_*`, `ConnectionStrings__*`,
+  `AZURE_*`, `OTEL_*`, `DOTNET_*`, `ASPNETCORE_*`, `services__*`, `ANTHROPIC_API_KEY`,
+  `ANTHROPIC_AUTH_TOKEN` and `AZURE_DEVOPS_EXT_PAT` are removed. Subscription auth is only added via
+  `ConfigDir` (`CLAUDE_CONFIG_DIR`) or the optional `OAuthToken`.
+- The per-job `mcp.json` (with a bearer token) is written with mode 0600 and deleted after the run; the
+  token is revoked.
+- Parsed events go straight to `IEventStore` (the Application `RecordAgentOutput` use case stays for
+  other callers).
+- Verified with an opt-in live test against the real CLI (`AGENTD_LIVE_CLAUDE=1`).
+
 ## Done when
 - [ ] A real `claude` run in a scratch worktree streams events into the `events` table.
 - [ ] The secret-stripping test is green (this is an exit criterion of the phase).
