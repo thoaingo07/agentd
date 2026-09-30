@@ -57,7 +57,7 @@ Detailed tasks: [tasks/README.md](tasks/README.md)
 | T1.9 | [MCP server with per-job token auth](tasks/09-mcp-server.md) | T1.2, T1.7 | M | ☑ |
 | T1.10 | [`PublishPullRequest` (idempotent)](tasks/10-publish-pull-request.md) | T1.2, T1.5, T1.6, T1.9 | M | ☑ |
 | T1.11 | [Host workers: polling, scheduler, recovery](tasks/11-workers-and-recovery.md) | T1.2–T1.10 | M | ☑ |
-| T1.12 | [CLI verbs: `run` and `status`](tasks/12-cli-verbs.md) | T1.2, T1.11 | S | ☐ |
+| T1.12 | [CLI verbs: `run` and `status`](tasks/12-cli-verbs.md) | T1.2, T1.11 | S | ☑ |
 
 ## Exit criteria (the demo)
 

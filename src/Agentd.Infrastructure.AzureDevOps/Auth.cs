@@ -93,9 +93,15 @@ public sealed class AdoAuthHandler(IAdoAuthProvider auth) : DelegatingHandler
 
     private static void AddAdoHeaders(HttpRequestMessage request)
     {
+        // Set, not append: a value repeated by another handler ("true, true") is not recognized.
+        request.Headers.Remove("X-TFS-FedAuthRedirect");
+        request.Headers.Remove("X-VSS-ForceMsaPassThrough");
         request.Headers.TryAddWithoutValidation("X-TFS-FedAuthRedirect", "Suppress");
         request.Headers.TryAddWithoutValidation("X-VSS-ForceMsaPassThrough", "true");
-        request.Headers.Accept.ParseAdd("application/json");
+        if (!request.Headers.Accept.Any(a => a.MediaType == "application/json"))
+        {
+            request.Headers.Accept.ParseAdd("application/json");
+        }
     }
 
     private static async Task<HttpRequestMessage> CloneAsync(HttpRequestMessage request)

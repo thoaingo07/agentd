@@ -15,4 +15,4 @@ The detailed implementation tasks for the [walking skeleton](../README.md), in b
 | T1.9 | [MCP server with per-job token auth](09-mcp-server.md) | T1.2, T1.7 | M | ☑ |
 | T1.10 | [`PublishPullRequest` (idempotent)](10-publish-pull-request.md) | T1.2, T1.5, T1.6, T1.9 | M | ☑ |
 | T1.11 | [Host workers: polling, scheduler, recovery](11-workers-and-recovery.md) | T1.2–T1.10 | M | ☑ |
-| T1.12 | [CLI verbs: `run` and `status`](12-cli-verbs.md) | T1.2, T1.11 | S | ☐ |
+| T1.12 | [CLI verbs: `run` and `status`](12-cli-verbs.md) | T1.2, T1.11 | S | ☑ |

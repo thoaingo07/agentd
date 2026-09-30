@@ -9,8 +9,11 @@ using Microsoft.Extensions.Options;
 
 namespace Agentd.Application.Jobs;
 
-/// <summary>Claim a work item and queue a job for it. <paramref name="Force"/> is used by <c>agentd run</c>.</summary>
-public sealed record ClaimWorkItem(WorkItemId WorkItemId, bool Force = false);
+/// <summary>
+/// Claim a work item and queue a job for it. <paramref name="Force"/> is used by <c>agentd run</c>;
+/// <paramref name="Repository"/> (<c>--repo</c>) picks a registered repository instead of matching.
+/// </summary>
+public sealed record ClaimWorkItem(WorkItemId WorkItemId, bool Force = false, RepositoryName? Repository = null);
 
 /// <summary>Remembers work items already told "no repository matches", so polling doesn't repeat the comment.</summary>
 public sealed class NoMatchNotices
@@ -42,8 +45,22 @@ public sealed class ClaimWorkItemHandler(
             return DomainError.NotFound($"Work item {command.WorkItemId}");
         }
 
-        var registered = await repositories.ListAsync(cancellationToken).ConfigureAwait(false);
-        switch (RepositoryMatcher.Match(registered, item))
+        RepositoryMatch match;
+        if (command.Repository is { } chosen)
+        {
+            if (await repositories.GetAsync(chosen, cancellationToken).ConfigureAwait(false) is not { } repo)
+            {
+                return DomainError.NotFound($"Repository '{chosen}'");
+            }
+
+            match = new RepositoryMatch.Matched(repo);
+        }
+        else
+        {
+            match = RepositoryMatcher.Match(await repositories.ListAsync(cancellationToken).ConfigureAwait(false), item);
+        }
+
+        switch (match)
         {
             case RepositoryMatch.Matched { Repository: var repository }:
                 if (!await workItems.TryClaimAsync(item.Id, item.Rev, options.Value.ClaimTag, cancellationToken).ConfigureAwait(false))

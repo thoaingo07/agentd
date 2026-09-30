@@ -45,3 +45,6 @@ internal static partial class MigratorLog
     [LoggerMessage(Level = LogLevel.Critical, Message = "Database migration failed")]
     public static partial void Failed(ILogger logger, Exception exception);
 }
+
+/// <summary>Kept internal: the Host references this assembly (agentd db migrate), and its own <c>Program</c> is the public entry point tests use.</summary>
+internal partial class Program;

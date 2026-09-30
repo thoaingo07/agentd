@@ -17,12 +17,15 @@ public static class DependencyInjection
             : new AzCliAuthProvider());
         services.AddTransient<AdoAuthHandler>();
 
+        // One named client for both typed clients: configuring the same name twice would stack the auth
+        // handler twice (duplicate headers, which Azure DevOps then ignores).
         // Resilience (retries, 429 Retry-After, timeouts) comes from the host's HttpClient defaults.
         // Never follow redirects: a redirect means "sign in", i.e. the credential was rejected.
-        services.AddHttpClient<IWorkItemSource, AzureDevOpsWorkItemSource>(HttpClientName, Configure)
-            .ConfigurePrimaryHttpMessageHandler(NoRedirects).AddHttpMessageHandler<AdoAuthHandler>();
-        services.AddHttpClient<IPullRequestService, AzureDevOpsPullRequests>(HttpClientName, Configure)
-            .ConfigurePrimaryHttpMessageHandler(NoRedirects).AddHttpMessageHandler<AdoAuthHandler>();
+        services.AddHttpClient(HttpClientName, Configure)
+            .ConfigurePrimaryHttpMessageHandler(NoRedirects)
+            .AddHttpMessageHandler<AdoAuthHandler>()
+            .AddTypedClient<IWorkItemSource, AzureDevOpsWorkItemSource>()
+            .AddTypedClient<IPullRequestService, AzureDevOpsPullRequests>();
         return services;
 
         static HttpMessageHandler NoRedirects() => new SocketsHttpHandler { AllowAutoRedirect = false };

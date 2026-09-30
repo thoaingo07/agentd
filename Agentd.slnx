@@ -22,6 +22,7 @@
     <Project Path="tests/Agentd.Infrastructure.Tests/Agentd.Infrastructure.Tests.csproj" />
     <Project Path="tests/Agentd.Mcp.Tests/Agentd.Mcp.Tests.csproj" />
     <Project Path="tests/Agentd.Migrator.Tests/Agentd.Migrator.Tests.csproj" />
+    <Project Path="tests/Agentd.Host.Tests/Agentd.Host.Tests.csproj" />
     <Project Path="tests/Agentd.Web.Tests/Agentd.Web.Tests.csproj" />
   </Folder>
 </Solution>

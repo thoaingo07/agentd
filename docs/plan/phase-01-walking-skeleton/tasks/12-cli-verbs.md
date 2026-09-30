@@ -48,7 +48,30 @@ releases and Docker on top of this.
 - `status` formatting (a snapshot test).
 - `ConfigHome` honors `AGENTD_HOME`, and creates the folders with restrictive permissions.
 
+## As built
+- **System.CommandLine 2.0.12.** The assembly is named `agentd`. `Program` → `AgentdCli.InvokeAsync`.
+  No verb (or only host options such as `--urls`, or WebApplicationFactory's `--applicationName`)
+  runs the daemon. Parse errors exit 2; unexpected exceptions print one line and exit 1.
+- **Services:** `AgentdServices.AddAgentdCore` is shared by `DaemonHost` (web host + workers + MCP)
+  and `CliHost` (a plain `HostApplicationBuilder`, warnings-only logging). Services are built lazily,
+  so `--help` never touches configuration or the database.
+- **Config home:** `ConfigHome` (0700 folders) adds lowest-priority defaults for the clone, worktree,
+  SSH and transcript paths. `config/agentd.json` and `AGENTD_*` are mapped under `Agentd:` by a
+  prefixing configuration provider. `Agentd:Database:ConnectionString` also feeds `ConnectionStrings:agentd`.
+- **`run --repo`** adds `ClaimWorkItem.Repository` (skips matching; not found → exit 3). An ambiguous
+  match also exits 3.
+- **`doctor`** checks PostgreSQL (and schema), git, the Azure DevOps read path (a WIQL query), each
+  registered repository (`git ls-remote`), the `claude` CLI and its subscription login
+  (`claude auth status --json`). Its first live run found a real bug: both Azure DevOps typed clients
+  used the same named client, so the auth handler ran twice and `X-VSS-ForceMsaPassThrough` was sent
+  as "true, true" (the request was redirected to sign-in). Fixed with one named client + `AddTypedClient`,
+  plus idempotent headers and a regression test.
+- The Migrator's `Program` is declared internal, so the Host's public `Program` stays unambiguous for tests.
+- Aspire starts the Host with `daemon run`.
+- Verified by hand against a scratch PostgreSQL: `db migrate`, `repo add git@erm-azdo:v3/ermsystem/Portal/sysmin`
+  (→ `sysmin`, base `develop`), `repo list`, `status`, and `doctor` (all checks pass).
+
 ## Done when
-- [ ] `agentd --help` lists the verbs; `agentd daemon run` behaves like today's Host.
-- [ ] `agentd repo add git@erm-azdo:v3/ermsystem/Portal/sysmin` registers `sysmin` with base branch `develop`.
-- [ ] `agentd doctor` reports each check with a fix hint.
+- [x] `agentd --help` lists the verbs; `agentd daemon run` behaves like today's Host.
+- [x] `agentd repo add git@erm-azdo:v3/ermsystem/Portal/sysmin` registers `sysmin` with base branch `develop`.
+- [x] `agentd doctor` reports each check with a fix hint.
