@@ -52,6 +52,14 @@ and outbound message types. After this task, no Application code mentions Discor
   Markdown or at least one attachment.
 - Architecture test: `Agentd.Application.Messaging` has no reference to `Discord*` or `Telegram*`.
 
+## As built
+- The ports and models live in `Agentd.Application.Messaging` (`IMessagingProvider.cs`, `Models.cs`).
+  `IMessagingProviderRegistry.Get` is named **`Resolve`**, since CA1716 reserves `Get`.
+- `OutboundMessage.Create` and `MessageOption.Create` validate the invariants. Option ids are
+  `[A-Za-z0-9_-]{1,32}`.
+- Provider independence is enforced by the existing architecture rule "Application is framework-free",
+  which forbids `Discord*`/`Telegram*` packages in Application.
+
 ## Done when
-- [ ] Ports and models compile, with XML docs on every public member.
-- [ ] The architecture test for provider independence is green.
+- [x] Ports and models compile, with XML docs on every public member.
+- [x] The architecture test for provider independence is green.

@@ -24,6 +24,7 @@ internal static class DaemonHost
         builder.Services.AddAgentdMcp();
 
         // Daemon loop. Recovery is registered first: hosted services start in order, so it completes before the workers run.
+        builder.Services.AddHostedService<UserDirectorySeeder>();
         builder.Services.AddSingleton<WorkerStatus>();
         builder.Services.AddSingleton<StartupRecovery>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<StartupRecovery>());

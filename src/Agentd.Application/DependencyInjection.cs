@@ -1,7 +1,9 @@
 using Agentd.Application.Abstractions;
 using Agentd.Application.Jobs;
+using Agentd.Application.Messaging;
 using Agentd.Application.Ports;
 using Agentd.Application.Repositories;
+using Agentd.Application.Users;
 using Agentd.Domain.Jobs;
 using Agentd.Domain.Jobs.ValueObjects;
 using Agentd.Domain.Repositories;
@@ -30,6 +32,8 @@ public static class DependencyInjection
         services.AddScoped<ICommandHandler<AddRepository, Repository>, AddRepositoryHandler>();
         services.AddScoped<ICommandHandler<RemoveRepository, Unit>, RemoveRepositoryHandler>();
         services.AddScoped<ICommandHandler<SeedRepositories, SeedResult>, SeedRepositoriesHandler>();
+        services.AddScoped<ICommandHandler<SeedUsers, int>, SeedUsersHandler>();
+        services.AddSingleton<ConversationTargetsResolver>();
         return services;
     }
 }

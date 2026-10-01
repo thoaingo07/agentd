@@ -84,7 +84,7 @@ public sealed record MessagingCapabilities(
 public interface IMessagingProviderRegistry
 {
     IReadOnlyList<IMessagingProvider> Enabled { get; }
-    IMessagingProvider Get(ProviderKey key);
+    IMessagingProvider Resolve(ProviderKey key);
 }
 ```
 
@@ -169,7 +169,7 @@ follow the same roles. For example, only an `Operator` can reply to an agent or 
 
 ```jsonc
 "Messaging": {
-  "DefaultProviders": ["discord"],            // conversations opened for every job
+  "DefaultProviders": ["discord"],            // conversations opened for every job; empty = every enabled provider
   "Providers": {
     "Discord": {
       "Enabled": true,
