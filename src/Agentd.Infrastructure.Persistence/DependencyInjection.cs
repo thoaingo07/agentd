@@ -16,6 +16,7 @@ public static class DependencyInjection
         services.AddSingleton<IJobRepository, JobRepository>();
         services.AddSingleton<IEventStore, EventStore>();
         services.AddSingleton<IRepositoryRegistry, RepositoryStore>();
+        services.AddSingleton<IConversationStore, ConversationStore>();
         return services;
     }
 }

@@ -52,6 +52,7 @@ internal static class JobRows
             r.IsDBNull(notBeforeOrdinal) ? null : r.GetFieldValue<DateTimeOffset>(notBeforeOrdinal),
             r.GetFieldValue<DateTimeOffset>(r.GetOrdinal("created_at")),
             r.GetFieldValue<DateTimeOffset>(r.GetOrdinal("updated_at")),
-            r.GetInt64(r.GetOrdinal("version")));
+            r.GetInt64(r.GetOrdinal("version")),
+            r.GetFieldValue<string[]>(r.GetOrdinal("pending_messages")));
     }
 }

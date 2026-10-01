@@ -2,6 +2,7 @@ using Agentd.Domain.Common;
 using Agentd.Domain.Jobs;
 using Agentd.Domain.Jobs.Events;
 using Agentd.Domain.Jobs.ValueObjects;
+using Agentd.Domain.Messaging;
 
 namespace Agentd.Domain.Tests.Jobs;
 
@@ -28,6 +29,8 @@ public sealed class JobTransitionTests
         ["Defer"] = j => j.Defer(DateTimeOffset.UnixEpoch, "usage limit"),
         ["PublishFailed"] = j => j.PublishFailed("push failed", 3, DateTimeOffset.UnixEpoch),
         ["Requeue"] = j => j.Requeue("restarted"),
+        ["AskDeveloper"] = j => j.AskDeveloper("Which endpoint?", ["v1", "v2"]),
+        ["ResumeWith"] = j => j.ResumeWith("Use v2", "tngo"),
     };
 
     private static readonly Dictionary<(JobState From, string Op), (JobState To, Type Event)> s_allowed = new()
@@ -39,6 +42,11 @@ public sealed class JobTransitionTests
         [(JobState.Running, "MarkRecovered")] = (JobState.Running, typeof(JobRecovered)),
         [(JobState.Running, "Defer")] = (JobState.Queued, typeof(JobDeferred)),
         [(JobState.Preparing, "Requeue")] = (JobState.Queued, typeof(JobRequeued)),
+        [(JobState.Running, "AskDeveloper")] = (JobState.WaitingForHuman, typeof(DeveloperQuestionAsked)),
+        [(JobState.WaitingForHuman, "ResumeWith")] = (JobState.Running, typeof(DeveloperReplied)),
+        [(JobState.Running, "ResumeWith")] = (JobState.Running, typeof(DeveloperReplied)),
+        [(JobState.WaitingForHuman, "Fail")] = (JobState.Failed, typeof(JobFailed)),
+        [(JobState.WaitingForHuman, "Cancel")] = (JobState.Cancelled, typeof(JobCancelled)),
         [(JobState.Publishing, "PublishFailed")] = (JobState.Publishing, typeof(PublishRetryScheduled)),
         [(JobState.Failed, "Retry")] = (JobState.Queued, typeof(JobRetried)),
         [(JobState.Queued, "Fail")] = (JobState.Failed, typeof(JobFailed)),
@@ -119,6 +127,44 @@ public sealed class JobTransitionTests
     }
 
     [TestMethod]
+    public void A_reply_while_running_is_queued_for_the_next_turn()
+    {
+        var job = JobIn(JobState.Running);
+
+        job.ResumeWith("also update the docs", "tngo");
+        job.ResumeWith("and the changelog", "tngo");
+
+        Assert.AreEqual(JobState.Running, job.State);
+        CollectionAssert.AreEqual(new[] { "also update the docs", "and the changelog" }, job.PendingMessages.ToArray());
+        Assert.IsFalse(job.DequeueEvents().OfType<DeveloperReplied>().Any(e => e.Resumed));
+        Assert.HasCount(2, job.TakePendingMessages());
+        Assert.IsEmpty(job.PendingMessages);
+    }
+
+    [TestMethod]
+    public void A_reply_while_waiting_resumes_without_queuing()
+    {
+        var job = JobIn(JobState.WaitingForHuman);
+
+        job.ResumeWith("v2", "tngo");
+
+        Assert.AreEqual(JobState.Running, job.State);
+        Assert.IsEmpty(job.PendingMessages);
+    }
+
+    [TestMethod]
+    [DataRow("")]
+    [DataRow("   ")]
+    public void Empty_questions_and_replies_are_rejected(string text)
+    {
+        var job = JobIn(JobState.Running);
+
+        Assert.AreEqual("validation", job.AskDeveloper(text).Error?.Code);
+        Assert.AreEqual("validation", job.ResumeWith(text, "tngo").Error?.Code);
+        Assert.AreEqual(JobState.Running, job.State);
+    }
+
+    [TestMethod]
     public void MarkRecovered_counts_resumes()
     {
         var job = JobIn(JobState.Running);
@@ -168,6 +214,11 @@ public sealed class JobTransitionTests
             case JobState.Running:
                 job.BeginPreparing();
                 job.Start(s_worktree, s_branch, s_session);
+                break;
+            case JobState.WaitingForHuman:
+                job.BeginPreparing();
+                job.Start(s_worktree, s_branch, s_session);
+                job.AskDeveloper("Which endpoint?");
                 break;
             case JobState.Publishing:
                 job.BeginPreparing();

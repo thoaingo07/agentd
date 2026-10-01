@@ -16,3 +16,6 @@ public sealed class Repositories : SqlMigration;
 
 [Migration(2026_09_30_0003, "Publish retry attempts")]
 public sealed class PublishAttempts : SqlMigration;
+
+[Migration(2026_10_01_0001, "Messaging: WaitingForHuman, conversations, outbox, inbound idempotency, users")]
+public sealed class Messaging : SqlMigration;

@@ -4,7 +4,7 @@ Detailed implementation tasks for [Phase 2 — Messaging](../README.md), in buil
 
 | ID | Task | Depends on | Size | Status |
 |---|---|---|---|---|
-| T2.1 | [Domain model and database schema for messaging](01-domain-and-schema.md) | Phase 1 | M | ☐ |
+| T2.1 | [Domain model and database schema for messaging](01-domain-and-schema.md) | Phase 1 | M | ☑ |
 | T2.2 | [Messaging ports and neutral message model](02-ports-and-neutral-models.md) | T2.1 | S | ☐ |
 | T2.3 | [User directory v0 and messaging configuration](03-users-directory-and-config.md) | T2.1 | S | ☐ |
 | T2.4 | [MessagingService (outbound routing, chunking, progress)](04-messaging-service.md) | T2.2, T2.3 | M | ☐ |

@@ -152,6 +152,27 @@ public sealed class JobRepositoryTests
         Assert.AreEqual(job.Id, active!.Id);
     }
 
+    [TestMethod]
+    public async Task Waiting_for_a_human_and_queued_replies_round_trip()
+    {
+        var repo = Repo();
+        var job = NewJob();
+        await repo.AddAsync(job, default);
+        var running = (await repo.DequeueNextAsyncFor(job.Id))!;
+        running.Start(new WorktreePath("/wt/2"), BranchName.From("ai/2-x"), ClaudeSessionId.New());
+        running.ResumeWith("also update the docs", "tngo");
+        await repo.SaveAsync(running, default);
+        running.AskDeveloper("Which endpoint?", ["v1", "v2"]);
+        Assert.IsTrue((await repo.SaveAsync(running, default)).IsSuccess);
+
+        var loaded = (await repo.GetAsync(job.Id, default))!;
+
+        Assert.AreEqual(JobState.WaitingForHuman, loaded.State);
+        CollectionAssert.AreEqual(new[] { "also update the docs" }, loaded.PendingMessages.ToArray());
+        Assert.AreEqual(loaded.Id, (await repo.FindActiveByWorkItemAsync(loaded.WorkItemId, default))?.Id, "waiting jobs stay active");
+        CollectionAssert.IsSubsetOf(new[] { "DeveloperReplied", "DeveloperQuestionAsked" }, await EventTypesAsync(job.Id));
+    }
+
     private Job NewJob(int? workItem = null) =>
         Job.Create(WorkItemId.From(workItem ?? Interlocked.Increment(ref s_nextWorkItem)), RepositoryName.From("sysmin"), "Fix login", _clock);
 

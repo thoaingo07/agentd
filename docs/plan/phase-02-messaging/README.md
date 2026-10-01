@@ -42,7 +42,7 @@ Detailed tasks: [tasks/README.md](tasks/README.md)
 
 | ID | Task | Depends on | Size | Status |
 |---|---|---|---|---|
-| T2.1 | [Domain model and database schema for messaging](tasks/01-domain-and-schema.md) | Phase 1 | M | ☐ |
+| T2.1 | [Domain model and database schema for messaging](tasks/01-domain-and-schema.md) | Phase 1 | M | ☑ |
 | T2.2 | [Messaging ports and neutral message model](tasks/02-ports-and-neutral-models.md) | T2.1 | S | ☐ |
 | T2.3 | [User directory v0 and messaging configuration](tasks/03-users-directory-and-config.md) | T2.1 | S | ☐ |
 | T2.4 | [MessagingService (outbound routing, chunking, progress)](tasks/04-messaging-service.md) | T2.2, T2.3 | M | ☐ |
