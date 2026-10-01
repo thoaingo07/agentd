@@ -49,7 +49,7 @@ public sealed class JobRepository(NpgsqlDataSource dataSource, IClock clock) : I
         ArgumentNullException.ThrowIfNull(job);
         var events = job.DequeueEvents();
         await using var cmd = dataSource.CreateCommand(
-            "SELECT agentd.job_save($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)");
+            "SELECT agentd.job_save($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)");
         cmd.Parameters.Add(P(job.Id.Value, NpgsqlDbType.Bigint));
         cmd.Parameters.Add(P(job.Version, NpgsqlDbType.Bigint));
         cmd.Parameters.Add(P(job.State.ToString(), NpgsqlDbType.Text));
@@ -67,6 +67,7 @@ public sealed class JobRepository(NpgsqlDataSource dataSource, IClock clock) : I
         cmd.Parameters.Add(P(job.PullRequest?.Value.ToString(), NpgsqlDbType.Text));
         cmd.Parameters.Add(P(job.UpdatedAt, NpgsqlDbType.TimestampTz));
         cmd.Parameters.Add(P(JobRows.EventsJson(events), NpgsqlDbType.Jsonb));
+        cmd.Parameters.Add(P(job.PendingMessages.ToArray(), NpgsqlDbType.Array | NpgsqlDbType.Text));
         try
         {
             var version = (long)(await cmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false))!;

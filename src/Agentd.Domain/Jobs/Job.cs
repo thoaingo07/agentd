@@ -1,6 +1,7 @@
 using Agentd.Domain.Common;
 using Agentd.Domain.Jobs.Events;
 using Agentd.Domain.Jobs.ValueObjects;
+using Agentd.Domain.Messaging;
 
 namespace Agentd.Domain.Jobs;
 
@@ -44,6 +45,9 @@ public sealed class Job : AggregateRoot<JobId>
 
     /// <summary>Earliest time a deferred job may start again (e.g. after a usage limit resets).</summary>
     public DateTimeOffset? NotBefore { get; private set; }
+
+    /// <summary>Developer replies received while the agent was running, delivered as its next turn.</summary>
+    public IReadOnlyList<string> PendingMessages { get; private set; } = [];
 
     public DateTimeOffset CreatedAt { get; private set; }
 
@@ -92,6 +96,7 @@ public sealed class Job : AggregateRoot<JobId>
             PublishAttempts = s.PublishAttempts,
             LastError = s.LastError,
             NotBefore = s.NotBefore,
+            PendingMessages = s.PendingMessages ?? [],
             CreatedAt = s.CreatedAt,
             UpdatedAt = s.UpdatedAt,
             Version = s.Version,
@@ -101,7 +106,7 @@ public sealed class Job : AggregateRoot<JobId>
     /// <summary>Current state as a snapshot, for storage.</summary>
     public JobSnapshot ToSnapshot() => new(
         Id, WorkItemId, Repository, Title, State, Branch, Worktree, Session, PullRequest, Draft,
-        Attempt, ResumeCount, PublishAttempts, LastError, NotBefore, CreatedAt, UpdatedAt, Version);
+        Attempt, ResumeCount, PublishAttempts, LastError, NotBefore, CreatedAt, UpdatedAt, Version, PendingMessages);
 
     /// <summary>Called by storage after an insert or save.</summary>
     public void Persisted(JobId id, long version)
@@ -257,6 +262,59 @@ public sealed class Job : AggregateRoot<JobId>
         return Result.Ok;
     }
 
+    /// <summary>The agent asked the developer a question: the job waits for a reply.</summary>
+    public Result AskDeveloper(string question, IReadOnlyList<string>? options = null)
+    {
+        if (Require("ask the developer", JobState.Running) is { } error)
+        {
+            return error;
+        }
+
+        if (string.IsNullOrWhiteSpace(question))
+        {
+            return DomainError.Validation("The question must not be empty.");
+        }
+
+        Transition(JobState.WaitingForHuman, new DeveloperQuestionAsked(question.Trim(), options ?? [], Now));
+        return Result.Ok;
+    }
+
+    /// <summary>
+    /// A developer replied. A waiting job goes back to <see cref="JobState.Running"/>; a running job keeps
+    /// running and the reply is queued in <see cref="PendingMessages"/> for the agent's next turn.
+    /// </summary>
+    public Result ResumeWith(string reply, string from)
+    {
+        if (Require("deliver a developer reply", JobState.WaitingForHuman, JobState.Running) is { } error)
+        {
+            return error;
+        }
+
+        if (string.IsNullOrWhiteSpace(reply))
+        {
+            return DomainError.Validation("The reply must not be empty.");
+        }
+
+        if (State == JobState.WaitingForHuman)
+        {
+            Transition(JobState.Running, new DeveloperReplied(reply, from, Resumed: true, Now));
+            return Result.Ok;
+        }
+
+        PendingMessages = [.. PendingMessages, reply];
+        UpdatedAt = Now;
+        Raise(new DeveloperReplied(reply, from, Resumed: false, Now));
+        return Result.Ok;
+    }
+
+    /// <summary>Returns and clears the queued developer replies (they are being delivered to the agent).</summary>
+    public IReadOnlyList<string> TakePendingMessages()
+    {
+        var messages = PendingMessages;
+        PendingMessages = [];
+        return messages;
+    }
+
     /// <summary>Records that a running job is being resumed after the daemon restarted.</summary>
     public Result MarkRecovered()
     {
@@ -302,4 +360,5 @@ public sealed record JobSnapshot(
     DateTimeOffset? NotBefore,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
-    long Version);
+    long Version,
+    IReadOnlyList<string>? PendingMessages = null);

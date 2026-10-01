@@ -54,7 +54,7 @@ conversations, the outbox, inbound idempotency, and the v0 user directory.
      `outcome`, `received_at`; **PK** `(provider, external_message_id)`.
    - `users`: `id`, `name` unique, `email` nullable, `roles text[]`, `is_active`, `created_at`.
    - `user_identities`: `user_id` FK, `provider`, `external_id`; **unique** `(provider, external_id)`.
-4. `Job` loads its conversations as an owned collection (EF `HasMany` with cascade delete).
+4. Conversations are stored in their own table, linked to the job with `ON DELETE CASCADE` (no ORM; see As built).
 5. Raise domain events from the aggregate methods, and persist them into `events` through the
    Phase 1 mechanism.
 
@@ -65,7 +65,21 @@ conversations, the outbox, inbound idempotency, and the v0 user directory.
 - Persistence (Testcontainers PostgreSQL): the migration applies cleanly; the unique constraints
   hold; round-trip of `Job` with two conversations.
 
+## As built
+- **`Conversation` is its own small aggregate** (`IConversationStore`, `conversation_*` routines), not
+  a collection inside `Job`. With stored procedures, loading and saving it inside `job_save` would
+  widen every job call. `Conversation.Open(job, provider, …, existing)` enforces "one open per provider"
+  in the domain. The partial unique index `(job_id, provider) WHERE closed_at IS NULL` enforces it in
+  the database, along with `(provider, external_conversation_id)`. Its events go to `events` through
+  `conversation_insert`.
+- **`Job.ResumeWith(reply, from)`:** from `WaitingForHuman` it resumes. While `Running` it appends to
+  `PendingMessages` (a new `pending_messages text[]` column) and raises `DeveloperReplied(Resumed: false)`.
+  `TakePendingMessages()` clears the queue. `job_save` gains a parameter; the migration drops the old signature.
+- **Users** are a plain record (`User`, `UserIdentity`) for now. The tables exist; their routines come
+  with T2.3. Likewise the outbox and inbound routines come with T2.5 and T2.6. This keeps this PR small.
+- Verified: the migration upgrades a Phase 1 database that already has a job in it.
+
 ## Done when
-- [ ] Migration applies on an empty and on a Phase 1 database.
-- [ ] Domain tests cover all new transitions.
-- [ ] Architecture tests still green (Domain has no new references).
+- [x] Migration applies on an empty and on a Phase 1 database.
+- [x] Domain tests cover all new transitions.
+- [x] Architecture tests still green (Domain has no new references).
