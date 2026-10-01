@@ -17,11 +17,14 @@ public sealed class SchemaMigratorTests
         var result = await Migrate(cs);
 
         CollectionAssert.Contains(result.AppliedVersions.ToList(), InitialSchema);
+        CollectionAssert.Contains(result.AppliedVersions.ToList(), 2026_09_30_0001L);
+        CollectionAssert.Contains(result.AppliedVersions.ToList(), 2026_09_30_0003L);
         await using var db = NpgsqlDataSource.Create(cs);
+        Assert.AreEqual(1L, await ScalarAsync<long>(db, "SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'agentd' AND p.proname = 'job_save'"), "no stale job_save overload");
         Assert.IsTrue(await ScalarAsync<bool>(db, "SELECT to_regclass('agentd.jobs') IS NOT NULL"));
         Assert.IsTrue(await ScalarAsync<bool>(db, "SELECT to_regclass('agentd.events') IS NOT NULL"));
         Assert.IsTrue(await ScalarAsync<bool>(db, "SELECT to_regclass('agentd.schema_version') IS NOT NULL"), "version table lives in the agentd schema");
-        Assert.IsTrue(await FunctionExistsAsync(db, "job_create"));
+        Assert.IsTrue(await FunctionExistsAsync(db, "job_insert"));
         Assert.IsTrue(await FunctionExistsAsync(db, "event_append"));
     }
 
@@ -42,14 +45,14 @@ public sealed class SchemaMigratorTests
         var cs = await PostgresFixture.CreateDatabaseAsync("fm_routines");
         await Migrate(cs);
         await using var db = NpgsqlDataSource.Create(cs);
-        await using (var drop = db.CreateCommand("DROP FUNCTION agentd.job_create(int)"))
+        await using (var drop = db.CreateCommand("DROP FUNCTION agentd.job_dequeue(text, timestamptz)"))
         {
             await drop.ExecuteNonQueryAsync();
         }
 
         await Migrate(cs);
 
-        Assert.IsTrue(await FunctionExistsAsync(db, "job_create"));
+        Assert.IsTrue(await FunctionExistsAsync(db, "job_insert"));
     }
 
     [TestMethod]

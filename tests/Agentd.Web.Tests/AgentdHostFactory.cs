@@ -32,11 +32,16 @@ internal sealed class AgentdHostFactory(
 
     private readonly string _webRoot = CreateWebRoot(withManifest);
 
+    // The daemon creates its config home on startup: keep it out of the developer's ~/.agentd.
+    private static readonly string s_home = Directory.CreateTempSubdirectory("agentd-test-home-").FullName;
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
+        Environment.SetEnvironmentVariable("AGENTD_HOME", s_home);
         builder.UseEnvironment(environment);
         builder.UseWebRoot(_webRoot);
         builder.UseSetting("ConnectionStrings:agentd", "Host=127.0.0.1;Port=1;Database=unused");
+        builder.UseSetting("Agentd:Scheduler:Enabled", "false");   // no polling, scheduling or recovery in UI tests
         // A test-only file name, so a locally built Agentd.Web/wwwroot (static web assets) never interferes.
         builder.UseSetting("Agentd:Web:Vite:ManifestPath", TestManifestPath);
         foreach (var (key, value) in settings ?? new Dictionary<string, string?>())

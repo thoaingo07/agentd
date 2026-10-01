@@ -64,12 +64,35 @@ public sealed partial class SpaHostingTests
     [DataRow("/api/nope")]
     [DataRow("/bff/whatever")]
     [DataRow("/hubs/events")]
-    [DataRow("/mcp")]
+    [DataRow("/mcp/nope")]
     public async Task Reserved_paths_never_fall_back_to_the_spa(string path)
     {
         using var response = await s_client.GetAsync(new Uri(path, UriKind.Relative));
 
         Assert.AreEqual(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [TestMethod]
+    public async Task Mcp_endpoint_requires_a_job_token()
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, new Uri("/mcp", UriKind.Relative));
+        request.Content = new StringContent("{}", System.Text.Encoding.UTF8, "application/json");
+
+        using var response = await s_client.SendAsync(request);
+
+        Assert.AreEqual(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [TestMethod]
+    public async Task Mcp_endpoint_refuses_browser_requests()
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, new Uri("/mcp", UriKind.Relative));
+        request.Headers.Add("Origin", "https://evil.example");
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", "anything");
+
+        using var response = await s_client.SendAsync(request);
+
+        Assert.AreEqual(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
     [TestMethod]

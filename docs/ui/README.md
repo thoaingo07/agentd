@@ -47,6 +47,8 @@ Adding anything else needs a note in this section explaining why.
 | `/learnings` | `LearningsView` | approved learnings per repo, pending candidates, distill runs and Learnings PRs, and global-learning approval cards |
 | `/repos` | `ReposView` | registered repositories: **kit status** (version, valid or invalid with errors, customized files, upgrade available), with **Initialize kit** / **Upgrade kit** buttons that open kit PRs |
 | `/models` | `ModelsView` | model profiles: health (circuit breaker), concurrency in use, today's cost vs budget, outcomes per phase |
+| `/setup` | *separate SPA* `ClientApps/setup` | first-run setup wizard (one-time setup link), [deployment.md §5a](../architect/deployment.md#5a-setup-ui-first-run-wizard-and-settings) |
+| `/settings/*` | `SettingsView` (Admin) | Access, Azure DevOps, Git, Models, Chat, Repositories; write-only secret fields; **Health** (doctor report) |
 | `/login` | `LoginView` | SSO buttons (Microsoft, Google) from `/bff/providers`; shows `access_denied` errors |
 | `/settings` | `SettingsView` | read-only config summary, theme, connection info |
 

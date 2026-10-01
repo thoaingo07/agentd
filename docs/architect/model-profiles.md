@@ -27,7 +27,7 @@ profile is the **process environment**:
 
 | Provider kind | How it connects |
 |---|---|
-| **Claude subscription** (Pro/Max/Team) | no base URL; login stored in the profile's own `CLAUDE_CONFIG_DIR` (`claude login` once per account, done by an operator) |
+| **Claude subscription** (Pro/Max/Team): **the default, and the first profile every install gets** | no base URL and no API key. Two ways to authenticate a profile: **(a)** a long-lived subscription token created once with `claude setup-token` (on any machine with a browser), stored as a secret and injected **only** into that profile's processes (as the environment variable the token command documents, e.g. `CLAUDE_CODE_OAUTH_TOKEN`; verify per CLI version); **(b)** an interactive login into the profile's own `CLAUDE_CONFIG_DIR` (`CLAUDE_CONFIG_DIR=~/.agentd/claude/<profile> claude auth login --claudeai`). Checked with `claude auth status --json` → `"authMethod": "claude.ai"`. |
 | **Anthropic API key** | `ANTHROPIC_API_KEY` |
 | **DeepSeek** | DeepSeek's Anthropic-compatible endpoint + API key |
 | **GLM (Zhipu / Z.ai)** | GLM's Anthropic-compatible endpoint + API key (or a GLM coding-plan key) |
@@ -128,6 +128,24 @@ provider-specific content, so **a session is pinned to one profile**.
   `session_id`, `started_at`, `ended_at`, `end_reason`.
 
 ---
+
+## 4a. Subscription usage limits
+
+A subscription has **usage limits** (session and weekly windows) instead of per-token billing.
+agentd treats hitting a limit as **"paused", not "failed"**:
+
+- **Detection:** the runner recognizes the CLI's usage-limit / rate-limit outcome (the stream-json
+  `result` error and its message, which includes the reset time where the CLI reports one) and
+  returns `UsageLimited(resetAt?)`.
+- **Behavior:**
+  - the job keeps its state and session;
+  - it is re-queued with `not_before = resetAt` (or an exponential backoff);
+  - chat and the UI show "⏸ waiting for the Claude usage limit to reset (~14:05)";
+  - the profile's breaker opens until then, so no other job burns a turn on it.
+- **Fallback:** if the phase's routing list has another available profile (e.g. a second
+  subscription, or GLM), the phase continues there with the usual handoff (§4). Otherwise it waits.
+- **Concurrency:** subscription profiles default to `MaxConcurrent: 1–2`, because parallel agents
+  drain one subscription's window quickly.
 
 ## 5. Reliability and cost
 

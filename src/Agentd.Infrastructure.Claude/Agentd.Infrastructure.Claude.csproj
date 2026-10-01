@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Claude Code CLI: stream-json parsing and the per-job process runner (IAgentRunner). -->
+  <ItemGroup>
+    <ProjectReference Include="..\Agentd.Application\Agentd.Application.csproj" />
+    <ProjectReference Include="..\Agentd.Domain\Agentd.Domain.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Options" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Agentd.Infrastructure.Tests" />
+  </ItemGroup>
+</Project>

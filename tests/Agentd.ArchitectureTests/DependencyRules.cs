@@ -77,8 +77,8 @@ internal static class DependencyRules
             ["Agentd.Domain", "Agentd.Application", "Agentd.Bff", "Agentd.Mcp"],
             []),
 
-        new("Nothing but the AppHost references the Migrator",
-            n => n != "Agentd.AppHost",
+        new("Only the AppHost and the Host (agentd db migrate) reference the Migrator",
+            n => n is not ("Agentd.AppHost" or "Agentd.Host"),
             ["Agentd.Migrator"],
             []),
 

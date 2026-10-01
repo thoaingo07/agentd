@@ -13,6 +13,7 @@ var migrator = builder.AddProject<Projects.Agentd_Migrator>("agentd-migrator")
     .WaitFor(database);
 
 var host = builder.AddProject<Projects.Agentd_Host>("agentd-host")
+    .WithArgs("daemon", "run")
     .WithReference(database)
     .WaitForCompletion(migrator)
     .WithHttpHealthCheck("/healthz");

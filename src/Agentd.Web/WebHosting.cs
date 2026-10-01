@@ -36,7 +36,9 @@ public static class WebHosting
         return services;
     }
 
-    public static WebApplication UseWebHosting(this WebApplication app)
+    /// <param name="app">The application.</param>
+    /// <param name="afterRouting">Middleware that needs the matched endpoint (authentication, authorization).</param>
+    public static WebApplication UseWebHosting(this WebApplication app, Action<IApplicationBuilder>? afterRouting = null)
     {
         var vite = app.Services.GetRequiredService<IOptions<ViteOptions>>().Value;
 
@@ -50,6 +52,7 @@ public static class WebHosting
 
         app.UseStaticFiles();
         app.UseRouting();
+        afterRouting?.Invoke(app);
 
         foreach (var prefix in s_reservedPrefixes)
         {

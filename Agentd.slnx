@@ -5,6 +5,9 @@
     <Project Path="src/Agentd.Bff/Agentd.Bff.csproj" />
     <Project Path="src/Agentd.Domain/Agentd.Domain.csproj" />
     <Project Path="src/Agentd.Host/Agentd.Host.csproj" />
+    <Project Path="src/Agentd.Infrastructure.AzureDevOps/Agentd.Infrastructure.AzureDevOps.csproj" />
+    <Project Path="src/Agentd.Infrastructure.Claude/Agentd.Infrastructure.Claude.csproj" />
+    <Project Path="src/Agentd.Infrastructure.Git/Agentd.Infrastructure.Git.csproj" />
     <Project Path="src/Agentd.Infrastructure.Persistence/Agentd.Infrastructure.Persistence.csproj" />
     <Project Path="src/Agentd.Mcp/Agentd.Mcp.csproj" />
     <Project Path="src/Agentd.Migrator/Agentd.Migrator.csproj" />
@@ -17,7 +20,9 @@
     <Project Path="tests/Agentd.Bff.Tests/Agentd.Bff.Tests.csproj" />
     <Project Path="tests/Agentd.Domain.Tests/Agentd.Domain.Tests.csproj" />
     <Project Path="tests/Agentd.Infrastructure.Tests/Agentd.Infrastructure.Tests.csproj" />
+    <Project Path="tests/Agentd.Mcp.Tests/Agentd.Mcp.Tests.csproj" />
     <Project Path="tests/Agentd.Migrator.Tests/Agentd.Migrator.Tests.csproj" />
+    <Project Path="tests/Agentd.Host.Tests/Agentd.Host.Tests.csproj" />
     <Project Path="tests/Agentd.Web.Tests/Agentd.Web.Tests.csproj" />
   </Folder>
 </Solution>

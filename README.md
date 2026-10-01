@@ -34,6 +34,9 @@ open:
 Aspire runs **`agentd-migrator`** first, which applies the schema and exits. The Host starts after it
 finishes. Stop everything with `Ctrl+C`.
 
+The Development config points at the sandbox (`ermsystem/Portal`, repository `sysmin`) with the
+daemon loop **off** (`Agentd:Scheduler:Enabled=false`): turn it on to poll, claim and run agents.
+
 ## Run without Aspire (production-like)
 
 ```bash
@@ -41,6 +44,27 @@ export ConnectionStrings__agentd="Host=localhost;Database=agentd;Username=…;Pa
 dotnet run --project src/Agentd.Migrator                   # apply schema migrations + routines, then exit
 dotnet run --project src/Agentd.Host -p:BuildWeb=true      # builds the client apps (Agentd.Web/wwwroot + manifest.json), serves on 127.0.0.1:7780
 ```
+
+## The `agentd` CLI
+
+The Host builds the `agentd` executable. With no verb it runs the daemon; the verbs use the same
+configuration and database:
+
+```bash
+dotnet run --project src/Agentd.Host -- --help
+dotnet run --project src/Agentd.Host -- db migrate                     # apply the schema in-process
+dotnet run --project src/Agentd.Host -- repo add git@ssh.dev.azure.com:v3/org/project/repo
+dotnet run --project src/Agentd.Host -- repo list
+dotnet run --project src/Agentd.Host -- run 1234 [--repo sysmin]       # queue a work item now
+dotnet run --project src/Agentd.Host -- status [--all]
+dotnet run --project src/Agentd.Host -- doctor                         # checks, each with a fix hint
+dotnet run --project src/Agentd.Host -- daemon run
+```
+
+Configuration lives in the **config home** (`AGENTD_HOME`, default `~/.agentd`): `config/agentd.json`
+uses the schema of the `Agentd` section (without the `Agentd` wrapper), and `AGENTD_*` variables
+override it (`AGENTD_AzureDevOps__Organization`, `AGENTD_Database__ConnectionString`, …). Exit codes:
+0 ok · 1 error · 2 usage · 3 not found / no repository match · 4 active job exists · 5 doctor failed.
 
 ## Tests
 
