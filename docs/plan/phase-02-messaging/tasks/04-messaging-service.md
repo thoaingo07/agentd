@@ -63,7 +63,23 @@ Implement the provider-agnostic outbound side once:
 - Progress: 5 rapid updates → one pending row with editing; the latest text wins.
 - Target resolution integrates the defaults and tag override.
 
+## As built
+Split into two PRs to keep each under 1000 lines:
+
+1. **Message shaping** (this part):
+   - `MessageChunker.Prepare(message, capabilities)`: text over 8,000 characters becomes a
+     `message.md` attachment when supported; otherwise it is split. Buttons and attachments stay on
+     the last part.
+   - `Split(markdown, maxLength)`: paragraph, then line, then word boundaries; oversized code blocks
+     are re-fenced with their language; the budget is `maxLength − 64` including the `(i/n)` marker.
+     A seeded property test runs 300 random documents each at 2000 and 4096 characters.
+   - `MessageCatalog`: the messages agentd posts.
+   - `MessagingProviderRegistry`: the registered providers that are enabled, in configuration order.
+2. **Outbox and `MessagingService`** (next PR): `outbound_messages` routines, opening conversations
+   on job start, enqueuing from the job use cases in the same routine call as the state change, and
+   collapsing progress.
+
 ## Done when
 - [ ] Every job lifecycle event from Phase 1 produces the expected outbox rows.
-- [ ] Chunker property tests pass for both 2000 (Discord) and 4096 (Telegram) limits.
+- [x] Chunker property tests pass for both 2000 (Discord) and 4096 (Telegram) limits.
 - [ ] No Application code references a concrete provider.
