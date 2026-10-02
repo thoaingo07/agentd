@@ -37,6 +37,9 @@ public static class DependencyInjection
         services.AddSingleton<IMessagingProviderRegistry, MessagingProviderRegistry>();
         services.AddScoped<MessagingService>();
         services.AddSingleton<OutboxDispatcher>();
+        services.AddScoped<ICommandHandler<SubmitDeveloperMessage, DeveloperMessageOutcome>, SubmitDeveloperMessageHandler>();
+        services.AddScoped<InboundMessageHandler>();
+        services.AddScoped<IInboundMessageSink>(sp => sp.GetRequiredService<InboundMessageHandler>());
         return services;
     }
 }

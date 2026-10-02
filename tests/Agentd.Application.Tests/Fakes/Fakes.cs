@@ -24,6 +24,8 @@ internal sealed class InMemoryJobs(IClock clock) : IJobRepository
 
     public List<string> SavedEventTypes { get; } = [];
 
+    public List<IDomainEvent> SavedEvents { get; } = [];
+
     public Task<Job?> GetAsync(JobId id, CancellationToken cancellationToken) =>
         Task.FromResult(_rows.TryGetValue(id.Value, out var s) ? Job.Rehydrate(s, clock) : null);
 
@@ -44,14 +46,17 @@ internal sealed class InMemoryJobs(IClock clock) : IJobRepository
 
     public Task<Result> SaveAsync(Job job, CancellationToken cancellationToken)
     {
-        if (!_rows.TryGetValue(job.Id.Value, out var current) || current.Version != job.Version)
+        lock (_rows)
         {
-            return Task.FromResult(Result.Fail(DomainError.Conflict("version changed")));
-        }
+            if (!_rows.TryGetValue(job.Id.Value, out var current) || current.Version != job.Version)
+            {
+                return Task.FromResult(Result.Fail(DomainError.Conflict("version changed")));
+            }
 
-        job.Persisted(job.Id, job.Version + 1);
-        Store(job);
-        return Task.FromResult(Result.Ok);
+            job.Persisted(job.Id, job.Version + 1);
+            Store(job);
+            return Task.FromResult(Result.Ok);
+        }
     }
 
     public Task<Job?> DequeueNextAsync(string worker, CancellationToken cancellationToken)
@@ -88,7 +93,9 @@ internal sealed class InMemoryJobs(IClock clock) : IJobRepository
 
     private void Store(Job job)
     {
-        SavedEventTypes.AddRange(job.DequeueEvents().Select(e => e.GetType().Name));
+        var events = job.DequeueEvents();
+        SavedEvents.AddRange(events);
+        SavedEventTypes.AddRange(events.Select(e => e.GetType().Name));
         _rows[job.Id.Value] = job.ToSnapshot();
     }
 }

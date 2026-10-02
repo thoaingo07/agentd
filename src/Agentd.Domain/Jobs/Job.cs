@@ -283,7 +283,7 @@ public sealed class Job : AggregateRoot<JobId>
     /// A developer replied. A waiting job goes back to <see cref="JobState.Running"/>; a running job keeps
     /// running and the reply is queued in <see cref="PendingMessages"/> for the agent's next turn.
     /// </summary>
-    public Result ResumeWith(string reply, string from)
+    public Result ResumeWith(string reply, string from, ProviderKey? via = null)
     {
         if (Require("deliver a developer reply", JobState.WaitingForHuman, JobState.Running) is { } error)
         {
@@ -297,13 +297,13 @@ public sealed class Job : AggregateRoot<JobId>
 
         if (State == JobState.WaitingForHuman)
         {
-            Transition(JobState.Running, new DeveloperReplied(reply, from, Resumed: true, Now));
+            Transition(JobState.Running, new DeveloperReplied(reply, from, Resumed: true, Now, via));
             return Result.Ok;
         }
 
         PendingMessages = [.. PendingMessages, reply];
         UpdatedAt = Now;
-        Raise(new DeveloperReplied(reply, from, Resumed: false, Now));
+        Raise(new DeveloperReplied(reply, from, Resumed: false, Now, via));
         return Result.Ok;
     }
 
