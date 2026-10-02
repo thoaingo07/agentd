@@ -1,9 +1,11 @@
 using System.Collections.Concurrent;
 using Agentd.Application.Jobs;
+using Agentd.Application.Messaging;
 using Agentd.Application.Ports;
 using Agentd.Domain.Common;
 using Agentd.Domain.Jobs;
 using Agentd.Domain.Jobs.ValueObjects;
+using Agentd.Domain.Messaging;
 using Agentd.Domain.Repositories;
 using Microsoft.Extensions.Options;
 
@@ -302,6 +304,62 @@ internal sealed class FakeEvents : IEventStore
     }
 }
 
+internal sealed class FakeConversations : IConversationStore
+{
+    private long _nextId;
+
+    public List<Conversation> All { get; } = [];
+
+    public Task<Result> AddAsync(Conversation conversation, CancellationToken cancellationToken)
+    {
+        conversation.Persisted(new ConversationId(Interlocked.Increment(ref _nextId)));
+        All.Add(conversation);
+        return Task.FromResult(Result.Ok);
+    }
+
+    public Task<Result> SaveAsync(Conversation conversation, CancellationToken cancellationToken) => Task.FromResult(Result.Ok);
+
+    public Task<IReadOnlyList<Conversation>> ListByJobAsync(JobId jobId, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<Conversation>>(All.Where(c => c.JobId == jobId).ToList());
+
+    public Task<Conversation?> FindExternalAsync(ProviderKey provider, string externalConversationId, CancellationToken cancellationToken) =>
+        Task.FromResult(All.FirstOrDefault(c => c.Provider == provider && c.ExternalConversationId == externalConversationId));
+}
+
+/// <summary>A chat provider that records what it was asked to do.</summary>
+internal sealed class FakeChat(string key) : IMessagingProvider
+{
+    public ProviderKey Key { get; } = ProviderKey.From(key);
+
+    public MessagingCapabilities Capabilities { get; } = new(2000, true, true, true, true);
+
+    public List<ConversationSpec> Opened { get; } = [];
+
+    public bool FailOpen { get; set; }
+
+    public Task<ConversationRef> OpenConversationAsync(ConversationSpec spec, CancellationToken cancellationToken)
+    {
+        if (FailOpen)
+        {
+            throw new HttpRequestException("gateway unavailable");
+        }
+
+        Opened.Add(spec);
+        return Task.FromResult(new ConversationRef(Key, $"thread-{spec.JobId}", "space"));
+    }
+
+    public Task<MessageRef> SendAsync(ConversationRef conversation, OutboundMessage message, CancellationToken cancellationToken) =>
+        Task.FromResult(new MessageRef(conversation, "m1"));
+
+    public Task EditAsync(MessageRef message, OutboundMessage replacement, CancellationToken cancellationToken) => Task.CompletedTask;
+
+    public Task CloseConversationAsync(ConversationRef conversation, string reason, CancellationToken cancellationToken) => Task.CompletedTask;
+
+    public Uri? GetLink(ConversationRef conversation) => new($"https://chat.example/{conversation.ExternalConversationId}");
+
+    public Task<ProviderHealth> CheckHealthAsync(CancellationToken cancellationToken) => Task.FromResult(new ProviderHealth(true, "ok"));
+}
+
 /// <summary>All fakes wired to real handlers.</summary>
 internal sealed class TestContext
 {
@@ -325,11 +383,24 @@ internal sealed class TestContext
 
     public NoMatchNotices Notices { get; } = new();
 
+    public FakeConversations Conversations { get; } = new();
+
+    /// <summary>Registered chat providers; enable them in <see cref="Messaging"/>.</summary>
+    public List<IMessagingProvider> Chats { get; } = [];
+
+    public MessagingOptions Messaging { get; } = new();
+
     public TestContext() => Jobs = new InMemoryJobs(Clock);
 
     public ClaimWorkItemHandler Claim() => new(WorkItems, Registry, Jobs, Clock, Notices, Options);
 
-    public StartNextJobHandler StartNext() => new(Jobs, Registry, Worktrees, WorkItems, Options);
+    public StartNextJobHandler StartNext() => new(Jobs, Registry, Worktrees, WorkItems, MessagingService(), Options);
+
+    public MessagingService MessagingService()
+    {
+        var options = Microsoft.Extensions.Options.Options.Create(Messaging);
+        return new(new MessagingProviderRegistry(Chats, options), new ConversationTargetsResolver(options), Conversations, Events, Clock);
+    }
 
     public HandleAgentExitHandler AgentExit() => new(Jobs, Registry, Worktrees, Clock, Options);
 

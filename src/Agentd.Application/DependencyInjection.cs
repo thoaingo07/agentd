@@ -34,6 +34,8 @@ public static class DependencyInjection
         services.AddScoped<ICommandHandler<SeedRepositories, SeedResult>, SeedRepositoriesHandler>();
         services.AddScoped<ICommandHandler<SeedUsers, int>, SeedUsersHandler>();
         services.AddSingleton<ConversationTargetsResolver>();
+        services.AddSingleton<IMessagingProviderRegistry, MessagingProviderRegistry>();
+        services.AddScoped<MessagingService>();
         return services;
     }
 }
