@@ -52,7 +52,24 @@ in Phase 5.
 - Seeder: first run inserts; second run is a no-op; removing a user marks them inactive.
 - Resolver: default only; a tag override; an unknown tag ignored.
 
+## As built
+- **Sections** follow the repo convention: `Agentd:Users` (an array) and `Agentd:Messaging`.
+- **Options** live in Application, next to the code that uses them:
+  - `MessagingOptions` and `UsersOptions`, each with an `IValidateOptions` validator, registered with
+    `ValidateOnStart` in `AgentdServices`;
+  - `MessagingOptions` holds only `Enabled` per provider. Provider-specific settings (guild, channel)
+    and the **bot-token check** are bound and validated by the provider (T2.8), so Application never
+    sees a token.
+- **Seeding:** `user_sync(jsonb)` makes the tables match the config in one transaction:
+  - it upserts by case-insensitive name and deactivates missing users;
+  - it drops deactivated users' identities and moves an identity to the user that now lists it;
+  - an advisory lock serializes concurrent syncs.
+- **Lookups:** `UserDirectory` caches lookups per identity and clears the cache on sync.
+- **Startup:** `UserDirectorySeeder` (a hosted service in the daemon) runs `SeedUsers`.
+- **Provider choice:** `ConversationTargetsResolver.Resolve(tags)` returns the providers plus the
+  ignored `chat:` tags. Recording the warning event on the job happens when conversations are opened (T2.4).
+
 ## Done when
-- [ ] Starting with invalid messaging config fails fast with a readable error.
-- [ ] `users` and `user_identities` reflect the config after startup.
-- [ ] No token appears in logs or in `appsettings.json`.
+- [x] Starting with invalid messaging config fails fast with a readable error.
+- [x] `users` and `user_identities` reflect the config after startup.
+- [x] No token appears in logs or in `appsettings.json`.

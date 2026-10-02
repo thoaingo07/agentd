@@ -1,6 +1,8 @@
 using Agentd.Application;
 using Agentd.Application.Jobs;
+using Agentd.Application.Messaging;
 using Agentd.Application.Repositories;
+using Agentd.Application.Users;
 using Agentd.Host.Configuration;
 using Agentd.Host.Options;
 using Agentd.Infrastructure.AzureDevOps;
@@ -34,6 +36,12 @@ internal static class AgentdServices
         builder.Services.AddOptions<JobOptions>().BindConfiguration(JobOptions.Section);
         builder.Services.AddOptions<SchedulerOptions>().BindConfiguration(SchedulerOptions.Section);
         builder.Services.AddOptions<RepositorySeedOptions>().BindConfiguration(RepositorySeedOptions.Section);
+        builder.Services.AddOptions<MessagingOptions>().BindConfiguration(MessagingOptions.Section).ValidateOnStart();
+        builder.Services.AddSingleton<IValidateOptions<MessagingOptions>, MessagingOptionsValidator>();
+        builder.Services.AddOptions<UsersOptions>()
+            .Configure<IConfiguration>((o, config) => config.GetSection(UsersOptions.Section).Bind(o.Items))
+            .ValidateOnStart();
+        builder.Services.AddSingleton<IValidateOptions<UsersOptions>, UsersOptionsValidator>();
         builder.Services.AddApplication();
         builder.Services.AddAzureDevOps(builder.Configuration);
         builder.Services.AddGit(builder.Configuration);
