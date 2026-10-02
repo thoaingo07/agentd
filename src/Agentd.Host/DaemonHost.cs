@@ -30,7 +30,11 @@ internal static class DaemonHost
         builder.Services.AddHostedService(sp => sp.GetRequiredService<StartupRecovery>());
         builder.Services.AddHostedService<WorkItemPollingWorker>();
         builder.Services.AddHostedService<SchedulerWorker>();
-        builder.Services.AddHealthChecks().AddCheck<WorkerHealthCheck>("workers");
+        builder.Services.AddHostedService<MessagingDispatcherWorker>();
+        builder.Services.AddSingleton<MessagingProviderHealthCheck>();   // one instance keeps the 30 s cache
+        builder.Services.AddHealthChecks()
+            .AddCheck<WorkerHealthCheck>("workers")
+            .AddCheck<MessagingProviderHealthCheck>("messaging");
 
         var app = builder.Build();
 

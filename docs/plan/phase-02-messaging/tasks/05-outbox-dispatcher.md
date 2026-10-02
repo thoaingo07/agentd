@@ -56,8 +56,37 @@ Deliver outbox rows reliably, with per-provider backoff and rate limits. A provi
   messages arrive afterwards, in order.
 - Health check reports Degraded during the outage.
 
+## As built
+- **Claiming.** `outbox_claim(limit, providers, now)` claims only the oldest unsent row of each
+  conversation (`FOR UPDATE SKIP LOCKED`). That gives in-order delivery with at most one row in
+  flight per conversation, and the rows of one batch can go out in parallel. Providers with an open
+  circuit are left out. While a row is `sending`, `next_attempt_at` holds its claim time, so no new
+  column was needed.
+- **Settling:**
+  - `outbox_mark_sent` (also stores a new live status message id on the conversation);
+  - `outbox_mark_retry` (dead after 20 attempts, with a `MessagingDeliveryDead` event);
+  - `outbox_mark_failed` (a `MessagingDeliveryFailed` event);
+  - `outbox_release_stale`.
+- **Delivery.** `OutboxDispatcher` (Application, unit-tested) delivers through `IOutboxDelivery`.
+  Providers classify failures by throwing `MessagingDeliveryException(permanent, retryAfter)`; anything
+  else is transient. The back-off is min(2^attempts s, 5 min) plus up to 1 s of jitter, and
+  `retryAfter` wins. After 5 consecutive failures a provider is paused for 60 s.
+- **Worker.** `MessagingDispatcherWorker` runs only when a provider is enabled.
+  - At startup it releases every `sending` row (single daemon), then sweeps rows stale for 2 minutes
+    every minute.
+  - It polls every second, or immediately while a full batch keeps coming. `NOTIFY` isn't needed yet.
+  - On shutdown, in-flight sends get 10 s.
+- **Rate.** One row per conversation per claim keeps a conversation at about 1 message/s; the parts
+  of one long message go back to back.
+- **Health.** The `messaging` health check reports each provider (its own check, cached 30 s, and
+  whether it is paused) and is **Degraded** when any provider is down.
+- **At-least-once delivery.** A crash between a successful send and `outbox_mark_sent` re-sends that
+  one message after the stale sweep (up to 2 minutes later). Duplicates are limited to the rows that
+  were in flight.
+- **Moved to T2.6:** retrying a failed conversation open, which needs the work item's `chat:` tags.
+
 ## Done when
-- [ ] Killing the network to Discord doesn't fail or stall a job, and messages flush on recovery.
-- [ ] No duplicate delivery after a dispatcher crash in a normal test run. At-least-once delivery
+- [x] Killing the network to Discord doesn't fail or stall a job, and messages flush on recovery (outage test with the real routines; the job never waits on delivery).
+- [x] No duplicate delivery after a dispatcher crash in a normal test run. At-least-once delivery
   is acceptable; the dedupe window is documented.
-- [ ] `/healthz` shows the per-provider status.
+- [x] `/healthz` shows the per-provider status.
