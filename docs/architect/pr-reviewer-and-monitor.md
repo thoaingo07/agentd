@@ -288,6 +288,9 @@ across registered repos, with CI, votes, conflicts, active threads and agentd st
 - **Create hotfix**.
 
 `/prs/:repo/:id` shows the review runs, the findings per reviewer, the fix rounds, and the live trace.
+Its **Explain** tab presents the PR top-down: changes grouped by concern, ordered by attention, each
+group with prose, a diagram and its diffs, with every change covered. This follows the approach of
+VirtusLab Tulip ([reference](references/tulip.md)).
 
 ---
 

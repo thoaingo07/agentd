@@ -645,6 +645,7 @@ agentd/
 - [references/azure-devops.md](references/azure-devops.md) — auth, WIQL, work item & PR REST calls
 - [references/discord.md](references/discord.md) — bot setup, intents, threads
 - [references/telegram.md](references/telegram.md) — bot setup, forum topics, long polling, inline keyboards
+- [references/tulip.md](references/tulip.md) — VirtusLab Tulip PR explainer: ideas for the Phase 7 Explain view
 - [references/claude-code.md](references/claude-code.md) — headless CLI flags, sessions, MCP config
 - [../ui/README.md](../ui/README.md) — Web UI screens, Pinia stores, components
 - [../design-system/README.md](../design-system/README.md) — colors, theme, tokens, component styling
