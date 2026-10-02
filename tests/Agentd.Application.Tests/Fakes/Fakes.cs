@@ -342,6 +342,8 @@ internal sealed class FakeChat(string key) : IMessagingProvider
 
     public List<ConversationSpec> Opened { get; } = [];
 
+    public List<string> SentText { get; } = [];
+
     public bool FailOpen { get; set; }
 
     public Task<ConversationRef> OpenConversationAsync(ConversationSpec spec, CancellationToken cancellationToken)
@@ -355,8 +357,11 @@ internal sealed class FakeChat(string key) : IMessagingProvider
         return Task.FromResult(new ConversationRef(Key, $"thread-{spec.JobId}", "space"));
     }
 
-    public Task<MessageRef> SendAsync(ConversationRef conversation, OutboundMessage message, CancellationToken cancellationToken) =>
-        Task.FromResult(new MessageRef(conversation, "m1"));
+    public Task<MessageRef> SendAsync(ConversationRef conversation, OutboundMessage message, CancellationToken cancellationToken)
+    {
+        SentText.Add(message.Markdown);
+        return Task.FromResult(new MessageRef(conversation, "m1"));
+    }
 
     public Task EditAsync(MessageRef message, OutboundMessage replacement, CancellationToken cancellationToken) => Task.CompletedTask;
 

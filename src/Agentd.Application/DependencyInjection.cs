@@ -38,6 +38,9 @@ public static class DependencyInjection
         services.AddScoped<MessagingService>();
         services.AddSingleton<OutboxDispatcher>();
         services.AddScoped<ICommandHandler<SubmitDeveloperMessage, DeveloperMessageOutcome>, SubmitDeveloperMessageHandler>();
+        services.AddScoped<ICommandHandler<RetryJob, int>, RetryJobHandler>();
+        services.AddScoped<ChatCommands>();
+        services.AddScoped<ICommandHandler<RepairConversations, int>, RepairConversationsHandler>();
         services.AddScoped<InboundMessageHandler>();
         services.AddScoped<IInboundMessageSink>(sp => sp.GetRequiredService<InboundMessageHandler>());
         return services;

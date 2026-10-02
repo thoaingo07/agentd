@@ -127,7 +127,7 @@ public sealed class InboundMessageHandlerTests
     }
 
     private InboundMessageHandler Handler() =>
-        new(_log, _users, _t.Conversations, new SubmitDeveloperMessageHandler(_t.Jobs), _outbox, NullLogger<InboundMessageHandler>.Instance);
+        new(_log, _users, _t.Conversations, new SubmitDeveloperMessageHandler(_t.Jobs), ChatCommandsTests.Commands(_t, _outbox, new FakeTranscripts()), _outbox, NullLogger<InboundMessageHandler>.Instance);
 
     private async Task<JobId> JobInThreadAsync(bool waiting)
     {
@@ -184,7 +184,7 @@ public sealed class InboundMessageHandlerTests
         public Task SyncAsync(IReadOnlyList<User> users, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
-    private sealed class FakeOutbox : IOutbox
+    internal sealed class FakeOutbox : IOutbox
     {
         public List<(JobId Job, OutboxMessage Message)> Enqueued { get; } = [];
 

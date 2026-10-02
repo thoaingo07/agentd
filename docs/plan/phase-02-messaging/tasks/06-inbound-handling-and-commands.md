@@ -88,6 +88,22 @@ with mirroring. **Part 2:** the commands, plus retrying missing conversation ope
 - **Not yet:** resuming the Claude session after `Resumed` is T2.7. No provider exists yet, so nothing
   is affected meanwhile.
 
+**Part 2: commands and repair.**
+- **`ChatCommands`** is one class with a switch, rather than one file per command.
+- **In a job's thread:** `status`, `cancel` (as the user), `retry` (the new `RetryJob` use case; failed
+  jobs only) and `logs` (the last 200 transcript lines as `transcript-tail.jsonl`, through a new
+  `ITranscriptReader` port implemented by `Infrastructure.Claude`). Replies go through the outbox to
+  the same provider. A successful `cancel` posts nothing itself: its `JobCancelled` event announces it
+  in every conversation.
+- **Anywhere:** `list` (active jobs, with this provider's thread link), `run <id>` (accepts `#id`;
+  `ClaimWorkItem(Force: true)`) and `help`. Outside a thread there is no job and so no outbox, so the
+  reply is sent directly through the provider (best effort, logged on failure). Thread-only commands
+  outside a thread, and unknown commands, get the help text. The provider only forwards messages from
+  its configured channel, so "outside a thread" means the parent space.
+- **Repair (carried over from T2.5):** `RepairConversations` runs every 2 minutes in the dispatcher
+  worker. For running or waiting jobs with fewer open conversations than enabled providers, it fetches
+  the work item and re-runs the idempotent opening, which still honors `chat:` tags.
+
 ## Done when
-- [ ] Every inbound path is covered by Application tests with fake ports.
+- [x] Every inbound path is covered by Application tests with fake ports.
 - [x] Race test is green 100 times in a row.
