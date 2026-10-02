@@ -49,6 +49,10 @@ mirrors them to the job's other conversations.
    and bot-authored inbound messages are dropped by the providers, so they never loop back.
 8. Everything above runs in one unit of work: the job update, the outbox rows and the inbound log.
 
+## Carried over from T2.5
+- Retry opening a job's missing conversations (a target provider with no conversation row): when a
+  developer message or command arrives, and periodically for running jobs.
+
 ## Tests
 - Duplicate delivery of the same external message ID → processed once.
 - Unknown user → ignored, no reply, logged.

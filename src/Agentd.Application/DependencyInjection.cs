@@ -36,6 +36,7 @@ public static class DependencyInjection
         services.AddSingleton<ConversationTargetsResolver>();
         services.AddSingleton<IMessagingProviderRegistry, MessagingProviderRegistry>();
         services.AddScoped<MessagingService>();
+        services.AddSingleton<OutboxDispatcher>();
         return services;
     }
 }

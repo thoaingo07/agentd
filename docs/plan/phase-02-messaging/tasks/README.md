@@ -8,7 +8,7 @@ Detailed implementation tasks for [Phase 2 — Messaging](../README.md), in buil
 | T2.2 | [Messaging ports and neutral message model](02-ports-and-neutral-models.md) | T2.1 | S | ☑ |
 | T2.3 | [User directory v0 and messaging configuration](03-users-directory-and-config.md) | T2.1 | S | ☑ |
 | T2.4 | [MessagingService (outbound routing, chunking, progress)](04-messaging-service.md) | T2.2, T2.3 | M | ☑ |
-| T2.5 | [Outbox dispatcher, retries and provider health](05-outbox-dispatcher.md) | T2.4 | M | ☐ |
+| T2.5 | [Outbox dispatcher, retries and provider health](05-outbox-dispatcher.md) | T2.4 | M | ☑ |
 | T2.6 | [HandleInboundMessage, commands and mirroring](06-inbound-handling-and-commands.md) | T2.2, T2.3, T2.4 | M | ☐ |
 | T2.7 | [`ask_developer`, progress and resuming the Claude session](07-ask-developer-and-resume.md) | T2.4, T2.6, Phase 1 | M | ☐ |
 | T2.8 | [Discord provider](08-discord-provider.md) | T2.2, T2.5, T2.6 | L | ☐ |

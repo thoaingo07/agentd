@@ -23,6 +23,7 @@ public static class DependencyInjection
         services.AddSingleton<IConversationStore, ConversationStore>();
         services.AddSingleton<IUserDirectory, UserDirectory>();
         services.AddSingleton<IOutbox, Outbox>();
+        services.AddSingleton<IOutboxDelivery, OutboxDelivery>();
         return services;
     }
 }
