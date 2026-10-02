@@ -1,4 +1,5 @@
 using Agentd.Application.Abstractions;
+using Agentd.Application.Messaging;
 using Agentd.Application.Ports;
 using Agentd.Domain.Common;
 using Agentd.Domain.Jobs.ValueObjects;
@@ -18,6 +19,7 @@ public sealed class StartNextJobHandler(
     IRepositoryRegistry repositories,
     IWorktreeManager worktrees,
     IWorkItemSource workItems,
+    MessagingService messaging,
     IOptions<JobOptions> options) : ICommandHandler<StartNextJob, AgentRunRequest?>
 {
     public async Task<Result<AgentRunRequest?>> Handle(StartNextJob command, CancellationToken cancellationToken)
@@ -44,6 +46,7 @@ public sealed class StartNextJobHandler(
                 ? job.Worktree!.Value
                 : await worktrees.CreateAsync(repository, job.WorkItemId, branch, cancellationToken).ConfigureAwait(false);
 
+            WorkItemDetails? item = null;
             string prompt;
             if (resume)
             {
@@ -51,7 +54,7 @@ public sealed class StartNextJobHandler(
             }
             else
             {
-                var item = await workItems.GetAsync(job.WorkItemId.Value, cancellationToken).ConfigureAwait(false)
+                item = await workItems.GetAsync(job.WorkItemId.Value, cancellationToken).ConfigureAwait(false)
                     ?? throw new InvalidOperationException($"Work item {job.WorkItemId} no longer exists.");
                 prompt = TaskPromptBuilder.Build(item, branch, repository.BaseBranch);
             }
@@ -63,9 +66,18 @@ public sealed class StartNextJobHandler(
             }
 
             var saved = await jobs.SaveAsync(job, cancellationToken).ConfigureAwait(false);
-            return saved.IsSuccess
-                ? new AgentRunRequest(job.Id, job.WorkItemId, worktree, session, prompt, resume)
-                : saved.Error;
+            if (!saved.IsSuccess)
+            {
+                return saved.Error;
+            }
+
+            // A first start opens the job's conversations; a resumed job already has them.
+            if (item is not null)
+            {
+                await messaging.OpenConversationsAsync(job, item, cancellationToken).ConfigureAwait(false);
+            }
+
+            return new AgentRunRequest(job.Id, job.WorkItemId, worktree, session, prompt, resume);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {

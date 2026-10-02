@@ -1,5 +1,7 @@
+using Agentd.Application.Messaging;
 using Agentd.Application.Ports;
 using Agentd.Application.Users;
+using Agentd.Infrastructure.Persistence.Messaging;
 using Agentd.Infrastructure.Persistence.Repositories;
 using Agentd.Infrastructure.Persistence.Users;
 using Microsoft.Extensions.DependencyInjection;
@@ -20,6 +22,7 @@ public static class DependencyInjection
         services.AddSingleton<IRepositoryRegistry, RepositoryStore>();
         services.AddSingleton<IConversationStore, ConversationStore>();
         services.AddSingleton<IUserDirectory, UserDirectory>();
+        services.AddSingleton<IOutbox, Outbox>();
         return services;
     }
 }
