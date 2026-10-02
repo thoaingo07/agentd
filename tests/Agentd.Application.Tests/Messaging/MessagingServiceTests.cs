@@ -84,7 +84,7 @@ public sealed class MessagingServiceTests
         var question = JobEventMessages.For(new DeveloperQuestionAsked("Which?", ["v1", "v2"], at))!.Message;
         CollectionAssert.AreEqual(new[] { "opt1", "opt2" }, question.Options!.Select(o => o.Id).ToArray());
         Assert.IsNull(JobEventMessages.For(new JobStarted(BranchName.From("ai/1-x"), new WorktreePath("/w"), ClaudeSessionId.New(), at)), "the starter is sent when the conversation opens");
-        Assert.IsNull(JobEventMessages.For(new DeveloperReplied("ok", "tngo", true, at)), "replies are mirrored by the inbound handler");
+        Assert.IsNull(JobEventMessages.For(new DeveloperReplied("ok", "tngo", true, at)), "replies are expanded by For(events): a mirror plus an acknowledgement");
     }
 
     private static TestContext WithChats(params string[] keys)

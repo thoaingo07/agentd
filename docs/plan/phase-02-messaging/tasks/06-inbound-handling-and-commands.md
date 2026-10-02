@@ -61,6 +61,33 @@ mirrors them to the job's other conversations.
 - Each command's happy path + unknown command; `run` in a thread vs in the parent space.
 - Mirroring: a reply in Telegram → one outbox row for Discord, none for Telegram.
 
+## As built
+Split into two PRs. **Part 1** (this one): dedupe, authorization, routing, and developer messages
+with mirroring. **Part 2:** the commands, plus retrying missing conversation opens.
+
+- **Dedupe:**
+  - `inbound_try_record` claims a provider message (`ON CONFLICT DO NOTHING`) and the outcome is
+    stored afterwards;
+  - if handling throws, `inbound_forget` releases the claim so the provider's redelivery is handled
+    again. That's at-least-once processing, never silently dropped.
+- **Strangers** (unknown or inactive users) are logged at Information level and get no reply.
+- **`SubmitDeveloperMessage`:**
+  - a reply to a `WaitingForHuman` job resumes it;
+  - a reply to a `Running` job is queued;
+  - any other state returns `NotAccepted`, and the handler replies on the same provider;
+  - **first answer wins:** a reply that loses the race gets a version conflict, reloads the job and
+    is queued instead (up to 5 attempts). This is tested 100 rounds in a row against PostgreSQL's
+    `job_save` version check, and with the in-memory fake.
+- **Mirroring comes from the job's events.** `DeveloperReplied` now carries `Via` (the provider), and
+  `JobEventMessages` turns it into a mirror (`ExceptProviders: [via]`) plus a "Queued for the agent's
+  next turn" acknowledgement (`OnlyProviders: [via]`) when queued. Both are written in the same batch
+  as the job update. That makes the job update and its messages one unit of work; the inbound log is
+  a separate, idempotent step.
+- **Buttons:** a button press arrives with `SelectedOptionId` and the option's label as `Text`.
+  Editing the question message to show the choice is left to the provider (T2.8).
+- **Not yet:** resuming the Claude session after `Resumed` is T2.7. No provider exists yet, so nothing
+  is affected meanwhile.
+
 ## Done when
 - [ ] Every inbound path is covered by Application tests with fake ports.
-- [ ] Race test is green 100 times in a row.
+- [x] Race test is green 100 times in a row.

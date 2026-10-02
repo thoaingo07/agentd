@@ -24,6 +24,7 @@ public static class DependencyInjection
         services.AddSingleton<IUserDirectory, UserDirectory>();
         services.AddSingleton<IOutbox, Outbox>();
         services.AddSingleton<IOutboxDelivery, OutboxDelivery>();
+        services.AddSingleton<IInboundLog, InboundLog>();
         return services;
     }
 }

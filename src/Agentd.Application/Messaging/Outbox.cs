@@ -34,7 +34,25 @@ public static class JobEventMessages
     public static IReadOnlyList<OutboxMessage> For(IEnumerable<IDomainEvent> events)
     {
         ArgumentNullException.ThrowIfNull(events);
-        return events.Select(For).OfType<OutboxMessage>().ToList();
+        return events.SelectMany(e => e is DeveloperReplied reply ? ForReply(reply) : For(e) is { } message ? [message] : []).ToList();
+    }
+
+    /// <summary>
+    /// A chat reply is mirrored to the job's other conversations, and a reply queued while the agent
+    /// is running is acknowledged where it was written.
+    /// </summary>
+    private static IEnumerable<OutboxMessage> ForReply(DeveloperReplied e)
+    {
+        if (e.Via is not { } via)
+        {
+            yield break;
+        }
+
+        yield return new(MessageCatalog.Mirrored(e.From, via.Value, e.Reply), new EnqueueOptions(ExceptProviders: [via]));
+        if (!e.Resumed)
+        {
+            yield return new(new OutboundMessage(MessageKind.Info, "Queued for the agent's next turn."), new EnqueueOptions(OnlyProviders: [via]));
+        }
     }
 
     public static OutboxMessage? For(IDomainEvent domainEvent) => domainEvent switch

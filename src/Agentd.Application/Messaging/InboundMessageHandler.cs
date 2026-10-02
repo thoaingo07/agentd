@@ -1,0 +1,111 @@
+using Agentd.Application.Abstractions;
+using Agentd.Application.Jobs;
+using Agentd.Application.Ports;
+using Agentd.Application.Users;
+using Agentd.Domain.Jobs.ValueObjects;
+using Agentd.Domain.Messaging;
+using Agentd.Domain.Users;
+using Microsoft.Extensions.Logging;
+
+namespace Agentd.Application.Messaging;
+
+/// <summary>Inbound idempotency (PostgreSQL routines).</summary>
+public interface IInboundLog
+{
+    /// <summary>Claims a provider message; false when it was already handled.</summary>
+    Task<bool> TryRecordAsync(ProviderKey provider, string externalMessageId, DateTimeOffset receivedAt, CancellationToken cancellationToken);
+
+    Task SetOutcomeAsync(ProviderKey provider, string externalMessageId, string outcome, JobId? jobId, UserId? userId, CancellationToken cancellationToken);
+
+    /// <summary>Releases a claim after a failure, so a redelivery is handled again.</summary>
+    Task ForgetAsync(ProviderKey provider, string externalMessageId, CancellationToken cancellationToken);
+}
+
+/// <summary>What became of an inbound message (also stored as <c>inbound_messages.outcome</c>).</summary>
+public sealed record InboundOutcome(string Code, JobId? JobId = null);
+
+/// <summary>
+/// Handles every message from every provider: dedupe → authorize (user directory) → route to the job
+/// by its conversation → deliver as a developer message. Strangers get no reply, so the bot isn't
+/// confirmed to them. Mirroring to the job's other conversations comes from the job's events.
+/// Commands are handled in the next step of T2.6.
+/// </summary>
+public sealed partial class InboundMessageHandler(
+    IInboundLog log,
+    IUserDirectory users,
+    IConversationStore conversations,
+    ICommandHandler<SubmitDeveloperMessage, DeveloperMessageOutcome> submit,
+    IOutbox outbox,
+    ILogger<InboundMessageHandler> logger) : IInboundMessageSink
+{
+    public Task HandleAsync(InboundMessage message, CancellationToken cancellationToken) => ProcessAsync(message, cancellationToken);
+
+    public async Task<InboundOutcome> ProcessAsync(InboundMessage message, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(message);
+        if (!await log.TryRecordAsync(message.Provider, message.ExternalMessageId, message.SentAt, cancellationToken).ConfigureAwait(false))
+        {
+            return new InboundOutcome("duplicate");
+        }
+
+        try
+        {
+            var user = await users.FindByIdentityAsync(message.Provider, message.ExternalUserId, cancellationToken).ConfigureAwait(false);
+            var outcome = user is { IsActive: true }
+                ? await RouteAsync(message, user, cancellationToken).ConfigureAwait(false)
+                : Unknown(message);
+            await log.SetOutcomeAsync(message.Provider, message.ExternalMessageId, outcome.Code, outcome.JobId, user?.Id, cancellationToken).ConfigureAwait(false);
+            return outcome;
+        }
+        catch
+        {
+            await log.ForgetAsync(message.Provider, message.ExternalMessageId, CancellationToken.None).ConfigureAwait(false);
+            throw;
+        }
+    }
+
+    private async Task<InboundOutcome> RouteAsync(InboundMessage message, AgentdUser user, CancellationToken ct)
+    {
+        var conversation = await conversations.FindExternalAsync(message.Provider, message.ExternalConversationId, ct).ConfigureAwait(false);
+        if (conversation is null)
+        {
+            return new InboundOutcome("ignored_no_job");
+        }
+
+        if (message.Command is not null)
+        {
+            return new InboundOutcome("command_unsupported", conversation.JobId);
+        }
+
+        // A button press carries the option's label as its text.
+        if (string.IsNullOrWhiteSpace(message.Text))
+        {
+            return new InboundOutcome("ignored_empty", conversation.JobId);
+        }
+
+        var result = await submit.Handle(new SubmitDeveloperMessage(conversation.JobId, message.Text, user.Name, message.Provider), ct).ConfigureAwait(false);
+        if (!result.IsSuccess)
+        {
+            return new InboundOutcome($"rejected:{result.Error.Code}", conversation.JobId);
+        }
+
+        if (result.Value == DeveloperMessageOutcome.NotAccepted)
+        {
+            await outbox.EnqueueAsync(conversation.JobId,
+                [new OutboxMessage(new OutboundMessage(MessageKind.Info, "This job doesn't take messages right now (it isn't running)."), new EnqueueOptions(OnlyProviders: [message.Provider]))],
+                ct).ConfigureAwait(false);
+            return new InboundOutcome("not_accepted", conversation.JobId);
+        }
+
+        return new InboundOutcome(result.Value == DeveloperMessageOutcome.Resumed ? "resumed" : "queued", conversation.JobId);
+    }
+
+    private InboundOutcome Unknown(InboundMessage message)
+    {
+        LogUnknownUser(logger, message.Provider.Value, message.ExternalUserId);
+        return new InboundOutcome("ignored_unknown_user");
+    }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Ignored a {Provider} message from unknown or inactive user {ExternalUserId}")]
+    private static partial void LogUnknownUser(ILogger logger, string provider, string externalUserId);
+}

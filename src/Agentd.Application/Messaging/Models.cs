@@ -84,7 +84,7 @@ public sealed record Attachment(string FileName, string ContentType, ReadOnlyMem
 /// <param name="UserDisplayName">The sender's display name, for transcripts.</param>
 /// <param name="Text">The message text, when it is a plain message.</param>
 /// <param name="Command">A normalized command (slash command), when it is one.</param>
-/// <param name="SelectedOptionId">The option id of a pressed button.</param>
+/// <param name="SelectedOptionId">The option id of a pressed button; <paramref name="Text"/> then carries the option's label.</param>
 /// <param name="SentAt">When the platform says it was sent.</param>
 public sealed record InboundMessage(
     ProviderKey Provider,
