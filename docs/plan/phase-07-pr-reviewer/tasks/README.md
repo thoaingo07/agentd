@@ -15,3 +15,4 @@ Task index for [Phase 7 — PR Reviewer + PR dashboard](../README.md).
 | T7.7 | BFF endpoints (`/api/prs…`, `/api/repos/{repo}/reviewers`, `POST …/reviews`) + role policies. | ☐ detail pending |
 | T7.8 | UI: PullRequestsView, the Run review modal, PullRequestView (Reviews / Threads / Trace). | ☐ detail pending |
 | T7.9 | The chat command. | ☐ detail pending |
+| T7.10 | The PR explainer ([Tulip reference](../../../architect/references/tulip.md)): categorize, split, classify with coverage, explain per category with diagrams; the Explain tab. | ☐ detail pending |

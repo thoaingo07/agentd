@@ -42,6 +42,14 @@ Design refs: [pr-reviewer-and-monitor.md §1, §3, §6](../../architect/pr-revie
   - the `pullRequests` store.
 - **Chat:** `/review <pr> [reviewers]`.
 
+- **PR explainer** (inspired by [VirtusLab Tulip](../../architect/references/tulip.md)): an **Explain**
+  tab on `/prs/:repo/:id`.
+  - Changes are grouped by concern and ordered by attention (*Read closely* / *Read through* / *Skim*).
+  - Each group gets prose, a validated Mermaid diagram and its diffs. Every change is covered, which is
+    checked in code.
+  - It runs as a `PrExplain` job on the review worktree, on demand or automatically for PRs agentd opened.
+  - Reviewer findings are shown inside the category they belong to.
+
 **Out:** fixing (Phase 8), hotfix (Phase 8), `scope: all` monitoring (Phase 8).
 
 ---
@@ -62,6 +70,8 @@ Task index: [tasks/README.md](tasks/README.md) (the detail files are written whe
 7. BFF endpoints (`/api/prs…`, `/api/repos/{repo}/reviewers`, `POST …/reviews`) + role policies.
 8. UI: PullRequestsView, the Run review modal, PullRequestView (Reviews / Threads / Trace).
 9. The chat command.
+10. The PR explainer: categorize → split large changes → classify (coverage checked in code) → explain
+    per category (diagram validated) → stored per head commit → Explain tab.
 
 ## Exit criteria (the demo)
 
@@ -73,10 +83,14 @@ Task index: [tasks/README.md](tasks/README.md) (the detail files are written whe
   A thread marked `wontFix` is not re-posted.
 - A PR that touches `src/Agentd.Bff/**` triggers `security` automatically on creation.
 - A job's Review phase now uses the kit's `workflow.review.reviewers`.
+- The Explain tab of an agentd-opened PR shows attention-ordered categories with diagrams, and every
+  changed line is reachable from it.
 
 ## Risks / open questions for review
 
 - **The initial reviewer set and their instructions:** do you want to write or tune these first?
 - **Noise control:** default `severityThreshold` and `maxFindings` per reviewer.
+- **PR explainer cost:** generate automatically for every agentd-opened PR, or only on demand? Mermaid
+  bundled client-side (lazy) or rendered server-side?
 - **Auto-review default:** on creation only for agentd PRs, or for all PRs by authorized authors?
 - **Identity:** agentd posts as the PAT or service-principal identity. Which ADO account should that be?
