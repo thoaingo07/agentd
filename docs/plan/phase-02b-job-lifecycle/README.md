@@ -55,10 +55,11 @@ Every arrow posts to the work item's thread.
 - `!status` gives the same snapshot on demand.
 
 ### Heartbeat (every minute)
-- **Liveness (decided: edit one message, with a timestamp):** while a job is active, agentd **edits**
-  the thread's live status message **every minute**. For example: "🟢 working · implement · last
-  activity 20 s ago · 12 min elapsed · updated 14:07:00 UTC", or "⏸ waiting for you since 14:05 ·
-  updated 14:07:00 UTC". No new posts pile up, and the timestamp shows the heartbeat is current.
+- **Liveness (decided: delete and re-post, with a timestamp):** while a job is active, agentd posts a
+  heartbeat **every minute** and **deletes the previous heartbeat**, so the latest status is always
+  the last message in the thread and only one heartbeat exists at a time. For example: "🟢 working ·
+  implement · last activity 20 s ago · 12 min elapsed · 14:07:00 UTC", or "⏸ waiting for you since
+  14:05 · 14:07:00 UTC". This needs `DeleteAsync` on the provider port.
 - **Stuck agent:** if the agent produces no output for 5 minutes (configurable), agentd posts a
   **⚠️ no activity** message, and posts again when activity resumes. The existing idle timeout still
   stops a hung process.
