@@ -1,5 +1,7 @@
 # Phase 4 — Workflow phases on MAF + ai-sdlc kit v1
 
+> **Note (2026-10-03):** [Phase 2b](../phase-02b-job-lifecycle/README.md) delivers a light, single-session version of parts of this phase (phases and plan gate / PR review fix loop / knowledge hand-off). Build on it rather than re-building it.
+
 **Goal:** every job follows **Design → Plan → Implement → Test → Review**, orchestrated by a
 **Microsoft Agent Framework workflow** with human gates and checkpoints, and driven by the repo's
 **`.agentd/` kit**. This is the biggest phase, and the one that makes agentd behave like a disciplined

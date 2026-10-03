@@ -1,5 +1,7 @@
 # Phase 9 — Learning loop
 
+> **Note (2026-10-03):** [Phase 2b](../phase-02b-job-lifecycle/README.md) delivers a light, single-session version of parts of this phase (phases and plan gate / PR review fix loop / knowledge hand-off). Build on it rather than re-building it.
+
 **Goal:** every run leaves knowledge behind. Candidates are captured during and after runs, a
 curator distills them into `.agentd/learnings.md` through a **Learnings PR**, and merged learnings
 are fed into later runs. Citations then show which learnings actually help.
