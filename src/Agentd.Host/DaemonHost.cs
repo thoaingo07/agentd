@@ -11,7 +11,7 @@ internal static class DaemonHost
 {
     public static async Task<int> RunAsync(string[] args, CancellationToken cancellationToken)
     {
-        var builder = WebApplication.CreateBuilder(args);
+        var builder = WebApplication.CreateBuilder(new WebApplicationOptions { Args = args, ContentRootPath = ContentRoot() });
 
         // Serve Razor class library static assets (Agentd.Web's Vite build under /_content/Agentd.Web/) in every environment.
         builder.WebHost.UseStaticWebAssets();
@@ -51,4 +51,12 @@ internal static class DaemonHost
         await app.RunAsync(cancellationToken).ConfigureAwait(false);
         return 0;
     }
+
+    /// <summary>
+    /// The current directory when it holds the app's settings (<c>dotnet run</c>, Aspire, tests);
+    /// otherwise the binary's own directory, so <c>agentd</c> started from anywhere (systemd, a shell)
+    /// still reads its <c>appsettings*.json</c>.
+    /// </summary>
+    internal static string? ContentRoot() =>
+        File.Exists(Path.Combine(Directory.GetCurrentDirectory(), "appsettings.json")) ? null : AppContext.BaseDirectory;
 }
