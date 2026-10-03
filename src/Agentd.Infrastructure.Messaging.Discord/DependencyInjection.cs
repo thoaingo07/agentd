@@ -21,6 +21,7 @@ public static class DependencyInjection
         services.AddSingleton(sp => new DiscordRest(() => sp.GetRequiredService<IHttpClientFactory>().CreateClient(HttpClientName)));
         services.AddSingleton<DiscordMessagingProvider>();
         services.AddSingleton<IMessagingProvider>(sp => sp.GetRequiredService<DiscordMessagingProvider>());
+        services.AddHostedService<DiscordPoller>();
         return services;
     }
 }

@@ -61,6 +61,9 @@ public sealed class ConversationStore(NpgsqlDataSource dataSource) : IConversati
         return found.Count > 0 ? found[0] : null;
     }
 
+    public Task<IReadOnlyList<Conversation>> ListOpenAsync(ProviderKey provider, CancellationToken cancellationToken) =>
+        ListAsync("SELECT * FROM agentd.conversation_list_open($1)", cancellationToken, P(provider.Value, NpgsqlDbType.Text));
+
     private async Task<IReadOnlyList<Conversation>> ListAsync(string sql, CancellationToken ct, params NpgsqlParameter[] parameters)
     {
         await using var cmd = dataSource.CreateCommand(sql);

@@ -45,6 +45,16 @@ RETURNS SETOF agentd.conversations
 LANGUAGE sql STABLE
 AS $$ SELECT * FROM agentd.conversations WHERE conversations.job_id = p_job_id ORDER BY conversations.opened_at, conversations.id $$;
 
+-- Open conversations on one provider (a polling provider watches these threads).
+CREATE OR REPLACE FUNCTION agentd.conversation_list_open(p_provider text)
+RETURNS SETOF agentd.conversations
+LANGUAGE sql STABLE
+AS $$
+    SELECT * FROM agentd.conversations
+     WHERE conversations.provider = p_provider AND conversations.closed_at IS NULL
+     ORDER BY conversations.id
+$$;
+
 -- Routes an inbound message: which conversation (and so which job) a provider thread belongs to.
 CREATE OR REPLACE FUNCTION agentd.conversation_find_external(p_provider text, p_external_conversation_id text)
 RETURNS SETOF agentd.conversations
