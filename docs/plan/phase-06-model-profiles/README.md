@@ -1,7 +1,8 @@
 # Phase 6 — Model profiles & multi-provider routing
 
-**Goal:** each phase of each job runs on the right model and account: Claude subscriptions or API
-keys, DeepSeek, GLM, Gemini. The phase lists fall back automatically, a circuit breaker skips
+**Goal:** each phase of each job runs on the right model, account and agent CLI: Claude
+subscriptions or API keys (including Claude Fable), DeepSeek, GLM, Gemini, and **Codex CLI** on a
+ChatGPT plan or an OpenAI API key ([model-profiles.md §1a](../../architect/model-profiles.md#1a-runners-more-than-one-agent-cli-added-2026-10-03)). The phase lists fall back automatically, a circuit breaker skips
 failing profiles, budgets are enforced, and cost is tracked per phase.
 
 Design refs: [model-profiles.md](../../architect/model-profiles.md) ·
@@ -21,6 +22,15 @@ Design refs: [model-profiles.md](../../architect/model-profiles.md) ·
   - `ANTHROPIC_BASE_URL`, the credential and `ANTHROPIC_MODEL`;
   - `ANTHROPIC_DEFAULT_HAIKU_MODEL`, `CLAUDE_CONFIG_DIR` and `API_TIMEOUT_MS`;
   - the other profiles' secrets stripped.
+- **`CodexCliRunner`** (`Infrastructure.Codex`, added 2026-10-03):
+  - profile kinds `ChatGptSubscription` (`codex login` into the profile's own `CODEX_HOME`) and
+    `OpenAiApi`;
+  - agentd's MCP server configured per process;
+  - JSON events mapped to the existing `agent.*` types;
+  - read-only sandbox for read-only steps;
+  - the provider contract-style test suite shared with `ClaudeCodeRunner`.
+- **Cycle step → routing key** (clarify → Design, verify → Test, hand-off → Distill, …). A profile
+  or runner switch ends the turn at the step boundary.
 - **Per-profile concurrency semaphores, circuit breakers and daily budgets.** Cost is computed from
   token usage × `Pricing`, not from `total_cost_usd`.
 - **Mid-phase fallback:** restart the phase on the next profile with the handoff (commits kept).
@@ -51,7 +61,9 @@ Task index: [tasks/README.md](tasks/README.md) (the detail files are written whe
    - one Anthropic API key;
    - DeepSeek and GLM (Anthropic-compatible endpoints);
    - Gemini for non-coding steps.
-9. UI: ModelsView, stepper profile labels, `/api/models`.
+9. `CodexCliRunner` with the shared runner contract tests; onboard a Codex CLI profile (ChatGPT
+   login), a Codex API profile (OpenAI key), and a Claude Fable profile.
+10. UI: ModelsView, stepper profile labels, `/api/models`.
 
 ## Exit criteria (the demo)
 
@@ -59,6 +71,9 @@ Task index: [tasks/README.md](tasks/README.md) (the detail files are written whe
   - it completes;
   - the stepper shows the profile and cost for each phase;
   - `job_sessions` shows a new session at the Plan → Implement boundary, seeded with the handoff.
+- Work item #5613 with clarify/plan on Claude Fable, implement on Codex CLI and verify on DeepSeek:
+  - each step's transcript looks the same in the Web UI and in Discord;
+  - `job_sessions` shows one session per runner and profile.
 - Revoking the DeepSeek key mid-Implement → that profile's breaker opens → the phase restarts on
   GLM with its commits intact, and chat shows an alert.
 - `kit.json` asking for a profile that isn't in `AllowedProfiles` is ignored, with a warning.

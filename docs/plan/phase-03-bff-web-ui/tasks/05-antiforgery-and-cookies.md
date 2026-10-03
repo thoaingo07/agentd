@@ -51,6 +51,11 @@ filter on the `/api` and `/bff` groups validates every unsafe method.
 7. **Loopback guard (Mode None):** at startup, if `Auth.Mode == None` and any bound address is not
    loopback, **refuse to start** with a clear error. `LocalUserAuthenticationHandler` also rejects
    requests whose `RemoteIpAddress` is not loopback, as a second layer.
+   - **Forwarded requests are not local** (added 2026-10-03). A reverse proxy or tunnel on the same
+     server (`cloudflared`, nginx, Caddy) connects from `127.0.0.1`, which would make every visitor
+     the local Admin. So a request carrying `Forwarded`, `X-Forwarded-For`, `X-Real-IP`,
+     `Cf-Connecting-IP` or `Cf-Ray` is rejected (401) in Mode None. Publishing through Cloudflare
+     uses Mode `CloudflareAccess` (T3.14) instead.
 
 ## Tests
 - `Bff.Tests`:
@@ -61,10 +66,11 @@ filter on the `/api` and `/bff` groups validates every unsafe method.
     and no `Domain`;
   - no response carries `Access-Control-Allow-Origin`;
   - a GET endpoint works without the header.
+- A loopback request with `X-Forwarded-For` or `Cf-Connecting-IP` → 401 in Mode None.
 - Startup test: Mode None + `Urls=http://0.0.0.0:7780` → the host fails to start.
 
 ## Done when
 - [ ] Every unsafe method under `/api` and `/bff` requires a valid `X-XSRF-TOKEN`.
 - [ ] No cookie set by agentd is readable by JavaScript.
-- [ ] Mode None refuses non-loopback binding and non-loopback clients.
+- [ ] Mode None refuses non-loopback binding, non-loopback clients, and forwarded requests.
 - [ ] CORS is not enabled anywhere.
