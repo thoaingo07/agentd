@@ -31,3 +31,6 @@ public sealed class ReviewLoop : SqlMigration;
 
 [Migration(2026_10_06_0001, "Knowledge hand-off: handoff_status")]
 public sealed class Handoff : SqlMigration;
+
+[Migration(2026_10_07_0001, "Events partitioned by month")]
+public sealed class EventsPartitioned : SqlMigration;

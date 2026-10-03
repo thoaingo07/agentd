@@ -64,7 +64,7 @@ Detailed tasks: [tasks/README.md](tasks/README.md)
 
 | ID | Task | Depends on | Size | Status |
 |---|---|---|---|---|
-| T3.1 | [Event store and live publisher](tasks/01-event-store-and-publisher.md) | Phase 1 (`events` table, `RecordAgentOutput`) | L | ☐ |
+| T3.1 | [Event store and live publisher](tasks/01-event-store-and-publisher.md) | Phase 1 (`events` table, `RecordAgentOutput`) | L | ☑ |
 | T3.2 | [BFF endpoints and view models](tasks/02-bff-endpoints-and-view-models.md) | T3.1, Phase 2 (`SubmitDeveloperMessage`) | M | ☐ |
 | T3.3 | [OpenAPI document and generated TypeScript types](tasks/03-openapi-and-ts-types.md) | T3.2 | S | ☐ |
 | T3.4 | [SignalR events hub with replay](tasks/04-signalr-events-hub.md) | T3.1 | M | ☐ |
