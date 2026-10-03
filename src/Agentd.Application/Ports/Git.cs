@@ -17,6 +17,12 @@ public interface IWorktreeManager
 
     Task<WorktreePath> CreateAsync(Repository repository, WorkItemId workItem, BranchName branch, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// The work item's worktree, at its usual path, on <paramref name="branch"/> from the latest base branch
+    /// (an existing worktree there is replaced). The path stays the same, so the Claude session can resume.
+    /// </summary>
+    Task<WorktreePath> RecreateAsync(Repository repository, WorkItemId workItem, BranchName branch, CancellationToken cancellationToken);
+
     Task<bool> HasCommitsAheadAsync(Repository repository, WorktreePath worktree, CancellationToken cancellationToken);
 
     /// <summary>Pushes the branch. Never force-pushes.</summary>

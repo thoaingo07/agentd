@@ -23,6 +23,22 @@ public sealed class GitWorktreeManagerTests
     }
 
     [TestMethod]
+    public async Task Recreating_keeps_the_path_and_moves_to_a_new_branch_from_the_latest_base()
+    {
+        using var box = new GitSandbox();
+        var first = await box.Manager.CreateAsync(box.Repository, s_wi, s_branch, default);
+        GitSandbox.Commit(first, "draft.txt", "work\n");
+        var knowledge = BranchName.For(s_wi, "knowledge");
+
+        var second = await box.Manager.RecreateAsync(box.Repository, s_wi, knowledge, default);
+
+        Assert.AreEqual(first.Value, second.Value, "same path, so the Claude session can resume");
+        Assert.AreEqual("ai/1234-knowledge", GitSandbox.Run(second.Value, "rev-parse", "--abbrev-ref", "HEAD"));
+        Assert.AreEqual(GitSandbox.Run(box.RemotePath, "rev-parse", "develop"), GitSandbox.Run(second.Value, "rev-parse", "HEAD"));
+        Assert.IsFalse(File.Exists(Path.Combine(second.Value, "draft.txt")), "starts clean from the base branch");
+    }
+
+    [TestMethod]
     public async Task Creating_again_reuses_the_existing_worktree()
     {
         using var box = new GitSandbox();

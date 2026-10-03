@@ -57,7 +57,7 @@ public sealed class McpEndpointTests
 
         var tools = await client.ListToolsAsync();
 
-        CollectionAssert.AreEquivalent(new[] { "finish", "report_progress", "get_work_item", "ask_developer", "set_phase", "submit_plan" }, tools.Select(t => t.Name).ToList());
+        CollectionAssert.AreEquivalent(new[] { "finish", "report_progress", "get_work_item", "ask_developer", "set_phase", "submit_plan", "propose_knowledge" }, tools.Select(t => t.Name).ToList());
         var finish = tools.Single(t => t.Name == "finish");
         var schema = finish.JsonSchema.GetRawText();
         Assert.DoesNotContain("\"user\"", schema, "the caller identity is never a tool argument");

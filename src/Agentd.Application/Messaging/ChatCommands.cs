@@ -28,6 +28,7 @@ public sealed partial class ChatCommands(
     ICommandHandler<CancelJob, Unit> cancel,
     ICommandHandler<RetryJob, int> retry,
     ICommandHandler<ClaimWorkItem, JobId> claim,
+    ICommandHandler<StartHandoff, Unit> handoff,
     IConversationStore conversations,
     ITranscriptReader transcripts,
     IOutbox outbox,
@@ -37,7 +38,7 @@ public sealed partial class ChatCommands(
     public const int LogLines = 200;
 
     public static readonly string Help =
-        "**agentd commands**\n\nIn a job's thread: `status`, `cancel`, `retry` (failed jobs), `logs`.\n" +
+        "**agentd commands**\n\nIn a job's thread: `status`, `cancel`, `retry` (failed jobs), `logs`, `handoff` (after the PR is merged).\n" +
         "Anywhere: `list` (active jobs), `run <work item id>`, `help`.\n\nAny other message in a job's thread goes to the agent.";
 
     public async Task<InboundOutcome> ExecuteAsync(InboundMessage message, AgentdUser user, Conversation? conversation, CancellationToken ct)
@@ -56,7 +57,7 @@ public sealed partial class ChatCommands(
             case "run":
                 reply = await RunAsync(command.Args, ct).ConfigureAwait(false);
                 break;
-            case "status" or "cancel" or "retry" or "logs" when job is null:
+            case "status" or "cancel" or "retry" or "logs" or "handoff" when job is null:
                 reply = new(MessageKind.Info, $"`{name}` works in a job's thread. Use `list` to find one.");
                 break;
             case "status":
@@ -81,13 +82,23 @@ public sealed partial class ChatCommands(
             case "logs":
                 reply = await LogsAsync(job!.Value, ct).ConfigureAwait(false);
                 break;
+            case "handoff":
+                var started = await handoff.Handle(new StartHandoff(job!.Value), ct).ConfigureAwait(false);
+                // On success the HandoffStarted event announces it in the thread.
+                if (started.IsSuccess)
+                {
+                    return new InboundOutcome("command:handoff", job);
+                }
+
+                reply = new(MessageKind.Info, $"Can't start the hand-off: {started.Error.Message}");
+                break;
             default:
                 reply = new(MessageKind.Info, (name == "help" ? "" : $"Unknown command `{name}`.\n\n") + Help);
                 break;
         }
 
         await ReplyAsync(message, job, reply, ct).ConfigureAwait(false);
-        return new InboundOutcome($"command:{(name is "list" or "run" or "status" or "cancel" or "retry" or "logs" or "help" ? name : "unknown")}", job);
+        return new InboundOutcome($"command:{(name is "list" or "run" or "status" or "cancel" or "retry" or "logs" or "handoff" or "help" ? name : "unknown")}", job);
     }
 
     private async Task<OutboundMessage> ListAsync(ProviderKey provider, CancellationToken ct)

@@ -126,7 +126,7 @@ public sealed class ChatCommandsTests
         var options = new MessagingOptions();
         options.Providers["discord"] = new MessagingProviderSettings { Enabled = true };
         var registry = new MessagingProviderRegistry(chat is null ? [] : [chat], Microsoft.Extensions.Options.Options.Create(options));
-        return new ChatCommands(t.Jobs, new GetJobStatusHandler(t.Jobs, t.Clock), t.Cancel(), new RetryJobHandler(t.Jobs), t.Claim(),
+        return new ChatCommands(t.Jobs, new GetJobStatusHandler(t.Jobs, t.Clock), t.Cancel(), new RetryJobHandler(t.Jobs), t.Claim(), t.StartHandoff(),
             t.Conversations, transcripts, outbox, registry, NullLogger<ChatCommands>.Instance);
     }
 

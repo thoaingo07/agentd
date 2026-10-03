@@ -197,6 +197,28 @@ This is a per-repository allowlist; still no `git push`, since agentd pushes.
   - **Own comments:** agentd posts on ADO with the operator's identity, so its PR comments start with
     `🤖 agentd:` and are skipped when reading threads.
   - **Not covered yet:** build/policy failures are not a fix trigger (needs the build logs API).
+- **PR 4a (hand-off):**
+  - **Trigger:** when a PR in review is merged (`Agentd:Jobs:Handoff`, default on), or on **`!handoff`**
+    in the thread for a job that finished before the review loop existed.
+  - **Start (`StartHandoff`):** recreates the work item's worktree **at the same path** on
+    `ai/<id>-knowledge` from the latest base branch (`IWorktreeManager.RecreateAsync`), so the **same
+    Claude session** resumes with full context. The job runs again (`HandoffStatus`: Requested →
+    Proposing → Agreed or Declined; migration 202610060001).
+  - **Proposal turn:** read-only. The agent lists the knowledge and learnings, compares them with
+    `AGENTS.md`/`CLAUDE.md`/docs, and calls **`propose_knowledge`**, which asks with
+    "✅ Sync these changes / ✏️ Change something / 🚫 Don't sync".
+  - **Answers:**
+    - other feedback → revise (still read-only);
+    - agreement → writes the changes and `finish` → the **knowledge sync PR** goes through the same
+      review loop → merged → "🎓 Knowledge synced", then close-out;
+    - decline → "nothing will be synced", then close-out.
+  - **Close-out (same PR):** "🧹 All done. Delete this thread? 1. 🗑 Delete thread · 2. 📦 Keep (archive)".
+    - `1`/"delete" deletes every thread of the job (provider `DeleteConversationAsync`; Discord
+      `DELETE /channels/{thread}`);
+    - `2`/"keep" archives it;
+    - anything else re-asks. Then the job is Done.
+    - agentd handles the answer itself, with no agent turn, and it is not subject to wait reminders or
+      the timeout.
 
 ## Exit criteria (the demo)
 On a sandbox work item:

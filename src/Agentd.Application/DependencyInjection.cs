@@ -48,6 +48,10 @@ public static class DependencyInjection
         services.AddScoped<ICommandHandler<SetPhase, Unit>, SetPhaseHandler>();
         services.AddScoped<ICommandHandler<SubmitPlan, PlanOutcome>, SubmitPlanHandler>();
         services.AddScoped<ICommandHandler<ReviewPullRequests, int>, ReviewPullRequestsHandler>();
+        services.AddScoped<ICommandHandler<StartHandoff, Unit>, StartHandoffHandler>();
+        services.AddScoped<ICommandHandler<ProposeKnowledge, Unit>, ProposeKnowledgeHandler>();
+        services.AddScoped<ICommandHandler<RequestCloseOut, Unit>, RequestCloseOutHandler>();
+        services.AddScoped<ICommandHandler<AnswerCloseOut, bool>, AnswerCloseOutHandler>();
         services.AddSingleton<HeartbeatState>();
         services.AddScoped<ICommandHandler<PostHeartbeats, int>, PostHeartbeatsHandler>();
         services.AddScoped<ICommandHandler<CheckWaitingJobs, int>, CheckWaitingJobsHandler>();

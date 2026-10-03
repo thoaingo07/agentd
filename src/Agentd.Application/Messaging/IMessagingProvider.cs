@@ -26,6 +26,9 @@ public interface IMessagingProvider
     /// <summary>Deletes a message (the previous heartbeat). A no-op when deleting is not supported.</summary>
     Task DeleteAsync(MessageRef message, CancellationToken cancellationToken);
 
+    /// <summary>Deletes the whole thread (close-out, on the developer's confirmation).</summary>
+    Task DeleteConversationAsync(ConversationRef conversation, CancellationToken cancellationToken);
+
     /// <summary>Archives or locks the thread, with a closing note.</summary>
     Task CloseConversationAsync(ConversationRef conversation, string reason, CancellationToken cancellationToken);
 

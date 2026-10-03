@@ -113,7 +113,7 @@ public sealed class ReviewLoopTests
     }
 
     private Task<Domain.Common.Result<int>> Review() =>
-        new ReviewPullRequestsHandler(_t.Jobs, _t.Registry, _t.PullRequests, _t.Worktrees, _t.Outbox, _t.Options).Handle(new ReviewPullRequests(), default);
+        _t.Review().Handle(new ReviewPullRequests(), default);
 
     private static PullRequestComment Comment(int thread, int id, string text, string? file = null, int? line = null, string status = "active") =>
         new(thread, id, "Reviewer", text, file, line, status, DateTimeOffset.UnixEpoch.AddMinutes(id));

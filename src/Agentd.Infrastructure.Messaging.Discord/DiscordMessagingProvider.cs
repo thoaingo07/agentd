@@ -67,6 +67,12 @@ public sealed class DiscordMessagingProvider(DiscordRest rest, IOptions<DiscordO
         await rest.DeleteAsync($"channels/{message.Conversation.ExternalConversationId}/messages/{message.ExternalMessageId}", cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task DeleteConversationAsync(ConversationRef conversation, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(conversation);
+        await rest.DeleteAsync($"channels/{conversation.ExternalConversationId}", cancellationToken).ConfigureAwait(false);
+    }
+
     public async Task CloseConversationAsync(ConversationRef conversation, string reason, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(conversation);

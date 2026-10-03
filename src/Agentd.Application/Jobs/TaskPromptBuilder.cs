@@ -12,13 +12,28 @@ public static class TaskPromptBuilder
     public const string ResumePrompt = "agentd restarted while you were working. Continue where you left off; call `finish` when done.";
 
     /// <summary>The prompt of a turn that delivers developer replies (oldest first).</summary>
-    public static string Replies(IReadOnlyList<string> messages, PlanStatus plan = PlanStatus.NotRequired)
+    /// <summary>The hand-off turn after the PR was merged (same session, new branch, read-only until agreed).</summary>
+    public static string Handoff(Uri? pullRequest, BranchName branch) =>
+        $"""
+        The pull request {pullRequest} was merged. Thank you! Now hand off what you learned, so the next agent starts smarter.
+
+        You are on a new branch `{branch}` from the latest base branch, in the same worktree. You can't edit files until the developer agrees.
+        1. `set_phase` handoff: list the knowledge and learnings from this work item: facts about the codebase, commands that worked (or didn't), sharp edges, decisions and their reasons, and reviewer feedback worth keeping.
+        2. Compare them with what the repository already records (`AGENTS.md`, `CLAUDE.md`, `docs/`, `.agentd/`). Keep only what is durable and not already there; note stale entries to fix or remove.
+        3. Call `propose_knowledge` with exactly what you would change and where (file, section, the new or corrected text). Then END YOUR TURN.
+        4. The developer may ask for changes (revise and propose again) or decline (then you're done).
+        5. Once they agree: make exactly those changes, commit, and call `finish` with a title like "Sync knowledge from WI-…".
+        """;
+
+    public static string Replies(IReadOnlyList<string> messages, PlanStatus plan = PlanStatus.NotRequired, HandoffStatus handoff = HandoffStatus.None)
     {
         ArgumentNullException.ThrowIfNull(messages);
-        var next = plan switch
+        var next = (plan, handoff) switch
         {
-            PlanStatus.Pending => "Your plan is not approved yet: revise it with this feedback and call `submit_plan` again (you still can't edit).",
-            _ => "Continue the work item with this in mind (if this approved your plan: `set_phase` implement, then verify). " +
+            (_, HandoffStatus.Proposing) => "Revise your knowledge proposal with this feedback and call `propose_knowledge` again (you still can't edit).",
+            (_, HandoffStatus.Agreed) => "The developer agreed: make exactly the proposed changes, commit, and call `finish` (title like \"Sync knowledge from WI-…\").",
+            (PlanStatus.Pending, _) => "Your plan is not approved yet: revise it with this feedback and call `submit_plan` again (you still can't edit).",
+            (_, _) => "Continue the work item with this in mind (if this approved your plan: `set_phase` implement, then verify). " +
                  "If these are PR review comments: `set_phase` fix, address each one, commit, verify, and call `finish` again (agentd pushes and replies on the PR threads). " +
                  "Call `finish` when done, or `ask_developer` if you need another decision.",
         };
