@@ -13,3 +13,6 @@ public sealed record DeveloperQuestionAsked(string Question, IReadOnlyList<strin
 /// <see cref="Via"/> is the provider it came through (null from the Web UI or tests).
 /// </summary>
 public sealed record DeveloperReplied(string Reply, string From, bool Resumed, DateTimeOffset OccurredAt, ProviderKey? Via = null) : IDomainEvent;
+
+/// <summary>The job is still waiting for an answer; it fails at <see cref="ExpiresAt"/> without one.</summary>
+public sealed record WaitReminderSent(int Reminder, DateTimeOffset ExpiresAt, DateTimeOffset OccurredAt) : IDomainEvent;

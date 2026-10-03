@@ -91,6 +91,7 @@ public sealed class JobDispatcherTests
         }
 
         var provider = new ServiceCollection()
+            .AddSingleton<ICommandHandler<ResumeJobTurn, AgentRunRequest?>>(new ResumeJobTurnHandler(t.Jobs))
             .AddSingleton<ICommandHandler<StartNextJob, AgentRunRequest?>>(t.StartNext())
             .AddSingleton<ICommandHandler<HandleAgentExit, JobState>>(t.AgentExit())
             .BuildServiceProvider();

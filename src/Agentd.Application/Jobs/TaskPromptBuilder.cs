@@ -10,6 +10,14 @@ public static class TaskPromptBuilder
 {
     public const string ResumePrompt = "agentd restarted while you were working. Continue where you left off; call `finish` when done.";
 
+    /// <summary>The prompt of a turn that delivers developer replies (oldest first).</summary>
+    public static string Replies(IReadOnlyList<string> messages)
+    {
+        ArgumentNullException.ThrowIfNull(messages);
+        return "The developer replied:\n\n" + string.Join("\n", messages.Select(m => "- " + m)) +
+               "\n\nContinue the work item with this in mind. Call `finish` when done, or `ask_developer` if you need another decision.";
+    }
+
     public static string Build(WorkItemDetails item, BranchName branch, string baseBranch)
     {
         ArgumentNullException.ThrowIfNull(item);

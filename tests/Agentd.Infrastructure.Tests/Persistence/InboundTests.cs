@@ -61,7 +61,7 @@ public sealed class InboundTests
             CollectionAssert.AreEquivalent(new[] { DeveloperMessageOutcome.Resumed, DeveloperMessageOutcome.Queued }, results.Select(r => r.Value).ToArray(), $"round {round}");
             var stored = (await repo.GetAsync(job.Id, default))!;
             Assert.AreEqual(JobState.Running, stored.State);
-            Assert.HasCount(1, stored.PendingMessages);
+            Assert.HasCount(2, stored.PendingMessages, "both replies reach the agent");
         }
     }
 

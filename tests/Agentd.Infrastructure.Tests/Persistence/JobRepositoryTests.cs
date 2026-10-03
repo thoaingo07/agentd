@@ -168,7 +168,11 @@ public sealed class JobRepositoryTests
         var loaded = (await repo.GetAsync(job.Id, default))!;
 
         Assert.AreEqual(JobState.WaitingForHuman, loaded.State);
-        CollectionAssert.AreEqual(new[] { "also update the docs" }, loaded.PendingMessages.ToArray());
+        Assert.IsNotNull(loaded.WaitingSince);
+        loaded.RemindWaiting(1, DateTimeOffset.UtcNow.AddDays(3));
+        Assert.IsTrue((await repo.SaveAsync(loaded, default)).IsSuccess);
+        Assert.AreEqual(1, (await repo.GetAsync(job.Id, default))!.WaitReminders);
+        CollectionAssert.AreEqual(new[] { "tngo: also update the docs" }, loaded.PendingMessages.ToArray());
         Assert.AreEqual(loaded.Id, (await repo.FindActiveByWorkItemAsync(loaded.WorkItemId, default))?.Id, "waiting jobs stay active");
         CollectionAssert.IsSubsetOf(new[] { "DeveloperReplied", "DeveloperQuestionAsked" }, await EventTypesAsync(job.Id));
     }

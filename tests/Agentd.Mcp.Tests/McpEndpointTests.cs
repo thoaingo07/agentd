@@ -57,7 +57,7 @@ public sealed class McpEndpointTests
 
         var tools = await client.ListToolsAsync();
 
-        CollectionAssert.AreEquivalent(new[] { "finish", "report_progress", "get_work_item" }, tools.Select(t => t.Name).ToList());
+        CollectionAssert.AreEquivalent(new[] { "finish", "report_progress", "get_work_item", "ask_developer" }, tools.Select(t => t.Name).ToList());
         var finish = tools.Single(t => t.Name == "finish");
         var schema = finish.JsonSchema.GetRawText();
         Assert.DoesNotContain("\"user\"", schema, "the caller identity is never a tool argument");
@@ -122,8 +122,41 @@ public sealed class McpEndpointTests
         var progress = host.Events.Appended.Single(e => e.Type == "progress.reported");
         Assert.AreEqual(9L, progress.JobId);
         StringAssert.Contains(progress.Payload, "Reproduced the bug");
+        var update = host.Outbox.Enqueued.Single();
+        Assert.AreEqual(9L, update.JobId);
+        Assert.IsTrue(update.Message.Options!.ReplaceStatusMessage, "progress edits the live status message");
         StringAssert.Contains(Text(item), "# 900: Fix login");
         StringAssert.Contains(Text(item), "Redirects once.");
+    }
+
+    [TestMethod]
+    public async Task Ask_developer_puts_the_job_in_waiting_for_human()
+    {
+        await using var host = await McpTestHost.StartAsync();
+        host.RunningJob(id: 11, workItem: 1100);
+        await using var client = await host.ClientAsync(host.Tokens.Issue(new JobId(11)));
+
+        var result = await client.CallToolAsync("ask_developer", new Dictionary<string, object?> { ["question"] = "v1 or v2?", ["options"] = new[] { "v1", "v2" } });
+
+        StringAssert.Contains(Text(result), "End your turn now");
+        Assert.AreEqual(JobState.WaitingForHuman, (await host.Jobs.GetAsync(new JobId(11), default))!.State);
+    }
+
+    [TestMethod]
+    [DataRow("", 0)]
+    [DataRow("ok?", 6)]
+    public async Task Ask_developer_validates_the_question_and_options(string question, int options)
+    {
+        await using var host = await McpTestHost.StartAsync();
+        host.RunningJob(id: 12, workItem: 1200);
+        await using var client = await host.ClientAsync(host.Tokens.Issue(new JobId(12)));
+
+        var result = await CallAllowingErrorAsync(client, "ask_developer",
+            new Dictionary<string, object?> { ["question"] = question, ["options"] = Enumerable.Range(1, options).Select(i => $"o{i}").ToArray() });
+
+        Assert.IsTrue(result.IsError ?? false);
+        StringAssert.Contains(Text(result), "ask_developer failed");
+        Assert.AreEqual(JobState.Running, (await host.Jobs.GetAsync(new JobId(12), default))!.State);
     }
 
     private static async Task<CallToolResult> CallAllowingErrorAsync(ModelContextProtocol.Client.McpClient client, string tool, IReadOnlyDictionary<string, object?> args)

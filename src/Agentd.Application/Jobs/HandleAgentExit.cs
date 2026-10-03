@@ -40,6 +40,12 @@ public sealed class HandleAgentExitHandler(
             return job.State;
         }
 
+        // Developer replies arrived during the turn: stay Running; the scheduler starts a resume turn with them.
+        if (command.Outcome is AgentRunOutcome.Exited { Summary.IsError: not true } && job.PendingMessages.Count > 0)
+        {
+            return job.State;
+        }
+
         var changed = command.Outcome switch
         {
             AgentRunOutcome.UsageLimited u => job.Defer(u.ResetAt ?? clock.UtcNow.Add(options.Value.UsageLimitBackoff), "Claude usage limit reached; waiting for it to reset."),

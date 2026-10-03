@@ -53,6 +53,8 @@ internal static class JobRows
             r.GetFieldValue<DateTimeOffset>(r.GetOrdinal("created_at")),
             r.GetFieldValue<DateTimeOffset>(r.GetOrdinal("updated_at")),
             r.GetInt64(r.GetOrdinal("version")),
-            r.GetFieldValue<string[]>(r.GetOrdinal("pending_messages")));
+            r.GetFieldValue<string[]>(r.GetOrdinal("pending_messages")),
+            r.IsDBNull(r.GetOrdinal("waiting_since")) ? null : r.GetFieldValue<DateTimeOffset>(r.GetOrdinal("waiting_since")),
+            r.GetInt32(r.GetOrdinal("wait_reminders")));
     }
 }

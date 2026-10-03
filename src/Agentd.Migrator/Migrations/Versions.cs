@@ -19,3 +19,6 @@ public sealed class PublishAttempts : SqlMigration;
 
 [Migration(2026_10_01_0001, "Messaging: WaitingForHuman, conversations, outbox, inbound idempotency, users")]
 public sealed class Messaging : SqlMigration;
+
+[Migration(2026_10_03_0001, "Wait for human: waiting_since and wait_reminders")]
+public sealed class WaitForHuman : SqlMigration;

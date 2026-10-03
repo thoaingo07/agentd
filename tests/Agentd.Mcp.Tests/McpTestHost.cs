@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using Agentd.Application.Abstractions;
 using Agentd.Application.Jobs;
+using Agentd.Application.Messaging;
 using Agentd.Application.Ports;
 using Agentd.Domain.Common;
 using Agentd.Domain.Jobs;
@@ -17,12 +18,15 @@ internal sealed class McpTestHost : IAsyncDisposable
 {
     private readonly WebApplication _app;
 
-    private McpTestHost(WebApplication app, FakeJobs jobs, FakeEvents events)
+    private McpTestHost(WebApplication app, FakeJobs jobs, FakeEvents events, FakeOutbox outbox)
     {
         _app = app;
         Jobs = jobs;
         Events = events;
+        Outbox = outbox;
     }
+
+    public FakeOutbox Outbox { get; }
 
     public FakeJobs Jobs { get; }
 
@@ -36,6 +40,7 @@ internal sealed class McpTestHost : IAsyncDisposable
     {
         var jobs = new FakeJobs();
         var events = new FakeEvents();
+        var outbox = new FakeOutbox();
         var builder = WebApplication.CreateSlimBuilder();
         builder.WebHost.UseTestServer();
         builder.Services.AddSingleton<IClock>(new Clock());
@@ -44,6 +49,9 @@ internal sealed class McpTestHost : IAsyncDisposable
         builder.Services.AddSingleton<IWorkItemSource, WorkItems>();
         builder.Services.AddSingleton<ICommandHandler<PublishPullRequest, PullRequestRef>, Publish>();
         builder.Services.AddScoped<ICommandHandler<FinishWork, PullRequestRef>, FinishWorkHandler>();
+        builder.Services.AddScoped<ICommandHandler<AskDeveloper, Unit>, AskDeveloperHandler>();
+        builder.Services.AddScoped<ICommandHandler<ReportProgress, Unit>, ReportProgressHandler>();
+        builder.Services.AddSingleton<IOutbox>(outbox);
         builder.Services.AddAgentdMcp();
 
         var app = builder.Build();
@@ -53,7 +61,7 @@ internal sealed class McpTestHost : IAsyncDisposable
         app.MapAgentdMcp();
         await app.StartAsync();
 
-        return new McpTestHost(app, jobs, events);
+        return new McpTestHost(app, jobs, events, outbox);
     }
 
     /// <summary>An MCP client authenticated with <paramref name="token"/>, like Claude Code with its mcp.json.</summary>
@@ -125,6 +133,21 @@ internal sealed class McpTestHost : IAsyncDisposable
         {
             Appended.Enqueue((jobId?.Value, type, payloadJson));
             return Task.FromResult((long)Appended.Count);
+        }
+    }
+
+    internal sealed class FakeOutbox : IOutbox
+    {
+        public ConcurrentQueue<(long JobId, OutboxMessage Message)> Enqueued { get; } = new();
+
+        public Task EnqueueAsync(JobId jobId, IReadOnlyList<OutboxMessage> messages, CancellationToken cancellationToken)
+        {
+            foreach (var message in messages)
+            {
+                Enqueued.Enqueue((jobId.Value, message));
+            }
+
+            return Task.CompletedTask;
         }
     }
 
