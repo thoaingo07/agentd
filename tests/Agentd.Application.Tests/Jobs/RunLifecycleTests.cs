@@ -31,7 +31,7 @@ public sealed class RunLifecycleTests
         Assert.AreEqual("ai/1234-fix-login", t.Worktrees.Created.Single());
         StringAssert.Contains(request.Prompt, "Work item 1234: Fix login");
         StringAssert.Contains(request.Prompt, "`develop`");
-        StringAssert.Contains(request.Prompt, "call the `finish` tool");
+        StringAssert.Contains(request.Prompt, "Call `finish` with a pull request title");
         Assert.AreEqual(JobState.Running, t.Jobs.Get(request.JobId).State);
     }
 

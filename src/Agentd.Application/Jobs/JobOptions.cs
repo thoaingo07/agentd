@@ -24,6 +24,12 @@ public sealed class JobOptions
     /// <summary>How long a job waits for a developer's answer before it fails (reminders at 50% and 90%).</summary>
     public TimeSpan WaitForHumanTimeout { get; set; } = TimeSpan.FromDays(3);
 
+    /// <summary>The agent works read-only until the developer approves its plan (skip per item with <see cref="AutoTag"/>).</summary>
+    public bool RequirePlanApproval { get; set; } = true;
+
+    /// <summary>Work item tag that skips plan approval (the plan is still posted).</summary>
+    public string AutoTag { get; set; } = "ai-auto";
+
     /// <summary>How often the thread's heartbeat is re-posted (the previous one is deleted).</summary>
     public TimeSpan HeartbeatInterval { get; set; } = TimeSpan.FromMinutes(1);
 

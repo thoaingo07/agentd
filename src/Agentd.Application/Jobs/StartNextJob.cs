@@ -2,6 +2,7 @@ using Agentd.Application.Abstractions;
 using Agentd.Application.Messaging;
 using Agentd.Application.Ports;
 using Agentd.Domain.Common;
+using Agentd.Domain.Jobs;
 using Agentd.Domain.Jobs.ValueObjects;
 using Microsoft.Extensions.Options;
 
@@ -57,10 +58,14 @@ public sealed class StartNextJobHandler(
             {
                 item = await workItems.GetAsync(job.WorkItemId.Value, cancellationToken).ConfigureAwait(false)
                     ?? throw new InvalidOperationException($"Work item {job.WorkItemId} no longer exists.");
-                prompt = TaskPromptBuilder.Build(item, branch, repository.BaseBranch);
+                prompt = TaskPromptBuilder.Build(item, branch, repository.BaseBranch,
+                    options.Value.RequirePlanApproval && !item.Tags.Contains(options.Value.AutoTag, StringComparer.OrdinalIgnoreCase));
             }
 
-            var started = job.Start(worktree, branch, session);
+            // Plan approval (on by default): the first turns are read-only until the developer approves.
+            var gate = item is not null && options.Value.RequirePlanApproval
+                && !item.Tags.Contains(options.Value.AutoTag, StringComparer.OrdinalIgnoreCase);
+            var started = job.Start(worktree, branch, session, gate);
             if (!started.IsSuccess)
             {
                 return started.Error;
@@ -79,7 +84,7 @@ public sealed class StartNextJobHandler(
                 await outbox.TryEnqueueAsync(job.Id, MessageCatalog.Started(job, item, repository.BaseBranch), cancellationToken).ConfigureAwait(false);
             }
 
-            return new AgentRunRequest(job.Id, job.WorkItemId, worktree, session, prompt, resume);
+            return new AgentRunRequest(job.Id, job.WorkItemId, worktree, session, prompt, resume, ReadOnly: job.PlanStatus == PlanStatus.Pending);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {

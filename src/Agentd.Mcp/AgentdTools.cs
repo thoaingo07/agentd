@@ -24,7 +24,8 @@ public sealed class AgentdTools(
     ICommandHandler<AskDeveloper, Unit> ask,
     ICommandHandler<ReportProgress, Unit> progress,
     ICommandHandler<TakeDeveloperMessages, IReadOnlyList<string>> unread,
-    ICommandHandler<SetPhase, Unit> phases)
+    ICommandHandler<SetPhase, Unit> phases,
+    ICommandHandler<SubmitPlan, PlanOutcome> plans)
 {
     [McpServerTool(Name = "finish"), Description(
         "Call exactly once when the work item is complete and all changes are committed. agentd pushes your branch and " +
@@ -64,6 +65,26 @@ public sealed class AgentdTools(
         return result.IsSuccess
             ? await WithUnreadAsync($"Phase set to {phase}.", cancellationToken).ConfigureAwait(false)
             : throw new McpException($"set_phase failed: {result.Error.Message}");
+    }
+
+    [McpServerTool(Name = "submit_plan"), Description(
+        "Submit your implementation plan with an estimate. If the developer must approve it, it is posted for approval and you must END YOUR TURN " +
+        "(you can't edit files until it's approved; you'll be resumed with their decision). Otherwise it is posted and you continue.")]
+    public async Task<string> SubmitPlan(
+        [Description("The plan in Markdown: the options you considered, the chosen approach, the files to change, how you'll verify (up to 1,800 characters).")] string plan,
+        [Description("Estimated time to implement and verify, in minutes.")] int estimateMinutes,
+        [Description("Estimated share of the 5-hour Claude usage window this will take, in percent (0–100).")] int estimateUsagePercent,
+        CancellationToken cancellationToken)
+    {
+        var result = await plans.Handle(new SubmitPlan(CurrentJob(), plan, estimateMinutes, estimateUsagePercent), cancellationToken).ConfigureAwait(false);
+        if (!result.IsSuccess)
+        {
+            throw new McpException($"submit_plan failed: {result.Error.Message}");
+        }
+
+        return result.Value == PlanOutcome.AwaitingApproval
+            ? "Plan posted for the developer's approval. End your turn now; you will be resumed with their decision."
+            : await WithUnreadAsync("Plan posted. Continue with the implementation.", cancellationToken).ConfigureAwait(false);
     }
 
     [McpServerTool(Name = "ask_developer"), Description(

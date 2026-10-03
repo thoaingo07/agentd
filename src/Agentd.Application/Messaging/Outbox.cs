@@ -78,6 +78,7 @@ public static class JobEventMessages
         JobDeferred e => new(MessageCatalog.Deferred(e.NotBefore, e.Reason)),
         JobRecovered => new(new OutboundMessage(MessageKind.Info, "agentd restarted; the agent is resuming where it left off.")),
         DeveloperQuestionAsked e => new(MessageCatalog.Question(e.Question, Options(e.Options))),
+        PlanApproved e => new(new OutboundMessage(MessageKind.Info, $"✅ **Plan approved** by {e.By}. Implementing…")),
         WaitReminderSent e => new(new OutboundMessage(MessageKind.Info, string.Create(CultureInfo.InvariantCulture,
             $"**Reminder:** the agent is still waiting for your answer to the question above. Without a reply, the job stops at {e.ExpiresAt:yyyy-MM-dd HH:mm} UTC."))),
         _ => null,

@@ -23,6 +23,7 @@ public sealed class PublishPullRequestHandler(
     IPullRequestService pullRequests,
     IWorkItemSource workItems,
     IOutbox outbox,
+    JobActivity activity,
     IClock clock,
     IOptions<JobOptions> options) : ICommandHandler<PublishPullRequest, PullRequestRef>
 {
@@ -80,6 +81,11 @@ public sealed class PublishPullRequestHandler(
             }
 
             await CommentOnceAsync(job, pr, cancellationToken).ConfigureAwait(false);
+            if (job.Estimate is { } estimate)
+            {
+                await outbox.TryEnqueueAsync(job.Id, MessageCatalog.ActualVsEstimate(estimate, clock.UtcNow, activity.Get(job.Id).Usage?.FiveHour), cancellationToken).ConfigureAwait(false);
+            }
+
             return pr;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)

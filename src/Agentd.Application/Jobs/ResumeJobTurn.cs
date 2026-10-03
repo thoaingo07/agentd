@@ -30,7 +30,8 @@ public sealed class ResumeJobTurnHandler(IJobRepository jobs, IOutbox outbox) : 
             if ((await jobs.SaveAsync(job, cancellationToken).ConfigureAwait(false)).IsSuccess)
             {
                 await outbox.TryEnqueueAsync(job.Id, MessageCatalog.Resumed(messages.Count), cancellationToken).ConfigureAwait(false);
-                return new AgentRunRequest(job.Id, job.WorkItemId, worktree, session, TaskPromptBuilder.Replies(messages), Resume: true);
+                return new AgentRunRequest(job.Id, job.WorkItemId, worktree, session, TaskPromptBuilder.Replies(messages, job.PlanStatus), Resume: true,
+                    ReadOnly: job.PlanStatus == PlanStatus.Pending);
             }
         }
 

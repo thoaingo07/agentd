@@ -9,7 +9,8 @@ public sealed record AgentRunRequest(
     WorktreePath Worktree,
     ClaudeSessionId Session,
     string Prompt,
-    bool Resume);
+    bool Resume,
+    bool ReadOnly = false);
 
 /// <summary>Summary of the agent's final <c>result</c> event, when it produced one.</summary>
 public sealed record AgentResultSummary(int Turns, string? ErrorSubtype, bool IsError);

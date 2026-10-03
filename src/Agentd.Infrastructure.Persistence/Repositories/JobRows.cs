@@ -22,6 +22,8 @@ internal static class JobRows
         return rows;
     }
 
+    public static string? EstimateJson(PlanEstimate? estimate) => estimate is null ? null : JsonSerializer.Serialize(estimate, s_json);
+
     public static string EventsJson(IReadOnlyList<IDomainEvent> events) =>
         JsonSerializer.Serialize(events.Select(e => new { type = e.GetType().Name, payload = (object)e }), s_json);
 
@@ -55,6 +57,8 @@ internal static class JobRows
             r.GetInt64(r.GetOrdinal("version")),
             r.GetFieldValue<string[]>(r.GetOrdinal("pending_messages")),
             r.IsDBNull(r.GetOrdinal("waiting_since")) ? null : r.GetFieldValue<DateTimeOffset>(r.GetOrdinal("waiting_since")),
-            r.GetInt32(r.GetOrdinal("wait_reminders")));
+            r.GetInt32(r.GetOrdinal("wait_reminders")),
+            Enum.Parse<PlanStatus>(r.GetString(r.GetOrdinal("plan_status"))),
+            Str("plan_estimate") is { } estimate ? JsonSerializer.Deserialize<PlanEstimate>(estimate, s_json) : null);
     }
 }

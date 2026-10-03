@@ -22,3 +22,6 @@ public sealed class Messaging : SqlMigration;
 
 [Migration(2026_10_03_0001, "Wait for human: waiting_since and wait_reminders")]
 public sealed class WaitForHuman : SqlMigration;
+
+[Migration(2026_10_04_0001, "Plan approval: plan_status and plan_estimate")]
+public sealed class PlanApproval : SqlMigration;
