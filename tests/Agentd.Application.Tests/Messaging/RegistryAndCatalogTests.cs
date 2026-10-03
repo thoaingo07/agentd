@@ -50,6 +50,8 @@ public sealed class RegistryAndCatalogTests
 
         public Task DeleteAsync(MessageRef message, CancellationToken cancellationToken) => Task.CompletedTask;
 
+        public Task DeleteConversationAsync(ConversationRef conversation, CancellationToken cancellationToken) => Task.CompletedTask;
+
         public Uri? GetLink(ConversationRef conversation) => null;
 
         public Task<ProviderHealth> CheckHealthAsync(CancellationToken cancellationToken) => throw new NotSupportedException();

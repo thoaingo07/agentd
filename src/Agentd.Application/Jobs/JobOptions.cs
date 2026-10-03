@@ -33,6 +33,9 @@ public sealed class JobOptions
     /// <summary>After the PR opens, watch it for review comments and merge (In Review) instead of finishing at once.</summary>
     public bool ReviewLoop { get; set; } = true;
 
+    /// <summary>After the PR is merged, hand off the knowledge and learnings (proposal, agreement, sync PR).</summary>
+    public bool Handoff { get; set; } = true;
+
     /// <summary>How often PRs in review are checked.</summary>
     public TimeSpan ReviewPollInterval { get; set; } = TimeSpan.FromMinutes(2);
 

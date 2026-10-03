@@ -36,6 +36,7 @@ public sealed partial class InboundMessageHandler(
     IConversationStore conversations,
     ICommandHandler<SubmitDeveloperMessage, DeveloperMessageOutcome> submit,
     ChatCommands commands,
+    ICommandHandler<AnswerCloseOut, bool> closeOut,
     IOutbox outbox,
     IJobRepository jobs,
     JobActivity activity,
@@ -87,6 +88,11 @@ public sealed partial class InboundMessageHandler(
             return new InboundOutcome("ignored_empty", conversation.JobId);
         }
 
+        if ((await closeOut.Handle(new AnswerCloseOut(conversation.JobId, message.Text), ct).ConfigureAwait(false)) is { IsSuccess: true, Value: true })
+        {
+            return new InboundOutcome("close_out", conversation.JobId);
+        }
+
         var result = await submit.Handle(new SubmitDeveloperMessage(conversation.JobId, message.Text, user.Name, message.Provider), ct).ConfigureAwait(false);
         if (!result.IsSuccess)
         {
@@ -111,7 +117,12 @@ public sealed partial class InboundMessageHandler(
                 ct).ConfigureAwait(false);
         }
 
-        return new InboundOutcome(result.Value == DeveloperMessageOutcome.Resumed ? "resumed" : "queued", conversation.JobId);
+        return new InboundOutcome(result.Value switch
+        {
+            DeveloperMessageOutcome.Resumed => "resumed",
+            DeveloperMessageOutcome.HandoffDeclined => "handoff_declined",
+            _ => "queued",
+        }, conversation.JobId);
     }
 
     private InboundOutcome Unknown(InboundMessage message)

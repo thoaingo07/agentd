@@ -7,7 +7,7 @@ CREATE OR REPLACE FUNCTION agentd.job_save(
     p_pr_title text, p_pr_description text, p_pr_summary text, p_pr_url text,
     p_updated_at timestamptz, p_events jsonb, p_pending_messages text[],
     p_waiting_since timestamptz, p_wait_reminders int, p_plan_status text, p_plan_estimate jsonb,
-    p_fix_rounds int, p_review_state jsonb)
+    p_fix_rounds int, p_review_state jsonb, p_handoff_status text)
 RETURNS bigint
 LANGUAGE plpgsql
 AS $$
@@ -23,7 +23,7 @@ BEGIN
            pending_messages = coalesce(p_pending_messages, '{}'),
            waiting_since = p_waiting_since, wait_reminders = p_wait_reminders,
            plan_status = p_plan_status, plan_estimate = p_plan_estimate,
-           fix_rounds = p_fix_rounds, review_state = p_review_state,
+           fix_rounds = p_fix_rounds, review_state = p_review_state, handoff_status = p_handoff_status,
            updated_at = p_updated_at, version = j.version + 1
      WHERE j.id = p_id AND j.version = p_expected_version
     RETURNING j.version INTO v_version;

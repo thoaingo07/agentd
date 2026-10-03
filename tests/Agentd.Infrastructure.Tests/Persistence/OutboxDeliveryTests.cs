@@ -185,6 +185,8 @@ public sealed class OutboxDeliveryTests
 
         public Task DeleteAsync(MessageRef message, CancellationToken cancellationToken) => Task.CompletedTask;
 
+        public Task DeleteConversationAsync(ConversationRef conversation, CancellationToken cancellationToken) => Task.CompletedTask;
+
         public Uri? GetLink(ConversationRef conversation) => null;
 
         public Task<ProviderHealth> CheckHealthAsync(CancellationToken cancellationToken) => Task.FromResult(new ProviderHealth(true, "ok"));

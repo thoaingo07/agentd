@@ -135,7 +135,7 @@ public sealed class InboundMessageHandlerTests
     }
 
     private InboundMessageHandler Handler() =>
-        new(_log, _users, _t.Conversations, new SubmitDeveloperMessageHandler(_t.Jobs), ChatCommandsTests.Commands(_t, _outbox, new FakeTranscripts()), _outbox, _t.Jobs, _activity, _t.Clock, NullLogger<InboundMessageHandler>.Instance);
+        new(_log, _users, _t.Conversations, new SubmitDeveloperMessageHandler(_t.Jobs), ChatCommandsTests.Commands(_t, _outbox, new FakeTranscripts()), _t.AnswerCloseOut(), _outbox, _t.Jobs, _activity, _t.Clock, NullLogger<InboundMessageHandler>.Instance);
 
     private async Task<JobId> JobInThreadAsync(bool waiting)
     {

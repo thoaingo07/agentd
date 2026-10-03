@@ -49,6 +49,9 @@ public sealed class Job : AggregateRoot<JobId>
     /// <summary>Whether the plan needs the developer's approval before the agent may edit.</summary>
     public PlanStatus PlanStatus { get; private set; }
 
+    /// <summary>The knowledge hand-off after the PR was merged.</summary>
+    public HandoffStatus Handoff { get; private set; }
+
     /// <summary>Review rounds the agent ran to address PR feedback.</summary>
     public int FixRounds { get; private set; }
 
@@ -119,6 +122,7 @@ public sealed class Job : AggregateRoot<JobId>
             PlanStatus = s.PlanStatus,
             Estimate = s.Estimate,
             FixRounds = s.FixRounds,
+            Handoff = s.Handoff,
             Review = s.Review ?? ReviewState.Empty,
             WaitReminders = s.WaitReminders,
             CreatedAt = s.CreatedAt,
@@ -130,7 +134,7 @@ public sealed class Job : AggregateRoot<JobId>
     /// <summary>Current state as a snapshot, for storage.</summary>
     public JobSnapshot ToSnapshot() => new(
         Id, WorkItemId, Repository, Title, State, Branch, Worktree, Session, PullRequest, Draft,
-        Attempt, ResumeCount, PublishAttempts, LastError, NotBefore, CreatedAt, UpdatedAt, Version, PendingMessages, WaitingSince, WaitReminders, PlanStatus, Estimate, FixRounds, Review);
+        Attempt, ResumeCount, PublishAttempts, LastError, NotBefore, CreatedAt, UpdatedAt, Version, PendingMessages, WaitingSince, WaitReminders, PlanStatus, Estimate, FixRounds, Review, Handoff);
 
     /// <summary>Called by storage after an insert or save.</summary>
     public void Persisted(JobId id, long version)
@@ -264,6 +268,98 @@ public sealed class Job : AggregateRoot<JobId>
         }
 
         Transition(JobState.Done, new PullRequestMerged(PullRequest!.Value, Now));
+        return Result.Ok;
+    }
+
+    /// <summary>
+    /// The PR was merged: hand off the knowledge and learnings. The job runs again (same session) on
+    /// <paramref name="knowledgeBranch"/> in <paramref name="worktree"/>, read-only until the developer agrees.
+    /// </summary>
+    public Result StartHandoff(BranchName knowledgeBranch, WorktreePath worktree)
+    {
+        if (State is not (JobState.InReview or JobState.Done) || PullRequest is null || Session is null)
+        {
+            return DomainError.InvalidTransition(State, "start the hand-off");
+        }
+
+        if (Handoff != HandoffStatus.None)
+        {
+            return DomainError.Conflict("The hand-off already ran for this job.");
+        }
+
+        Branch = knowledgeBranch;
+        Worktree = worktree;
+        Handoff = HandoffStatus.Requested;
+        Review = ReviewState.Empty;
+        Transition(JobState.Running, new HandoffStarted(knowledgeBranch, Now));
+        return Result.Ok;
+    }
+
+    /// <summary>The hand-off turn starts: the agent proposes (read-only) until the developer agrees.</summary>
+    public bool BeginProposing()
+    {
+        if (Handoff != HandoffStatus.Requested)
+        {
+            return false;
+        }
+
+        Handoff = HandoffStatus.Proposing;
+        return true;
+    }
+
+    /// <summary>The developer agreed with the proposed knowledge changes: the agent may write them.</summary>
+    public Result AgreeHandoff(string by)
+    {
+        if (Handoff != HandoffStatus.Proposing)
+        {
+            return DomainError.InvalidTransition(Handoff, "agree the hand-off");
+        }
+
+        Handoff = HandoffStatus.Agreed;
+        UpdatedAt = Now;
+        Raise(new HandoffAgreed(by, Now));
+        return Result.Ok;
+    }
+
+    /// <summary>The developer doesn't want the knowledge synced: nothing is written; close-out follows.</summary>
+    public Result DeclineHandoff(string by)
+    {
+        if (Handoff != HandoffStatus.Proposing || State != JobState.WaitingForHuman)
+        {
+            return DomainError.InvalidTransition(Handoff, "decline the hand-off");
+        }
+
+        Handoff = HandoffStatus.Declined;
+        UpdatedAt = Now;
+        Raise(new HandoffDeclined(by, Now));
+        return Result.Ok;
+    }
+
+    /// <summary>Close-out: ask the developer whether to delete the thread (after the sync PR merged, or a decline).</summary>
+    public Result RequestCloseOut(string question, IReadOnlyList<string> options)
+    {
+        if (State is not (JobState.InReview or JobState.WaitingForHuman or JobState.Running) || Handoff is not (HandoffStatus.Agreed or HandoffStatus.Declined))
+        {
+            return DomainError.InvalidTransition(State, "close out");
+        }
+
+        Handoff = HandoffStatus.Closing;
+        WaitingSince = Now;
+        WaitReminders = 0;
+        Transition(JobState.WaitingForHuman, new DeveloperQuestionAsked(question, options, Now));
+        return Result.Ok;
+    }
+
+    /// <summary>The developer answered the close-out question: the job is done.</summary>
+    public Result CloseOut(bool threadDeleted)
+    {
+        if (Handoff != HandoffStatus.Closing || State != JobState.WaitingForHuman)
+        {
+            return DomainError.InvalidTransition(State, "finish the close-out");
+        }
+
+        WaitingSince = null;
+        Transition(JobState.Done, new ClosedOut(threadDeleted, Now));
         return Result.Ok;
     }
 
@@ -537,7 +633,24 @@ public sealed record JobSnapshot(
     PlanStatus PlanStatus = PlanStatus.NotRequired,
     PlanEstimate? Estimate = null,
     int FixRounds = 0,
-    ReviewState? Review = null);
+    ReviewState? Review = null,
+    HandoffStatus Handoff = HandoffStatus.None);
+
+/// <summary>
+/// The knowledge hand-off: Requested (waiting for a turn) → Proposing (read-only, agreeing with the developer)
+/// → Agreed (writing the sync PR) or Declined. Done when the sync PR is merged or nothing is synced.
+/// </summary>
+public enum HandoffStatus
+{
+    None,
+    Requested,
+    Proposing,
+    Agreed,
+    Declined,
+
+    /// <summary>All done: waiting for the developer to delete (or keep) the thread.</summary>
+    Closing,
+}
 
 /// <summary>PR review tracking: comment ids already handled, and whether "ready to complete" was posted for the current round.</summary>
 public sealed record ReviewState(IReadOnlyList<int> SeenCommentIds, bool ReadyAnnounced, IReadOnlyList<int>? RoundThreads = null)

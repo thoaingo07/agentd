@@ -18,20 +18,28 @@ public sealed class ResumeJobTurnHandler(IJobRepository jobs, IOutbox outbox) : 
     {
         ArgumentNullException.ThrowIfNull(command);
         var running = await jobs.ListByStateAsync([JobState.Running], cancellationToken).ConfigureAwait(false);
-        foreach (var job in running.Where(j => j.PendingMessages.Count > 0 && !command.Busy.Contains(j.Id.Value)))
+        foreach (var job in running.Where(j => (j.PendingMessages.Count > 0 || j.Handoff == HandoffStatus.Requested) && !command.Busy.Contains(j.Id.Value)))
         {
             if (job is not { Worktree: { } worktree, Session: { } session })
             {
                 continue;
             }
 
+            var handoff = job.BeginProposing();
             var messages = job.TakePendingMessages();
             // The version check makes the hand-off exactly-once: a concurrent change sends us to the next job.
             if ((await jobs.SaveAsync(job, cancellationToken).ConfigureAwait(false)).IsSuccess)
             {
-                await outbox.TryEnqueueAsync(job.Id, MessageCatalog.Resumed(messages.Count), cancellationToken).ConfigureAwait(false);
-                return new AgentRunRequest(job.Id, job.WorkItemId, worktree, session, TaskPromptBuilder.Replies(messages, job.PlanStatus), Resume: true,
-                    ReadOnly: job.PlanStatus == PlanStatus.Pending);
+                if (!handoff)
+                {
+                    await outbox.TryEnqueueAsync(job.Id, MessageCatalog.Resumed(messages.Count), cancellationToken).ConfigureAwait(false);
+                }
+
+                var prompt = handoff
+                    ? TaskPromptBuilder.Handoff(job.PullRequest?.Value, job.Branch!.Value)
+                    : TaskPromptBuilder.Replies(messages, job.PlanStatus, job.Handoff);
+                return new AgentRunRequest(job.Id, job.WorkItemId, worktree, session, prompt, Resume: true,
+                    ReadOnly: job.PlanStatus == PlanStatus.Pending || job.Handoff == HandoffStatus.Proposing);
             }
         }
 

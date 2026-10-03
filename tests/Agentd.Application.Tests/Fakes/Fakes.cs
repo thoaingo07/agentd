@@ -223,6 +223,14 @@ internal sealed class FakeWorktrees : IWorktreeManager
         return Task.FromResult(new WorktreePath($"/home/agentd/.agentd/worktrees/{repository.Name}/wi-{workItem}"));
     }
 
+    public List<string> Recreated { get; } = [];
+
+    public Task<WorktreePath> RecreateAsync(Repository repository, WorkItemId workItem, BranchName branch, CancellationToken cancellationToken)
+    {
+        Recreated.Add(branch.Value);
+        return Task.FromResult(new WorktreePath($"/home/agentd/.agentd/worktrees/{repository.Name}/wi-{workItem}"));
+    }
+
     public Task<bool> HasCommitsAheadAsync(Repository repository, WorktreePath worktree, CancellationToken cancellationToken) => Task.FromResult(HasCommits);
 
     public Task PushAsync(WorktreePath worktree, BranchName branch, CancellationToken cancellationToken)
@@ -404,9 +412,23 @@ internal sealed class FakeChat(string key) : IMessagingProvider
         return Task.CompletedTask;
     }
 
+    public List<string> DeletedThreads { get; } = [];
+
+    public List<string> ArchivedThreads { get; } = [];
+
+    public Task DeleteConversationAsync(ConversationRef conversation, CancellationToken cancellationToken)
+    {
+        DeletedThreads.Add(conversation.ExternalConversationId);
+        return Task.CompletedTask;
+    }
+
     public Task EditAsync(MessageRef message, OutboundMessage replacement, CancellationToken cancellationToken) => Task.CompletedTask;
 
-    public Task CloseConversationAsync(ConversationRef conversation, string reason, CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task CloseConversationAsync(ConversationRef conversation, string reason, CancellationToken cancellationToken)
+    {
+        ArchivedThreads.Add(conversation.ExternalConversationId);
+        return Task.CompletedTask;
+    }
 
     public Uri? GetLink(ConversationRef conversation) => new($"https://chat.example/{conversation.ExternalConversationId}");
 
@@ -444,7 +466,7 @@ internal sealed class TestContext
     public InMemoryJobs Jobs { get; }
 
     /// <summary>Plan approval and the review loop are off by default here; their own tests turn them on.</summary>
-    public IOptions<JobOptions> Options { get; } = Microsoft.Extensions.Options.Options.Create(new JobOptions { RequirePlanApproval = false, ReviewLoop = false });
+    public IOptions<JobOptions> Options { get; } = Microsoft.Extensions.Options.Options.Create(new JobOptions { RequirePlanApproval = false, ReviewLoop = false, Handoff = false });
 
     public NoMatchNotices Notices { get; } = new();
 
@@ -482,6 +504,15 @@ internal sealed class TestContext
     public FinishWorkHandler Finish() => new(Jobs, Publish());
 
     public CancelJobHandler Cancel() => new(Jobs, Runner);
+
+    public StartHandoffHandler StartHandoff() => new(Jobs, Registry, Worktrees, Options);
+
+    public RequestCloseOutHandler RequestCloseOut() => new(Jobs);
+
+    public AnswerCloseOutHandler AnswerCloseOut() =>
+        new(Jobs, Conversations, new MessagingProviderRegistry(Chats, Microsoft.Extensions.Options.Options.Create(Messaging)), Outbox, Clock);
+
+    public ReviewPullRequestsHandler Review() => new(Jobs, Registry, PullRequests, Worktrees, Outbox, StartHandoff(), RequestCloseOut(), Options);
 
     public RecoverJobsOnStartupHandler Recover() => new(Jobs, Registry, Worktrees, Runner, Clock, Publish());
 

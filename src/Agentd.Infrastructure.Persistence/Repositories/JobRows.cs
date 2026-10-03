@@ -64,6 +64,7 @@ internal static class JobRows
             Enum.Parse<PlanStatus>(r.GetString(r.GetOrdinal("plan_status"))),
             Str("plan_estimate") is { } estimate ? JsonSerializer.Deserialize<PlanEstimate>(estimate, s_json) : null,
             r.GetInt32(r.GetOrdinal("fix_rounds")),
-            Str("review_state") is { } review ? JsonSerializer.Deserialize<ReviewState>(review, s_json) : null);
+            Str("review_state") is { } review ? JsonSerializer.Deserialize<ReviewState>(review, s_json) : null,
+            Enum.Parse<HandoffStatus>(r.GetString(r.GetOrdinal("handoff_status"))));
     }
 }

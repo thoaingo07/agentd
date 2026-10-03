@@ -22,6 +22,8 @@ public sealed class ReviewPullRequestsHandler(
     IPullRequestService pullRequests,
     IWorktreeManager worktrees,
     IOutbox outbox,
+    ICommandHandler<StartHandoff, Unit> handoff,
+    ICommandHandler<RequestCloseOut, Unit> closeOut,
     IOptions<JobOptions> options) : ICommandHandler<ReviewPullRequests, int>
 {
     public async Task<Result<int>> Handle(ReviewPullRequests command, CancellationToken cancellationToken)
@@ -52,6 +54,17 @@ public sealed class ReviewPullRequestsHandler(
 
         switch (await pullRequests.GetStatusAsync(repository, prId, ct).ConfigureAwait(false))
         {
+            case PullRequestStatus.Completed when options.Value.Handoff && job.Handoff == HandoffStatus.None:
+                await outbox.TryEnqueueAsync(job.Id, new OutboundMessage(MessageKind.Result, $"🎉 **PR merged:** {url.Value}"), ct).ConfigureAwait(false);
+                return (await handoff.Handle(new StartHandoff(job.Id), ct).ConfigureAwait(false)).IsSuccess;
+            case PullRequestStatus.Completed when job.Handoff == HandoffStatus.Agreed:
+                await outbox.TryEnqueueAsync(job.Id, new OutboundMessage(MessageKind.Result, "🎓 **Knowledge synced.**"), ct).ConfigureAwait(false);
+                if (job.Worktree is { } syncWorktree)
+                {
+                    await worktrees.RemoveAsync(repository, syncWorktree, ct).ConfigureAwait(false);
+                }
+
+                return (await closeOut.Handle(new RequestCloseOut(job.Id), ct).ConfigureAwait(false)).IsSuccess;
             case PullRequestStatus.Completed:
                 return await EndAsync(job, repository, job.Merged(), ct).ConfigureAwait(false);
             case PullRequestStatus.Abandoned:

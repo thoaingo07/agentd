@@ -20,7 +20,7 @@ public sealed class CheckWaitingJobsHandler(IJobRepository jobs, IClock clock, I
     {
         var timeout = options.Value.WaitForHumanTimeout;
         var changed = 0;
-        foreach (var job in await jobs.ListByStateAsync([JobState.WaitingForHuman], cancellationToken).ConfigureAwait(false))
+        foreach (var job in (await jobs.ListByStateAsync([JobState.WaitingForHuman], cancellationToken).ConfigureAwait(false)).Where(j => j.Handoff != HandoffStatus.Closing))
         {
             var since = job.WaitingSince ?? job.UpdatedAt;
             var waited = clock.UtcNow - since;

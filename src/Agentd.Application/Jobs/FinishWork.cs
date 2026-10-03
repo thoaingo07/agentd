@@ -26,6 +26,11 @@ public sealed class FinishWorkHandler(IJobRepository jobs, ICommandHandler<Publi
             return DomainError.NotFound($"Job {command.JobId}");
         }
 
+        if (job.Handoff == Domain.Jobs.HandoffStatus.Proposing)
+        {
+            return new DomainError("handoff_not_agreed", "Not finished: call propose_knowledge and end your turn; you'll be resumed when the developer agrees.");
+        }
+
         if (job.PlanStatus == Domain.Jobs.PlanStatus.Pending)
         {
             return new DomainError("plan_not_approved", "Not finished: your plan isn't approved yet. Call submit_plan and end your turn; you'll be resumed with the developer's decision.");

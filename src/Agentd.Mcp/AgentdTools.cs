@@ -25,7 +25,8 @@ public sealed class AgentdTools(
     ICommandHandler<ReportProgress, Unit> progress,
     ICommandHandler<TakeDeveloperMessages, IReadOnlyList<string>> unread,
     ICommandHandler<SetPhase, Unit> phases,
-    ICommandHandler<SubmitPlan, PlanOutcome> plans)
+    ICommandHandler<SubmitPlan, PlanOutcome> plans,
+    ICommandHandler<ProposeKnowledge, Unit> knowledge)
 {
     [McpServerTool(Name = "finish"), Description(
         "Call exactly once when the work item is complete and all changes are committed. agentd pushes your branch and " +
@@ -85,6 +86,19 @@ public sealed class AgentdTools(
         return result.Value == PlanOutcome.AwaitingApproval
             ? "Plan posted for the developer's approval. End your turn now; you will be resumed with their decision."
             : await WithUnreadAsync("Plan posted. Continue with the implementation.", cancellationToken).ConfigureAwait(false);
+    }
+
+    [McpServerTool(Name = "propose_knowledge"), Description(
+        "During the hand-off (after the PR was merged): propose the knowledge and learnings to sync into the repository's docs " +
+        "(AGENTS.md, CLAUDE.md, docs/): what you would change and where. Then END YOUR TURN; you'll be resumed with the developer's answer.")]
+    public async Task<string> ProposeKnowledge(
+        [Description("The proposed changes in Markdown: for each, the file and section, and the new or corrected text (up to 1,800 characters).")] string proposal,
+        CancellationToken cancellationToken)
+    {
+        var result = await knowledge.Handle(new ProposeKnowledge(CurrentJob(), proposal), cancellationToken).ConfigureAwait(false);
+        return result.IsSuccess
+            ? "Proposal posted to the developer. End your turn now; you will be resumed with their answer."
+            : throw new McpException($"propose_knowledge failed: {result.Error.Message}");
     }
 
     [McpServerTool(Name = "ask_developer"), Description(

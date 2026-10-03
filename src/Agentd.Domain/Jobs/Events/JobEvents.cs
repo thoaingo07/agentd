@@ -32,3 +32,11 @@ public sealed record FixRoundStarted(int Round, int Comments, DateTimeOffset Occ
 public sealed record ReadyToComplete(DateTimeOffset OccurredAt) : IDomainEvent;
 
 public sealed record PullRequestMerged(PullRequestUrl Url, DateTimeOffset OccurredAt) : IDomainEvent;
+
+public sealed record HandoffStarted(BranchName Branch, DateTimeOffset OccurredAt) : IDomainEvent;
+
+public sealed record HandoffAgreed(string By, DateTimeOffset OccurredAt) : IDomainEvent;
+
+public sealed record HandoffDeclined(string By, DateTimeOffset OccurredAt) : IDomainEvent;
+
+public sealed record ClosedOut(bool ThreadDeleted, DateTimeOffset OccurredAt) : IDomainEvent;

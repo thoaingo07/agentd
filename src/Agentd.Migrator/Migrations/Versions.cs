@@ -28,3 +28,6 @@ public sealed class PlanApproval : SqlMigration;
 
 [Migration(2026_10_05_0001, "Review loop: InReview state, fix_rounds, review_state")]
 public sealed class ReviewLoop : SqlMigration;
+
+[Migration(2026_10_06_0001, "Knowledge hand-off: handoff_status")]
+public sealed class Handoff : SqlMigration;

@@ -50,6 +50,29 @@ public sealed class GitWorktreeManager(GitCli git, IOptions<GitOptions> options)
         }, cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task<WorktreePath> RecreateAsync(Repository repository, WorkItemId workItem, BranchName branch, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(repository);
+        return await WithRepoLockAsync(repository, async () =>
+        {
+            var clone = await EnsureCloneCoreAsync(repository, cancellationToken).ConfigureAwait(false);
+            var path = WorktreePathFor(repository, workItem);
+            if (Directory.Exists(path))
+            {
+                await git.RunAsync(clone, ["worktree", "remove", "--force", path], cancellationToken, throwOnError: false).ConfigureAwait(false);
+            }
+
+            await git.RunAsync(clone, ["worktree", "prune"], cancellationToken, throwOnError: false).ConfigureAwait(false);
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            var branchExists = (await git.RunAsync(clone, ["show-ref", "--verify", "--quiet", "refs/heads/" + branch.Value], cancellationToken, throwOnError: false).ConfigureAwait(false)).ExitCode == 0;
+            string[] add = branchExists
+                ? ["worktree", "add", path, branch.Value]
+                : ["worktree", "add", "-b", branch.Value, path, "origin/" + repository.BaseBranch];
+            await git.RunAsync(clone, add, cancellationToken).ConfigureAwait(false);
+            return new WorktreePath(path);
+        }, cancellationToken).ConfigureAwait(false);
+    }
+
     public async Task<bool> HasCommitsAheadAsync(Repository repository, WorktreePath worktree, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(repository);

@@ -21,13 +21,17 @@ public enum DeveloperMessageOutcome
 
     /// <summary>The job doesn't take messages in its current state (finished, queued, publishing).</summary>
     NotAccepted,
+
+    /// <summary>The developer declined the knowledge sync; the job is done.</summary>
+    HandoffDeclined,
 }
 
 /// <summary>
 /// Delivers a developer message to a job. The first reply to a waiting job resumes it; a reply that
 /// loses the race (version conflict) is reloaded and queued for the next turn instead.
 /// </summary>
-public sealed class SubmitDeveloperMessageHandler(IJobRepository jobs) : ICommandHandler<SubmitDeveloperMessage, DeveloperMessageOutcome>
+public sealed class SubmitDeveloperMessageHandler(IJobRepository jobs, ICommandHandler<RequestCloseOut, Unit>? closeOut = null)
+    : ICommandHandler<SubmitDeveloperMessage, DeveloperMessageOutcome>
 {
     private const int MaxAttempts = 5;
 
@@ -51,6 +55,33 @@ public sealed class SubmitDeveloperMessageHandler(IJobRepository jobs) : IComman
             if (resumes && job.PlanStatus == PlanStatus.Pending && SubmitPlanHandler.IsApproval(command.Text))
             {
                 job.ApprovePlan(command.From);
+            }
+
+            if (resumes && job.Handoff == HandoffStatus.Proposing && ProposeKnowledgeHandler.IsDecline(command.Text))
+            {
+                var declined = job.DeclineHandoff(command.From);
+                var stored = declined.IsSuccess ? await jobs.SaveAsync(job, cancellationToken).ConfigureAwait(false) : Result.Fail(declined.Error);
+                if (stored.IsSuccess)
+                {
+                    if (closeOut is not null)
+                    {
+                        await closeOut.Handle(new RequestCloseOut(job.Id), cancellationToken).ConfigureAwait(false);
+                    }
+
+                    return DeveloperMessageOutcome.HandoffDeclined;
+                }
+
+                if (stored.Error.Code != "conflict" || attempt == MaxAttempts)
+                {
+                    return stored.Error;
+                }
+
+                continue;
+            }
+
+            if (resumes && job.Handoff == HandoffStatus.Proposing && ProposeKnowledgeHandler.IsAgreement(command.Text))
+            {
+                job.AgreeHandoff(command.From);
             }
 
             var accepted = job.ResumeWith(command.Text, command.From, command.Via);
