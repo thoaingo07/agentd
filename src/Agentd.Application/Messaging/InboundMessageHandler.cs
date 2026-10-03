@@ -27,14 +27,15 @@ public sealed record InboundOutcome(string Code, JobId? JobId = null);
 /// <summary>
 /// Handles every message from every provider: dedupe → authorize (user directory) → route to the job
 /// by its conversation → deliver as a developer message. Strangers get no reply, so the bot isn't
-/// confirmed to them. Mirroring to the job's other conversations comes from the job's events.
-/// Commands are handled in the next step of T2.6.
+/// confirmed to them. Commands go to <see cref="ChatCommands"/>. Mirroring to the job's other
+/// conversations comes from the job's events.
 /// </summary>
 public sealed partial class InboundMessageHandler(
     IInboundLog log,
     IUserDirectory users,
     IConversationStore conversations,
     ICommandHandler<SubmitDeveloperMessage, DeveloperMessageOutcome> submit,
+    ChatCommands commands,
     IOutbox outbox,
     ILogger<InboundMessageHandler> logger) : IInboundMessageSink
 {
@@ -67,14 +68,14 @@ public sealed partial class InboundMessageHandler(
     private async Task<InboundOutcome> RouteAsync(InboundMessage message, AgentdUser user, CancellationToken ct)
     {
         var conversation = await conversations.FindExternalAsync(message.Provider, message.ExternalConversationId, ct).ConfigureAwait(false);
+        if (message.Command is not null)
+        {
+            return await commands.ExecuteAsync(message, user, conversation, ct).ConfigureAwait(false);
+        }
+
         if (conversation is null)
         {
             return new InboundOutcome("ignored_no_job");
-        }
-
-        if (message.Command is not null)
-        {
-            return new InboundOutcome("command_unsupported", conversation.JobId);
         }
 
         // A button press carries the option's label as its text.

@@ -1,22 +1,26 @@
+using Agentd.Application.Abstractions;
 using Agentd.Application.Messaging;
 
 namespace Agentd.Host.Workers;
 
 /// <summary>
 /// Delivers the messaging outbox: claims due rows every second (sooner while there's a backlog),
-/// sweeps rows a crashed dispatcher left in 'sending', and on shutdown gives in-flight sends 10 s.
+/// sweeps rows a crashed dispatcher left in 'sending', retries conversations that failed to open
+/// (every 2 minutes), and on shutdown gives in-flight sends 10 s.
 /// Delivery is at-least-once: a crash between sending and marking a row sent re-sends that message.
 /// </summary>
 internal sealed partial class MessagingDispatcherWorker(
     OutboxDispatcher dispatcher,
     IOutboxDelivery delivery,
     IMessagingProviderRegistry providers,
+    IServiceScopeFactory scopes,
     ILogger<MessagingDispatcherWorker> logger) : BackgroundService
 {
     private const int BatchSize = 50;
     private static readonly TimeSpan s_idle = TimeSpan.FromSeconds(1);
     private static readonly TimeSpan s_staleAfter = TimeSpan.FromMinutes(2);
     private static readonly TimeSpan s_shutdownGrace = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan s_repairEvery = TimeSpan.FromMinutes(2);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -32,6 +36,7 @@ internal sealed partial class MessagingDispatcherWorker(
             // Rows still 'sending' at startup were claimed by the previous process.
             await delivery.ReleaseStaleAsync(DateTimeOffset.UtcNow, stoppingToken).ConfigureAwait(false);
             var lastSweep = DateTimeOffset.UtcNow;
+            var lastRepair = DateTimeOffset.UtcNow;
             while (!stoppingToken.IsCancellationRequested)
             {
                 var claimed = 0;
@@ -42,6 +47,12 @@ internal sealed partial class MessagingDispatcherWorker(
                     {
                         lastSweep = DateTimeOffset.UtcNow;
                         await delivery.ReleaseStaleAsync(lastSweep - s_staleAfter, stoppingToken).ConfigureAwait(false);
+                    }
+
+                    if (DateTimeOffset.UtcNow - lastRepair > s_repairEvery)
+                    {
+                        lastRepair = DateTimeOffset.UtcNow;
+                        await RepairAsync(stoppingToken).ConfigureAwait(false);
                     }
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
@@ -58,6 +69,16 @@ internal sealed partial class MessagingDispatcherWorker(
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
             // Shutting down; unfinished rows are released on the next start.
+        }
+    }
+
+    private async Task RepairAsync(CancellationToken ct)
+    {
+        var scope = scopes.CreateAsyncScope();
+        await using (scope.ConfigureAwait(false))
+        {
+            await scope.ServiceProvider.GetRequiredService<ICommandHandler<RepairConversations, int>>()
+                .Handle(new RepairConversations(), ct).ConfigureAwait(false);
         }
     }
 
