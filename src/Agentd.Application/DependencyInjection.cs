@@ -39,6 +39,10 @@ public static class DependencyInjection
         services.AddSingleton<OutboxDispatcher>();
         services.AddScoped<ICommandHandler<SubmitDeveloperMessage, DeveloperMessageOutcome>, SubmitDeveloperMessageHandler>();
         services.AddScoped<ICommandHandler<RetryJob, int>, RetryJobHandler>();
+        services.AddScoped<ICommandHandler<AskDeveloper, Unit>, AskDeveloperHandler>();
+        services.AddScoped<ICommandHandler<ReportProgress, Unit>, ReportProgressHandler>();
+        services.AddScoped<ICommandHandler<ResumeJobTurn, AgentRunRequest?>, ResumeJobTurnHandler>();
+        services.AddScoped<ICommandHandler<CheckWaitingJobs, int>, CheckWaitingJobsHandler>();
         services.AddScoped<ChatCommands>();
         services.AddScoped<ICommandHandler<RepairConversations, int>, RepairConversationsHandler>();
         services.AddScoped<InboundMessageHandler>();

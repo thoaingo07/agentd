@@ -62,7 +62,8 @@ public sealed partial class JobDispatcher : IDisposable
     }
 
     /// <summary>
-    /// Waits for a free slot, then dequeues and starts the next job. False when nothing was runnable
+    /// Waits for a free slot, then starts a resume turn for a job with queued replies, or dequeues and
+    /// starts the next job. False when nothing was runnable
     /// (the caller should wait); true when a job started or failed while preparing (try again at once).
     /// </summary>
     public async Task<bool> TryStartNextAsync(CancellationToken cancellationToken)
@@ -80,8 +81,14 @@ public sealed partial class JobDispatcher : IDisposable
             var scope = _scopes.CreateAsyncScope();
             await using (scope.ConfigureAwait(false))
             {
-                started = await scope.ServiceProvider.GetRequiredService<ICommandHandler<StartNextJob, AgentRunRequest?>>()
-                    .Handle(new StartNextJob(Worker), cancellationToken).ConfigureAwait(false);
+                // Replies waiting for a running job go first: that job already holds a worktree and a session.
+                started = await scope.ServiceProvider.GetRequiredService<ICommandHandler<ResumeJobTurn, AgentRunRequest?>>()
+                    .Handle(new ResumeJobTurn(_active.Keys.ToList()), cancellationToken).ConfigureAwait(false);
+                if (started is { IsSuccess: true, Value: null })
+                {
+                    started = await scope.ServiceProvider.GetRequiredService<ICommandHandler<StartNextJob, AgentRunRequest?>>()
+                        .Handle(new StartNextJob(Worker), cancellationToken).ConfigureAwait(false);
+                }
             }
         }
         catch

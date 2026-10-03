@@ -18,7 +18,9 @@ internal sealed partial class SchedulerWorker(
     ILogger<SchedulerWorker> logger) : BackgroundService
 {
     private static readonly TimeSpan s_publishRetryCheck = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan s_waitCheck = TimeSpan.FromMinutes(1);
     private DateTimeOffset _lastPublishRetryCheck = DateTimeOffset.MinValue;
+    private DateTimeOffset _lastWaitCheck = DateTimeOffset.MinValue;
 
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
@@ -48,6 +50,7 @@ internal sealed partial class SchedulerWorker(
                     if (!await dispatcher.TryStartNextAsync(stoppingToken).ConfigureAwait(false))
                     {
                         await RetryDuePublishesAsync(stoppingToken).ConfigureAwait(false);
+                        await CheckWaitingJobsAsync(stoppingToken).ConfigureAwait(false);
                         await dispatcher.WaitForWorkAsync(o.IdleDelay, stoppingToken).ConfigureAwait(false);
                     }
                 }
@@ -81,6 +84,22 @@ internal sealed partial class SchedulerWorker(
             {
                 LogPublishRetried(logger, retried.Value);
             }
+        }
+    }
+
+    private async Task CheckWaitingJobsAsync(CancellationToken ct)
+    {
+        if (clock.UtcNow - _lastWaitCheck < s_waitCheck)
+        {
+            return;
+        }
+
+        _lastWaitCheck = clock.UtcNow;
+        var scope = scopes.CreateAsyncScope();
+        await using (scope.ConfigureAwait(false))
+        {
+            await scope.ServiceProvider.GetRequiredService<ICommandHandler<CheckWaitingJobs, int>>()
+                .Handle(new CheckWaitingJobs(), ct).ConfigureAwait(false);
         }
     }
 

@@ -46,6 +46,12 @@ public sealed class Job : AggregateRoot<JobId>
     /// <summary>Earliest time a deferred job may start again (e.g. after a usage limit resets).</summary>
     public DateTimeOffset? NotBefore { get; private set; }
 
+    /// <summary>When the job started waiting for the developer (null unless <see cref="JobState.WaitingForHuman"/>).</summary>
+    public DateTimeOffset? WaitingSince { get; private set; }
+
+    /// <summary>Reminders already posted during the current wait.</summary>
+    public int WaitReminders { get; private set; }
+
     /// <summary>Developer replies received while the agent was running, delivered as its next turn.</summary>
     public IReadOnlyList<string> PendingMessages { get; private set; } = [];
 
@@ -97,6 +103,8 @@ public sealed class Job : AggregateRoot<JobId>
             LastError = s.LastError,
             NotBefore = s.NotBefore,
             PendingMessages = s.PendingMessages ?? [],
+            WaitingSince = s.WaitingSince,
+            WaitReminders = s.WaitReminders,
             CreatedAt = s.CreatedAt,
             UpdatedAt = s.UpdatedAt,
             Version = s.Version,
@@ -106,7 +114,7 @@ public sealed class Job : AggregateRoot<JobId>
     /// <summary>Current state as a snapshot, for storage.</summary>
     public JobSnapshot ToSnapshot() => new(
         Id, WorkItemId, Repository, Title, State, Branch, Worktree, Session, PullRequest, Draft,
-        Attempt, ResumeCount, PublishAttempts, LastError, NotBefore, CreatedAt, UpdatedAt, Version, PendingMessages);
+        Attempt, ResumeCount, PublishAttempts, LastError, NotBefore, CreatedAt, UpdatedAt, Version, PendingMessages, WaitingSince, WaitReminders);
 
     /// <summary>Called by storage after an insert or save.</summary>
     public void Persisted(JobId id, long version)
@@ -275,13 +283,34 @@ public sealed class Job : AggregateRoot<JobId>
             return DomainError.Validation("The question must not be empty.");
         }
 
+        WaitingSince = Now;
+        WaitReminders = 0;
         Transition(JobState.WaitingForHuman, new DeveloperQuestionAsked(question.Trim(), options ?? [], Now));
         return Result.Ok;
     }
 
+    /// <summary>Posts reminder number <paramref name="reminder"/> of the current wait (once each).</summary>
+    public Result RemindWaiting(int reminder, DateTimeOffset expiresAt)
+    {
+        if (Require("remind", JobState.WaitingForHuman) is { } error)
+        {
+            return error;
+        }
+
+        if (reminder <= WaitReminders)
+        {
+            return DomainError.Conflict($"Reminder {reminder} was already sent.");
+        }
+
+        WaitReminders = reminder;
+        UpdatedAt = Now;
+        Raise(new WaitReminderSent(reminder, expiresAt, Now));
+        return Result.Ok;
+    }
+
     /// <summary>
-    /// A developer replied. A waiting job goes back to <see cref="JobState.Running"/>; a running job keeps
-    /// running and the reply is queued in <see cref="PendingMessages"/> for the agent's next turn.
+    /// A developer replied. The reply is queued in <see cref="PendingMessages"/> (as <c>from: reply</c>)
+    /// and delivered as the agent's next turn; a waiting job also goes back to <see cref="JobState.Running"/>.
     /// </summary>
     public Result ResumeWith(string reply, string from, ProviderKey? via = null)
     {
@@ -295,13 +324,15 @@ public sealed class Job : AggregateRoot<JobId>
             return DomainError.Validation("The reply must not be empty.");
         }
 
+        PendingMessages = [.. PendingMessages, $"{from}: {reply.Trim()}"];
         if (State == JobState.WaitingForHuman)
         {
+            WaitingSince = null;
+            WaitReminders = 0;
             Transition(JobState.Running, new DeveloperReplied(reply, from, Resumed: true, Now, via));
             return Result.Ok;
         }
 
-        PendingMessages = [.. PendingMessages, reply];
         UpdatedAt = Now;
         Raise(new DeveloperReplied(reply, from, Resumed: false, Now, via));
         return Result.Ok;
@@ -361,4 +392,6 @@ public sealed record JobSnapshot(
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
     long Version,
-    IReadOnlyList<string>? PendingMessages = null);
+    IReadOnlyList<string>? PendingMessages = null,
+    DateTimeOffset? WaitingSince = null,
+    int WaitReminders = 0);

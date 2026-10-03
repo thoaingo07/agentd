@@ -44,7 +44,7 @@ public sealed class InboundMessageHandlerTests
 
         Assert.AreEqual("queued", (await Handler().ProcessAsync(Message("also the docs"), default)).Code);
 
-        CollectionAssert.AreEqual(new[] { "also the docs" }, _t.Jobs.Get(job).PendingMessages.ToArray());
+        CollectionAssert.AreEqual(new[] { "tngo: also the docs" }, _t.Jobs.Get(job).PendingMessages.ToArray());
         var messages = JobEventMessages.For(_t.Jobs.SavedEvents.OfType<DeveloperReplied>());
         Assert.AreEqual("Queued for the agent's next turn.", messages.Single(m => m.Options!.OnlyProviders is not null).Message.Markdown);
     }
@@ -122,7 +122,7 @@ public sealed class InboundMessageHandlerTests
                 Task.Run(() => submit.Handle(new SubmitDeveloperMessage(request.JobId, "b", "bob"), default)));
 
             CollectionAssert.AreEquivalent(new[] { DeveloperMessageOutcome.Resumed, DeveloperMessageOutcome.Queued }, results.Select(r => r.Value).ToArray(), $"round {round}");
-            Assert.HasCount(1, t.Jobs.Get(request.JobId).PendingMessages);
+            Assert.HasCount(2, t.Jobs.Get(request.JobId).PendingMessages, "both replies reach the agent");
         }
     }
 

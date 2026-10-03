@@ -135,21 +135,21 @@ public sealed class JobTransitionTests
         job.ResumeWith("and the changelog", "tngo");
 
         Assert.AreEqual(JobState.Running, job.State);
-        CollectionAssert.AreEqual(new[] { "also update the docs", "and the changelog" }, job.PendingMessages.ToArray());
+        CollectionAssert.AreEqual(new[] { "tngo: also update the docs", "tngo: and the changelog" }, job.PendingMessages.ToArray());
         Assert.IsFalse(job.DequeueEvents().OfType<DeveloperReplied>().Any(e => e.Resumed));
         Assert.HasCount(2, job.TakePendingMessages());
         Assert.IsEmpty(job.PendingMessages);
     }
 
     [TestMethod]
-    public void A_reply_while_waiting_resumes_without_queuing()
+    public void A_reply_while_waiting_resumes_and_is_queued_for_the_resume_turn()
     {
         var job = JobIn(JobState.WaitingForHuman);
 
         job.ResumeWith("v2", "tngo");
 
         Assert.AreEqual(JobState.Running, job.State);
-        Assert.IsEmpty(job.PendingMessages);
+        CollectionAssert.AreEqual(new[] { "tngo: v2" }, job.PendingMessages.ToArray());
     }
 
     [TestMethod]

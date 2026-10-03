@@ -1,7 +1,6 @@
 using System.ComponentModel;
 using System.Globalization;
 using System.Text;
-using System.Text.Json;
 using Agentd.Application.Abstractions;
 using Agentd.Application.Jobs;
 using Agentd.Application.Ports;
@@ -22,7 +21,8 @@ public sealed class AgentdTools(
     ICommandHandler<FinishWork, PullRequestRef> finish,
     IJobRepository jobs,
     IWorkItemSource workItems,
-    IEventStore events)
+    ICommandHandler<AskDeveloper, Unit> ask,
+    ICommandHandler<ReportProgress, Unit> progress)
 {
     [McpServerTool(Name = "finish"), Description(
         "Call exactly once when the work item is complete and all changes are committed. agentd pushes your branch and " +
@@ -40,14 +40,27 @@ public sealed class AgentdTools(
             : throw new McpException($"finish failed: {result.Error.Message}");
     }
 
-    [McpServerTool(Name = "report_progress"), Description("Report a short progress update for the developer (a sentence, not a log).")]
+    [McpServerTool(Name = "report_progress"), Description("Report a short progress update for the developer (a sentence, not a log). It replaces your previous update in chat.")]
     public async Task<string> ReportProgress(
         [Description("What you just did or are about to do.")] string message,
         CancellationToken cancellationToken)
     {
-        var jobId = CurrentJob();
-        await events.AppendAsync(jobId, "progress.reported", JsonSerializer.Serialize(new { message }), cancellationToken).ConfigureAwait(false);
-        return "Noted.";
+        var result = await progress.Handle(new ReportProgress(CurrentJob(), message), cancellationToken).ConfigureAwait(false);
+        return result.IsSuccess ? "Noted." : throw new McpException(result.Error.Message);
+    }
+
+    [McpServerTool(Name = "ask_developer"), Description(
+        "Ask the developer a question when you need a decision you can't make from the work item or the code. " +
+        "The question is posted in the job's chat thread. After calling this, END YOUR TURN: you will be resumed with the answer.")]
+    public async Task<string> AskDeveloper(
+        [Description("The question, with enough context to answer it without opening the code (up to 2,000 characters).")] string question,
+        [Description("Optional short answers to offer as buttons (up to 5).")] string[]? options,
+        CancellationToken cancellationToken)
+    {
+        var result = await ask.Handle(new AskDeveloper(CurrentJob(), question, options ?? []), cancellationToken).ConfigureAwait(false);
+        return result.IsSuccess
+            ? "Question posted to the developer. End your turn now; you will be resumed with their answer."
+            : throw new McpException($"ask_developer failed: {result.Error.Message}");
     }
 
     [McpServerTool(Name = "get_work_item"), Description("Get the latest version of your work item (title, description, acceptance criteria, comments).")]

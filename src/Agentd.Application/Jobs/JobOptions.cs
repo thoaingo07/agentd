@@ -21,6 +21,9 @@ public sealed class JobOptions
     /// <summary>First retry delay for publishing; doubles on each further attempt.</summary>
     public TimeSpan PublishRetryDelay { get; set; } = TimeSpan.FromMinutes(1);
 
+    /// <summary>How long a job waits for a developer's answer before it fails (reminders at 50% and 90%).</summary>
+    public TimeSpan WaitForHumanTimeout { get; set; } = TimeSpan.FromDays(3);
+
     /// <summary>Back-off when a usage limit reports no reset time.</summary>
     public TimeSpan UsageLimitBackoff { get; set; } = TimeSpan.FromMinutes(30);
 }

@@ -59,7 +59,42 @@ Close the conversation loop:
   answer in the prompt.
 - Timeout: reminders at 50% and 90%, then Failed.
 
+## As built
+Both parts landed in one PR: `ask_developer`, live progress and resume turns, plus the wait timeout.
+
+- **`ask_developer(question, options?)`.** `options` is a list of up to 5 labels; the ids `opt1`…
+  are assigned when the message is built. The tool moves the job to `WaitingForHuman` **at the call**
+  (`AskDeveloperHandler`), rather than recording a pending question and transitioning on exit. The
+  `DeveloperQuestionAsked` event then posts the question with buttons through the outbox, in the same
+  transaction. The process ends its turn; `HandleAgentExit` ignores a job that isn't Running, and
+  the dispatcher frees the slot.
+- **Every reply is queued.** `Job.ResumeWith` now always appends `from: reply` to `PendingMessages`,
+  including the reply that resumes a waiting job, so the agent always receives it.
+- **One resume rule:** a `Running` job with queued replies and no live agent gets a resume turn.
+  - `ResumeJobTurn` takes the replies (the version check makes the hand-off exactly-once) and
+    returns `claude --resume <same session>` with "The developer replied: - name: text…".
+  - `JobDispatcher.TryStartNextAsync` tries resume turns before dequeuing new jobs. It passes the jobs
+    it is running, so a busy job never gets a second process.
+  - The same rule covers replies to a question and messages queued during a turn.
+- **A turn that ends normally with queued replies is not a failure.** `HandleAgentExit` leaves the job
+  Running, and the next scheduler pass resumes it.
+- **`report_progress`** (`ReportProgressHandler`) records the event and enqueues a progress message
+  with `ReplaceStatusMessage`. The dispatcher edits the live status message (T2.5).
+- **System prompt:** call `ask_developer` then stop; use `report_progress` for short updates.
+- **Wait timeout:** `Agentd:Jobs:WaitForHumanTimeout` (default 3 days), under the existing `Jobs`
+  section rather than `Agents:Claude`.
+  - New columns `waiting_since` and `wait_reminders` (migration 202610030001; `job_save` gains two
+    parameters, and the old signature is dropped).
+  - `CheckWaitingJobs` runs from the scheduler every minute. `Job.RemindWaiting(n, expiresAt)` posts
+    reminder 1 at 50% and reminder 2 at 90% (each once, via the `WaitReminderSent` event). At 100% the
+    job fails with "No answer from the developer within N hours".
+  - A reply resets the wait, and a reply that races the check wins through the version check.
+- **Tests:** an end-to-end flow through the real dispatcher with a fake runner: ask → process exits →
+  waiting with no process → reply → resume turn with `Resume: true`, the same session and worktree,
+  and the answer in the prompt. Plus replies during a turn, and MCP tool validation. The `--resume`
+  flag itself is covered by the runner's argument tests (Phase 1).
+
 ## Done when
-- [ ] The stub-based end-to-end test passes in CI.
+- [x] The end-to-end test passes in CI (real dispatcher and use cases, fake runner; the CLI flags are covered by the runner tests).
 - [ ] A real manual run against the sandbox ADO repo: a question appears in chat, the reply resumes
   the session, and the transcript shows one continuous session ID.
