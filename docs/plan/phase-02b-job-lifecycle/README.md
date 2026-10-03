@@ -55,9 +55,10 @@ Every arrow posts to the work item's thread.
 - `!status` gives the same snapshot on demand.
 
 ### Heartbeat (every minute)
-- **Liveness:** while a job is active, agentd refreshes the thread's live status message **every
-  minute**, for example "🟢 working · implement · last activity 20 s ago · 12 min elapsed" or
-  "⏸ waiting for you since 14:05". The developer can see it is alive without new posts piling up.
+- **Liveness (decided: edit one message, with a timestamp):** while a job is active, agentd **edits**
+  the thread's live status message **every minute**. For example: "🟢 working · implement · last
+  activity 20 s ago · 12 min elapsed · updated 14:07:00 UTC", or "⏸ waiting for you since 14:05 ·
+  updated 14:07:00 UTC". No new posts pile up, and the timestamp shows the heartbeat is current.
 - **Stuck agent:** if the agent produces no output for 5 minutes (configurable), agentd posts a
   **⚠️ no activity** message, and posts again when activity resumes. The existing idle timeout still
   stops a hung process.
@@ -138,8 +139,6 @@ On a sandbox work item:
   on confirmation.
 
 ## Open questions
-- **Heartbeat form:** edit one status message every minute (proposed: no clutter), or post a new
-  message every minute?
 - **The developer's confirmation to delete the thread:** a reply `delete` (or option `1`) in the
   thread. Archive instead of delete when the bot lacks Manage Threads?
 - **Fix-round limit** default (proposal: 5).
