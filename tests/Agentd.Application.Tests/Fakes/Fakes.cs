@@ -91,6 +91,8 @@ internal sealed class InMemoryJobs(IClock clock) : IJobRepository
 
     public Job Get(JobId id) => Job.Rehydrate(_rows[id.Value], clock);
 
+    public Job? TryGet(JobId id) => _rows.TryGetValue(id.Value, out var s) ? Job.Rehydrate(s, clock) : null;
+
     private void Store(Job job)
     {
         var events = job.DequeueEvents();
@@ -311,7 +313,7 @@ internal sealed class FakeEvents : IEventStore
     }
 }
 
-internal sealed class FakeConversations : IConversationStore
+internal sealed class FakeConversations(Func<JobId, WorkItemId?>? workItemOf = null) : IConversationStore
 {
     private long _nextId;
 
@@ -331,6 +333,15 @@ internal sealed class FakeConversations : IConversationStore
 
     public Task<Conversation?> FindExternalAsync(ProviderKey provider, string externalConversationId, CancellationToken cancellationToken) =>
         Task.FromResult(All.FirstOrDefault(c => c.Provider == provider && c.ExternalConversationId == externalConversationId));
+
+    public Task<IReadOnlyList<Conversation>> ListOpenByWorkItemAsync(WorkItemId workItem, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<Conversation>>(All.Where(c => c.IsOpen && workItemOf?.Invoke(c.JobId) == workItem).ToList());
+
+    public Task<Result> MoveAsync(Conversation conversation, JobId jobId, CancellationToken cancellationToken)
+    {
+        conversation.MovedTo(jobId);
+        return Task.FromResult(Result.Ok);
+    }
 
     public Task<IReadOnlyList<Conversation>> ListOpenAsync(ProviderKey provider, CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<Conversation>>(All.Where(c => c.Provider == provider && c.IsOpen).ToList());
@@ -375,6 +386,17 @@ internal sealed class FakeChat(string key) : IMessagingProvider
     public Task<ProviderHealth> CheckHealthAsync(CancellationToken cancellationToken) => Task.FromResult(new ProviderHealth(true, "ok"));
 }
 
+internal sealed class FakeOutbox : IOutbox
+{
+    public List<(JobId Job, OutboxMessage Message)> Enqueued { get; } = [];
+
+    public Task EnqueueAsync(JobId jobId, IReadOnlyList<OutboxMessage> messages, CancellationToken cancellationToken)
+    {
+        Enqueued.AddRange(messages.Select(m => (jobId, m)));
+        return Task.CompletedTask;
+    }
+}
+
 /// <summary>All fakes wired to real handlers.</summary>
 internal sealed class TestContext
 {
@@ -398,18 +420,24 @@ internal sealed class TestContext
 
     public NoMatchNotices Notices { get; } = new();
 
-    public FakeConversations Conversations { get; } = new();
+    public FakeConversations Conversations { get; }
 
     /// <summary>Registered chat providers; enable them in <see cref="Messaging"/>.</summary>
     public List<IMessagingProvider> Chats { get; } = [];
 
     public MessagingOptions Messaging { get; } = new();
 
-    public TestContext() => Jobs = new InMemoryJobs(Clock);
+    public FakeOutbox Outbox { get; } = new();
+
+    public TestContext()
+    {
+        Jobs = new InMemoryJobs(Clock);
+        Conversations = new FakeConversations(id => Jobs.TryGet(id)?.WorkItemId);
+    }
 
     public ClaimWorkItemHandler Claim() => new(WorkItems, Registry, Jobs, Clock, Notices, Options);
 
-    public StartNextJobHandler StartNext() => new(Jobs, Registry, Worktrees, WorkItems, MessagingService(), Options);
+    public StartNextJobHandler StartNext() => new(Jobs, Registry, Worktrees, WorkItems, MessagingService(), Outbox, Options);
 
     public MessagingService MessagingService()
     {
@@ -419,7 +447,7 @@ internal sealed class TestContext
 
     public HandleAgentExitHandler AgentExit() => new(Jobs, Registry, Worktrees, Clock, Options);
 
-    public PublishPullRequestHandler Publish() => new(Jobs, Registry, Worktrees, PullRequests, WorkItems, Clock, Options);
+    public PublishPullRequestHandler Publish() => new(Jobs, Registry, Worktrees, PullRequests, WorkItems, Outbox, Clock, Options);
 
     public FinishWorkHandler Finish() => new(Jobs, Publish());
 

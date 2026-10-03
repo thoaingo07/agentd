@@ -99,6 +99,9 @@ public sealed class Conversation : AggregateRoot<ConversationId>
 
     public void SetStatusMessage(string externalMessageId) => StatusMessageId = externalMessageId;
 
+    /// <summary>Called by storage after the conversation was handed to a new job of the same work item.</summary>
+    public void MovedTo(JobId jobId) => JobId = jobId;
+
     public Result Close(DateTimeOffset now)
     {
         if (!IsOpen)

@@ -1,5 +1,6 @@
 using System.Globalization;
 using Agentd.Application.Abstractions;
+using Agentd.Application.Messaging;
 using Agentd.Application.Ports;
 using Agentd.Domain.Common;
 using Agentd.Domain.Jobs;
@@ -21,6 +22,7 @@ public sealed class PublishPullRequestHandler(
     IWorktreeManager worktrees,
     IPullRequestService pullRequests,
     IWorkItemSource workItems,
+    IOutbox outbox,
     IClock clock,
     IOptions<JobOptions> options) : ICommandHandler<PublishPullRequest, PullRequestRef>
 {
@@ -53,6 +55,7 @@ public sealed class PublishPullRequestHandler(
             }
 
             await worktrees.PushAsync(worktree, branch, cancellationToken).ConfigureAwait(false);
+            await outbox.TryEnqueueAsync(job.Id, MessageCatalog.Pushed(branch.Value), cancellationToken).ConfigureAwait(false);
 
             var pr = await pullRequests.FindOpenAsync(repository, branch, cancellationToken).ConfigureAwait(false)
                 ?? await pullRequests.CreateAsync(

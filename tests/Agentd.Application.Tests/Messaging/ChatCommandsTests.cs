@@ -17,7 +17,7 @@ public sealed class ChatCommandsTests
     private static readonly ProviderKey s_discord = ProviderKey.From("discord");
     private static readonly AgentdUser s_user = new(new UserId(1), "tngo", ["Admin"], true);
     private readonly TestContext _t = new();
-    private readonly InboundMessageHandlerTests.FakeOutbox _outbox = new();
+    private readonly FakeOutbox _outbox = new();
     private readonly FakeTranscripts _transcripts = new();
     private readonly FakeChat _chat = new("discord");
 
@@ -121,7 +121,7 @@ public sealed class ChatCommandsTests
         Assert.AreEqual(0, (await repair.Handle(new RepairConversations(), default)).Value, "nothing missing any more");
     }
 
-    internal static ChatCommands Commands(TestContext t, InboundMessageHandlerTests.FakeOutbox outbox, ITranscriptReader transcripts, IMessagingProvider? chat = null)
+    internal static ChatCommands Commands(TestContext t, FakeOutbox outbox, ITranscriptReader transcripts, IMessagingProvider? chat = null)
     {
         var options = new MessagingOptions();
         options.Providers["discord"] = new MessagingProviderSettings { Enabled = true };

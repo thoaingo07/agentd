@@ -55,6 +55,33 @@ AS $$
      ORDER BY conversations.id
 $$;
 
+-- Open conversations of any job for a work item (a work item keeps one thread per provider across reruns).
+CREATE OR REPLACE FUNCTION agentd.conversation_list_open_by_work_item(p_work_item_id int)
+RETURNS SETOF agentd.conversations
+LANGUAGE sql STABLE
+AS $$
+    SELECT c.* FROM agentd.conversations AS c
+      JOIN agentd.jobs AS j ON j.id = c.job_id
+     WHERE j.work_item_id = p_work_item_id AND c.closed_at IS NULL
+     ORDER BY c.id
+$$;
+
+-- Hands a conversation to a new job of the same work item. AG409 if that job already has one open on the provider.
+CREATE OR REPLACE FUNCTION agentd.conversation_move(p_id bigint, p_job_id bigint)
+RETURNS void
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    UPDATE agentd.conversations SET job_id = p_job_id WHERE id = p_id;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'conversation % not found', p_id USING ERRCODE = 'AG404';
+    END IF;
+EXCEPTION
+    WHEN unique_violation THEN
+        RAISE EXCEPTION 'job % already has an open conversation on that provider', p_job_id USING ERRCODE = 'AG409';
+END
+$$;
+
 -- Routes an inbound message: which conversation (and so which job) a provider thread belongs to.
 CREATE OR REPLACE FUNCTION agentd.conversation_find_external(p_provider text, p_external_conversation_id text)
 RETURNS SETOF agentd.conversations

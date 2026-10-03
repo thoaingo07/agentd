@@ -34,7 +34,7 @@ public sealed class MessagingService(
         IReadOnlyList<Conversation> existing;
         try
         {
-            existing = await conversations.ListByJobAsync(job.Id, cancellationToken).ConfigureAwait(false);
+            existing = await ReuseWorkItemThreadsAsync(job, resolved.Providers, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -63,6 +63,25 @@ public sealed class MessagingService(
                 await RecordAsync(job, "MessagingDegraded", new { provider = key.Value, error = ex.Message }, cancellationToken).ConfigureAwait(false);
             }
         }
+    }
+
+    /// <summary>
+    /// One thread per work item: open threads of earlier jobs for the same work item move to this job.
+    /// Returns this job's conversations afterwards.
+    /// </summary>
+    private async Task<IReadOnlyList<Conversation>> ReuseWorkItemThreadsAsync(Job job, IReadOnlyList<ProviderKey> targets, CancellationToken ct)
+    {
+        var mine = (await conversations.ListByJobAsync(job.Id, ct).ConfigureAwait(false)).ToList();
+        foreach (var earlier in await conversations.ListOpenByWorkItemAsync(job.WorkItemId, ct).ConfigureAwait(false))
+        {
+            if (earlier.JobId != job.Id && targets.Contains(earlier.Provider) && !mine.Any(c => c.Provider == earlier.Provider && c.IsOpen)
+                && (await conversations.MoveAsync(earlier, job.Id, ct).ConfigureAwait(false)).IsSuccess)
+            {
+                mine.Add(earlier);
+            }
+        }
+
+        return mine;
     }
 
     private async Task RecordAsync(Job job, string type, object payload, CancellationToken ct)
