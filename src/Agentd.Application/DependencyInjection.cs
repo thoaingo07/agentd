@@ -5,6 +5,7 @@ using Agentd.Application.Ports;
 using Agentd.Application.Queries;
 using Agentd.Application.Repositories;
 using Agentd.Application.Users;
+using Agentd.Domain.Common;
 using Agentd.Domain.Jobs;
 using Agentd.Domain.Jobs.ValueObjects;
 using Agentd.Domain.Repositories;
@@ -34,6 +35,7 @@ public static class DependencyInjection
         services.AddScoped<IQueryHandler<GetJob, JobDetail?>, GetJobHandler>();
         services.AddScoped<IQueryHandler<GetJobEvents, EventPage>, GetJobEventsHandler>();
         services.AddScoped<IQueryHandler<SearchHistory, HistoryPage>, SearchHistoryHandler>();
+        services.AddScoped<IQueryHandler<GetJobDiff, Result<BranchDiff>>, GetJobDiffHandler>();
         services.AddScoped<ICommandHandler<AddRepository, Repository>, AddRepositoryHandler>();
         services.AddScoped<ICommandHandler<RemoveRepository, Unit>, RemoveRepositoryHandler>();
         services.AddScoped<ICommandHandler<SeedRepositories, SeedResult>, SeedRepositoriesHandler>();

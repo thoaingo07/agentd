@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Agentd.Application.Ports;
 using Agentd.Application.Queries;
 
 namespace Agentd.Bff.ViewModels;
@@ -85,5 +86,19 @@ public sealed record HistoryPageVm(IReadOnlyList<JobSummaryVm> Items, long Total
     {
         ArgumentNullException.ThrowIfNull(p);
         return new(p.Items.Select(JobSummaryVm.From).ToList(), p.Total, p.Page, p.PageSize);
+    }
+}
+
+public sealed record MessageAcceptedVm(string Outcome);
+
+public sealed record RunAcceptedVm(long JobId);
+
+/// <summary>A job's changes; <c>unifiedDiff</c> is null when <c>truncated</c> (over 2 MB), leaving the file list.</summary>
+public sealed record DiffVm(string BaseRef, string HeadRef, IReadOnlyList<string> Files, string? UnifiedDiff, bool Truncated)
+{
+    public static DiffVm From(BranchDiff diff)
+    {
+        ArgumentNullException.ThrowIfNull(diff);
+        return new(diff.BaseRef, diff.HeadRef, diff.Files, diff.UnifiedDiff, diff.Truncated);
     }
 }

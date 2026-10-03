@@ -258,6 +258,16 @@ internal sealed class FakeWorktrees : IWorktreeManager
         Pruned.Add(repository.Name.Value);
         return Task.CompletedTask;
     }
+
+    public BranchDiff? Diff { get; set; }
+
+    public List<(string Branch, string? Worktree, int MaxBytes)> Diffed { get; } = [];
+
+    public Task<BranchDiff?> DiffAsync(Repository repository, BranchName branch, WorktreePath? worktree, int maxBytes, CancellationToken cancellationToken)
+    {
+        Diffed.Add((branch.Value, worktree?.Value, maxBytes));
+        return Task.FromResult(Diff);
+    }
 }
 
 internal sealed class FakePullRequests : IPullRequestService

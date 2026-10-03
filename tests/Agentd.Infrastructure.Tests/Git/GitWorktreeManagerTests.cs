@@ -133,4 +133,40 @@ public sealed class GitWorktreeManagerTests
 
         Assert.IsFalse(string.IsNullOrWhiteSpace(ex.StandardError));
     }
+
+    [TestMethod]
+    public async Task The_diff_shows_uncommitted_edits_in_the_worktree_and_the_branch_once_it_is_removed()
+    {
+        using var box = new GitSandbox();
+        var worktree = await box.Manager.CreateAsync(box.Repository, s_wi, s_branch, default);
+        GitSandbox.Commit(worktree, "fix.txt", "fixed\n");
+        await File.WriteAllTextAsync(Path.Combine(worktree.Value, "fix.txt"), "fixed again\n");
+
+        var live = await box.Manager.DiffAsync(box.Repository, s_branch, worktree, 1_000_000, default);
+
+        Assert.AreEqual(("origin/develop", "ai/1234-fix-login", false), (live!.BaseRef, live.HeadRef, live.Truncated));
+        CollectionAssert.AreEqual(new[] { "fix.txt" }, live.Files.ToArray());
+        StringAssert.Contains(live.UnifiedDiff, "+fixed again");
+
+        GitSandbox.Run(worktree.Value, "checkout", "--", "fix.txt");
+        await box.Manager.RemoveAsync(box.Repository, worktree, default);
+        var archived = await box.Manager.DiffAsync(box.Repository, s_branch, worktree, 1_000_000, default);
+        StringAssert.Contains(archived!.UnifiedDiff, "+fixed");
+        Assert.IsFalse(archived.UnifiedDiff!.Contains("again", StringComparison.Ordinal), "only committed work survives the worktree");
+    }
+
+    [TestMethod]
+    public async Task A_big_diff_returns_only_the_file_list_and_a_missing_branch_is_null()
+    {
+        using var box = new GitSandbox();
+        var worktree = await box.Manager.CreateAsync(box.Repository, s_wi, s_branch, default);
+        GitSandbox.Commit(worktree, "big.txt", string.Concat(Enumerable.Repeat("line\n", 200)));
+
+        var diff = await box.Manager.DiffAsync(box.Repository, s_branch, worktree, 500, default);
+
+        Assert.IsTrue(diff!.Truncated);
+        Assert.IsNull(diff.UnifiedDiff);
+        CollectionAssert.AreEqual(new[] { "big.txt" }, diff.Files.ToArray());
+        Assert.IsNull(await box.Manager.DiffAsync(box.Repository, BranchName.For(WorkItemId.From(9), "nope"), null, 500, default));
+    }
 }

@@ -5,6 +5,7 @@ using Agentd.Domain.Jobs;
 using Agentd.Domain.Jobs.ValueObjects;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 
 namespace Agentd.Bff.Endpoints;
@@ -18,15 +19,15 @@ public static class JobEndpoints
 
     public static RouteGroupBuilder MapJobReads(this RouteGroupBuilder api)
     {
-        api.MapGet("/dashboard", async (IQueryHandler<GetDashboard, Dashboard> handler, CancellationToken ct) =>
+        api.MapGet("/dashboard", async ([FromServices] IQueryHandler<GetDashboard, Dashboard> handler, CancellationToken ct) =>
             TypedResults.Ok(DashboardVm.From(await handler.Handle(new GetDashboard(), ct).ConfigureAwait(false))));
 
-        api.MapGet("/jobs/{id:long}", async Task<IResult> (long id, IQueryHandler<GetJob, JobDetail?> handler, CancellationToken ct) =>
+        api.MapGet("/jobs/{id:long}", async Task<IResult> (long id, [FromServices] IQueryHandler<GetJob, JobDetail?> handler, CancellationToken ct) =>
             await handler.Handle(new GetJob(new JobId(id)), ct).ConfigureAwait(false) is { } detail
                 ? TypedResults.Ok(JobDetailVm.From(detail))
                 : NotFound($"Job {id} was not found."));
 
-        api.MapGet("/jobs/{id:long}/events", async Task<IResult> (long id, long? after, long? before, int? limit, IQueryHandler<GetJobEvents, EventPage> handler, CancellationToken ct) =>
+        api.MapGet("/jobs/{id:long}/events", async Task<IResult> (long id, long? after, long? before, int? limit, [FromServices] IQueryHandler<GetJobEvents, EventPage> handler, CancellationToken ct) =>
         {
             var errors = new Dictionary<string, string[]>();
             if (after is not null && before is not null)
@@ -48,7 +49,7 @@ public static class JobEndpoints
             return TypedResults.Ok(EventPageVm.From(page));
         });
 
-        api.MapGet("/history", async Task<IResult> (string? state, string? repo, string? q, int? page, int? pageSize, IQueryHandler<SearchHistory, HistoryPage> handler, CancellationToken ct) =>
+        api.MapGet("/history", async Task<IResult> (string? state, string? repo, string? q, int? page, int? pageSize, [FromServices] IQueryHandler<SearchHistory, HistoryPage> handler, CancellationToken ct) =>
         {
             var errors = new Dictionary<string, string[]>();
             List<JobState>? states = null;
