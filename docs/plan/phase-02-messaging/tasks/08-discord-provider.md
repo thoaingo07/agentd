@@ -111,8 +111,8 @@ Split into two PRs:
      - a bare number (`2` or `2.`) that answers the thread's last options becomes that option, with its
        label as the text.
      - The option memory is in-process: after a restart, a number is delivered as plain text.
-   - **Development config:** the sandbox guild, channel and user ids, with `Enabled: false`. To try it,
-     set the bot token (user-secrets), then turn `Enabled` on.
+   - **Development config:** the sandbox guild, channel and user ids, with Discord **enabled**. The bot
+     token must be set in user-secrets, or Development startup fails fast with the validator's message.
 
 ## Done when
 - [ ] Manual check in a test guild: thread created, buttons work, slash commands respond, and
