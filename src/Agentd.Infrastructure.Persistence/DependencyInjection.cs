@@ -17,7 +17,9 @@ public static class DependencyInjection
     /// </summary>
     public static IServiceCollection AddPersistence(this IServiceCollection services)
     {
-        services.AddSingleton<IJobRepository, JobRepository>();
+        services.AddSingleton<JobRepository>();
+        services.AddSingleton<IJobRepository>(sp => sp.GetRequiredService<JobRepository>());
+        services.AddSingleton<IJobSearch>(sp => sp.GetRequiredService<JobRepository>());
         services.AddSingleton<EventStore>();
         services.AddSingleton<IEventStore>(sp => sp.GetRequiredService<EventStore>());
         services.AddSingleton<IEventReader>(sp => sp.GetRequiredService<EventStore>());

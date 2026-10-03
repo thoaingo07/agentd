@@ -219,6 +219,31 @@ public sealed class JobRepositoryTests
         Assert.AreEqual(loaded.Id, (await repo.FindActiveByWorkItemAsync(loaded.WorkItemId, default))?.Id);
     }
 
+    [TestMethod]
+    public async Task History_search_filters_and_pages_newest_first()
+    {
+        var repo = Repo();
+        var a = NewJob();
+        await repo.AddAsync(a, default);
+        _clock.UtcNow = _clock.UtcNow.AddMinutes(1);
+        var b = Job.Create(WorkItemId.From(Interlocked.Increment(ref s_nextWorkItem)), RepositoryName.From("sysmin"), "Refine the AGENTS.md", _clock);
+        await repo.AddAsync(b, default);
+        b.Cancel("tngo");
+        await repo.SaveAsync(b, default);
+
+        var cancelled = await repo.SearchAsync([JobState.Cancelled], RepositoryName.From("sysmin"), "agents", 0, 10, default);
+        Assert.IsTrue(cancelled.Jobs.Any(j => j.Id == b.Id));
+        Assert.IsTrue(cancelled.Jobs.All(j => j.State == JobState.Cancelled));
+        Assert.AreEqual(cancelled.Jobs.Count, (int)cancelled.Total);
+
+        var byId = await repo.SearchAsync(null, null, b.WorkItemId.ToString(), 0, 10, default);
+        Assert.AreEqual(b.Id, byId.Jobs.Single().Id);
+
+        var newestFirst = await repo.SearchAsync(null, null, null, 0, 2, default);
+        Assert.IsTrue(newestFirst.Jobs[0].CreatedAt >= newestFirst.Jobs[1].CreatedAt);
+        Assert.IsGreaterThanOrEqualTo(2L, newestFirst.Total);
+    }
+
     private Job NewJob(int? workItem = null) =>
         Job.Create(WorkItemId.From(workItem ?? Interlocked.Increment(ref s_nextWorkItem)), RepositoryName.From("sysmin"), "Fix login", _clock);
 

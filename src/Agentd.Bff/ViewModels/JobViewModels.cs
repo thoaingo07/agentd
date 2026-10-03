@@ -1,0 +1,89 @@
+using System.Text.Json;
+using Agentd.Application.Queries;
+
+namespace Agentd.Bff.ViewModels;
+
+/// <summary>A job row (dashboard, history). State and statuses are strings for the UI.</summary>
+public sealed record JobSummaryVm(
+    long Id,
+    int WorkItemId,
+    string Title,
+    string Repo,
+    string? Branch,
+    string State,
+    string? Phase,
+    DateTimeOffset StartedAt,
+    long ElapsedSeconds,
+    string? PrUrl,
+    DateTimeOffset? WaitingSince,
+    string PlanStatus,
+    string Handoff,
+    int FixRounds,
+    string? LastError)
+{
+    public static JobSummaryVm From(JobSummary s)
+    {
+        ArgumentNullException.ThrowIfNull(s);
+        return new(s.Id, s.WorkItemId, s.Title, s.Repository, s.Branch, s.State.ToString(), s.Phase, s.StartedAt, (long)s.Elapsed.TotalSeconds,
+            s.PullRequestUrl, s.WaitingSince, s.PlanStatus.ToString(), s.Handoff.ToString(), s.FixRounds, s.LastError);
+    }
+}
+
+public sealed record DashboardVm(IReadOnlyDictionary<string, int> Stats, IReadOnlyList<JobSummaryVm> ActiveJobs)
+{
+    public static DashboardVm From(Dashboard d)
+    {
+        ArgumentNullException.ThrowIfNull(d);
+        return new(d.CountsByState.ToDictionary(kv => kv.Key.ToString(), kv => kv.Value), d.ActiveJobs.Select(JobSummaryVm.From).ToList());
+    }
+}
+
+public sealed record EstimateVm(int Minutes, int UsagePercent, double? UsageAtPlan, DateTimeOffset SubmittedAt, DateTimeOffset? ApprovedAt);
+
+public sealed record UsageVm(double? FiveHour, double? Weekly, DateTimeOffset? ResetsAt);
+
+public sealed record ConversationVm(string Provider, Uri? Link, bool Open);
+
+public sealed record JobDetailVm(
+    JobSummaryVm Job,
+    int Attempt,
+    int ResumeCount,
+    int PendingMessages,
+    EstimateVm? Estimate,
+    string? LastActivity,
+    DateTimeOffset? LastActivityAt,
+    UsageVm? Usage,
+    IReadOnlyList<ConversationVm> Conversations)
+{
+    public static JobDetailVm From(JobDetail d)
+    {
+        ArgumentNullException.ThrowIfNull(d);
+        return new(
+            JobSummaryVm.From(d.Summary), d.Attempt, d.ResumeCount, d.PendingMessages,
+            d.Estimate is { } e ? new EstimateVm(e.Minutes, e.UsagePercent, e.UsageAtPlan, e.SubmittedAt, e.ApprovedAt) : null,
+            d.LastActivity, d.LastActivityAt,
+            d.Usage is { } u ? new UsageVm(u.FiveHour, u.Weekly, u.ResetsAt) : null,
+            d.Conversations.Select(c => new ConversationVm(c.Provider, c.Link, c.Open)).ToList());
+    }
+}
+
+/// <summary>One event; the payload is JSON passed through (it was redacted when stored).</summary>
+public sealed record EventVm(long Seq, long? JobId, DateTimeOffset Ts, string Type, JsonElement Payload);
+
+public sealed record EventPageVm(IReadOnlyList<EventVm> Events, long? OldestSeq, long? NewestSeq, bool HasMore)
+{
+    public static EventPageVm From(EventPage p)
+    {
+        ArgumentNullException.ThrowIfNull(p);
+        return new(p.Events.Select(e => new EventVm(e.Seq, e.JobId, e.Ts, e.Type, e.Payload)).ToList(), p.OldestSeq, p.NewestSeq, p.HasMore);
+    }
+}
+
+public sealed record HistoryPageVm(IReadOnlyList<JobSummaryVm> Items, long Total, int Page, int PageSize)
+{
+    public static HistoryPageVm From(HistoryPage p)
+    {
+        ArgumentNullException.ThrowIfNull(p);
+        return new(p.Items.Select(JobSummaryVm.From).ToList(), p.Total, p.Page, p.PageSize);
+    }
+}

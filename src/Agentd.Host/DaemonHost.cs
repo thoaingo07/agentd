@@ -1,3 +1,4 @@
+using Agentd.Bff;
 using Agentd.Host.Workers;
 using Agentd.Infrastructure.Claude;
 using Agentd.Infrastructure.Persistence;
@@ -23,6 +24,7 @@ internal static class DaemonHost
         builder.Services.AddWebHosting(builder.Configuration);
         builder.Services.AddSingleton<IPostConfigureOptions<ClaudeOptions>, McpUrlFromServer>();
         builder.Services.AddAgentdMcp();
+        builder.Services.AddBff();
 
         // Daemon loop. Recovery is registered first: hosted services start in order, so it completes before the workers run.
         builder.Services.AddHostedService<UserDirectorySeeder>();
@@ -46,6 +48,7 @@ internal static class DaemonHost
 
         app.MapDefaultEndpoints();
         app.MapAgentdMcp();                       // per-job bearer tokens, agents only
+        app.MapBff();                             // /api for the Vue app (the local user until SSO)
         app.UseWebHosting(afterRouting: pipeline =>   // Razor shells for ClientApps/* (Vite manifest in production, dev-server proxy in Development)
         {
             pipeline.UseAuthentication();
