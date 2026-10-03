@@ -56,7 +56,7 @@ public sealed class JobRepository(NpgsqlDataSource dataSource, IClock clock) : I
         var events = job.DequeueEvents();
         await using var batch = dataSource.CreateBatch();
         var save = new NpgsqlBatchCommand(
-            "SELECT agentd.job_save($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)");
+            "SELECT agentd.job_save($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)");
         save.Parameters.Add(P(job.Id.Value, NpgsqlDbType.Bigint));
         save.Parameters.Add(P(job.Version, NpgsqlDbType.Bigint));
         save.Parameters.Add(P(job.State.ToString(), NpgsqlDbType.Text));
@@ -79,6 +79,8 @@ public sealed class JobRepository(NpgsqlDataSource dataSource, IClock clock) : I
         save.Parameters.Add(P(job.WaitReminders, NpgsqlDbType.Integer));
         save.Parameters.Add(P(job.PlanStatus.ToString(), NpgsqlDbType.Text));
         save.Parameters.Add(P(JobRows.EstimateJson(job.Estimate), NpgsqlDbType.Jsonb));
+        save.Parameters.Add(P(job.FixRounds, NpgsqlDbType.Integer));
+        save.Parameters.Add(P(JobRows.ReviewJson(job.Review), NpgsqlDbType.Jsonb));
         batch.BatchCommands.Add(save);
 
         var outbox = JobEventMessages.For(events);

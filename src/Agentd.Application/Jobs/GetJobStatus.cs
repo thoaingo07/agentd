@@ -19,7 +19,7 @@ public sealed record JobStatusRow(
 
 public sealed class GetJobStatusHandler(IJobRepository jobs, Domain.Common.IClock clock) : IQueryHandler<GetJobStatus, IReadOnlyList<JobStatusRow>>
 {
-    private static readonly JobState[] s_active = [JobState.Queued, JobState.Preparing, JobState.Running, JobState.WaitingForHuman, JobState.Publishing];
+    private static readonly JobState[] s_active = [JobState.Queued, JobState.Preparing, JobState.Running, JobState.WaitingForHuman, JobState.Publishing, JobState.InReview];
 
     public async Task<IReadOnlyList<JobStatusRow>> Handle(GetJobStatus query, CancellationToken cancellationToken)
     {

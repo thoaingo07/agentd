@@ -181,6 +181,22 @@ This is a per-repository allowlist; still no `git push`, since agentd pushes.
   - **Prompt:** lists the phases (clarify, plan, implement, verify, finish).
   - **Verify:** the allowlist now includes `dotnet build/test/restore/format`, `npm ci/test/run`,
     `helm lint/template` and read-only shell commands.
+- **PR 3 (review loop):**
+  - **State:** a new **InReview** state (migration 202610050001: `fix_rounds`, `review_state`). With
+    `Agentd:Jobs:ReviewLoop` (default on), publishing ends in `OpenForReview` instead of Done, and the
+    worktree stays.
+  - **Monitor:** `ReviewPullRequests` (`ReviewMonitorWorker`, every `ReviewPollInterval` = 2 min) uses
+    ADO's PR status, threads and replies (`IPullRequestService`).
+    - **merged** → Done (🎉) and the worktree is removed; **abandoned** → Cancelled.
+    - **new open reviewer comments** are posted to the thread ("💬 Review comments") and start a
+      **fix round** (InReview → Running with the comments queued) in the same session.
+    - Resolved comments are only marked as seen.
+    - **every thread resolved** → "✅ Ready to complete", once per round.
+  - **After a fix round's push:** a reply on each addressed PR thread.
+  - **Limit:** `MaxFixRounds` (5), then it asks the developer to take over.
+  - **Own comments:** agentd posts on ADO with the operator's identity, so its PR comments start with
+    `🤖 agentd:` and are skipped when reading threads.
+  - **Not covered yet:** build/policy failures are not a fix trigger (needs the build logs API).
 
 ## Exit criteria (the demo)
 On a sandbox work item:
