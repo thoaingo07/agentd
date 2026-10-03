@@ -71,3 +71,28 @@ methods are grouped under `/api` so the antiforgery filter (T3.5) covers them au
 - [ ] No endpoint references Infrastructure types; the architecture tests still pass.
 - [ ] Error responses are consistent ProblemDetails.
 - [ ] A web message resumes a waiting job and appears in its chat conversation.
+
+## As built
+
+T3.2 is split into two PRs, so each stays under 1,000 lines.
+
+**T3.2a: read endpoints (this PR)**
+- `GET /api/dashboard`, `/api/jobs/{id}`, `/api/jobs/{id}/events`, `/api/history`, in
+  `Endpoints/JobEndpoints.cs`. The four query handlers live in one file,
+  `Application/Queries/JobQueries.cs`.
+- History search uses the new routines `agentd.job_search` / `job_search_count` (state set, repo,
+  and a case-insensitive title match or exact work item id; newest first), behind the
+  `IJobSearch` port.
+- `JobSummaryVm` has `planStatus`, `handoff`, `fixRounds` and `lastError` in place of
+  `turns` / `costUsd`. Agentd runs on a Claude subscription, so there is no per-job cost. Usage
+  (5h/week %) and the estimate are on `JobDetailVm`.
+- `LocalUserAuthenticationHandler`: a loopback caller is `local` (Admin). Anyone else is
+  unauthenticated, and gets 401.
+- Tests: the endpoints run in-process against fake query handlers, the same way as the MCP
+  endpoint tests. That covers routes, the JSON shape, 400/404 ProblemDetails and 401 for
+  non-loopback callers. The handlers have Application tests, and the SQL has a Testcontainers test.
+  There's no WebApplicationFactory + PostgreSQL test.
+
+**T3.2b: actions and diff (next)**
+- cancel/retry/messages, `POST /api/workitems/{id}/run`, `GET /api/jobs/{id}/diff`, and
+  `ResultExtensions`.

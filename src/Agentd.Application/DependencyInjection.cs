@@ -2,6 +2,7 @@ using Agentd.Application.Abstractions;
 using Agentd.Application.Jobs;
 using Agentd.Application.Messaging;
 using Agentd.Application.Ports;
+using Agentd.Application.Queries;
 using Agentd.Application.Repositories;
 using Agentd.Application.Users;
 using Agentd.Domain.Jobs;
@@ -29,6 +30,10 @@ public static class DependencyInjection
         services.AddScoped<ICommandHandler<RetryDuePublishes, int>, RetryDuePublishesHandler>();
         services.AddSingleton<JobDispatcher>();
         services.AddScoped<IQueryHandler<GetJobStatus, IReadOnlyList<JobStatusRow>>, GetJobStatusHandler>();
+        services.AddScoped<IQueryHandler<GetDashboard, Dashboard>, GetDashboardHandler>();
+        services.AddScoped<IQueryHandler<GetJob, JobDetail?>, GetJobHandler>();
+        services.AddScoped<IQueryHandler<GetJobEvents, EventPage>, GetJobEventsHandler>();
+        services.AddScoped<IQueryHandler<SearchHistory, HistoryPage>, SearchHistoryHandler>();
         services.AddScoped<ICommandHandler<AddRepository, Repository>, AddRepositoryHandler>();
         services.AddScoped<ICommandHandler<RemoveRepository, Unit>, RemoveRepositoryHandler>();
         services.AddScoped<ICommandHandler<SeedRepositories, SeedResult>, SeedRepositoriesHandler>();

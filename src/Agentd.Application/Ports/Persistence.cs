@@ -29,6 +29,13 @@ public interface IJobRepository
     Task<IReadOnlyList<Job>> ListRecentAsync(TimeSpan window, CancellationToken cancellationToken);
 }
 
+/// <summary>History search over all jobs (newest first).</summary>
+public interface IJobSearch
+{
+    /// <summary>Jobs matching the filters (null = any), the requested page, and the total count.</summary>
+    Task<(IReadOnlyList<Job> Jobs, long Total)> SearchAsync(IReadOnlyCollection<JobState>? states, RepositoryName? repository, string? text, int offset, int limit, CancellationToken cancellationToken);
+}
+
 /// <summary>The event log: every observable fact (domain events, agent output, messaging). Payloads are redacted at write time.</summary>
 public interface IEventStore
 {
