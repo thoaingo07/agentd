@@ -18,6 +18,7 @@
   <ItemGroup Label="Azure DevOps">
     <PackageVersion Include="Azure.Identity" Version="1.21.0" />
     <PackageVersion Include="Microsoft.Extensions.Http" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.12" />
   </ItemGroup>
   <ItemGroup Label="MCP (agents → agentd)">
     <PackageVersion Include="ModelContextProtocol" Version="2.2.0" />

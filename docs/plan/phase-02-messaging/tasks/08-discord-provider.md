@@ -94,9 +94,25 @@ Split into two PRs:
    - **`DiscordOptions`** (`Agentd:Messaging:Providers:Discord`: `Enabled`, `BotToken` from secrets
      only, `GuildId`, `ChannelId`, `PollInterval`, `CommandPrefix`), with a validator that fails startup
      when Discord is enabled without a token or numeric ids.
-2. **Inbound** (next PR): a poller for open job threads and the parent channel (`!commands`), with
-   numbered replies mapped to options. It replays the last messages of each open thread at startup,
-   which dedupe makes safe.
+2. **Inbound:**
+   - **`DiscordPoller`** is a hosted service that runs only when enabled. Every `PollInterval` (3 s) it
+     reads `GET channels/{id}/messages?after={last}` for the parent channel (commands only) and for
+     each open job thread (the new `conversation_list_open(provider)` routine and
+     `IConversationStore.ListOpenAsync`). It hands messages oldest first to `IInboundMessageSink` in a
+     scope.
+   - **Cursor:** in memory, advanced only after a message is handled, so a failure retries it.
+     - At startup each thread replays its last 50 messages, so replies sent while agentd was down are
+       picked up; T2.6 dedupe makes this safe.
+     - The parent channel starts from its newest message, so old commands never run.
+     - A thread that fails (deleted, no access) doesn't stop the others.
+   - **`DiscordInbound.Map`:**
+     - bots (including agentd itself) and empty messages are ignored;
+     - `!name args` becomes a neutral command;
+     - a bare number (`2` or `2.`) that answers the thread's last options becomes that option, with its
+       label as the text.
+     - The option memory is in-process: after a restart, a number is delivered as plain text.
+   - **Development config:** the sandbox guild, channel and user ids, with Discord **enabled**. The bot
+     token must be set in user-secrets, or Development startup fails fast with the validator's message.
 
 ## Done when
 - [ ] Manual check in a test guild: thread created, buttons work, slash commands respond, and

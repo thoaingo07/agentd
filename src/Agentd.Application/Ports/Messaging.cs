@@ -16,4 +16,7 @@ public interface IConversationStore
     Task<IReadOnlyList<Conversation>> ListByJobAsync(JobId jobId, CancellationToken cancellationToken);
 
     Task<Conversation?> FindExternalAsync(ProviderKey provider, string externalConversationId, CancellationToken cancellationToken);
+
+    /// <summary>Open conversations on a provider (what a polling provider watches).</summary>
+    Task<IReadOnlyList<Conversation>> ListOpenAsync(ProviderKey provider, CancellationToken cancellationToken);
 }

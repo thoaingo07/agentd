@@ -331,6 +331,9 @@ internal sealed class FakeConversations : IConversationStore
 
     public Task<Conversation?> FindExternalAsync(ProviderKey provider, string externalConversationId, CancellationToken cancellationToken) =>
         Task.FromResult(All.FirstOrDefault(c => c.Provider == provider && c.ExternalConversationId == externalConversationId));
+
+    public Task<IReadOnlyList<Conversation>> ListOpenAsync(ProviderKey provider, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<Conversation>>(All.Where(c => c.Provider == provider && c.IsOpen).ToList());
 }
 
 /// <summary>A chat provider that records what it was asked to do.</summary>

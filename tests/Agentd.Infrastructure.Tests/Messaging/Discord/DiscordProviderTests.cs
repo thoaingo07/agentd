@@ -129,6 +129,8 @@ public sealed class DiscordProviderTests : IDisposable
 
         public List<(HttpMethod Method, string Path, string Body, string ContentType, string Auth)> Requests { get; } = [];
 
+        public List<string> RequestUris { get; } = [];
+
         public void Respond(HttpMethod method, string path, string json, HttpStatusCode status = HttpStatusCode.OK) =>
             _routes.Add((method, path, json, status));
 
@@ -137,9 +139,16 @@ public sealed class DiscordProviderTests : IDisposable
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             var path = request.RequestUri!.AbsolutePath.Replace("/api/v10/", "", StringComparison.Ordinal);
+            RequestUris.Add(request.RequestUri.PathAndQuery);
             var body = request.Content is null ? "" : await request.Content.ReadAsStringAsync(cancellationToken);
             Requests.Add((request.Method, path, body, request.Content?.Headers.ContentType?.ToString() ?? "", request.Headers.Authorization?.ToString() ?? ""));
-            var route = _routes.LastOrDefault(r => r.Method == request.Method && r.Path == path);
+            // A route with a query matches only that query; one without matches any query.
+            var withQuery = path + request.RequestUri.Query;
+            var route = _routes.LastOrDefault(r => r.Method == request.Method && r.Path == withQuery);
+            if (route.Path is null)
+            {
+                route = _routes.LastOrDefault(r => r.Method == request.Method && r.Path == path);
+            }
             return route.Path is null
                 ? new HttpResponseMessage(HttpStatusCode.NotFound) { Content = new StringContent("""{"message":"Unknown"}""") }
                 : new HttpResponseMessage(route.Status) { Content = new StringContent(route.Json, Encoding.UTF8, "application/json") };

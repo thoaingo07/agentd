@@ -42,6 +42,7 @@ internal sealed class AgentdHostFactory(
         builder.UseWebRoot(_webRoot);
         builder.UseSetting("ConnectionStrings:agentd", "Host=127.0.0.1;Port=1;Database=unused");
         builder.UseSetting("Agentd:Scheduler:Enabled", "false");   // no polling, scheduling or recovery in UI tests
+        builder.UseSetting("Agentd:Messaging:Providers:Discord:Enabled", "false");   // no chat (and no bot token) in UI tests
         // A test-only file name, so a locally built Agentd.Web/wwwroot (static web assets) never interferes.
         builder.UseSetting("Agentd:Web:Vite:ManifestPath", TestManifestPath);
         foreach (var (key, value) in settings ?? new Dictionary<string, string?>())

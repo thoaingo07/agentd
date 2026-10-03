@@ -41,6 +41,8 @@ public sealed class ConversationStoreTests
         Assert.AreEqual(new Uri("https://discord.com/channels/1/2"), loaded.Single(c => c.Provider == s_discord).Link);
         Assert.AreEqual(job, (await store.FindExternalAsync(s_telegram, "-100:" + job, default))?.JobId);
         Assert.IsNull(await store.FindExternalAsync(s_telegram, "nope", default));
+        Assert.IsTrue((await store.ListOpenAsync(s_discord, default)).Any(c => c.ExternalConversationId == "thread-" + job));
+        Assert.IsFalse((await store.ListOpenAsync(s_discord, default)).Any(c => c.Provider != s_discord));
     }
 
     [TestMethod]
