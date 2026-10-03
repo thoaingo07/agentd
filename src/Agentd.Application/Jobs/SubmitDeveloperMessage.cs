@@ -48,6 +48,11 @@ public sealed class SubmitDeveloperMessageHandler(IJobRepository jobs) : IComman
             }
 
             var resumes = job.State == JobState.WaitingForHuman;
+            if (resumes && job.PlanStatus == PlanStatus.Pending && SubmitPlanHandler.IsApproval(command.Text))
+            {
+                job.ApprovePlan(command.From);
+            }
+
             var accepted = job.ResumeWith(command.Text, command.From, command.Via);
             if (!accepted.IsSuccess)
             {

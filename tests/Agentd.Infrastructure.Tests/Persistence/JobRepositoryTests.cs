@@ -177,6 +177,28 @@ public sealed class JobRepositoryTests
         CollectionAssert.IsSubsetOf(new[] { "DeveloperReplied", "DeveloperQuestionAsked" }, await EventTypesAsync(job.Id));
     }
 
+    [TestMethod]
+    public async Task Plan_status_and_estimate_round_trip()
+    {
+        var repo = Repo();
+        var job = NewJob();
+        await repo.AddAsync(job, default);
+        var running = (await repo.DequeueNextAsyncFor(job.Id))!;
+        running.Start(new WorktreePath("/wt/3"), BranchName.From("ai/3-x"), ClaudeSessionId.New(), requirePlanApproval: true);
+        running.SubmitPlan(new PlanEstimate(25, 15, 0.62, DateTimeOffset.UtcNow));
+        Assert.IsTrue((await repo.SaveAsync(running, default)).IsSuccess);
+
+        var planned = (await repo.GetAsync(job.Id, default))!;
+        Assert.AreEqual(PlanStatus.Pending, planned.PlanStatus);
+        Assert.AreEqual((25, 15, 0.62), (planned.Estimate!.Minutes, planned.Estimate.UsagePercent, planned.Estimate.UsageAtPlan));
+
+        planned.ApprovePlan("tngo");
+        await repo.SaveAsync(planned, default);
+        var approved = (await repo.GetAsync(job.Id, default))!;
+        Assert.AreEqual(PlanStatus.Approved, approved.PlanStatus);
+        Assert.IsNotNull(approved.Estimate!.ApprovedAt);
+    }
+
     private Job NewJob(int? workItem = null) =>
         Job.Create(WorkItemId.From(workItem ?? Interlocked.Increment(ref s_nextWorkItem)), RepositoryName.From("sysmin"), "Fix login", _clock);
 

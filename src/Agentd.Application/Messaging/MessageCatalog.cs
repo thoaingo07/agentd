@@ -38,6 +38,17 @@ public static class MessageCatalog
     public static OutboundMessage Resumed(int messages) =>
         new(MessageKind.Info, string.Create(CultureInfo.InvariantCulture, $"🔁 **Agent resumed** with {messages} message(s) from you."));
 
+    /// <summary>"📊 Actual: 34 min vs ~25 min estimated; usage +18% of the 5-hour window (est. 15%)".</summary>
+    public static OutboundMessage ActualVsEstimate(PlanEstimate estimate, DateTimeOffset now, double? usageNow)
+    {
+        ArgumentNullException.ThrowIfNull(estimate);
+        var minutes = (int)Math.Round((now - (estimate.ApprovedAt ?? estimate.SubmittedAt)).TotalMinutes);
+        var usage = usageNow is { } u && estimate.UsageAtPlan is { } p
+            ? string.Create(CultureInfo.InvariantCulture, $"usage +{Math.Max(0, Math.Round((u - p) * 100)):0}% of the 5-hour window (est. {estimate.UsagePercent}%)")
+            : string.Create(CultureInfo.InvariantCulture, $"usage not reported (est. {estimate.UsagePercent}%)");
+        return new(MessageKind.Info, string.Create(CultureInfo.InvariantCulture, $"📊 **Actual:** {minutes} min vs ~{estimate.Minutes} min estimated; {usage}."));
+    }
+
     public static OutboundMessage Pushed(string branch) => new(MessageKind.Info, $"📤 **Pushed** `{branch}`.");
 
     public static OutboundMessage Question(string question, IReadOnlyList<MessageOption>? options) =>

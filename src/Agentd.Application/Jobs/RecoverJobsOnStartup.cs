@@ -41,7 +41,8 @@ public sealed class RecoverJobsOnStartupHandler(
                 case JobState.Running when job is { Worktree: { } wt, Session: { } session }:
                     if (job.MarkRecovered().IsSuccess && (await jobs.SaveAsync(job, cancellationToken).ConfigureAwait(false)).IsSuccess)
                     {
-                        resume.Add(new AgentRunRequest(job.Id, job.WorkItemId, wt, session, TaskPromptBuilder.ResumePrompt, Resume: true));
+                        resume.Add(new AgentRunRequest(job.Id, job.WorkItemId, wt, session, TaskPromptBuilder.ResumePrompt, Resume: true,
+                            ReadOnly: job.PlanStatus == PlanStatus.Pending));
                     }
 
                     break;

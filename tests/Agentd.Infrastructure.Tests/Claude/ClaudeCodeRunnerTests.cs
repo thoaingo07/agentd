@@ -56,6 +56,25 @@ public sealed class ClaudeCodeRunnerTests
     }
 
     [TestMethod]
+    public void A_read_only_turn_gets_only_reading_tools_and_edits_are_denied()
+    {
+        var options = new ClaudeOptions();
+        var readOnly = Request(resume: false) with { ReadOnly = true };
+
+        var args = ClaudeArgs.Build(readOnly, options, null).ToList();
+        var normal = ClaudeArgs.Build(Request(resume: false), options, null).ToList();
+
+        var allowed = args[args.IndexOf("--allowedTools") + 1].Split(',');
+        CollectionAssert.DoesNotContain(allowed, "Edit");
+        CollectionAssert.DoesNotContain(allowed, "Bash(git commit:*)");
+        CollectionAssert.DoesNotContain(allowed, "Bash(dotnet build:*)");
+        CollectionAssert.Contains(allowed, "Read");
+        Assert.AreEqual("Edit,Write,MultiEdit,NotebookEdit", args[args.IndexOf("--disallowedTools") + 1]);
+        CollectionAssert.Contains(normal[normal.IndexOf("--allowedTools") + 1].Split(','), "Bash(dotnet test:*)");
+        CollectionAssert.DoesNotContain(normal, "--disallowedTools");
+    }
+
+    [TestMethod]
     public async Task The_agent_never_sees_agentd_secrets_or_an_api_key_and_stdin_is_closed()
     {
         Environment.SetEnvironmentVariable("Agentd__AzureDevOps__Pat", "must-not-leak");

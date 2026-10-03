@@ -426,7 +426,8 @@ internal sealed class TestContext
 
     public InMemoryJobs Jobs { get; }
 
-    public IOptions<JobOptions> Options { get; } = Microsoft.Extensions.Options.Options.Create(new JobOptions());
+    /// <summary>Plan approval off by default here; the plan-gate tests turn it on.</summary>
+    public IOptions<JobOptions> Options { get; } = Microsoft.Extensions.Options.Options.Create(new JobOptions { RequirePlanApproval = false });
 
     public NoMatchNotices Notices { get; } = new();
 
@@ -438,6 +439,8 @@ internal sealed class TestContext
     public MessagingOptions Messaging { get; } = new();
 
     public FakeOutbox Outbox { get; } = new();
+
+    public JobActivity Activity { get; } = new();
 
     public TestContext()
     {
@@ -457,7 +460,7 @@ internal sealed class TestContext
 
     public HandleAgentExitHandler AgentExit() => new(Jobs, Registry, Worktrees, Clock, Options);
 
-    public PublishPullRequestHandler Publish() => new(Jobs, Registry, Worktrees, PullRequests, WorkItems, Outbox, Clock, Options);
+    public PublishPullRequestHandler Publish() => new(Jobs, Registry, Worktrees, PullRequests, WorkItems, Outbox, Activity, Clock, Options);
 
     public FinishWorkHandler Finish() => new(Jobs, Publish());
 

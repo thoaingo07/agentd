@@ -46,6 +46,12 @@ public sealed class Job : AggregateRoot<JobId>
     /// <summary>Earliest time a deferred job may start again (e.g. after a usage limit resets).</summary>
     public DateTimeOffset? NotBefore { get; private set; }
 
+    /// <summary>Whether the plan needs the developer's approval before the agent may edit.</summary>
+    public PlanStatus PlanStatus { get; private set; }
+
+    /// <summary>The agent's estimate from its plan (null until it submits one).</summary>
+    public PlanEstimate? Estimate { get; private set; }
+
     /// <summary>When the job started waiting for the developer (null unless <see cref="JobState.WaitingForHuman"/>).</summary>
     public DateTimeOffset? WaitingSince { get; private set; }
 
@@ -104,6 +110,8 @@ public sealed class Job : AggregateRoot<JobId>
             NotBefore = s.NotBefore,
             PendingMessages = s.PendingMessages ?? [],
             WaitingSince = s.WaitingSince,
+            PlanStatus = s.PlanStatus,
+            Estimate = s.Estimate,
             WaitReminders = s.WaitReminders,
             CreatedAt = s.CreatedAt,
             UpdatedAt = s.UpdatedAt,
@@ -114,7 +122,7 @@ public sealed class Job : AggregateRoot<JobId>
     /// <summary>Current state as a snapshot, for storage.</summary>
     public JobSnapshot ToSnapshot() => new(
         Id, WorkItemId, Repository, Title, State, Branch, Worktree, Session, PullRequest, Draft,
-        Attempt, ResumeCount, PublishAttempts, LastError, NotBefore, CreatedAt, UpdatedAt, Version, PendingMessages, WaitingSince, WaitReminders);
+        Attempt, ResumeCount, PublishAttempts, LastError, NotBefore, CreatedAt, UpdatedAt, Version, PendingMessages, WaitingSince, WaitReminders, PlanStatus, Estimate);
 
     /// <summary>Called by storage after an insert or save.</summary>
     public void Persisted(JobId id, long version)
@@ -134,11 +142,16 @@ public sealed class Job : AggregateRoot<JobId>
         return Result.Ok;
     }
 
-    public Result Start(WorktreePath worktree, BranchName branch, ClaudeSessionId session)
+    public Result Start(WorktreePath worktree, BranchName branch, ClaudeSessionId session, bool requirePlanApproval = false)
     {
         if (Require("start", JobState.Preparing) is { } error)
         {
             return error;
+        }
+
+        if (requirePlanApproval && PlanStatus == PlanStatus.NotRequired && Session is null)
+        {
+            PlanStatus = PlanStatus.Pending;
         }
 
         Worktree = worktree;
@@ -289,6 +302,40 @@ public sealed class Job : AggregateRoot<JobId>
         return Result.Ok;
     }
 
+    /// <summary>Records the agent's plan estimate (the plan text itself goes to the developer as a question or a message).</summary>
+    public Result SubmitPlan(PlanEstimate estimate)
+    {
+        ArgumentNullException.ThrowIfNull(estimate);
+        if (Require("submit a plan", JobState.Running) is { } error)
+        {
+            return error;
+        }
+
+        if (estimate.Minutes <= 0 || estimate.UsagePercent is < 0 or > 100)
+        {
+            return DomainError.Validation("The estimate needs positive minutes and a usage share of 0–100%.");
+        }
+
+        Estimate = estimate;
+        UpdatedAt = Now;
+        return Result.Ok;
+    }
+
+    /// <summary>The developer approved the plan: the agent may now edit.</summary>
+    public Result ApprovePlan(string by)
+    {
+        if (PlanStatus != PlanStatus.Pending)
+        {
+            return DomainError.InvalidTransition(PlanStatus, "approve the plan");
+        }
+
+        PlanStatus = PlanStatus.Approved;
+        Estimate = Estimate is null ? null : Estimate with { ApprovedAt = Now };
+        UpdatedAt = Now;
+        Raise(new PlanApproved(by, Now));
+        return Result.Ok;
+    }
+
     /// <summary>Posts reminder number <paramref name="reminder"/> of the current wait (once each).</summary>
     public Result RemindWaiting(int reminder, DateTimeOffset expiresAt)
     {
@@ -394,4 +441,17 @@ public sealed record JobSnapshot(
     long Version,
     IReadOnlyList<string>? PendingMessages = null,
     DateTimeOffset? WaitingSince = null,
-    int WaitReminders = 0);
+    int WaitReminders = 0,
+    PlanStatus PlanStatus = PlanStatus.NotRequired,
+    PlanEstimate? Estimate = null);
+
+/// <summary>Plan approval: required for most jobs (the agent works read-only until approved).</summary>
+public enum PlanStatus
+{
+    NotRequired,
+    Pending,
+    Approved,
+}
+
+/// <summary>The agent's estimate: time and share of the 5-hour usage window, plus the usage when it planned.</summary>
+public sealed record PlanEstimate(int Minutes, int UsagePercent, double? UsageAtPlan, DateTimeOffset SubmittedAt, DateTimeOffset? ApprovedAt = null);

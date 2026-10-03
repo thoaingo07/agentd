@@ -16,3 +16,6 @@ public sealed record DeveloperReplied(string Reply, string From, bool Resumed, D
 
 /// <summary>The job is still waiting for an answer; it fails at <see cref="ExpiresAt"/> without one.</summary>
 public sealed record WaitReminderSent(int Reminder, DateTimeOffset ExpiresAt, DateTimeOffset OccurredAt) : IDomainEvent;
+
+/// <summary>The developer approved the agent's plan; it may start editing.</summary>
+public sealed record PlanApproved(string By, DateTimeOffset OccurredAt) : IDomainEvent;

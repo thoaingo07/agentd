@@ -165,6 +165,22 @@ This is a per-repository allowlist; still no `git push`, since agentd pushes.
     after 5 minutes, then active again. Once a job ends, its last heartbeat is removed.
   - **Progress:** `report_progress` now posts a visible "⏳" message (the heartbeat owns the status line).
   - Activity, phase and usage are in memory: after a restart they fill again as the agent works.
+- **PR 2:**
+  - **Gate:** plan approval is on by default (`Agentd:Jobs:RequirePlanApproval`), and the `ai-auto`
+    tag skips it. It is enforced, not just requested: while the plan is pending, the agent runs with
+    **read-only tools** (`ReadOnlyTools`, plus `--disallowedTools Edit,Write,MultiEdit,NotebookEdit`,
+    because `acceptEdits` would otherwise allow edits). `finish` is refused until the plan is approved.
+  - **`submit_plan(plan, estimateMinutes, estimateUsagePercent)`:** posts "📝 Plan for your approval"
+    with the estimate and the current usage, and the options "✅ Approve plan / ✏️ Request changes".
+    The job waits.
+    - An approval (`1`, the button label, "approve…", "lgtm", "ok", 👍, …) approves the plan and the
+      resume turn may edit.
+    - Anything else resumes read-only, with "revise and call `submit_plan` again".
+  - **Persistence:** the plan status and estimate are stored on the job (migration 202610040001).
+  - **At PR time:** "📊 Actual: N min vs ~M min estimated; usage +X% of the 5-hour window (est. Y%)".
+  - **Prompt:** lists the phases (clarify, plan, implement, verify, finish).
+  - **Verify:** the allowlist now includes `dotnet build/test/restore/format`, `npm ci/test/run`,
+    `helm lint/template` and read-only shell commands.
 
 ## Exit criteria (the demo)
 On a sandbox work item:

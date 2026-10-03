@@ -25,11 +25,20 @@ public static class ClaudeArgs
             args.Add(options.Model);
         }
 
-        if (options.AllowedTools.Count > 0)
+        // Until the plan is approved the agent may only read: no edit, commit or build tools are allowed.
+        var tools = request.ReadOnly ? options.ReadOnlyTools : options.AllowedTools;
+        if (tools.Count > 0)
         {
             // One comma-separated value, so a variadic flag can't swallow other arguments.
             args.Add("--allowedTools");
-            args.Add(string.Join(",", options.AllowedTools));
+            args.Add(string.Join(",", tools));
+        }
+
+        if (request.ReadOnly)
+        {
+            // Explicitly deny edits too: allowedTools only auto-approves; acceptEdits would still allow edits.
+            args.Add("--disallowedTools");
+            args.Add("Edit,Write,MultiEdit,NotebookEdit");
         }
 
         if (mcpConfigPath is not null)
