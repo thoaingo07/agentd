@@ -3,3 +3,7 @@
 *.jpg binary
 *.ico binary
 *.woff2 binary
+
+# Generated BFF contract (npm run gen:api / AGENTD_UPDATE_OPENAPI=1); collapsed in PR diffs.
+src/Agentd.Web/ClientApps/shared/api/openapi.json linguist-generated=true
+src/Agentd.Web/ClientApps/shared/api/schema.d.ts linguist-generated=true

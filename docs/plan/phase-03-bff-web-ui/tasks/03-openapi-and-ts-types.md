@@ -45,7 +45,28 @@ the server.
   tests) to catch shape mismatches at compile time.
 
 ## Done when
-- [ ] `/openapi/v1.json` (Development) contains only `/api` and `/bff` operations, with stable names.
-- [ ] `npm run gen:api` regenerates `schema.d.ts` without a running server.
-- [ ] CI fails on contract drift.
-- [ ] The frontend has no hand-written DTO interfaces that duplicate server types.
+- [x] `/openapi/v1.json` (Development) contains only `/api` and `/bff` operations, with stable names.
+- [x] `npm run gen:api` regenerates `schema.d.ts` without a running server.
+- [x] CI fails on contract drift.
+- [x] The frontend has no hand-written DTO interfaces that duplicate server types.
+
+## As built
+- **Document:** `Microsoft.AspNetCore.OpenApi` 10.0.12, with `BffOnlyDocumentTransformer` (keeps
+  `/api` and `/bff`, drops `servers`). It's served at `/openapi/v1.json` in Development only, and is
+  404 elsewhere. Every endpoint has `.WithName(...)` and `Produces*` metadata. The JSON
+  `NumberHandling` is `Strict`, so ids are `integer` in the contract, not `integer | string`.
+- **No build-time generation:** `Microsoft.Extensions.ApiDescription.Server` isn't used. It starts the
+  Host's entry point, and that's the CLI. Instead, `Bff.Tests/OpenApiContractTests` builds the BFF
+  in-process and compares the document with the committed
+  `src/Agentd.Web/ClientApps/shared/api/openapi.json`. `AGENTD_UPDATE_OPENAPI=1` rewrites the file.
+  So `dotnet test` catches server drift, and no running server is needed.
+- **Types:** `npm run gen:api` turns `openapi.json` into `schema.d.ts`. The CI web job regenerates
+  it and fails on any `git diff`.
+  - `openapi-typescript` 7.13 declares a peer dependency on TypeScript 5. A `package.json` override
+    points it at the project's TypeScript 6, and generation works unchanged.
+- **`types.ts`:** aliases (`JobSummary`, `JobDetail`, `AgentEvent`, `EventPage`, `Dashboard`,
+  `HistoryPage`, `Diff`, …), plus `Problem` (with the `code` extension) and the `JobState` union
+  with `isJobState`.
+- **Changing the contract:** change the endpoint or view model, run
+  `AGENTD_UPDATE_OPENAPI=1 dotnet test --project tests/Agentd.Bff.Tests`, then `npm run gen:api`,
+  and commit both generated files.

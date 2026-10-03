@@ -20,12 +20,14 @@ public static class JobEndpoints
     public static RouteGroupBuilder MapJobReads(this RouteGroupBuilder api)
     {
         api.MapGet("/dashboard", async ([FromServices] IQueryHandler<GetDashboard, Dashboard> handler, CancellationToken ct) =>
-            TypedResults.Ok(DashboardVm.From(await handler.Handle(new GetDashboard(), ct).ConfigureAwait(false))));
+            TypedResults.Ok(DashboardVm.From(await handler.Handle(new GetDashboard(), ct).ConfigureAwait(false))))
+            .WithName("GetDashboard");
 
         api.MapGet("/jobs/{id:long}", async Task<IResult> (long id, [FromServices] IQueryHandler<GetJob, JobDetail?> handler, CancellationToken ct) =>
             await handler.Handle(new GetJob(new JobId(id)), ct).ConfigureAwait(false) is { } detail
                 ? TypedResults.Ok(JobDetailVm.From(detail))
-                : NotFound($"Job {id} was not found."));
+                : NotFound($"Job {id} was not found."))
+            .WithName("GetJob").Produces<JobDetailVm>().ProducesProblem(StatusCodes.Status404NotFound);
 
         api.MapGet("/jobs/{id:long}/events", async Task<IResult> (long id, long? after, long? before, int? limit, [FromServices] IQueryHandler<GetJobEvents, EventPage> handler, CancellationToken ct) =>
         {
@@ -47,7 +49,7 @@ public static class JobEndpoints
 
             var page = await handler.Handle(new GetJobEvents(new JobId(id), after, before, limit ?? DefaultEventLimit), ct).ConfigureAwait(false);
             return TypedResults.Ok(EventPageVm.From(page));
-        });
+        }).WithName("GetJobEvents").Produces<EventPageVm>().ProducesValidationProblem();
 
         api.MapGet("/history", async Task<IResult> (string? state, string? repo, string? q, int? page, int? pageSize, [FromServices] IQueryHandler<SearchHistory, HistoryPage> handler, CancellationToken ct) =>
         {
@@ -86,7 +88,7 @@ public static class JobEndpoints
 
             var result = await handler.Handle(new SearchHistory(states, repo, q, page ?? 1, pageSize ?? 25), ct).ConfigureAwait(false);
             return TypedResults.Ok(HistoryPageVm.From(result));
-        });
+        }).WithName("SearchHistory").Produces<HistoryPageVm>().ProducesValidationProblem();
 
         return api;
     }

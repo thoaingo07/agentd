@@ -71,7 +71,7 @@ Detailed tasks: [tasks/README.md](tasks/README.md)
 |---|---|---|---|---|
 | T3.1 | [Event store and live publisher](tasks/01-event-store-and-publisher.md) | Phase 1 (`events` table, `RecordAgentOutput`) | L | ☑ |
 | T3.2 | [BFF endpoints and view models](tasks/02-bff-endpoints-and-view-models.md) | T3.1, Phase 2 (`SubmitDeveloperMessage`) | M | ☑ |
-| T3.3 | [OpenAPI document and generated TypeScript types](tasks/03-openapi-and-ts-types.md) | T3.2 | S | ☐ |
+| T3.3 | [OpenAPI document and generated TypeScript types](tasks/03-openapi-and-ts-types.md) | T3.2 | S | ☑ |
 | T3.4 | [SignalR events hub with replay](tasks/04-signalr-events-hub.md) | T3.1 | M | ☐ |
 | T3.5 | [Antiforgery with HttpOnly cookies](tasks/05-antiforgery-and-cookies.md) | T3.2 | M | ☐ |
 | T3.6 | [Security headers, strict CSP and CSP reporting](tasks/06-security-headers-and-csp.md) | T3.2, Phase 0 (web build in `wwwroot`) | M | ☐ |
