@@ -11,7 +11,7 @@ Detailed implementation tasks for [Phase 2 — Messaging](../README.md), in buil
 | T2.5 | [Outbox dispatcher, retries and provider health](05-outbox-dispatcher.md) | T2.4 | M | ☑ |
 | T2.6 | [HandleInboundMessage, commands and mirroring](06-inbound-handling-and-commands.md) | T2.2, T2.3, T2.4 | M | ☑ |
 | T2.7 | [`ask_developer`, progress and resuming the Claude session](07-ask-developer-and-resume.md) | T2.4, T2.6, Phase 1 | M | ☑ |
-| T2.8 | [Discord provider](08-discord-provider.md) | T2.2, T2.5, T2.6 | L | ☐ |
+| T2.8 | [Discord provider](08-discord-provider.md) | T2.2, T2.5, T2.6 | L | ☑ |
 | T2.9 | [Telegram provider](09-telegram-provider.md) — *deferred* | T2.2, T2.5, T2.6 | L | ⏸ |
-| T2.10 | [Provider contract test suite](10-provider-contract-tests.md) | T2.8, T2.9 | M | ☐ |
+| T2.10 | [Provider contract test suite](10-provider-contract-tests.md) | T2.8, T2.9 | M | ☑ |
 | T2.11 | [End-to-end verification and phase demo](11-end-to-end-verification.md) | T2.1 – T2.10 | S | ☐ |

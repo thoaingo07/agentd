@@ -36,7 +36,8 @@ public static partial class DiscordRenderer
         var inCode = false;
         foreach (var line in markdown.ReplaceLineEndings("\n").Split('\n'))
         {
-            if (line.TrimStart().StartsWith("```", StringComparison.Ordinal))
+            // Only a line with an odd number of fences opens or closes a block; "``` x ``` y" is inline.
+            if (line.TrimStart().StartsWith("```", StringComparison.Ordinal) && CountFences(line) % 2 == 1)
             {
                 inCode = !inCode;
                 sb.Append(line).Append('\n');
@@ -57,6 +58,17 @@ public static partial class DiscordRenderer
             ? m.Value
             : $"\\[{m.Groups[1].Value}\\] ({m.Groups[2].Value})");
         return Heading().Replace(line, "\\$1");
+    }
+
+    private static int CountFences(string line)
+    {
+        var count = 0;
+        for (var i = line.IndexOf("```", StringComparison.Ordinal); i >= 0; i = line.IndexOf("```", i + 3, StringComparison.Ordinal))
+        {
+            count++;
+        }
+
+        return count;
     }
 
     private static bool IsWebUrl(string url) =>
