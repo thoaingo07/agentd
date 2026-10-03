@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using ModelContextProtocol.AspNetCore;
 
 namespace Agentd.Mcp;
@@ -16,7 +17,7 @@ public static class McpHosting
     /// <summary>MCP server (stateless Streamable HTTP), per-job bearer auth and the token issuer.</summary>
     public static IServiceCollection AddAgentdMcp(this IServiceCollection services)
     {
-        services.AddSingleton<IMcpTokenIssuer, McpTokenIssuer>();
+        services.TryAddSingleton<IMcpTokenIssuer, McpTokenIssuer>();
         services.AddHttpContextAccessor();
         services.AddAuthentication()
             .AddScheme<AuthenticationSchemeOptions, McpJobAuthenticationHandler>(McpJobAuthenticationHandler.SchemeName, _ => { });

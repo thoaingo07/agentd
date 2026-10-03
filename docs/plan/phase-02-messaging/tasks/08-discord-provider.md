@@ -114,7 +114,19 @@ Split into two PRs:
    - **Development config:** the sandbox guild, channel and user ids, with Discord **enabled**. The bot
      token must be set in user-secrets, or Development startup fails fast with the validator's message.
 
+**Live check (2026-10-03).** The real bot in the sandbox server: `!help` and `!list` in #agents were
+received, matched to the allowlisted user, and answered. It also surfaced two Host bugs, fixed here
+with regression tests:
+- **CLI in Development:** CLI verbs failed DI validation, because `IMcpTokenIssuer` (needed by the
+  Claude runner) was registered only by the daemon's MCP setup. It is now registered in the shared
+  core with `TryAdd`.
+- **Starting directory:** `agentd daemon run` started from a directory without `appsettings.json`
+  ignored its settings. The content root now falls back to the binary's directory, as the CLI already
+  did.
+
+Also: the poll's per-request HTTP logs are quieted (`System.Net.Http.HttpClient.discord: Warning`).
+
 ## Done when
-- [ ] Manual check in a test guild: thread created, buttons work, slash commands respond, and
-  `@everyone` from the agent pings nobody.
+- [~] Manual check in a test guild: commands round-trip (`!help`, `!list`) ✅. Thread creation, numbered
+  answers and `@everyone` inertness are checked in the end-to-end demo (T2.11).
 - [ ] The contract suite is green for Discord.

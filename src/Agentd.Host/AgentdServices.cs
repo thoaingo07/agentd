@@ -1,6 +1,7 @@
 using Agentd.Application;
 using Agentd.Application.Jobs;
 using Agentd.Application.Messaging;
+using Agentd.Application.Ports;
 using Agentd.Application.Repositories;
 using Agentd.Application.Users;
 using Agentd.Host.Configuration;
@@ -10,6 +11,8 @@ using Agentd.Infrastructure.Claude;
 using Agentd.Infrastructure.Git;
 using Agentd.Infrastructure.Messaging.Discord;
 using Agentd.Infrastructure.Persistence;
+using Agentd.Mcp;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
 namespace Agentd.Host;
@@ -48,6 +51,8 @@ internal static class AgentdServices
         builder.Services.AddGit(builder.Configuration);
         builder.Services.AddClaude(builder.Configuration);
         builder.Services.AddDiscordMessaging(builder.Configuration);
+        // The agent runner issues per-job MCP tokens; CLI verbs resolve it too (e.g. cancel), not only the daemon.
+        builder.Services.TryAddSingleton<IMcpTokenIssuer, McpTokenIssuer>();
         return home;
     }
 }
