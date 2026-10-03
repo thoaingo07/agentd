@@ -4,6 +4,7 @@ using Agentd.Application.Ports;
 using Agentd.Domain.Common;
 using Agentd.Domain.Jobs;
 using Agentd.Domain.Jobs.ValueObjects;
+using Microsoft.Extensions.Logging;
 
 namespace Agentd.Application.Jobs;
 
@@ -39,12 +40,13 @@ public sealed class RequestCloseOutHandler(IJobRepository jobs) : ICommandHandle
 public sealed record AnswerCloseOut(JobId JobId, string Reply);
 
 /// <summary>"1"/"delete" deletes every thread of the job, "2"/"keep" archives them; anything else re-asks.</summary>
-public sealed class AnswerCloseOutHandler(
+public sealed partial class AnswerCloseOutHandler(
     IJobRepository jobs,
     IConversationStore conversations,
     IMessagingProviderRegistry providers,
     IOutbox outbox,
-    IClock clock) : ICommandHandler<AnswerCloseOut, bool>
+    IClock clock,
+    ILogger<AnswerCloseOutHandler> logger) : ICommandHandler<AnswerCloseOut, bool>
 {
     private static readonly HashSet<string> s_delete = new(StringComparer.OrdinalIgnoreCase) { "1", "delete", "delete it", "yes", RequestCloseOutHandler.DeleteLabel };
     private static readonly HashSet<string> s_keep = new(StringComparer.OrdinalIgnoreCase) { "2", "keep", "no", "archive", RequestCloseOutHandler.KeepLabel };
@@ -74,17 +76,29 @@ public sealed class AnswerCloseOutHandler(
 
         foreach (var thread in (await conversations.ListByJobAsync(job.Id, cancellationToken).ConfigureAwait(false)).Where(c => c.IsOpen))
         {
-            try
+            var provider = providers.Resolve(thread.Provider);
+            var reference = new ConversationRef(thread.Provider, thread.ExternalConversationId, thread.ExternalSpaceId);
+            var archiveNote = "📦 Archived. This work item is done.";
+            if (delete)
             {
-                var provider = providers.Resolve(thread.Provider);
-                var reference = new ConversationRef(thread.Provider, thread.ExternalConversationId, thread.ExternalSpaceId);
-                if (delete)
+                try
                 {
                     await provider.DeleteConversationAsync(reference, cancellationToken).ConfigureAwait(false);
+                    archiveNote = "";
                 }
-                else
+                catch (Exception ex) when (ex is not OperationCanceledException)
                 {
-                    await provider.CloseConversationAsync(reference, "📦 Archived. This work item is done.", cancellationToken).ConfigureAwait(false);
+                    // Usually a missing permission (Discord: Manage Threads). Archive instead, and say why.
+                    LogDeleteFailed(logger, ex, thread.Provider.Value, thread.ExternalConversationId);
+                    archiveNote = $"⚠️ I couldn't delete this thread ({ex.Message}). On Discord, give the agentd role **Manage Threads**. Archived it instead.";
+                }
+            }
+
+            try
+            {
+                if (archiveNote.Length > 0)
+                {
+                    await provider.CloseConversationAsync(reference, archiveNote, cancellationToken).ConfigureAwait(false);
                 }
 
                 thread.Close(clock.UtcNow);
@@ -92,10 +106,16 @@ public sealed class AnswerCloseOutHandler(
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                // Best effort: a thread that is already gone needs no clean-up.
+                LogArchiveFailed(logger, ex, thread.Provider.Value, thread.ExternalConversationId);
             }
         }
 
         return true;
     }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Deleting {Provider} thread {Thread} failed; archiving it instead")]
+    private static partial void LogDeleteFailed(ILogger logger, Exception exception, string provider, string thread);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Archiving {Provider} thread {Thread} failed")]
+    private static partial void LogArchiveFailed(ILogger logger, Exception exception, string provider, string thread);
 }

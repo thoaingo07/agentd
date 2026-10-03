@@ -124,6 +124,25 @@ public sealed class HandoffTests
     }
 
     [TestMethod]
+    public async Task Without_permission_to_delete_the_thread_is_archived_and_the_reason_is_posted()
+    {
+        var chat = new Fakes.FakeChat("discord") { FailDeleteThread = true };
+        _t.Chats.Add(chat);
+        _t.Messaging.Providers["discord"] = new Application.Messaging.MessagingProviderSettings { Enabled = true };
+        var job = await MergedAsync();
+        await Resume();
+        await Propose(job, "AGENTS.md: one note.");
+        await Reply(job, ProposeKnowledgeHandler.SkipLabel);
+
+        await _t.AnswerCloseOut().Handle(new AnswerCloseOut(job, "1"), default);
+
+        Assert.AreEqual(JobState.Done, _t.Jobs.Get(job).State);
+        CollectionAssert.AreEqual(new[] { $"thread-{job}" }, chat.ArchivedThreads);
+        StringAssert.Contains(chat.ArchiveNotes.Single(), "give the agentd role **Manage Threads**");
+        Assert.IsFalse(_t.Conversations.All.Single().IsOpen);
+    }
+
+    [TestMethod]
     [DataRow("3", false, true)]
     [DataRow("🚫 Don't sync", false, true)]
     [DataRow("don't sync, thanks", false, true)]

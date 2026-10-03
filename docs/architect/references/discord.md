@@ -51,3 +51,10 @@ Slash commands (registered per guild, so they update instantly):
 - Discord.Net docs: https://docs.discordnet.dev
 - Threads: https://discord.com/developers/docs/topics/threads
 - Gateway intents: https://discord.com/developers/docs/topics/gateway#gateway-intents
+
+## Permissions agentd needs (checked live 2026-10-03)
+View Channel, Send Messages, Create Public Threads, Send Messages in Threads, **Manage Threads**,
+Read Message History, Attach Files and Embed Links: invite permissions `326417632256`.
+**Manage Threads** is required to **delete** a thread at close-out; without it Discord answers
+`403 Missing Permissions` (code 50013) and agentd archives the thread instead and says why. The bot
+can archive and delete its own messages without extra permissions.
