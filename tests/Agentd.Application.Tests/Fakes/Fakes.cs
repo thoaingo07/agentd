@@ -416,8 +416,18 @@ internal sealed class FakeChat(string key) : IMessagingProvider
 
     public List<string> ArchivedThreads { get; } = [];
 
+    public List<string> ArchiveNotes { get; } = [];
+
+    /// <summary>Simulates a bot without permission to delete threads (Discord: Manage Threads).</summary>
+    public bool FailDeleteThread { get; set; }
+
     public Task DeleteConversationAsync(ConversationRef conversation, CancellationToken cancellationToken)
     {
+        if (FailDeleteThread)
+        {
+            throw new MessagingDeliveryException("Discord returned 403: Missing Permissions", permanent: true);
+        }
+
         DeletedThreads.Add(conversation.ExternalConversationId);
         return Task.CompletedTask;
     }
@@ -427,6 +437,7 @@ internal sealed class FakeChat(string key) : IMessagingProvider
     public Task CloseConversationAsync(ConversationRef conversation, string reason, CancellationToken cancellationToken)
     {
         ArchivedThreads.Add(conversation.ExternalConversationId);
+        ArchiveNotes.Add(reason);
         return Task.CompletedTask;
     }
 
@@ -510,7 +521,8 @@ internal sealed class TestContext
     public RequestCloseOutHandler RequestCloseOut() => new(Jobs);
 
     public AnswerCloseOutHandler AnswerCloseOut() =>
-        new(Jobs, Conversations, new MessagingProviderRegistry(Chats, Microsoft.Extensions.Options.Options.Create(Messaging)), Outbox, Clock);
+        new(Jobs, Conversations, new MessagingProviderRegistry(Chats, Microsoft.Extensions.Options.Options.Create(Messaging)), Outbox, Clock,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<AnswerCloseOutHandler>.Instance);
 
     public ReviewPullRequestsHandler Review() => new(Jobs, Registry, PullRequests, Worktrees, Outbox, StartHandoff(), RequestCloseOut(), Options);
 
