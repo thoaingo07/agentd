@@ -66,6 +66,25 @@ Every arrow posts to the work item's thread.
 - **The daemon itself:** if agentd stops or loses the provider, the heartbeat stops updating, and the
   timestamp shows it. `/healthz` reports per-provider status (T2.5).
 
+### Usage warnings (Claude subscription limits)
+- **Source:** Claude Code's stream reports `rate_limit_event` with the utilization of the **5-hour**
+  and **weekly** windows and their reset times. agentd already records these as `agent.rate_limit`
+  events.
+- **Warning:** when either window reaches **80%** (configurable), agentd posts **⚠️ Usage at N% of the
+  5-hour (or weekly) window, resets at HH:MM**. It posts once per window per job, again at 95%, and
+  the heartbeat shows the latest utilization.
+- **At the limit:** the job is paused and resumed after the reset (existing behavior, T1.8). The
+  thread says so: "⏸ usage limit reached; resuming at HH:MM".
+
+### Estimates (time and usage)
+- **Plan:** the plan includes an **estimate**: expected time (minutes) and expected usage (as a
+  share of the 5-hour window, from the size of the change). agentd shows it with the current
+  utilization, so the developer can decide before approving, e.g. "est. ~25 min, ~15% of the 5-hour
+  window (now at 62%)".
+- **At PR time:** agentd reports **actual against the estimate** (elapsed time, usage consumed).
+  Both are stored on the job, so later phases (Web UI, learning loop) can calibrate estimates from
+  history.
+
 ### Gates
 - **Clarify:** open questions go through `ask_developer`, and the job waits.
 - **Plan approval, on by default:** the agent posts its plan through `ask_developer` and waits for the
@@ -119,9 +138,11 @@ This is a per-repository allowlist; still no `git push`, since agentd pushes.
 1. **Notifications + reliable messaging:**
    - agentd's step messages, `set_phase`, the live activity line and the **every-minute heartbeat**;
    - an **immediate status reply** to any message sent mid-task;
+   - **usage warnings** at 80% / 95% of the 5-hour and weekly windows;
    - unread messages returned on every tool call, and the `finish` guard;
    - **one thread per work item** (reuse the open conversation across jobs).
-2. **Clarify, plan approval (on by default, `ai-auto` skips) and verify:** the per-repo command allowlist.
+2. **Clarify, plan approval (on by default, `ai-auto` skips) and verify:** the plan carries the
+   **time and usage estimate**; actual against the estimate at PR time; the per-repo command allowlist.
 3. **Review loop:** the In Review state; polling PR threads and policies; fix rounds in the same
    session, then push and reply on threads; ready to complete; Done/Cancelled on completed or abandoned.
 4. **Hand-off:** extract, compare, present; agree in rounds; the knowledge sync PR; close-out with a
