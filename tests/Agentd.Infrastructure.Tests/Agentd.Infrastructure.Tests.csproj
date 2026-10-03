@@ -4,6 +4,7 @@
     <ProjectReference Include="..\..\src\Agentd.Infrastructure.AzureDevOps\Agentd.Infrastructure.AzureDevOps.csproj" />
     <ProjectReference Include="..\..\src\Agentd.Infrastructure.Git\Agentd.Infrastructure.Git.csproj" />
     <ProjectReference Include="..\..\src\Agentd.Infrastructure.Claude\Agentd.Infrastructure.Claude.csproj" />
+    <ProjectReference Include="..\..\src\Agentd.Infrastructure.Messaging.Discord\Agentd.Infrastructure.Messaging.Discord.csproj" />
     <!-- The real schema for integration tests. -->
     <ProjectReference Include="..\..\src\Agentd.Migrator\Agentd.Migrator.csproj" />
   </ItemGroup>

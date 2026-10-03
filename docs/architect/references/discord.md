@@ -12,8 +12,10 @@ This covers the Discord messaging provider (`Infrastructure.Messaging.Discord`).
    Read Message History, Embed Links, Attach Files.
 4. Store the token in the `Agentd__Messaging__Providers__Discord__BotToken` env var (or user-secrets in dev).
 
-Gateway intents needed: `Guilds`, `GuildMessages`, `MessageContent`
-(Discord.Net: `GatewayIntents.Guilds | GatewayIntents.GuildMessages | GatewayIntents.MessageContent`).
+agentd uses **plain REST, no Gateway** (decided 2026-10-03). Replies are read by polling
+`GET /channels/{id}/messages?after={lastId}`, which still requires the **Message Content** intent to
+see message text. Gateway intents (`Guilds`, `GuildMessages`, `MessageContent`) only matter if a
+Gateway listener is added later.
 
 ## One thread per work item
 

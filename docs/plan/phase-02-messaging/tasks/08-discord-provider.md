@@ -67,6 +67,37 @@ signature below against the pinned version.
   `AllowedMentions` is always none.
 - Passes the contract suite (T2.10).
 
+## As built (decided 2026-10-03: REST + polling, no library)
+NetCord is beta-only and the rule here is stable packages; Discord.Net works but adds a dependency.
+Plain REST covers everything outbound. Receiving needs either the Gateway (a WebSocket protocol to own)
+or polling. **We chose REST with polling:** no dependency and no public URL, at the cost of buttons and
+slash commands.
+
+Split into two PRs:
+
+1. **Outbound** (this one), in project `Agentd.Infrastructure.Messaging.Discord`:
+   - **`DiscordRest`:** creates its `HttpClient` from the factory on each call, and `DiscordAuthHandler`
+     adds `Bot <token>` and the required User-Agent. A 429 becomes a transient
+     `MessagingDeliveryException` carrying `retry_after`; 5xx and network errors are transient; other
+     4xx (Missing Access, Unknown Channel) are permanent.
+   - **`DiscordMessagingProvider`:**
+     - a starter message in the channel, then a public thread `WI-<id> · <title>` (≤ 100 characters,
+       auto-archive after 7 days);
+     - messages always carry `allowed_mentions: {parse: []}`;
+     - edits use `PATCH`, files go as multipart `payload_json` + `files[n]`, closing posts the reason
+       and archives the thread, and health is `GET users/@me`;
+     - `SupportsOptions = false`: options render as a numbered list, and the last options per thread
+       are remembered for the poller.
+   - **`DiscordRenderer`:** `@everyone`/`@here` and `<@id>`/`<#id>`/`<@&id>` become inert (a zero-width
+     space), only http(s) links render, and a leading `#`/`-#` is escaped. Code blocks are untouched.
+     Markdown emphasis passes through on purpose (it's harmless); `allowed_mentions` is the guarantee.
+   - **`DiscordOptions`** (`Agentd:Messaging:Providers:Discord`: `Enabled`, `BotToken` from secrets
+     only, `GuildId`, `ChannelId`, `PollInterval`, `CommandPrefix`), with a validator that fails startup
+     when Discord is enabled without a token or numeric ids.
+2. **Inbound** (next PR): a poller for open job threads and the parent channel (`!commands`), with
+   numbered replies mapped to options. It replays the last messages of each open thread at startup,
+   which dedupe makes safe.
+
 ## Done when
 - [ ] Manual check in a test guild: thread created, buttons work, slash commands respond, and
   `@everyone` from the agent pings nobody.

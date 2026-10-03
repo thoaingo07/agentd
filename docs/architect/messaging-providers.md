@@ -18,7 +18,7 @@ Related: [Architecture](README.md) · [Clean Architecture + BFF](clean-architect
 | **Space** | where agentd posts, from config | guild + parent text channel | a supergroup with **Topics** enabled (forum) |
 | **Conversation** | one per job per provider | thread | forum topic (`message_thread_id`) |
 | **Message** | text + optional options (buttons) + attachments | message + components | message + inline keyboard |
-| **Command** | a provider-neutral action: `status`, `cancel`, `retry`, `logs`, `list`, `run` | slash commands `/agentd …` | bot commands `/status`, `/cancel`, … |
+| **Command** | a provider-neutral action: `status`, `cancel`, `retry`, `logs`, `list`, `run` | typed commands `!status`, `!run 1234` (slash commands once a Gateway listener exists) | bot commands `/status`, `/cancel`, … |
 | **Identity** | the platform user, mapped to an agentd user | user ID (snowflake) | numeric user ID |
 
 A job can have **conversations on several providers at once**, for example a team channel on
@@ -37,7 +37,7 @@ flowchart LR
         REG[[IMessagingProviderRegistry]]
     end
     subgraph INF[Infrastructure]
-        DP[Messaging.Discord<br/>DiscordMessagingProvider<br/>+ gateway listener]
+        DP[Messaging.Discord<br/>DiscordMessagingProvider<br/>REST + poller]
         TP[Messaging.Telegram<br/>TelegramMessagingProvider<br/>+ long-polling listener]
         XP[Messaging.&lt;next&gt;<br/>Slack / Teams / …]
     end
@@ -209,12 +209,12 @@ settings.
 
 | Aspect | Discord (`Infrastructure.Messaging.Discord`) | Telegram (`Infrastructure.Messaging.Telegram`) |
 |---|---|---|
-| Library | Discord.Net | Telegram.Bot |
-| Receiving | gateway WebSocket (`DiscordSocketClient`) | **long polling** `getUpdates` by default, because the daemon runs on localhost with no public URL. A webhook with `secret_token` is optional. |
+| Library | none: plain REST over `HttpClient` (decided 2026-10-03) | Telegram.Bot |
+| Receiving | **polling**: `GET /channels/{thread}/messages?after=` for open job threads and `!commands` in the parent channel, every ~3 s. No WebSocket and no public URL. A Gateway listener can be added later behind the same port. | **long polling** `getUpdates` by default, because the daemon runs on localhost with no public URL. A webhook with `secret_token` is optional. |
 | Open conversation | starter message + thread | `createForumTopic` → `message_thread_id` |
 | Send | message in the thread | `sendMessage(chat_id, message_thread_id, parse_mode=HTML)` |
-| Options | message components (buttons) → `InteractionCreated` | inline keyboard → `callback_query` (+ `answerCallbackQuery`) |
-| Commands | slash commands `/agentd status …` | `setMyCommands` (group scope): `/status`, `/cancel`, `/retry`, `/logs`, `/list`, `/run <id>` |
+| Options | a numbered list (`SupportsOptions = false`); a reply like `2` is mapped back to the option | inline keyboard → `callback_query` (+ `answerCallbackQuery`) |
+| Commands | typed `!status`, `!cancel`, `!retry`, `!logs`, `!list`, `!run <id>`, `!help` | `setMyCommands` (group scope): `/status`, `/cancel`, `/retry`, `/logs`, `/list`, `/run <id>` |
 | Edit progress | ✅ | ✅ `editMessageText` |
 | Attachments | ✅ | ✅ `sendDocument` |
 | Close | archive thread | `closeForumTopic` |
