@@ -33,6 +33,7 @@ public sealed class ClaudeCodeRunnerTests
         CollectionAssert.IsSubsetOf(new[] { "agent.session", "agent.text", "agent.rate_limit", "agent.result" }, events.Types.ToList());
         var transcript = Path.Combine(_dir, "logs", "wi-1234", "transcript.jsonl");
         Assert.HasCount(4, File.ReadAllLines(transcript));
+        Assert.AreEqual(0.01, _activity.Get(new JobId(42)).Usage?.FiveHour, "usage feeds the heartbeat and warnings");
     }
 
     [TestMethod]
@@ -167,12 +168,14 @@ public sealed class ClaudeCodeRunnerTests
         return path;
     }
 
+    private readonly Application.Jobs.JobActivity _activity = new();
+
     private (ClaudeCodeRunner Runner, RecordingEvents Events, FakeTokens Tokens) Runner(string binary, TimeSpan? idle = null, string? mcpUrl = null)
     {
         var options = new ClaudeOptions { Binary = binary, TranscriptRoot = Path.Combine(_dir, "logs"), IdleTimeout = idle ?? TimeSpan.FromMinutes(1), McpUrl = mcpUrl };
         var events = new RecordingEvents();
         var tokens = new FakeTokens();
-        return (new ClaudeCodeRunner(Options.Create(options), events, tokens, NullLogger<ClaudeCodeRunner>.Instance), events, tokens);
+        return (new ClaudeCodeRunner(Options.Create(options), events, tokens, _activity, NullLogger<ClaudeCodeRunner>.Instance), events, tokens);
     }
 
     private AgentRunRequest Request(bool resume) =>

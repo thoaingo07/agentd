@@ -37,6 +37,15 @@ public interface IAgentRunner
     void Cancel(JobId jobId);
 }
 
+/// <summary>What the runner reports while an agent works (fed into <c>JobActivity</c>).</summary>
+public interface IAgentActivitySink
+{
+    void ToolStep(JobId jobId, string description, DateTimeOffset at);
+
+    /// <summary>Utilization (0–1) of the 5-hour and weekly windows, when reported.</summary>
+    void Usage(JobId jobId, double? fiveHour, double? weekly, DateTimeOffset? resetsAt);
+}
+
 /// <summary>Issues and validates the per-job bearer tokens for the MCP endpoint.</summary>
 public interface IMcpTokenIssuer
 {

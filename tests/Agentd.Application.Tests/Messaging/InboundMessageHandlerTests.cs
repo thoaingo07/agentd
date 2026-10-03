@@ -19,6 +19,7 @@ public sealed class InboundMessageHandlerTests
     private readonly FakeLog _log = new();
     private readonly FakeUsers _users = new();
     private readonly FakeOutbox _outbox = new();
+    private readonly JobActivity _activity = new();
     private int _nextMessage;
 
     [TestMethod]
@@ -39,15 +40,21 @@ public sealed class InboundMessageHandlerTests
     }
 
     [TestMethod]
-    public async Task A_reply_while_running_is_queued_and_acknowledged()
+    public async Task A_message_mid_task_gets_an_instant_status_and_is_queued_for_the_agent()
     {
         var job = await JobInThreadAsync(waiting: false);
+        _activity.SetPhase(job, "implement");
+        _activity.RecordActivity(job, "📖 reading AGENTS.md", _t.Clock.UtcNow.AddSeconds(-20));
+        _activity.RecordUsage(job, new UsageSnapshot(0.62, 0.3, null));
 
-        Assert.AreEqual("queued", (await Handler().ProcessAsync(Message("also the docs"), default)).Code);
+        Assert.AreEqual("queued", (await Handler().ProcessAsync(Message("what's the progress?"), default)).Code);
 
-        CollectionAssert.AreEqual(new[] { "tngo: also the docs" }, _t.Jobs.Get(job).PendingMessages.ToArray());
-        var messages = JobEventMessages.For(_t.Jobs.SavedEvents.OfType<DeveloperReplied>());
-        Assert.AreEqual("Queued for the agent's next turn.", messages.Single(m => m.Options!.OnlyProviders is not null).Message.Markdown);
+        CollectionAssert.AreEqual(new[] { "tngo: what's the progress?" }, _t.Jobs.Get(job).PendingMessages.ToArray());
+        var status = _outbox.Enqueued.Single().Message;
+        CollectionAssert.AreEqual(new[] { s_discord }, status.Options!.OnlyProviders!.ToArray());
+        StringAssert.Contains(status.Message.Markdown, "**Status:** 🟢 running · implement · 📖 reading AGENTS.md (20 s ago)");
+        StringAssert.Contains(status.Message.Markdown, "usage 5h 62% / week 30%");
+        StringAssert.Contains(status.Message.Markdown, "reaches the agent at its next step");
     }
 
     [TestMethod]
@@ -128,7 +135,7 @@ public sealed class InboundMessageHandlerTests
     }
 
     private InboundMessageHandler Handler() =>
-        new(_log, _users, _t.Conversations, new SubmitDeveloperMessageHandler(_t.Jobs), ChatCommandsTests.Commands(_t, _outbox, new FakeTranscripts()), _outbox, NullLogger<InboundMessageHandler>.Instance);
+        new(_log, _users, _t.Conversations, new SubmitDeveloperMessageHandler(_t.Jobs), ChatCommandsTests.Commands(_t, _outbox, new FakeTranscripts()), _outbox, _t.Jobs, _activity, _t.Clock, NullLogger<InboundMessageHandler>.Instance);
 
     private async Task<JobId> JobInThreadAsync(bool waiting)
     {

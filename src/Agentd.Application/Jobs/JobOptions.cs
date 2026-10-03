@@ -24,6 +24,12 @@ public sealed class JobOptions
     /// <summary>How long a job waits for a developer's answer before it fails (reminders at 50% and 90%).</summary>
     public TimeSpan WaitForHumanTimeout { get; set; } = TimeSpan.FromDays(3);
 
+    /// <summary>How often the thread's heartbeat is re-posted (the previous one is deleted).</summary>
+    public TimeSpan HeartbeatInterval { get; set; } = TimeSpan.FromMinutes(1);
+
+    /// <summary>A running agent with no tool activity for this long gets a "no activity" warning.</summary>
+    public TimeSpan StuckAfter { get; set; } = TimeSpan.FromMinutes(5);
+
     /// <summary>Back-off when a usage limit reports no reset time.</summary>
     public TimeSpan UsageLimitBackoff { get; set; } = TimeSpan.FromMinutes(30);
 }

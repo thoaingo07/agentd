@@ -19,6 +19,8 @@ public sealed class DiscordRest(Func<HttpClient> client)
 
     public Task<JsonNode?> PostAsync(string path, JsonNode body, CancellationToken ct) => SendAsync(HttpMethod.Post, path, Json(body), ct);
 
+    public Task<JsonNode?> DeleteAsync(string path, CancellationToken ct) => SendAsync(HttpMethod.Delete, path, null, ct);
+
     public Task<JsonNode?> PatchAsync(string path, JsonNode body, CancellationToken ct) => SendAsync(HttpMethod.Patch, path, Json(body), ct);
 
     /// <summary>A message with files: <c>payload_json</c> plus <c>files[n]</c>.</summary>

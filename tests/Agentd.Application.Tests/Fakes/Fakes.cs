@@ -358,6 +358,10 @@ internal sealed class FakeChat(string key) : IMessagingProvider
 
     public List<string> SentText { get; } = [];
 
+    public List<string> Deleted { get; } = [];
+
+    private int _nextMessage;
+
     public bool FailOpen { get; set; }
 
     public Task<ConversationRef> OpenConversationAsync(ConversationSpec spec, CancellationToken cancellationToken)
@@ -374,7 +378,13 @@ internal sealed class FakeChat(string key) : IMessagingProvider
     public Task<MessageRef> SendAsync(ConversationRef conversation, OutboundMessage message, CancellationToken cancellationToken)
     {
         SentText.Add(message.Markdown);
-        return Task.FromResult(new MessageRef(conversation, "m1"));
+        return Task.FromResult(new MessageRef(conversation, $"m{++_nextMessage}"));
+    }
+
+    public Task DeleteAsync(MessageRef message, CancellationToken cancellationToken)
+    {
+        Deleted.Add(message.ExternalMessageId);
+        return Task.CompletedTask;
     }
 
     public Task EditAsync(MessageRef message, OutboundMessage replacement, CancellationToken cancellationToken) => Task.CompletedTask;

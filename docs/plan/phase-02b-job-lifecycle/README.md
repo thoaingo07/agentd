@@ -150,6 +150,22 @@ This is a per-repository allowlist; still no `git push`, since agentd pushes.
 5. **Polish:** limits, resolving agentd's own PR threads, tests against the real ADO API, a live
    demo on a sandbox work item.
 
+### Progress
+- **PR 1a (#26), merged:** unread messages are returned on every tool call, and `finish` is refused
+  until they are read; one thread per work item; start, resume and push notifications.
+- **PR 1b:**
+  - **Phases and activity:** `set_phase` (clarify, plan, implement, verify, fix, handoff) posts a
+    phase message. The live activity line comes from Claude's tool calls (`JobActivity`, fed by the
+    runner).
+  - **Heartbeat:** every minute, **deletes the previous heartbeat and posts a new one with a
+    timestamp** (`PostHeartbeats`, `HeartbeatWorker`, provider `DeleteAsync`; the conversation's
+    `status_message_id` is the heartbeat).
+  - **Status replies:** an **instant status reply** to a message sent mid-task.
+  - **Warnings:** usage at **80% / 95%** of the 5-hour and weekly windows, once each; **no activity**
+    after 5 minutes, then active again. Once a job ends, its last heartbeat is removed.
+  - **Progress:** `report_progress` now posts a visible "⏳" message (the heartbeat owns the status line).
+  - Activity, phase and usage are in memory: after a restart they fill again as the agent works.
+
 ## Exit criteria (the demo)
 On a sandbox work item:
 - every step appears in its single thread;
