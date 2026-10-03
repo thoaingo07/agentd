@@ -31,7 +31,17 @@ public interface IWorktreeManager
     Task RemoveAsync(Repository repository, WorktreePath worktree, CancellationToken cancellationToken);
 
     Task PruneAsync(Repository repository, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// What <paramref name="branch"/> changes against the base branch: the live worktree (including uncommitted
+    /// edits) while it exists, otherwise the branch in the managed clone. Null when the branch doesn't exist.
+    /// Over <paramref name="maxBytes"/> the diff text is left out and only the file list is returned.
+    /// </summary>
+    Task<BranchDiff?> DiffAsync(Repository repository, BranchName branch, WorktreePath? worktree, int maxBytes, CancellationToken cancellationToken);
 }
+
+/// <summary>A branch's changes against its base, as a unified diff (null when truncated).</summary>
+public sealed record BranchDiff(string BaseRef, string HeadRef, IReadOnlyList<string> Files, string? UnifiedDiff, bool Truncated);
 
 public sealed record PullRequestRef(int Id, Uri Url);
 

@@ -67,10 +67,10 @@ methods are grouped under `/api` so the antiforgery filter (T3.5) covers them au
 - Snapshot test of the JSON shape of each view model, which guards the TS contract.
 
 ## Done when
-- [ ] Every endpoint in the table exists, is thin (bind → handler → map), and returns view models.
-- [ ] No endpoint references Infrastructure types; the architecture tests still pass.
-- [ ] Error responses are consistent ProblemDetails.
-- [ ] A web message resumes a waiting job and appears in its chat conversation.
+- [x] Every endpoint in the table exists, is thin (bind → handler → map), and returns view models.
+- [x] No endpoint references Infrastructure types; the architecture tests still pass.
+- [x] Error responses are consistent ProblemDetails.
+- [x] A web message resumes a waiting job and appears in its chat conversation.
 
 ## As built
 
@@ -93,6 +93,24 @@ T3.2 is split into two PRs, so each stays under 1,000 lines.
   non-loopback callers. The handlers have Application tests, and the SQL has a Testcontainers test.
   There's no WebApplicationFactory + PostgreSQL test.
 
-**T3.2b: actions and diff (next)**
-- cancel/retry/messages, `POST /api/workitems/{id}/run`, `GET /api/jobs/{id}/diff`, and
-  `ResultExtensions`.
+**T3.2b: actions and diff**
+- `Endpoints/JobActionEndpoints.cs`: cancel and retry (204), messages (202 `{ outcome }`), `POST
+  /api/workitems/{id}/run` (202 `{ jobId }`), and `GET /api/jobs/{id}/diff`.
+  - Run uses `ClaimWorkItem(Force: true)`, the same as the `!run` chat command.
+  - A message to a job that doesn't take messages (`NotAccepted`) is a 409 with
+    `code = not_accepted`, not a 202.
+  - Web messages have no provider (`Via = null`), so `MessagingService` mirrors them to every chat
+    thread.
+- `Http/ResultExtensions.cs` maps `DomainError` codes: `not_found` → 404;
+  `invalid_transition`, `conflict` and `not_accepted` → 409; `validation` → 400. Every error
+  carries a `code` extension.
+- Handler parameters are `[FromServices]`, so a missing registration fails the request, not
+  startup. Minimal APIs would otherwise infer an unregistered interface as the request body.
+- Diff (`IWorktreeManager.DiffAsync`):
+  - While the worktree exists, it diffs against the merge base with `origin/<base>`, so it
+    includes uncommitted edits.
+  - Once the worktree is removed, it diffs the branch in the managed clone (`origin/<base>...branch`).
+  - Over 2 MB, it returns `truncated: true` with the file list only. `--numstat` is checked
+    first, so a huge diff is never read into memory.
+- Not done here: a test that a web message resumes a real job end to end. The endpoint test
+  checks the command it sends, and `SubmitDeveloperMessage` has its own resume tests (Phase 2).

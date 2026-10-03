@@ -24,6 +24,7 @@ public static class BffModule
     {
         var api = endpoints.MapGroup("/api").RequireAuthorization();
         api.MapJobReads();
+        api.MapJobActions();
         return api;
     }
 }

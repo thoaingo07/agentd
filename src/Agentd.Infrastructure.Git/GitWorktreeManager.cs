@@ -109,6 +109,58 @@ public sealed class GitWorktreeManager(GitCli git, IOptions<GitOptions> options)
         }
     }
 
+    public async Task<BranchDiff?> DiffAsync(Repository repository, BranchName branch, WorktreePath? worktree, int maxBytes, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(repository);
+        var baseRef = "origin/" + repository.BaseBranch;
+        string cwd;
+        string[] range;
+        if (worktree is { } live && Directory.Exists(live.Value))
+        {
+            // Against the merge base, so uncommitted edits show and later base commits don't.
+            cwd = live.Value;
+            var mergeBase = await git.RunAsync(cwd, ["merge-base", baseRef, "HEAD"], cancellationToken, throwOnError: false).ConfigureAwait(false);
+            if (mergeBase.ExitCode != 0)
+            {
+                return null;
+            }
+
+            range = [mergeBase.StandardOutput];
+        }
+        else
+        {
+            cwd = ClonePathFor(repository);
+            var exists = Directory.Exists(cwd)
+                && (await git.RunAsync(cwd, ["show-ref", "--verify", "--quiet", "refs/heads/" + branch.Value], cancellationToken, throwOnError: false).ConfigureAwait(false)).ExitCode == 0;
+            if (!exists)
+            {
+                return null;
+            }
+
+            range = [$"{baseRef}...{branch.Value}"];
+        }
+
+        var names = await git.RunAsync(cwd, ["diff", "--name-only", .. range], cancellationToken).ConfigureAwait(false);
+        var files = names.StandardOutput.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        var stat = await git.RunAsync(cwd, ["diff", "--numstat", .. range], cancellationToken).ConfigureAwait(false);
+        if (EstimateBytes(stat.StandardOutput) > maxBytes)
+        {
+            return new BranchDiff(baseRef, branch.Value, files, null, Truncated: true);
+        }
+
+        var diff = await git.RunAsync(cwd, ["diff", "--no-color", "--no-ext-diff", .. range], cancellationToken).ConfigureAwait(false);
+        return System.Text.Encoding.UTF8.GetByteCount(diff.StandardOutput) > maxBytes
+            ? new BranchDiff(baseRef, branch.Value, files, null, Truncated: true)
+            : new BranchDiff(baseRef, branch.Value, files, diff.StandardOutput.Length == 0 ? string.Empty : diff.StandardOutput + "\n", Truncated: false);
+    }
+
+    /// <summary>A lower bound on the diff size from <c>--numstat</c> (assume 10 bytes a changed line), to skip huge diffs early.</summary>
+    internal static long EstimateBytes(string numstat) =>
+        numstat.Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Select(line => line.Split('\t'))
+            .Sum(parts => (long.TryParse(parts[0], CultureInfo.InvariantCulture, out var added) ? added : 0)
+                + (parts.Length > 1 && long.TryParse(parts[1], CultureInfo.InvariantCulture, out var removed) ? removed : 0)) * 10;
+
     /// <summary>Push arguments. There is deliberately no way to request a force push.</summary>
     internal static IReadOnlyList<string> BuildPushArgs(BranchName branch) => ["push", "--set-upstream", "origin", branch.Value];
 
