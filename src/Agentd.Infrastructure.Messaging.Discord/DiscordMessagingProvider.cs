@@ -55,8 +55,10 @@ public sealed class DiscordMessagingProvider(DiscordRest rest, IOptions<DiscordO
     {
         ArgumentNullException.ThrowIfNull(message);
         ArgumentNullException.ThrowIfNull(replacement);
+        // An edit replaces one message, so oversized rendered text is cut to the limit.
+        var content = SplitRendered(DiscordRenderer.Render(replacement), Capabilities.MaxMessageLength)[0];
         await rest.PatchAsync($"channels/{message.Conversation.ExternalConversationId}/messages/{message.ExternalMessageId}",
-            Payload(replacement), cancellationToken).ConfigureAwait(false);
+            Payload(content), cancellationToken).ConfigureAwait(false);
     }
 
     public async Task CloseConversationAsync(ConversationRef conversation, string reason, CancellationToken cancellationToken)
@@ -93,20 +95,52 @@ public sealed class DiscordMessagingProvider(DiscordRest rest, IOptions<DiscordO
         return name.Length <= ThreadNameLimit ? name : name[..(ThreadNameLimit - 1)] + "…";
     }
 
-    /// <summary>Message JSON; <c>allowed_mentions</c> is always empty so nothing ever pings.</summary>
-    public static JsonObject Payload(OutboundMessage message) => new()
+    /// <summary>Message JSON for rendered content; <c>allowed_mentions</c> is always empty so nothing ever pings.</summary>
+    public static JsonObject Payload(string renderedContent) => new()
     {
-        ["content"] = DiscordRenderer.Render(message),
+        ["content"] = renderedContent,
         ["allowed_mentions"] = new JsonObject { ["parse"] = new JsonArray() },
     };
 
+    /// <summary>
+    /// Posts a message. Escaping can make rendered text longer than the chunker's headroom allowed (e.g.
+    /// hundreds of neutralized mentions), so oversized text is split again on lines; the first id is returned.
+    /// </summary>
     private async Task<string> PostAsync(string channelId, OutboundMessage message, CancellationToken ct)
     {
-        var payload = Payload(message);
-        var created = message.Attachments is { Count: > 0 } files
-            ? await rest.PostWithFilesAsync($"channels/{channelId}/messages", payload, files, ct).ConfigureAwait(false)
-            : await rest.PostAsync($"channels/{channelId}/messages", payload, ct).ConfigureAwait(false);
-        return Id(created);
+        string? first = null;
+        var parts = SplitRendered(DiscordRenderer.Render(message), Capabilities.MaxMessageLength);
+        for (var i = 0; i < parts.Count; i++)
+        {
+            var payload = Payload(parts[i]);
+            var created = i == parts.Count - 1 && message.Attachments is { Count: > 0 } files
+                ? await rest.PostWithFilesAsync($"channels/{channelId}/messages", payload, files, ct).ConfigureAwait(false)
+                : await rest.PostAsync($"channels/{channelId}/messages", payload, ct).ConfigureAwait(false);
+            first ??= Id(created);
+        }
+
+        return first!;
+    }
+
+    /// <summary>Rendered text in pieces of at most <paramref name="max"/>, cut at line breaks, then spaces.</summary>
+    internal static IReadOnlyList<string> SplitRendered(string text, int max)
+    {
+        var parts = new List<string>();
+        while (text.Length > max)
+        {
+            var cut = text.LastIndexOf('\n', max - 1);
+            if (cut < max / 2)
+            {
+                cut = text.LastIndexOf(' ', max - 1);
+            }
+
+            cut = cut < max / 2 ? max : cut + 1;
+            parts.Add(text[..cut].TrimEnd());
+            text = text[cut..];
+        }
+
+        parts.Add(text);
+        return parts;
     }
 
     private static string Id(JsonNode? node) =>

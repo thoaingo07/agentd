@@ -15,5 +15,6 @@
   <ItemGroup>
     <!-- Real stream-json transcripts captured from Claude Code 2.1.284 (paths sanitized). -->
     <None Update="Claude\Fixtures\*.jsonl" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Messaging\Contract\hostile-inputs.txt" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

@@ -232,9 +232,16 @@ settings.
    `HandleInboundMessage`.
 4. Add an `AddMessaging<Name>(IServiceCollection, IConfiguration)` extension, a config section
    under `Messaging:Providers:<Name>`, and a secret named `Agentd__Messaging__Providers__<Name>__BotToken`.
-5. Make the shared **contract test suite** (`MessagingProviderContractTests<TProvider>`) pass. It
-   covers chunking limits, the rendering and escaping of untrusted text, idempotent inbound handling,
-   option round-trips and the health check.
+5. Make the shared **contract test suite** pass:
+   [`MessagingProviderContractTests`](../../tests/Agentd.Infrastructure.Tests/Messaging/Contract/MessagingProviderContractTests.cs).
+   - Derive a test class and implement
+     [`IProviderTestHarness`](../../tests/Agentd.Infrastructure.Tests/Messaging/Contract/IProviderTestHarness.cs):
+     the provider on a fake transport, the wire text, injecting native messages, and the platform's
+     definition of active markup.
+   - The suite covers chunking limits after rendering, the inertness of every line in
+     [`hostile-inputs.txt`](../../tests/Agentd.Infrastructure.Tests/Messaging/Contract/hostile-inputs.txt),
+     inbound ids for dedupe, bots ignored, commands, option round-trips, edits and the health check.
+   - Discord's harness is `DiscordContractTests`.
 6. Add `references/<name>.md`.
 
 ---
