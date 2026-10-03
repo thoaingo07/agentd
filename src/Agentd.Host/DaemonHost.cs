@@ -1,5 +1,6 @@
 using Agentd.Host.Workers;
 using Agentd.Infrastructure.Claude;
+using Agentd.Infrastructure.Persistence;
 using Agentd.Mcp;
 using Agentd.Web;
 using Microsoft.Extensions.Options;
@@ -32,6 +33,7 @@ internal static class DaemonHost
         builder.Services.AddHostedService<SchedulerWorker>();
         builder.Services.AddHostedService<MessagingDispatcherWorker>();
         builder.Services.AddHostedService<HeartbeatWorker>();
+        builder.Services.AddEventStreaming();
         builder.Services.AddHostedService<ReviewMonitorWorker>();
         builder.Services.AddSingleton<MessagingProviderHealthCheck>();   // one instance keeps the 30 s cache
         builder.Services.AddHealthChecks()

@@ -18,13 +18,25 @@ public static class DependencyInjection
     public static IServiceCollection AddPersistence(this IServiceCollection services)
     {
         services.AddSingleton<IJobRepository, JobRepository>();
-        services.AddSingleton<IEventStore, EventStore>();
+        services.AddSingleton<EventStore>();
+        services.AddSingleton<IEventStore>(sp => sp.GetRequiredService<EventStore>());
+        services.AddSingleton<IEventReader>(sp => sp.GetRequiredService<EventStore>());
         services.AddSingleton<IRepositoryRegistry, RepositoryStore>();
         services.AddSingleton<IConversationStore, ConversationStore>();
         services.AddSingleton<IUserDirectory, UserDirectory>();
         services.AddSingleton<IOutbox, Outbox>();
         services.AddSingleton<IOutboxDelivery, OutboxDelivery>();
         services.AddSingleton<IInboundLog, InboundLog>();
+        services.AddSingleton<Application.Events.EventHub>();
+        services.AddSingleton<Application.Events.ILiveEvents>(sp => sp.GetRequiredService<Application.Events.EventHub>());
+        return services;
+    }
+
+    /// <summary>The daemon's background work for the event log: live fan-out and partition upkeep.</summary>
+    public static IServiceCollection AddEventStreaming(this IServiceCollection services)
+    {
+        services.AddHostedService<Events.EventNotificationListener>();
+        services.AddHostedService<Events.EventPartitionMaintenance>();
         return services;
     }
 }

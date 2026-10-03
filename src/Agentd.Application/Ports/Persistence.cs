@@ -29,10 +29,22 @@ public interface IJobRepository
     Task<IReadOnlyList<Job>> ListRecentAsync(TimeSpan window, CancellationToken cancellationToken);
 }
 
-/// <summary>Append-only event log (agent output and other non-domain events).</summary>
+/// <summary>The event log: every observable fact (domain events, agent output, messaging). Payloads are redacted at write time.</summary>
 public interface IEventStore
 {
     Task<long> AppendAsync(JobId? jobId, string type, string payloadJson, CancellationToken cancellationToken);
+}
+
+/// <summary>Reads the event log, paging by <c>seq</c> in both directions; results are always ascending.</summary>
+public interface IEventReader
+{
+    /// <summary>Events after <paramref name="afterSeq"/>; <paramref name="jobId"/> null = all jobs, summary types only (no <c>agent.*</c>).</summary>
+    Task<IReadOnlyList<Events.AgentEventDto>> ReadAfterAsync(JobId? jobId, long afterSeq, int limit, CancellationToken cancellationToken);
+
+    /// <summary>A job's events before <paramref name="beforeSeq"/> (the newest <paramref name="limit"/> of them), ascending.</summary>
+    Task<IReadOnlyList<Events.AgentEventDto>> ReadBeforeAsync(JobId jobId, long beforeSeq, int limit, CancellationToken cancellationToken);
+
+    Task<Events.AgentEventDto?> GetAsync(long seq, CancellationToken cancellationToken);
 }
 
 /// <summary>Registered repositories (database-backed, config-seeded).</summary>
