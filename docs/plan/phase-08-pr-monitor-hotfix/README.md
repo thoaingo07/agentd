@@ -1,5 +1,7 @@
 # Phase 8 — PR Monitor (fix rounds) + hotfix & backport
 
+> **Note (2026-10-03):** [Phase 2b](../phase-02b-job-lifecycle/README.md) delivers a light, single-session version of parts of this phase (phases and plan gate / PR review fix loop / knowledge hand-off). Build on it rather than re-building it.
+
 **Goal:** keep PRs moving. agentd **fixes** review comments, red CI and merge conflicts on the PR
 branch and replies to and resolves the threads. **Fix now** lets you push a hotfix to any PR, and an
 expedited **hotfix flow** branches from a release branch and backports to `main`.
