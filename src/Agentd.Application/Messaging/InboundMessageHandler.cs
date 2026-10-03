@@ -37,6 +37,9 @@ public sealed partial class InboundMessageHandler(
     ICommandHandler<SubmitDeveloperMessage, DeveloperMessageOutcome> submit,
     ChatCommands commands,
     IOutbox outbox,
+    IJobRepository jobs,
+    JobActivity activity,
+    Domain.Common.IClock clock,
     ILogger<InboundMessageHandler> logger) : IInboundMessageSink
 {
     public Task HandleAsync(InboundMessage message, CancellationToken cancellationToken) => ProcessAsync(message, cancellationToken);
@@ -96,6 +99,16 @@ public sealed partial class InboundMessageHandler(
                 [new OutboxMessage(new OutboundMessage(MessageKind.Info, "This job doesn't take messages right now (it isn't running)."), new EnqueueOptions(OnlyProviders: [message.Provider]))],
                 ct).ConfigureAwait(false);
             return new InboundOutcome("not_accepted", conversation.JobId);
+        }
+
+        if (result.Value == DeveloperMessageOutcome.Queued
+            && await jobs.GetAsync(conversation.JobId, ct).ConfigureAwait(false) is { } job)
+        {
+            // "What's the progress?" mid-task: answer now with the live status; the agent gets the message at its next step.
+            var status = JobActivity.Describe(job, activity.Get(job.Id), clock.UtcNow);
+            await outbox.EnqueueAsync(conversation.JobId,
+                [new OutboxMessage(new OutboundMessage(MessageKind.Info, $"**Status:** {status}\n\nYour message reaches the agent at its next step."), new EnqueueOptions(OnlyProviders: [message.Provider]))],
+                ct).ConfigureAwait(false);
         }
 
         return new InboundOutcome(result.Value == DeveloperMessageOutcome.Resumed ? "resumed" : "queued", conversation.JobId);

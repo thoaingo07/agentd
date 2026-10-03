@@ -67,7 +67,8 @@ public sealed class ReportProgressHandler(IOutbox outbox, IEventStore events) : 
 
         var text = command.Message.Length > MaxLength ? command.Message[..MaxLength] + "…" : command.Message.Trim();
         await events.AppendAsync(command.JobId, "progress.reported", JsonSerializer.Serialize(new { message = text }), cancellationToken).ConfigureAwait(false);
-        await outbox.EnqueueAsync(command.JobId, [new OutboxMessage(MessageCatalog.Progress(text), new EnqueueOptions(ReplaceStatusMessage: true))], cancellationToken).ConfigureAwait(false);
+        // A visible message: the live status line is the heartbeat (re-posted every minute).
+        await outbox.EnqueueAsync(command.JobId, [new OutboxMessage(MessageCatalog.Progress($"⏳ {text}"))], cancellationToken).ConfigureAwait(false);
         return Unit.Value;
     }
 }

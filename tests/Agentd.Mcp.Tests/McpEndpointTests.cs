@@ -57,7 +57,7 @@ public sealed class McpEndpointTests
 
         var tools = await client.ListToolsAsync();
 
-        CollectionAssert.AreEquivalent(new[] { "finish", "report_progress", "get_work_item", "ask_developer" }, tools.Select(t => t.Name).ToList());
+        CollectionAssert.AreEquivalent(new[] { "finish", "report_progress", "get_work_item", "ask_developer", "set_phase" }, tools.Select(t => t.Name).ToList());
         var finish = tools.Single(t => t.Name == "finish");
         var schema = finish.JsonSchema.GetRawText();
         Assert.DoesNotContain("\"user\"", schema, "the caller identity is never a tool argument");
@@ -124,7 +124,7 @@ public sealed class McpEndpointTests
         StringAssert.Contains(progress.Payload, "Reproduced the bug");
         var update = host.Outbox.Enqueued.Single();
         Assert.AreEqual(9L, update.JobId);
-        Assert.IsTrue(update.Message.Options!.ReplaceStatusMessage, "progress edits the live status message");
+        Assert.AreEqual("⏳ Reproduced the bug", update.Message.Message.Markdown, "progress is a visible message; the heartbeat owns the status line");
         StringAssert.Contains(Text(item), "# 900: Fix login");
         StringAssert.Contains(Text(item), "Redirects once.");
     }

@@ -23,6 +23,9 @@ public interface IMessagingProvider
     /// <summary>Replaces a message's content (live progress). A no-op when editing is not supported.</summary>
     Task EditAsync(MessageRef message, OutboundMessage replacement, CancellationToken cancellationToken);
 
+    /// <summary>Deletes a message (the previous heartbeat). A no-op when deleting is not supported.</summary>
+    Task DeleteAsync(MessageRef message, CancellationToken cancellationToken);
+
     /// <summary>Archives or locks the thread, with a closing note.</summary>
     Task CloseConversationAsync(ConversationRef conversation, string reason, CancellationToken cancellationToken);
 

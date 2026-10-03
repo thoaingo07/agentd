@@ -23,7 +23,8 @@ public sealed class AgentdTools(
     IWorkItemSource workItems,
     ICommandHandler<AskDeveloper, Unit> ask,
     ICommandHandler<ReportProgress, Unit> progress,
-    ICommandHandler<TakeDeveloperMessages, IReadOnlyList<string>> unread)
+    ICommandHandler<TakeDeveloperMessages, IReadOnlyList<string>> unread,
+    ICommandHandler<SetPhase, Unit> phases)
 {
     [McpServerTool(Name = "finish"), Description(
         "Call exactly once when the work item is complete and all changes are committed. agentd pushes your branch and " +
@@ -48,6 +49,21 @@ public sealed class AgentdTools(
     {
         var result = await progress.Handle(new ReportProgress(CurrentJob(), message), cancellationToken).ConfigureAwait(false);
         return result.IsSuccess ? await WithUnreadAsync("Noted.", cancellationToken).ConfigureAwait(false) : throw new McpException(result.Error.Message);
+    }
+
+    [McpServerTool(Name = "set_phase"), Description(
+        "Announce the lifecycle phase you are entering, with a summary the developer reads in chat: " +
+        "clarify (the spec in your own words + open questions), plan (options considered, the chosen plan, an estimate of time and usage), " +
+        "implement (what you're changing), verify (commands run and their results), fix (review feedback being addressed), handoff (knowledge and learnings).")]
+    public async Task<string> SetPhase(
+        [Description("One of: clarify, plan, implement, verify, fix, handoff.")] string phase,
+        [Description("What the developer should know about this phase, in Markdown (up to 3,000 characters).")] string summary,
+        CancellationToken cancellationToken)
+    {
+        var result = await phases.Handle(new SetPhase(CurrentJob(), phase, summary), cancellationToken).ConfigureAwait(false);
+        return result.IsSuccess
+            ? await WithUnreadAsync($"Phase set to {phase}.", cancellationToken).ConfigureAwait(false)
+            : throw new McpException($"set_phase failed: {result.Error.Message}");
     }
 
     [McpServerTool(Name = "ask_developer"), Description(

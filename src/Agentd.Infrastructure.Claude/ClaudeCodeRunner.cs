@@ -17,6 +17,7 @@ public sealed partial class ClaudeCodeRunner(
     IOptions<ClaudeOptions> options,
     IEventStore events,
     IMcpTokenIssuer tokens,
+    IAgentActivitySink activity,
     ILogger<ClaudeCodeRunner> logger) : IAgentRunner
 {
     private readonly ConcurrentDictionary<long, Running> _running = new();
@@ -82,6 +83,7 @@ public sealed partial class ClaudeCodeRunner(
                 foreach (var agentEvent in StreamJsonParser.Parse(line))
                 {
                     tracker.Observe(agentEvent);
+                    ReportActivity(request.JobId, agentEvent);
                     await events.AppendAsync(request.JobId, agentEvent.LogType, StreamJsonParser.ToPayloadJson(agentEvent), CancellationToken.None).ConfigureAwait(false);
                 }
             }
@@ -151,6 +153,20 @@ public sealed partial class ClaudeCodeRunner(
         }
 
         return path;
+    }
+
+    private void ReportActivity(JobId jobId, AgentEvent agentEvent)
+    {
+        switch (agentEvent)
+        {
+            case AgentEvent.ToolCall call:
+                activity.ToolStep(jobId, ActivityText.Describe(call.Name, call.InputJson), DateTimeOffset.UtcNow);
+                break;
+            case AgentEvent.RateLimit limit:
+                activity.Usage(jobId, limit.Utilization.GetValueOrDefault("five_hour", double.NaN) is var f && !double.IsNaN(f) ? f : null,
+                    limit.Utilization.GetValueOrDefault("seven_day", double.NaN) is var w && !double.IsNaN(w) ? w : null, limit.ResetsAt);
+                break;
+        }
     }
 
     private async Task PumpStderrAsync(Process process, long jobId)

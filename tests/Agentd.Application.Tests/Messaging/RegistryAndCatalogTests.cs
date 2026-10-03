@@ -48,6 +48,8 @@ public sealed class RegistryAndCatalogTests
 
         public Task CloseConversationAsync(ConversationRef conversation, string reason, CancellationToken cancellationToken) => throw new NotSupportedException();
 
+        public Task DeleteAsync(MessageRef message, CancellationToken cancellationToken) => Task.CompletedTask;
+
         public Uri? GetLink(ConversationRef conversation) => null;
 
         public Task<ProviderHealth> CheckHealthAsync(CancellationToken cancellationToken) => throw new NotSupportedException();

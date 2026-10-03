@@ -183,6 +183,8 @@ public sealed class OutboxDeliveryTests
 
         public Task CloseConversationAsync(ConversationRef conversation, string reason, CancellationToken cancellationToken) => Task.CompletedTask;
 
+        public Task DeleteAsync(MessageRef message, CancellationToken cancellationToken) => Task.CompletedTask;
+
         public Uri? GetLink(ConversationRef conversation) => null;
 
         public Task<ProviderHealth> CheckHealthAsync(CancellationToken cancellationToken) => Task.FromResult(new ProviderHealth(true, "ok"));

@@ -29,7 +29,7 @@ public sealed class LiveClaudeTests
             var options = new ClaudeOptions { TranscriptRoot = Path.Combine(dir, "logs"), MaxTurns = 1, IdleTimeout = TimeSpan.FromMinutes(2) };
             options.AllowedTools.Clear();
             options.AllowedTools.Add("Read");
-            var runner = new ClaudeCodeRunner(Options.Create(options), new NullEvents(), new NullTokens(), NullLogger<ClaudeCodeRunner>.Instance);
+            var runner = new ClaudeCodeRunner(Options.Create(options), new NullEvents(), new NullTokens(), new Application.Jobs.JobActivity(), NullLogger<ClaudeCodeRunner>.Instance);
             var request = new AgentRunRequest(new JobId(1), WorkItemId.From(1), new WorktreePath(dir), ClaudeSessionId.New(), "Reply with exactly: pong", Resume: false);
 
             var outcome = await runner.RunAsync(request, default);
