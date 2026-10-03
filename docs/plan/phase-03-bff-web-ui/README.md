@@ -35,13 +35,24 @@ Design refs: [UI spec](../../ui/README.md) · [Design System](../../design-syste
   - Pinia stores `session`, `connection`, `jobs`, `events` and `ui`;
   - `http.ts` (in-memory XSRF token) and `hub.ts`;
   - generated API types;
-  - views: **Dashboard**, **Session** (Transcript + Diff + Details tabs), **History** and **Settings**;
+  - views: **Dashboard**, **Session** (Transcript + Diff + Details tabs), **History**, **Work item**
+    (added 2026-10-03, below) and **Settings**;
   - `Ag*` components: Button, Collapsible, Tabs, Tooltip, ToggleGroup, Meter, Modal, Toast;
   - feature components: `EventList` (windowing, follow mode, load earlier), `ToolCallCard`,
     `StateBadge`, `DiffView` (with an in-house diff parser) and `MessageComposer`;
   - web messages are mirrored to chat through `SubmitDeveloperMessage`.
 - **Playwright smoke tests:** the pages load with **zero CSP violations**, and unsafe requests
   without the header return 400.
+
+- **Work item view (added 2026-10-03):**
+  - one page per work item across all its jobs: timeline, conversation in both directions, agent
+    activity, PRs and review rounds, plan against actual, usage ([UI §4.3a](../../ui/README.md));
+  - **BFF:** `GET /api/workitems/{id}` (summary + jobs + PRs) and `GET /api/workitems/{id}/timeline?after|before`
+    (events of all its jobs plus the conversation: outbox and inbound, merged in time order);
+  - chat commands are recorded as events (`chat.command`: name, args, user), so the conversation is
+    complete; today only the outcome is kept;
+  - Session and History link to it. The Session view's Details tab shows the Phase 2b fields: phase,
+    plan status and estimate, fix rounds, hand-off status.
 
 **Out:** the phase stepper and artifacts (Phase 4), login and roles (Phase 5), PR screens (Phase 7).
 
@@ -65,6 +76,7 @@ Detailed tasks: [tasks/README.md](tasks/README.md)
 | T3.10 | [Session view: transcript, diff, details, composer](tasks/10-session-view.md) | T3.7, T3.8, T3.9 | L | ☐ |
 | T3.11 | [History view with server-side paging](tasks/11-history-view.md) | T3.2, T3.9, T3.10 | S | ☐ |
 | T3.12 | [Playwright smoke tests and BFF security test suite](tasks/12-e2e-and-bff-security-tests.md) | T3.4, T3.5, T3.6, T3.9, T3.10, T3.11 | M | ☐ |
+| T3.13 | [Work item view: one timeline across jobs](tasks/13-work-item-view.md) | T3.2, T3.4, T3.7, T3.10 | M | ☐ |
 
 ## Exit criteria (the demo)
 
@@ -76,6 +88,9 @@ Detailed tasks: [tasks/README.md](tasks/README.md)
 - Playwright: no CSP violations on any page; `POST` without `X-XSRF-TOKEN` → 400; no JS-readable
   cookies.
 - Lighthouse accessibility score ≥ 95 in both themes.
+- Opening work item #5613 (three jobs, two PRs, a hand-off and a deleted thread) shows its whole story
+  on one page: every step in the timeline, the full conversation in both directions, and the plan
+  against actual.
 
 ## Risks / open questions for review
 

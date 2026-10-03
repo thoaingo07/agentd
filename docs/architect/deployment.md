@@ -230,6 +230,19 @@ toolchains become per repo and agents are isolated from each other. This is plan
 
 ---
 
+### 8.1 Limitation: one machine per job (decided 2026-10-03)
+A job runs and **resumes only on the machine that started it**. The database stores the Claude
+session id, but the session content (`~/.claude/projects/<encoded-worktree-path>/<id>.jsonl`), the
+worktree (`~/.agentd/worktrees/<repo>/wi-<id>`), unpushed commits and uncommitted edits are local.
+Claude resolves a session by its working directory, so resuming needs the same machine and path.
+
+- **Consequences:** run **one daemon per job set**. Don't point two daemons at the same database
+  expecting failover. A machine that is lost mid-job loses that job's local state; the PR branch only
+  has what was pushed, and the job can be retried.
+- **If multi-machine resume is ever needed:** archive the session file per turn, push checkpoint
+  commits per turn (`refs/agentd/checkpoints/wi-<id>`), use the same `AGENTD_HOME` path on every
+  machine, and add worker leases. This is out of scope until then.
+
 ## 9. What changes in the code
 
 | Area | Change |

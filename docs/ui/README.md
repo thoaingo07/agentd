@@ -42,6 +42,7 @@ Adding anything else needs a note in this section explaining why.
 | `/` | `DashboardView` | all active jobs, live |
 | `/jobs/:id` | `SessionView` | live trace of one job (tabs: Transcript · Diff · Details) |
 | `/history` | `HistoryView` | finished, failed and cancelled jobs, with search and filters |
+| `/workitems/:id` | `WorkItemView` | **the whole life of one work item** across all its jobs: timeline, conversation, agent activity, PRs, plan vs actual, usage |
 | `/prs` | `PullRequestsView` | **PR dashboard**: all open PRs across repos, with run review / fix now / monitor / hotfix |
 | `/prs/:repo/:id` | `PullRequestView` | review runs & findings per reviewer, fix rounds, live trace |
 | `/learnings` | `LearningsView` | approved learnings per repo, pending candidates, distill runs and Learnings PRs, and global-learning approval cards |
@@ -174,6 +175,32 @@ agentd · ai/1234-fix-login · session 8f3c…      [Discord ↗][Telegram ↗] 
   Filters: state, repo, date range, and a free-text search.
 - A row opens the same `SessionView`. With no live events, it runs as a replay using the same
   components.
+
+- Rows can be **grouped by work item**; the work item cell links to `WorkItemView`.
+
+### 4.3a Work item (`/workitems/:id`)
+
+A work item often spans several jobs: a first run, a rework, review fix rounds, the knowledge hand-off
+and the close-out (Phase 2b). This view tells its **whole story on one page**, and it keeps working
+after the chat thread is deleted, because the history lives in agentd's database.
+
+- **Header:** the work item (link to Azure DevOps), repository, current state and phase, the PRs
+  (code PR, knowledge sync PR) with their status, total elapsed time and usage.
+- **Tabs:**
+  - **Timeline:** every lifecycle step and message in order, with each **job as a section**
+    ("Run 1", "Rework", "Hand-off"). Steps include claimed, worktree ready, each `set_phase` summary,
+    plan and approval, questions and answers, pushes, PR opened, review comments and fix rounds,
+    ready to complete, merged, hand-off proposal and agreement, close-out.
+  - **Conversation:** the chat exactly as it happened, **both directions**: what agentd and the agent
+    posted (from the outbox, with delivery status), your replies and commands, and mirrored messages.
+    A composer sends a message to the active job (`SubmitDeveloperMessage`).
+  - **Activity:** the agent's turns, with collapsible tool calls (`ToolCallCard`), and a link to the
+    raw transcript.
+  - **PRs:** each PR with its review threads and the fix round that addressed them.
+  - **Plan & usage:** the plan with its estimate against actual (time, share of the 5-hour window),
+    and 5-hour and weekly usage over the work item's life.
+- **Live:** while a job of the work item is active, new entries stream in via the hub (subscribing to
+  each of its jobs).
 
 ### 4.4 Pull requests
 
