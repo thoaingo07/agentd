@@ -49,6 +49,12 @@ public sealed class Job : AggregateRoot<JobId>
     /// <summary>Whether the plan needs the developer's approval before the agent may edit.</summary>
     public PlanStatus PlanStatus { get; private set; }
 
+    /// <summary>Review rounds the agent ran to address PR feedback.</summary>
+    public int FixRounds { get; private set; }
+
+    /// <summary>Which PR comments were already handled, and whether "ready to complete" was announced.</summary>
+    public ReviewState Review { get; private set; } = ReviewState.Empty;
+
     /// <summary>The agent's estimate from its plan (null until it submits one).</summary>
     public PlanEstimate? Estimate { get; private set; }
 
@@ -112,6 +118,8 @@ public sealed class Job : AggregateRoot<JobId>
             WaitingSince = s.WaitingSince,
             PlanStatus = s.PlanStatus,
             Estimate = s.Estimate,
+            FixRounds = s.FixRounds,
+            Review = s.Review ?? ReviewState.Empty,
             WaitReminders = s.WaitReminders,
             CreatedAt = s.CreatedAt,
             UpdatedAt = s.UpdatedAt,
@@ -122,7 +130,7 @@ public sealed class Job : AggregateRoot<JobId>
     /// <summary>Current state as a snapshot, for storage.</summary>
     public JobSnapshot ToSnapshot() => new(
         Id, WorkItemId, Repository, Title, State, Branch, Worktree, Session, PullRequest, Draft,
-        Attempt, ResumeCount, PublishAttempts, LastError, NotBefore, CreatedAt, UpdatedAt, Version, PendingMessages, WaitingSince, WaitReminders, PlanStatus, Estimate);
+        Attempt, ResumeCount, PublishAttempts, LastError, NotBefore, CreatedAt, UpdatedAt, Version, PendingMessages, WaitingSince, WaitReminders, PlanStatus, Estimate, FixRounds, Review);
 
     /// <summary>Called by storage after an insert or save.</summary>
     public void Persisted(JobId id, long version)
@@ -172,6 +180,90 @@ public sealed class Job : AggregateRoot<JobId>
 
         Draft = draft;
         Transition(JobState.Publishing, new JobFinished(draft.Title, draft.Summary, Now));
+        return Result.Ok;
+    }
+
+    /// <summary>The PR is open (or updated after a fix round): watch it for review feedback.</summary>
+    public Result OpenForReview(PullRequestUrl url)
+    {
+        if (Require("open for review", JobState.Publishing) is { } error)
+        {
+            return error;
+        }
+
+        PullRequest = url;
+        LastError = null;
+        NotBefore = null;
+        Review = Review with { ReadyAnnounced = false };
+        Transition(JobState.InReview, new PullRequestCreated(url, Now));
+        return Result.Ok;
+    }
+
+    /// <summary>New review comments: the agent resumes to address them (they are queued as its next turn).</summary>
+    public Result StartFixRound(IReadOnlyList<string> feedback, IReadOnlyList<int> commentIds, IReadOnlyList<int>? threadIds = null)
+    {
+        ArgumentNullException.ThrowIfNull(feedback);
+        ArgumentNullException.ThrowIfNull(commentIds);
+        if (Require("start a fix round", JobState.InReview) is { } error)
+        {
+            return error;
+        }
+
+        if (feedback.Count == 0)
+        {
+            return DomainError.Validation("A fix round needs feedback.");
+        }
+
+        FixRounds++;
+        PendingMessages = [.. PendingMessages, .. feedback];
+        Review = new ReviewState([.. Review.SeenCommentIds, .. commentIds], false, threadIds ?? []);
+        Transition(JobState.Running, new FixRoundStarted(FixRounds, feedback.Count, Now));
+        return Result.Ok;
+    }
+
+    /// <summary>The PR threads the last fix round addressed (to reply on after the push); clears them.</summary>
+    public IReadOnlyList<int> TakeRoundThreads()
+    {
+        var threads = Review.RoundThreads ?? [];
+        Review = Review with { RoundThreads = [] };
+        return threads;
+    }
+
+    /// <summary>Records comments that need no fix round (e.g. already resolved when first seen).</summary>
+    public void MarkCommentsSeen(IReadOnlyList<int> commentIds)
+    {
+        ArgumentNullException.ThrowIfNull(commentIds);
+        Review = Review with { SeenCommentIds = [.. Review.SeenCommentIds, .. commentIds.Except(Review.SeenCommentIds)] };
+    }
+
+    /// <summary>All review threads are resolved: announce "ready to complete" once per round.</summary>
+    public Result AnnounceReady()
+    {
+        if (Require("announce ready", JobState.InReview) is { } error)
+        {
+            return error;
+        }
+
+        if (Review.ReadyAnnounced)
+        {
+            return DomainError.Conflict("Already announced.");
+        }
+
+        Review = Review with { ReadyAnnounced = true };
+        UpdatedAt = Now;
+        Raise(new ReadyToComplete(Now));
+        return Result.Ok;
+    }
+
+    /// <summary>The developer completed (merged) the pull request.</summary>
+    public Result Merged()
+    {
+        if (Require("record the merge", JobState.InReview) is { } error)
+        {
+            return error;
+        }
+
+        Transition(JobState.Done, new PullRequestMerged(PullRequest!.Value, Now));
         return Result.Ok;
     }
 
@@ -443,7 +535,15 @@ public sealed record JobSnapshot(
     DateTimeOffset? WaitingSince = null,
     int WaitReminders = 0,
     PlanStatus PlanStatus = PlanStatus.NotRequired,
-    PlanEstimate? Estimate = null);
+    PlanEstimate? Estimate = null,
+    int FixRounds = 0,
+    ReviewState? Review = null);
+
+/// <summary>PR review tracking: comment ids already handled, and whether "ready to complete" was posted for the current round.</summary>
+public sealed record ReviewState(IReadOnlyList<int> SeenCommentIds, bool ReadyAnnounced, IReadOnlyList<int>? RoundThreads = null)
+{
+    public static ReviewState Empty { get; } = new([], false);
+}
 
 /// <summary>Plan approval: required for most jobs (the agent works read-only until approved).</summary>
 public enum PlanStatus

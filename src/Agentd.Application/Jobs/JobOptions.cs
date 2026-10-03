@@ -30,6 +30,15 @@ public sealed class JobOptions
     /// <summary>Work item tag that skips plan approval (the plan is still posted).</summary>
     public string AutoTag { get; set; } = "ai-auto";
 
+    /// <summary>After the PR opens, watch it for review comments and merge (In Review) instead of finishing at once.</summary>
+    public bool ReviewLoop { get; set; } = true;
+
+    /// <summary>How often PRs in review are checked.</summary>
+    public TimeSpan ReviewPollInterval { get; set; } = TimeSpan.FromMinutes(2);
+
+    /// <summary>Fix rounds per job before agentd asks the developer to take over.</summary>
+    public int MaxFixRounds { get; set; } = 5;
+
     /// <summary>How often the thread's heartbeat is re-posted (the previous one is deleted).</summary>
     public TimeSpan HeartbeatInterval { get; set; } = TimeSpan.FromMinutes(1);
 

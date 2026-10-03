@@ -31,6 +31,10 @@ public sealed class JobTransitionTests
         ["Requeue"] = j => j.Requeue("restarted"),
         ["AskDeveloper"] = j => j.AskDeveloper("Which endpoint?", ["v1", "v2"]),
         ["ResumeWith"] = j => j.ResumeWith("Use v2", "tngo"),
+        ["OpenForReview"] = j => j.OpenForReview(s_url),
+        ["StartFixRound"] = j => j.StartFixRound(["rename X"], [11]),
+        ["AnnounceReady"] = j => j.AnnounceReady(),
+        ["Merged"] = j => j.Merged(),
     };
 
     private static readonly Dictionary<(JobState From, string Op), (JobState To, Type Event)> s_allowed = new()
@@ -46,6 +50,12 @@ public sealed class JobTransitionTests
         [(JobState.WaitingForHuman, "ResumeWith")] = (JobState.Running, typeof(DeveloperReplied)),
         [(JobState.Running, "ResumeWith")] = (JobState.Running, typeof(DeveloperReplied)),
         [(JobState.WaitingForHuman, "Fail")] = (JobState.Failed, typeof(JobFailed)),
+        [(JobState.Publishing, "OpenForReview")] = (JobState.InReview, typeof(PullRequestCreated)),
+        [(JobState.InReview, "StartFixRound")] = (JobState.Running, typeof(FixRoundStarted)),
+        [(JobState.InReview, "AnnounceReady")] = (JobState.InReview, typeof(ReadyToComplete)),
+        [(JobState.InReview, "Merged")] = (JobState.Done, typeof(PullRequestMerged)),
+        [(JobState.InReview, "Fail")] = (JobState.Failed, typeof(JobFailed)),
+        [(JobState.InReview, "Cancel")] = (JobState.Cancelled, typeof(JobCancelled)),
         [(JobState.WaitingForHuman, "Cancel")] = (JobState.Cancelled, typeof(JobCancelled)),
         [(JobState.Publishing, "PublishFailed")] = (JobState.Publishing, typeof(PublishRetryScheduled)),
         [(JobState.Failed, "Retry")] = (JobState.Queued, typeof(JobRetried)),
@@ -165,6 +175,30 @@ public sealed class JobTransitionTests
     }
 
     [TestMethod]
+    public void A_fix_round_queues_the_feedback_and_remembers_the_comments()
+    {
+        var job = JobIn(JobState.InReview);
+        job.AnnounceReady();
+
+        job.StartFixRound(["Rename X (AGENTS.md:12)"], [11, 12]);
+
+        CollectionAssert.AreEqual(new[] { "Rename X (AGENTS.md:12)" }, job.PendingMessages.ToArray());
+        CollectionAssert.AreEqual(new[] { 11, 12 }, job.Review.SeenCommentIds.ToArray());
+        Assert.IsFalse(job.Review.ReadyAnnounced, "a new round must be ready-checked again");
+        Assert.AreEqual(1, job.FixRounds);
+        Assert.AreEqual("validation", JobIn(JobState.InReview).StartFixRound([], []).Error?.Code);
+    }
+
+    [TestMethod]
+    public void Ready_is_announced_once_per_round()
+    {
+        var job = JobIn(JobState.InReview);
+
+        Assert.IsTrue(job.AnnounceReady().IsSuccess);
+        Assert.AreEqual("conflict", job.AnnounceReady().Error?.Code);
+    }
+
+    [TestMethod]
     public void MarkRecovered_counts_resumes()
     {
         var job = JobIn(JobState.Running);
@@ -219,6 +253,12 @@ public sealed class JobTransitionTests
                 job.BeginPreparing();
                 job.Start(s_worktree, s_branch, s_session);
                 job.AskDeveloper("Which endpoint?");
+                break;
+            case JobState.InReview:
+                job.BeginPreparing();
+                job.Start(s_worktree, s_branch, s_session);
+                job.Finish(s_draft);
+                job.OpenForReview(s_url);
                 break;
             case JobState.Publishing:
                 job.BeginPreparing();

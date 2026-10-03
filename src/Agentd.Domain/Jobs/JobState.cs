@@ -10,6 +10,9 @@ public enum JobState
     /// <summary>The agent asked the developer a question and waits for the reply.</summary>
     WaitingForHuman,
     Publishing,
+
+    /// <summary>The pull request is open; agentd watches it for review comments until it is merged.</summary>
+    InReview,
     Done,
     Failed,
     Cancelled,

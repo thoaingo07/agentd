@@ -25,3 +25,6 @@ public sealed class WaitForHuman : SqlMigration;
 
 [Migration(2026_10_04_0001, "Plan approval: plan_status and plan_estimate")]
 public sealed class PlanApproval : SqlMigration;
+
+[Migration(2026_10_05_0001, "Review loop: InReview state, fix_rounds, review_state")]
+public sealed class ReviewLoop : SqlMigration;

@@ -22,6 +22,7 @@ public sealed class SchemaMigratorTests
         CollectionAssert.Contains(result.AppliedVersions.ToList(), 2026_10_01_0001L);
         CollectionAssert.Contains(result.AppliedVersions.ToList(), 2026_10_03_0001L);
         CollectionAssert.Contains(result.AppliedVersions.ToList(), 2026_10_04_0001L);
+        CollectionAssert.Contains(result.AppliedVersions.ToList(), 2026_10_05_0001L);
         await using var db = NpgsqlDataSource.Create(cs);
         Assert.AreEqual(1L, await ScalarAsync<long>(db, "SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'agentd' AND p.proname = 'job_save'"), "no stale job_save overload");
         Assert.IsTrue(await ScalarAsync<bool>(db, "SELECT to_regclass('agentd.jobs') IS NOT NULL"));

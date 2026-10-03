@@ -38,6 +38,64 @@ public sealed class AzureDevOpsPullRequests(HttpClient http) : IPullRequestServi
         return Ref(repository, created["pullRequestId"]!.GetValue<int>());
     }
 
+    public async Task<PullRequestStatus> GetStatusAsync(Repository repository, int pullRequestId, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(repository);
+        var pr = await AdoHttp.GetAsync(http, $"{Base(repository)}/pullrequests/{pullRequestId}?api-version={ApiVersion}", cancellationToken).ConfigureAwait(false)
+            ?? throw new AdoException($"Pull request {pullRequestId} was not found.", 404);
+        return pr["status"]?.GetValue<string>() switch
+        {
+            "completed" => PullRequestStatus.Completed,
+            "abandoned" => PullRequestStatus.Abandoned,
+            _ => PullRequestStatus.Active,
+        };
+    }
+
+    public async Task<IReadOnlyList<PullRequestComment>> ListCommentsAsync(Repository repository, int pullRequestId, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(repository);
+        var result = await AdoHttp.GetAsync(http, $"{Base(repository)}/pullrequests/{pullRequestId}/threads?api-version={ApiVersion}", cancellationToken).ConfigureAwait(false);
+        var comments = new List<PullRequestComment>();
+        foreach (var thread in result?["value"]?.AsArray().OfType<JsonNode>() ?? [])
+        {
+            if (thread["isDeleted"]?.GetValue<bool>() == true)
+            {
+                continue;
+            }
+
+            var context = thread["threadContext"];
+            var line = context?["rightFileStart"]?["line"]?.GetValue<int>() ?? context?["leftFileStart"]?["line"]?.GetValue<int>();
+            foreach (var comment in thread["comments"]?.AsArray().OfType<JsonNode>() ?? [])
+            {
+                var content = comment["content"]?.GetValue<string>();
+                if (comment["commentType"]?.GetValue<string>() != "text" || comment["isDeleted"]?.GetValue<bool>() == true
+                    || string.IsNullOrWhiteSpace(content) || content.StartsWith(PullRequestComment.AgentdMarker, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                comments.Add(new PullRequestComment(
+                    thread["id"]!.GetValue<int>(),
+                    comment["id"]!.GetValue<int>(),
+                    comment["author"]?["displayName"]?.GetValue<string>() ?? "someone",
+                    content,
+                    context?["filePath"]?.GetValue<string>(),
+                    line,
+                    thread["status"]?.GetValue<string>() ?? "active",
+                    comment["publishedDate"] is { } at ? DateTimeOffset.Parse(at.GetValue<string>(), CultureInfo.InvariantCulture) : DateTimeOffset.MinValue));
+            }
+        }
+
+        return comments.OrderBy(c => c.PublishedAt).ThenBy(c => c.CommentId).ToList();
+    }
+
+    public async Task ReplyAsync(Repository repository, int pullRequestId, int threadId, string text, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(repository);
+        var body = new JsonObject { ["content"] = $"{PullRequestComment.AgentdMarker} {text}", ["parentCommentId"] = 1, ["commentType"] = 1 };
+        await SendAsync(http, HttpMethod.Post, $"{Base(repository)}/pullrequests/{pullRequestId}/threads/{threadId}/comments?api-version={ApiVersion}", body, "application/json", cancellationToken).ConfigureAwait(false);
+    }
+
     private static string Base(Repository r) =>
         $"{Esc(r.AzureDevOps.Organization)}/{Esc(r.AzureDevOps.Project)}/_apis/git/repositories/{Esc(r.AzureDevOps.Name)}";
 

@@ -68,7 +68,9 @@ public sealed class PublishPullRequestHandler(
                     job.WorkItemId,
                     cancellationToken).ConfigureAwait(false);
 
-            var completed = job.Complete(new PullRequestUrl(pr.Url));
+            var firstPublish = job.PullRequest is null;
+            var roundThreads = job.TakeRoundThreads();
+            var completed = options.Value.ReviewLoop ? job.OpenForReview(new PullRequestUrl(pr.Url)) : job.Complete(new PullRequestUrl(pr.Url));
             if (!completed.IsSuccess)
             {
                 return completed.Error;
@@ -81,7 +83,19 @@ public sealed class PublishPullRequestHandler(
             }
 
             await CommentOnceAsync(job, pr, cancellationToken).ConfigureAwait(false);
-            if (job.Estimate is { } estimate)
+            foreach (var thread in roundThreads)
+            {
+                try
+                {
+                    await pullRequests.ReplyAsync(repository, pr.Id, thread, $"Addressed in the latest push (fix round {job.FixRounds}). Please review.", cancellationToken).ConfigureAwait(false);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    // A missing reply must not fail the publish; the developer still sees the push in the thread.
+                }
+            }
+
+            if (firstPublish && job.Estimate is { } estimate)
             {
                 await outbox.TryEnqueueAsync(job.Id, MessageCatalog.ActualVsEstimate(estimate, clock.UtcNow, activity.Get(job.Id).Usage?.FiveHour), cancellationToken).ConfigureAwait(false);
             }

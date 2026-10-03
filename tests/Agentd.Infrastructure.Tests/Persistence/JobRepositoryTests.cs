@@ -199,6 +199,26 @@ public sealed class JobRepositoryTests
         Assert.IsNotNull(approved.Estimate!.ApprovedAt);
     }
 
+    [TestMethod]
+    public async Task Review_state_and_fix_rounds_round_trip()
+    {
+        var repo = Repo();
+        var job = NewJob();
+        await repo.AddAsync(job, default);
+        var running = (await repo.DequeueNextAsyncFor(job.Id))!;
+        running.Start(new WorktreePath("/wt/4"), BranchName.From("ai/4-x"), ClaudeSessionId.New());
+        running.Finish(PullRequestDraft.Create("T", "D", "S").Value!);
+        running.OpenForReview(new PullRequestUrl(new Uri("https://dev.azure.com/o/p/_git/r/pullrequest/9")));
+        running.StartFixRound(["Rename X"], [11, 12]);
+        Assert.IsTrue((await repo.SaveAsync(running, default)).IsSuccess);
+
+        var loaded = (await repo.GetAsync(job.Id, default))!;
+
+        Assert.AreEqual((JobState.Running, 1), (loaded.State, loaded.FixRounds));
+        CollectionAssert.AreEqual(new[] { 11, 12 }, loaded.Review.SeenCommentIds.ToArray());
+        Assert.AreEqual(loaded.Id, (await repo.FindActiveByWorkItemAsync(loaded.WorkItemId, default))?.Id);
+    }
+
     private Job NewJob(int? workItem = null) =>
         Job.Create(WorkItemId.From(workItem ?? Interlocked.Increment(ref s_nextWorkItem)), RepositoryName.From("sysmin"), "Fix login", _clock);
 

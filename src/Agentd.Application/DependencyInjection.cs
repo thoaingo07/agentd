@@ -47,6 +47,7 @@ public static class DependencyInjection
         services.AddSingleton<IAgentActivitySink>(sp => sp.GetRequiredService<JobActivity>());
         services.AddScoped<ICommandHandler<SetPhase, Unit>, SetPhaseHandler>();
         services.AddScoped<ICommandHandler<SubmitPlan, PlanOutcome>, SubmitPlanHandler>();
+        services.AddScoped<ICommandHandler<ReviewPullRequests, int>, ReviewPullRequestsHandler>();
         services.AddSingleton<HeartbeatState>();
         services.AddScoped<ICommandHandler<PostHeartbeats, int>, PostHeartbeatsHandler>();
         services.AddScoped<ICommandHandler<CheckWaitingJobs, int>, CheckWaitingJobsHandler>();

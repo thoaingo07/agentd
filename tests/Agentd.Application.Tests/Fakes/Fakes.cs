@@ -265,6 +265,23 @@ internal sealed class FakePullRequests : IPullRequestService
         Created.Add((source.Value, target, title));
         return Task.FromResult(new PullRequestRef(77, new Uri("https://dev.azure.com/ermsystem/Portal/_git/sysmin/pullrequest/77")));
     }
+
+    public PullRequestStatus Status { get; set; } = PullRequestStatus.Active;
+
+    public List<PullRequestComment> Comments { get; } = [];
+
+    public List<(int Pr, int Thread, string Text)> Replies { get; } = [];
+
+    public Task<PullRequestStatus> GetStatusAsync(Repository repository, int pullRequestId, CancellationToken cancellationToken) => Task.FromResult(Status);
+
+    public Task<IReadOnlyList<PullRequestComment>> ListCommentsAsync(Repository repository, int pullRequestId, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<PullRequestComment>>(Comments.ToList());
+
+    public Task ReplyAsync(Repository repository, int pullRequestId, int threadId, string text, CancellationToken cancellationToken)
+    {
+        Replies.Add((pullRequestId, threadId, text));
+        return Task.CompletedTask;
+    }
 }
 
 internal sealed class FakeRunner : IAgentRunner
@@ -426,8 +443,8 @@ internal sealed class TestContext
 
     public InMemoryJobs Jobs { get; }
 
-    /// <summary>Plan approval off by default here; the plan-gate tests turn it on.</summary>
-    public IOptions<JobOptions> Options { get; } = Microsoft.Extensions.Options.Options.Create(new JobOptions { RequirePlanApproval = false });
+    /// <summary>Plan approval and the review loop are off by default here; their own tests turn them on.</summary>
+    public IOptions<JobOptions> Options { get; } = Microsoft.Extensions.Options.Options.Create(new JobOptions { RequirePlanApproval = false, ReviewLoop = false });
 
     public NoMatchNotices Notices { get; } = new();
 

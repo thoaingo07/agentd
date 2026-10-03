@@ -18,7 +18,9 @@ public static class TaskPromptBuilder
         var next = plan switch
         {
             PlanStatus.Pending => "Your plan is not approved yet: revise it with this feedback and call `submit_plan` again (you still can't edit).",
-            _ => "Continue the work item with this in mind (if this approved your plan: `set_phase` implement, then verify). Call `finish` when done, or `ask_developer` if you need another decision.",
+            _ => "Continue the work item with this in mind (if this approved your plan: `set_phase` implement, then verify). " +
+                 "If these are PR review comments: `set_phase` fix, address each one, commit, verify, and call `finish` again (agentd pushes and replies on the PR threads). " +
+                 "Call `finish` when done, or `ask_developer` if you need another decision.",
         };
         return "The developer replied:\n\n" + string.Join("\n", messages.Select(m => "- " + m)) + "\n\n" + next;
     }

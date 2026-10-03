@@ -26,3 +26,9 @@ public sealed record JobRequeued(string Reason, DateTimeOffset OccurredAt) : IDo
 public sealed record JobDeferred(DateTimeOffset? NotBefore, string Reason, DateTimeOffset OccurredAt) : IDomainEvent;
 
 public sealed record PublishRetryScheduled(int Attempt, string Reason, DateTimeOffset RetryAt, DateTimeOffset OccurredAt) : IDomainEvent;
+
+public sealed record FixRoundStarted(int Round, int Comments, DateTimeOffset OccurredAt) : IDomainEvent;
+
+public sealed record ReadyToComplete(DateTimeOffset OccurredAt) : IDomainEvent;
+
+public sealed record PullRequestMerged(PullRequestUrl Url, DateTimeOffset OccurredAt) : IDomainEvent;
