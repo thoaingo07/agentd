@@ -8,6 +8,7 @@
     <Project Path="src/Agentd.Infrastructure.AzureDevOps/Agentd.Infrastructure.AzureDevOps.csproj" />
     <Project Path="src/Agentd.Infrastructure.Claude/Agentd.Infrastructure.Claude.csproj" />
     <Project Path="src/Agentd.Infrastructure.Git/Agentd.Infrastructure.Git.csproj" />
+    <Project Path="src/Agentd.Infrastructure.Messaging.Discord/Agentd.Infrastructure.Messaging.Discord.csproj" />
     <Project Path="src/Agentd.Infrastructure.Persistence/Agentd.Infrastructure.Persistence.csproj" />
     <Project Path="src/Agentd.Mcp/Agentd.Mcp.csproj" />
     <Project Path="src/Agentd.Migrator/Agentd.Migrator.csproj" />

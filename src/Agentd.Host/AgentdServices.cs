@@ -8,6 +8,7 @@ using Agentd.Host.Options;
 using Agentd.Infrastructure.AzureDevOps;
 using Agentd.Infrastructure.Claude;
 using Agentd.Infrastructure.Git;
+using Agentd.Infrastructure.Messaging.Discord;
 using Agentd.Infrastructure.Persistence;
 using Microsoft.Extensions.Options;
 
@@ -46,6 +47,7 @@ internal static class AgentdServices
         builder.Services.AddAzureDevOps(builder.Configuration);
         builder.Services.AddGit(builder.Configuration);
         builder.Services.AddClaude(builder.Configuration);
+        builder.Services.AddDiscordMessaging(builder.Configuration);
         return home;
     }
 }

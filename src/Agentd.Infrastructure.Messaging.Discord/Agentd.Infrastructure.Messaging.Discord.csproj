@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Discord messaging provider over the plain REST API (no SDK). Inbound messages are polled. -->
+  <ItemGroup>
+    <ProjectReference Include="..\Agentd.Application\Agentd.Application.csproj" />
+    <ProjectReference Include="..\Agentd.Domain\Agentd.Domain.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Http" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Agentd.Infrastructure.Tests" />
+  </ItemGroup>
+</Project>
