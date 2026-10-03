@@ -82,6 +82,33 @@ public sealed class ConversationStoreTests
         Assert.AreEqual(1L, (long)(await cmd.ExecuteScalarAsync())!);
     }
 
+    [TestMethod]
+    public async Task A_rerun_takes_over_the_work_items_open_thread()
+    {
+        var clock = new Clock();
+        var repo = new JobRepository(s_db, clock);
+        var workItem = WorkItemId.From(Interlocked.Increment(ref s_nextWorkItem));
+        var first = Job.Create(workItem, RepositoryName.From("sysmin"), "t", clock);
+        await repo.AddAsync(first, default);
+        var store = new ConversationStore(s_db);
+        var thread = Open(first.Id, s_discord, "wi-thread-" + workItem);
+        await store.AddAsync(thread, default);
+        first.Cancel("tngo");
+        await repo.SaveAsync(first, default);
+        var second = Job.Create(workItem, RepositoryName.From("sysmin"), "t", clock);
+        await repo.AddAsync(second, default);
+
+        var open = await store.ListOpenByWorkItemAsync(workItem, default);
+        Assert.IsTrue((await store.MoveAsync(open.Single(), second.Id, default)).IsSuccess);
+
+        Assert.AreEqual(second.Id, (await store.ListByJobAsync(second.Id, default)).Single().JobId);
+        Assert.IsEmpty(await store.ListByJobAsync(first.Id, default));
+        var other = Job.Create(WorkItemId.From(Interlocked.Increment(ref s_nextWorkItem)), RepositoryName.From("sysmin"), "t", clock);
+        await repo.AddAsync(other, default);
+        await store.AddAsync(Open(other.Id, s_discord, "busy-" + other.Id), default);
+        Assert.AreEqual("conflict", (await store.MoveAsync(open.Single(), other.Id, default)).Error?.Code, "one open thread per job and provider");
+    }
+
     // The aggregate check is bypassed on purpose (existing: []) so the database constraints are what's tested.
     private static Conversation Open(JobId job, ProviderKey provider, string external, Uri? link = null) =>
         Conversation.Open(job, provider, external, "space", link, [], DateTimeOffset.UtcNow).Value!;

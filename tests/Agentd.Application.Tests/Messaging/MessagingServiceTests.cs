@@ -74,6 +74,27 @@ public sealed class MessagingServiceTests
     }
 
     [TestMethod]
+    public async Task A_rerun_of_the_same_work_item_reuses_its_thread_and_announces_the_steps()
+    {
+        var t = WithChats("discord");
+        var first = await t.RunningJobAsync();
+        var job = t.Jobs.Get(first.JobId);
+        job.Fail("boom");
+        await t.Jobs.SaveAsync(job, default);
+        await t.Claim().Handle(new ClaimWorkItem(WorkItemId.From(1234), Force: true), default);
+
+        var second = (await t.StartNext().Handle(new StartNextJob("w1"), default)).Value!;
+
+        Assert.HasCount(1, ((FakeChat)t.Chats[0]).Opened, "no second thread");
+        var thread = t.Conversations.All.Single();
+        Assert.AreEqual(second.JobId, thread.JobId, "the work item's thread moved to the new job");
+        var started = t.Outbox.Enqueued.Where(e => e.Job == second.JobId).Select(e => e.Message.Message.Markdown).Single();
+        StringAssert.Contains(started, "📄 **Work item #1234 fetched:** Fix login (Active; 1 acceptance criteria line(s))");
+        StringAssert.Contains(started, "🌿 **Worktree ready:** `ai/1234-fix-login` from `develop`");
+        StringAssert.Contains(started, "🤖 **Agent started**, session");
+    }
+
+    [TestMethod]
     public void Lifecycle_events_map_to_messages()
     {
         var at = DateTimeOffset.UnixEpoch;

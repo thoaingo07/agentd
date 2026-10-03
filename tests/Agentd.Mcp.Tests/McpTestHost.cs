@@ -51,6 +51,7 @@ internal sealed class McpTestHost : IAsyncDisposable
         builder.Services.AddScoped<ICommandHandler<FinishWork, PullRequestRef>, FinishWorkHandler>();
         builder.Services.AddScoped<ICommandHandler<AskDeveloper, Unit>, AskDeveloperHandler>();
         builder.Services.AddScoped<ICommandHandler<ReportProgress, Unit>, ReportProgressHandler>();
+        builder.Services.AddScoped<ICommandHandler<TakeDeveloperMessages, IReadOnlyList<string>>, TakeDeveloperMessagesHandler>();
         builder.Services.AddSingleton<IOutbox>(outbox);
         builder.Services.AddAgentdMcp();
 

@@ -1,5 +1,6 @@
 using Agentd.Application.Jobs;
 using Agentd.Application.Messaging;
+using Agentd.Application.Tests.Fakes;
 using Agentd.Application.Users;
 using Agentd.Domain.Jobs;
 using Agentd.Domain.Jobs.ValueObjects;
@@ -182,16 +183,5 @@ public sealed class InboundMessageHandlerTests
                 : Task.FromResult(externalId == "789" ? new AgentdUser(new UserId(1), "tngo", ["Admin"], true) : null);
 
         public Task SyncAsync(IReadOnlyList<User> users, CancellationToken cancellationToken) => Task.CompletedTask;
-    }
-
-    internal sealed class FakeOutbox : IOutbox
-    {
-        public List<(JobId Job, OutboxMessage Message)> Enqueued { get; } = [];
-
-        public Task EnqueueAsync(JobId jobId, IReadOnlyList<OutboxMessage> messages, CancellationToken cancellationToken)
-        {
-            Enqueued.AddRange(messages.Select(m => (jobId, m)));
-            return Task.CompletedTask;
-        }
     }
 }

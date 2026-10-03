@@ -17,6 +17,12 @@ public interface IConversationStore
 
     Task<Conversation?> FindExternalAsync(ProviderKey provider, string externalConversationId, CancellationToken cancellationToken);
 
+    /// <summary>Open conversations of any job for <paramref name="workItem"/> (one thread per work item across reruns).</summary>
+    Task<IReadOnlyList<Conversation>> ListOpenByWorkItemAsync(WorkItemId workItem, CancellationToken cancellationToken);
+
+    /// <summary>Hands <paramref name="conversation"/> to <paramref name="jobId"/> (a new run of the same work item).</summary>
+    Task<Result> MoveAsync(Conversation conversation, JobId jobId, CancellationToken cancellationToken);
+
     /// <summary>Open conversations on a provider (what a polling provider watches).</summary>
     Task<IReadOnlyList<Conversation>> ListOpenAsync(ProviderKey provider, CancellationToken cancellationToken);
 }

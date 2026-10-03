@@ -42,6 +42,7 @@ public static class DependencyInjection
         services.AddScoped<ICommandHandler<AskDeveloper, Unit>, AskDeveloperHandler>();
         services.AddScoped<ICommandHandler<ReportProgress, Unit>, ReportProgressHandler>();
         services.AddScoped<ICommandHandler<ResumeJobTurn, AgentRunRequest?>, ResumeJobTurnHandler>();
+        services.AddScoped<ICommandHandler<TakeDeveloperMessages, IReadOnlyList<string>>, TakeDeveloperMessagesHandler>();
         services.AddScoped<ICommandHandler<CheckWaitingJobs, int>, CheckWaitingJobsHandler>();
         services.AddScoped<ChatCommands>();
         services.AddScoped<ICommandHandler<RepairConversations, int>, RepairConversationsHandler>();

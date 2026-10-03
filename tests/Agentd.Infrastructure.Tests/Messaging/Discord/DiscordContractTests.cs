@@ -136,6 +136,10 @@ public sealed partial class DiscordContractTests : MessagingProviderContractTest
             public Task<IReadOnlyList<Conversation>> ListByJobAsync(JobId jobId, CancellationToken cancellationToken) => throw new NotSupportedException();
 
             public Task<Conversation?> FindExternalAsync(ProviderKey provider, string externalConversationId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+            public Task<IReadOnlyList<Conversation>> ListOpenByWorkItemAsync(WorkItemId workItem, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+            public Task<Domain.Common.Result> MoveAsync(Conversation conversation, JobId jobId, CancellationToken cancellationToken) => throw new NotSupportedException();
         }
     }
 }

@@ -28,6 +28,24 @@ public interface IOutbox
     Task EnqueueAsync(JobId jobId, IReadOnlyList<OutboxMessage> messages, CancellationToken cancellationToken);
 }
 
+public static class OutboxExtensions
+{
+    /// <summary>Best effort: a notification must never break the step it reports.</summary>
+    public static async Task<bool> TryEnqueueAsync(this IOutbox outbox, JobId jobId, OutboundMessage message, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(outbox);
+        try
+        {
+            await outbox.EnqueueAsync(jobId, [new OutboxMessage(message)], cancellationToken).ConfigureAwait(false);
+            return true;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return false;
+        }
+    }
+}
+
 /// <summary>The message (if any) a job's domain event posts to its conversations.</summary>
 public static class JobEventMessages
 {

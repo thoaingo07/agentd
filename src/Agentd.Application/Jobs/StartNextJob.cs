@@ -20,6 +20,7 @@ public sealed class StartNextJobHandler(
     IWorktreeManager worktrees,
     IWorkItemSource workItems,
     MessagingService messaging,
+    IOutbox outbox,
     IOptions<JobOptions> options) : ICommandHandler<StartNextJob, AgentRunRequest?>
 {
     public async Task<Result<AgentRunRequest?>> Handle(StartNextJob command, CancellationToken cancellationToken)
@@ -75,6 +76,7 @@ public sealed class StartNextJobHandler(
             if (item is not null)
             {
                 await messaging.OpenConversationsAsync(job, item, cancellationToken).ConfigureAwait(false);
+                await outbox.TryEnqueueAsync(job.Id, MessageCatalog.Started(job, item, repository.BaseBranch), cancellationToken).ConfigureAwait(false);
             }
 
             return new AgentRunRequest(job.Id, job.WorkItemId, worktree, session, prompt, resume);

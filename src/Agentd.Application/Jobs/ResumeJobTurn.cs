@@ -1,4 +1,5 @@
 using Agentd.Application.Abstractions;
+using Agentd.Application.Messaging;
 using Agentd.Application.Ports;
 using Agentd.Domain.Common;
 using Agentd.Domain.Jobs;
@@ -11,7 +12,7 @@ namespace Agentd.Application.Jobs;
 /// </summary>
 public sealed record ResumeJobTurn(IReadOnlyCollection<long> Busy);
 
-public sealed class ResumeJobTurnHandler(IJobRepository jobs) : ICommandHandler<ResumeJobTurn, AgentRunRequest?>
+public sealed class ResumeJobTurnHandler(IJobRepository jobs, IOutbox outbox) : ICommandHandler<ResumeJobTurn, AgentRunRequest?>
 {
     public async Task<Result<AgentRunRequest?>> Handle(ResumeJobTurn command, CancellationToken cancellationToken)
     {
@@ -28,6 +29,7 @@ public sealed class ResumeJobTurnHandler(IJobRepository jobs) : ICommandHandler<
             // The version check makes the hand-off exactly-once: a concurrent change sends us to the next job.
             if ((await jobs.SaveAsync(job, cancellationToken).ConfigureAwait(false)).IsSuccess)
             {
+                await outbox.TryEnqueueAsync(job.Id, MessageCatalog.Resumed(messages.Count), cancellationToken).ConfigureAwait(false);
                 return new AgentRunRequest(job.Id, job.WorkItemId, worktree, session, TaskPromptBuilder.Replies(messages), Resume: true);
             }
         }

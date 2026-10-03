@@ -26,6 +26,17 @@ public sealed class FinishWorkHandler(IJobRepository jobs, ICommandHandler<Publi
             return DomainError.NotFound($"Job {command.JobId}");
         }
 
+        // The developer must be heard first: hand over their unread messages and refuse to finish yet.
+        if (job.PendingMessages.Count > 0)
+        {
+            var unread = job.TakePendingMessages();
+            var taken = await jobs.SaveAsync(job, cancellationToken).ConfigureAwait(false);
+            return taken.IsSuccess
+                ? new DomainError("unread_messages",
+                    "Not finished yet: the developer sent messages you haven't seen. Address them, then call finish again." + TakeDeveloperMessagesHandler.Format(unread))
+                : taken.Error;
+        }
+
         var finished = job.Finish(draft.Value);
         if (!finished.IsSuccess)
         {

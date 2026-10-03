@@ -21,6 +21,25 @@ public static class MessageCatalog
 
     public static OutboundMessage Progress(string text) => new(MessageKind.Progress, text);
 
+    /// <summary>agentd's start steps: the work item fetched, the worktree ready, the agent started.</summary>
+    public static OutboundMessage Started(Job job, WorkItemDetails item, string baseBranch)
+    {
+        ArgumentNullException.ThrowIfNull(job);
+        ArgumentNullException.ThrowIfNull(item);
+        var criteria = item.AcceptanceCriteria is { Length: > 0 } ac
+            ? $"{ac.Split('\n', StringSplitOptions.RemoveEmptyEntries).Length} acceptance criteria line(s)"
+            : "no acceptance criteria";
+        var session = job.Session?.Value.ToString()[..8] ?? "?";
+        var run = job.Attempt > 1 || job.ResumeCount > 0 ? $" (attempt {job.Attempt})" : "";
+        return new(MessageKind.Info, string.Create(CultureInfo.InvariantCulture,
+            $"📄 **Work item #{item.Id} fetched:** {item.Title} ({item.State}; {criteria})\n🌿 **Worktree ready:** `{job.Branch}` from `{baseBranch}`\n🤖 **Agent started**{run}, session `{session}`"));
+    }
+
+    public static OutboundMessage Resumed(int messages) =>
+        new(MessageKind.Info, string.Create(CultureInfo.InvariantCulture, $"🔁 **Agent resumed** with {messages} message(s) from you."));
+
+    public static OutboundMessage Pushed(string branch) => new(MessageKind.Info, $"📤 **Pushed** `{branch}`.");
+
     public static OutboundMessage Question(string question, IReadOnlyList<MessageOption>? options) =>
         new(MessageKind.Question, $"**Question from the agent**\n\n{question}", options);
 

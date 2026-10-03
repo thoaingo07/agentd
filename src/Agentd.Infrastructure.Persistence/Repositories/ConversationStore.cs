@@ -61,6 +61,27 @@ public sealed class ConversationStore(NpgsqlDataSource dataSource) : IConversati
         return found.Count > 0 ? found[0] : null;
     }
 
+    public Task<IReadOnlyList<Conversation>> ListOpenByWorkItemAsync(WorkItemId workItem, CancellationToken cancellationToken) =>
+        ListAsync("SELECT * FROM agentd.conversation_list_open_by_work_item($1)", cancellationToken, P(workItem.Value, NpgsqlDbType.Integer));
+
+    public async Task<Result> MoveAsync(Conversation conversation, JobId jobId, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(conversation);
+        await using var cmd = dataSource.CreateCommand("SELECT agentd.conversation_move($1, $2)");
+        cmd.Parameters.Add(P(conversation.Id.Value, NpgsqlDbType.Bigint));
+        cmd.Parameters.Add(P(jobId.Value, NpgsqlDbType.Bigint));
+        try
+        {
+            await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            conversation.MovedTo(jobId);
+            return Result.Ok;
+        }
+        catch (PostgresException ex) when (SqlErrors.ToDomainError(ex) is { } error)
+        {
+            return error;
+        }
+    }
+
     public Task<IReadOnlyList<Conversation>> ListOpenAsync(ProviderKey provider, CancellationToken cancellationToken) =>
         ListAsync("SELECT * FROM agentd.conversation_list_open($1)", cancellationToken, P(provider.Value, NpgsqlDbType.Text));
 

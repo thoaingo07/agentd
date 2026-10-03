@@ -72,7 +72,7 @@ public sealed class AskDeveloperFlowTests
 
     private static ServiceProvider Services(TestContext t) =>
         new ServiceCollection()
-            .AddSingleton<ICommandHandler<ResumeJobTurn, AgentRunRequest?>>(new ResumeJobTurnHandler(t.Jobs))
+            .AddSingleton<ICommandHandler<ResumeJobTurn, AgentRunRequest?>>(new ResumeJobTurnHandler(t.Jobs, t.Outbox))
             .AddSingleton<ICommandHandler<StartNextJob, AgentRunRequest?>>(t.StartNext())
             .AddSingleton<ICommandHandler<HandleAgentExit, JobState>>(t.AgentExit())
             .BuildServiceProvider();

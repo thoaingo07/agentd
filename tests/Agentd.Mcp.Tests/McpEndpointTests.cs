@@ -159,6 +159,33 @@ public sealed class McpEndpointTests
         Assert.AreEqual(JobState.Running, (await host.Jobs.GetAsync(new JobId(12), default))!.State);
     }
 
+    [TestMethod]
+    public async Task Unread_developer_messages_come_back_with_tool_results_and_block_finish()
+    {
+        await using var host = await McpTestHost.StartAsync();
+        var job = host.RunningJob(id: 13, workItem: 1300);
+        job.ResumeWith("confirm the plan with me first", "tngo");
+        await host.Jobs.SaveAsync(job, default);
+        await using var client = await host.ClientAsync(host.Tokens.Issue(new JobId(13)));
+
+        var finish = await CallAllowingErrorAsync(client, "finish", Args(("prTitle", "T"), ("prDescription", "D"), ("summary", "S")));
+        Assert.IsTrue(finish.IsError ?? false);
+        StringAssert.Contains(Text(finish), "the developer sent messages you haven't seen");
+        StringAssert.Contains(Text(finish), "- tngo: confirm the plan with me first");
+        Assert.AreEqual(JobState.Running, (await host.Jobs.GetAsync(new JobId(13), default))!.State);
+
+        var again = await CallAllowingErrorAsync(client, "finish", Args(("prTitle", "T"), ("prDescription", "D"), ("summary", "S")));
+        Assert.IsFalse(again.IsError ?? false, "delivered once; the next finish goes through");
+
+        var other = host.RunningJob(id: 14, workItem: 1400);
+        other.ResumeWith("also update the README", "tngo");
+        await host.Jobs.SaveAsync(other, default);
+        await using var second = await host.ClientAsync(host.Tokens.Issue(new JobId(14)));
+        var progress = await second.CallToolAsync("report_progress", Args(("message", "Reading the code")));
+        StringAssert.Contains(Text(progress), "- tngo: also update the README");
+        Assert.IsEmpty((await host.Jobs.GetAsync(new JobId(14), default))!.PendingMessages);
+    }
+
     private static async Task<CallToolResult> CallAllowingErrorAsync(ModelContextProtocol.Client.McpClient client, string tool, IReadOnlyDictionary<string, object?> args)
     {
         try

@@ -22,7 +22,8 @@ public sealed class AgentdTools(
     IJobRepository jobs,
     IWorkItemSource workItems,
     ICommandHandler<AskDeveloper, Unit> ask,
-    ICommandHandler<ReportProgress, Unit> progress)
+    ICommandHandler<ReportProgress, Unit> progress,
+    ICommandHandler<TakeDeveloperMessages, IReadOnlyList<string>> unread)
 {
     [McpServerTool(Name = "finish"), Description(
         "Call exactly once when the work item is complete and all changes are committed. agentd pushes your branch and " +
@@ -46,7 +47,7 @@ public sealed class AgentdTools(
         CancellationToken cancellationToken)
     {
         var result = await progress.Handle(new ReportProgress(CurrentJob(), message), cancellationToken).ConfigureAwait(false);
-        return result.IsSuccess ? "Noted." : throw new McpException(result.Error.Message);
+        return result.IsSuccess ? await WithUnreadAsync("Noted.", cancellationToken).ConfigureAwait(false) : throw new McpException(result.Error.Message);
     }
 
     [McpServerTool(Name = "ask_developer"), Description(
@@ -85,7 +86,14 @@ public sealed class AgentdTools(
         Section("Acceptance criteria", item.AcceptanceCriteria);
         Section("Repro steps", item.ReproSteps);
         Section("Comments", string.Join("\n", item.Comments.Select(c => $"- {c.Author} ({c.CreatedAt:yyyy-MM-dd}): {c.Text}")));
-        return sb.ToString();
+        return await WithUnreadAsync(sb.ToString(), cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Appends the developer's unread messages, so they reach the agent at its next tool call.</summary>
+    private async Task<string> WithUnreadAsync(string result, CancellationToken ct)
+    {
+        var messages = await unread.Handle(new TakeDeveloperMessages(CurrentJob()), ct).ConfigureAwait(false);
+        return messages is { IsSuccess: true, Value.Count: > 0 } ? result + TakeDeveloperMessagesHandler.Format(messages.Value) : result;
     }
 
     private JobId CurrentJob() =>
