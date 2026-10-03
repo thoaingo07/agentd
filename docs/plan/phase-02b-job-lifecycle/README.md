@@ -45,6 +45,25 @@ Every arrow posts to the work item's thread.
 - **Live activity line:** one status message that shows the current tool step ("📖 reading …",
   "🔧 dotnet test"), taken from the stream-json and limited to a few updates a minute.
 
+### Replying mid-task ("what's the progress?")
+- **Immediate answer:** any developer message in the thread gets a reply from agentd right away,
+  **without waiting for the agent's turn**. It is a status snapshot: the current phase, what the
+  agent is doing now (the activity line), elapsed time, the last update, and whether it is waiting
+  for the developer.
+- **The message still reaches the agent:** at its next tool call (above), so a question or
+  instruction is also answered by the agent in context.
+- `!status` gives the same snapshot on demand.
+
+### Heartbeat (every minute)
+- **Liveness:** while a job is active, agentd refreshes the thread's live status message **every
+  minute**, for example "🟢 working · implement · last activity 20 s ago · 12 min elapsed" or
+  "⏸ waiting for you since 14:05". The developer can see it is alive without new posts piling up.
+- **Stuck agent:** if the agent produces no output for 5 minutes (configurable), agentd posts a
+  **⚠️ no activity** message, and posts again when activity resumes. The existing idle timeout still
+  stops a hung process.
+- **The daemon itself:** if agentd stops or loses the provider, the heartbeat stops updating, and the
+  timestamp shows it. `/healthz` reports per-provider status (T2.5).
+
 ### Gates
 - **Clarify:** open questions go through `ask_developer`, and the job waits.
 - **Plan approval, on by default:** the agent posts its plan through `ask_developer` and waits for the
@@ -96,7 +115,8 @@ This is a per-repository allowlist; still no `git push`, since agentd pushes.
 ## Delivery (each PR under 1,000 lines of code)
 
 1. **Notifications + reliable messaging:**
-   - agentd's step messages, `set_phase`, the live activity line;
+   - agentd's step messages, `set_phase`, the live activity line and the **every-minute heartbeat**;
+   - an **immediate status reply** to any message sent mid-task;
    - unread messages returned on every tool call, and the `finish` guard;
    - **one thread per work item** (reuse the open conversation across jobs).
 2. **Clarify, plan approval (on by default, `ai-auto` skips) and verify:** the per-repo command allowlist.
@@ -118,6 +138,8 @@ On a sandbox work item:
   on confirmation.
 
 ## Open questions
+- **Heartbeat form:** edit one status message every minute (proposed: no clutter), or post a new
+  message every minute?
 - **The developer's confirmation to delete the thread:** a reply `delete` (or option `1`) in the
   thread. Archive instead of delete when the bot lacks Manage Threads?
 - **Fix-round limit** default (proposal: 5).
