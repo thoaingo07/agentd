@@ -233,7 +233,7 @@ reaches an agent.
 
 ```jsonc
 "Auth": {
-  "Mode": "Sso",                                   // None | Sso
+  "Mode": "Sso",                                   // None | CloudflareAccess (T3.14) | Sso
   "Providers": {
     "Microsoft": { "Enabled": true, "TenantId": "…", "ClientId": "…", "RoleSource": "Directory" },
     "Google":    { "Enabled": true, "ClientId": "…", "AllowedHostedDomains": ["example.com"] }
@@ -247,6 +247,13 @@ reaches an agent.
 - **`Mode: None`** is for a single developer on their own machine. The **daemon refuses to start**
   in this mode unless the web server is bound to a loopback address, so it fails closed.
   Antiforgery and CSP stay on.
+- **`Mode: None` never trusts proxied requests.** A request carrying `X-Forwarded-For`,
+  `Cf-Connecting-IP` or similar is rejected, even though the proxy connects from loopback.
+- **`Mode: CloudflareAccess`** (T3.14, before Phase 5) publishes the UI through Cloudflare Tunnel.
+  Cloudflare Access signs the user in at its edge, and agentd validates the `Cf-Access-Jwt-Assertion`
+  JWT on every request: Cloudflare's signing keys, the issuer and the application's audience. The
+  user is the token's email. There's no loopback exemption in this mode, and `/mcp` is never routed
+  through the tunnel ([deployment.md §7.1](../architect/deployment.md#71-publishing-the-web-ui-with-cloudflare-tunnel--access)).
 - **`Mode: Sso`** is required for any non-loopback binding. The IdPs require **HTTPS** redirect URIs
   (except for `localhost`), so remote access goes through a TLS reverse proxy or a tunnel. Behind the
   proxy, configure `ForwardedHeaders` with `KnownProxies` so the generated redirect URIs use

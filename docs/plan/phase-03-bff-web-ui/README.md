@@ -54,6 +54,11 @@ Design refs: [UI spec](../../ui/README.md) · [Design System](../../design-syste
   - Session and History link to it. The Session view's Details tab shows the Phase 2b fields: phase,
     plan status and estimate, fix rounds, hand-off status.
 
+- **Publishing on the internet (added 2026-10-03):** the Web UI is served by the daemon on the same
+  server. To reach it from elsewhere before Phase 5 SSO: an SSH tunnel, or **Cloudflare Tunnel +
+  Cloudflare Access**, with agentd verifying the Access token (T3.14). A request that came through a
+  proxy never counts as a local request.
+
 **Out:** the phase stepper and artifacts (Phase 4), login and roles (Phase 5), PR screens (Phase 7).
 
 ---
@@ -65,7 +70,7 @@ Detailed tasks: [tasks/README.md](tasks/README.md)
 | ID | Task | Depends on | Size | Status |
 |---|---|---|---|---|
 | T3.1 | [Event store and live publisher](tasks/01-event-store-and-publisher.md) | Phase 1 (`events` table, `RecordAgentOutput`) | L | ☑ |
-| T3.2 | [BFF endpoints and view models](tasks/02-bff-endpoints-and-view-models.md) | T3.1, Phase 2 (`SubmitDeveloperMessage`) | M | ☐ |
+| T3.2 | [BFF endpoints and view models](tasks/02-bff-endpoints-and-view-models.md) | T3.1, Phase 2 (`SubmitDeveloperMessage`) | M | ☑ |
 | T3.3 | [OpenAPI document and generated TypeScript types](tasks/03-openapi-and-ts-types.md) | T3.2 | S | ☐ |
 | T3.4 | [SignalR events hub with replay](tasks/04-signalr-events-hub.md) | T3.1 | M | ☐ |
 | T3.5 | [Antiforgery with HttpOnly cookies](tasks/05-antiforgery-and-cookies.md) | T3.2 | M | ☐ |
@@ -77,6 +82,7 @@ Detailed tasks: [tasks/README.md](tasks/README.md)
 | T3.11 | [History view with server-side paging](tasks/11-history-view.md) | T3.2, T3.9, T3.10 | S | ☐ |
 | T3.12 | [Playwright smoke tests and BFF security test suite](tasks/12-e2e-and-bff-security-tests.md) | T3.4, T3.5, T3.6, T3.9, T3.10, T3.11 | M | ☐ |
 | T3.13 | [Work item view: one timeline across jobs](tasks/13-work-item-view.md) | T3.2, T3.4, T3.7, T3.10 | M | ☐ |
+| T3.14 | [Cloudflare Access sign-in mode](tasks/14-cloudflare-access-auth.md) | T3.5 | S | ☐ |
 
 ## Exit criteria (the demo)
 

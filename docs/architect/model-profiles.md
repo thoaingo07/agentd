@@ -39,6 +39,68 @@ each provider's current docs for Claude Code / Anthropic-compatible usage when a
 
 ---
 
+## 1a. Runners: more than one agent CLI (added 2026-10-03)
+
+Each step of the job cycle can run on a different model **and a different agent CLI**. So a profile
+names its **runner** (the `IAgentRunner` that launches the process) as well as its provider:
+
+| You want | `Runner` | `Kind` | How |
+|---|---|---|---|
+| **Claude Fable** in Claude Code | `ClaudeCode` | `ClaudeSubscription` (or `AnthropicApi`) | Only the model differs (`"Model": "claude-fable-5-1"`). Profiles for different models can share one subscription's `ConfigDir`. |
+| **DeepSeek API** | `ClaudeCode` | `AnthropicCompatible` | DeepSeek's Anthropic-compatible endpoint (§1). No new runner. |
+| **Codex CLI** (ChatGPT plan) | `CodexCli` | `ChatGptSubscription` | `codex login` into the profile's own `CODEX_HOME`, the counterpart of `CLAUDE_CONFIG_DIR`. |
+| **Codex API** (OpenAI key) | `CodexCli` | `OpenAiApi` | The same runner, with `OPENAI_API_KEY` injected only into that profile's processes. |
+
+**`CodexCliRunner`** (new project `Infrastructure.Codex`):
+- **Launch:** `codex exec` in the worktree, with JSON event output, the profile's model, and its
+  sandbox. Read-only steps (clarify, plan, hand-off proposal) use the read-only sandbox, like
+  Claude's `ReadOnlyTools`. Exact flags are checked against the installed version
+  (`codex exec --help`) when the profile is onboarded, and `agentd doctor` verifies them.
+- **Sessions:** the session id from the first event is stored. Later turns of the same step resume
+  it. A session is pinned to its runner and profile (§4).
+- **agentd's MCP server** is configured per process in the profile's `CODEX_HOME`: the same
+  `/mcp` URL and the same per-job bearer token. Every agentd tool (`set_phase`, `submit_plan`,
+  `ask_developer`, `finish`, …) works unchanged.
+- **Events:** the JSON events are mapped onto the existing runner-neutral types (`agent.text`,
+  `agent.tool_call`, `agent.tool_result`, `agent.rate_limit`, `agent.result`; anything else is
+  `agent.other`). The transcript, Web UI, heartbeat and usage warnings don't know which CLI ran.
+- **Usage limits:** ChatGPT plans have rolling limits too. They feed the same 80% warnings and
+  wait/fallback rules as Claude subscriptions (§4a).
+- **Secrets:** a process only gets its own profile's credentials. Codex processes get no
+  `ANTHROPIC_*`, and Claude processes get no `OPENAI_*`.
+
+**Cycle steps → routing keys.** The Phase 2b steps reported through `set_phase` are the routing keys:
+
+| Cycle step | Routing key |
+|---|---|
+| clarify | `Design` |
+| plan | `Plan` |
+| implement | `Implement` |
+| verify | `Test` |
+| PR review fixes | `Implement` (fix loops stay on the implementing profile) |
+| independent PR review (Phase 7) | `Review` |
+| hand-off (knowledge extraction) | `Distill` |
+
+A switch of runner or profile can only happen **between turns**. When the next step routes to a
+different profile, the current turn ends at that step boundary, and the next step starts a new
+session with the handoff prompt (§4). `submit_plan` already ends a turn this way. `set_phase` ends
+the turn only when the profile changes.
+
+Example routing for this mix:
+
+```jsonc
+"Routing": { "Default": {
+  "Design":    ["claude-fable"],
+  "Plan":      ["claude-fable"],
+  "Implement": ["codex-cli", "deepseek", "claude-fable"],
+  "Test":      ["deepseek", "codex-cli"],
+  "Review":    ["codex-api", "claude-fable"],     // a different family from the implementer
+  "Distill":   ["deepseek"]
+} }
+```
+
+---
+
 ## 2. Profiles
 
 ```jsonc
@@ -63,7 +125,8 @@ Each profile has these properties:
 
 | Property | Use |
 |---|---|
-| `Kind` | `ClaudeSubscription`, `AnthropicApi` or `AnthropicCompatible` (later: `GeminiCli`, …) |
+| `Runner` | `ClaudeCode` (default) or `CodexCli` (§1a). Later: `GeminiCli`, … |
+| `Kind` | `ClaudeSubscription`, `AnthropicApi` or `AnthropicCompatible` for `ClaudeCode`; `ChatGptSubscription` or `OpenAiApi` for `CodexCli` |
 | `Model`, `SmallModel` | the model IDs at that provider |
 | `MaxConcurrent` | concurrent processes on this profile, on top of the global `Agents.MaxConcurrent` |
 | `Pricing` | per-million-token input/output (and cache) prices. **agentd computes cost itself** from token usage, because the CLI's `total_cost_usd` assumes Anthropic pricing. |
@@ -124,7 +187,7 @@ provider-specific content, so **a session is pinned to one profile**.
 - **A fallback in the middle of a phase** (e.g. a provider returns 429 or 5xx repeatedly) restarts
   that phase on the next profile, with the same handoff plus "the previous attempt got this far:
   <commits so far>". Commits already on the branch are kept.
-- `jobs.claude_session_id` becomes a `job_sessions` table: `job_id`, `phase`, `profile`,
+- `jobs.claude_session_id` becomes a `job_sessions` table: `job_id`, `phase`, `profile`, `runner`,
   `session_id`, `started_at`, `ended_at`, `end_reason`.
 
 ---
@@ -184,6 +247,7 @@ agentd treats hitting a limit as **"paused", not "failed"**:
 | `ModelProfile` and `PhaseRouting` value objects; routing resolution rules | Domain |
 | `IModelRouter` (phase + repo + WI → ordered profiles), `IProfileHealth` (breaker, budget) ports; the handoff prompt builder | Application |
 | `ClaudeCodeRunner : IAgentRunner`: builds the env per profile (base URL, key, model, config dir) and launches `claude` | `Infrastructure.Claude` |
+| `CodexCliRunner : IAgentRunner`: env per profile (`CODEX_HOME`, `OPENAI_API_KEY`), MCP config, JSON events → `agent.*` (§1a) | `Infrastructure.Codex` |
 | Future `GeminiCliRunner : IAgentRunner` (or any other agent CLI) | a new `Infrastructure.<Runner>` project; the `IAgentRunner` port is unchanged |
 | Per-profile semaphores, circuit breakers, budget counters | Infrastructure + Persistence |
 | Profile, cost and health views | `Agentd.Bff` + `src/Agentd.Web/` |
