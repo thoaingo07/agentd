@@ -5,6 +5,9 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\Agentd.Application\Agentd.Application.csproj" />
     <ProjectReference Include="..\Agentd.Domain\Agentd.Domain.csproj" />
   </ItemGroup>

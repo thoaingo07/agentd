@@ -22,10 +22,12 @@ public static class JobActionEndpoints
     public static RouteGroupBuilder MapJobActions(this RouteGroupBuilder api)
     {
         api.MapPost("/jobs/{id:long}/cancel", async (long id, ClaimsPrincipal user, [FromServices] ICommandHandler<CancelJob, Unit> handler, CancellationToken ct) =>
-            (await handler.Handle(new CancelJob(new JobId(id), UserName(user)), ct).ConfigureAwait(false)).ToHttpResult(_ => TypedResults.NoContent()));
+            (await handler.Handle(new CancelJob(new JobId(id), UserName(user)), ct).ConfigureAwait(false)).ToHttpResult(_ => TypedResults.NoContent()))
+            .WithName("CancelJob").Produces(StatusCodes.Status204NoContent).ProducesProblem(StatusCodes.Status404NotFound).ProducesProblem(StatusCodes.Status409Conflict);
 
         api.MapPost("/jobs/{id:long}/retry", async (long id, [FromServices] ICommandHandler<RetryJob, int> handler, CancellationToken ct) =>
-            (await handler.Handle(new RetryJob(new JobId(id)), ct).ConfigureAwait(false)).ToHttpResult(_ => TypedResults.NoContent()));
+            (await handler.Handle(new RetryJob(new JobId(id)), ct).ConfigureAwait(false)).ToHttpResult(_ => TypedResults.NoContent()))
+            .WithName("RetryJob").Produces(StatusCodes.Status204NoContent).ProducesProblem(StatusCodes.Status404NotFound).ProducesProblem(StatusCodes.Status409Conflict);
 
         api.MapPost("/jobs/{id:long}/messages", async (long id, MessageRequest? body, ClaimsPrincipal user, [FromServices] ICommandHandler<SubmitDeveloperMessage, DeveloperMessageOutcome> handler, CancellationToken ct) =>
         {
@@ -39,21 +41,25 @@ public static class JobActionEndpoints
             return outcome.ToHttpResult(o => o == DeveloperMessageOutcome.NotAccepted
                 ? new DomainError("not_accepted", $"Job {id} doesn't take messages in its current state.").ToProblem()
                 : TypedResults.Accepted((string?)null, new MessageAcceptedVm(o.ToString())));
-        });
+        }).WithName("SendJobMessage").Accepts<MessageRequest>("application/json").Produces<MessageAcceptedVm>(StatusCodes.Status202Accepted)
+            .ProducesValidationProblem().ProducesProblem(StatusCodes.Status404NotFound).ProducesProblem(StatusCodes.Status409Conflict);
 
         api.MapPost("/workitems/{id:int}/run", async (int id, [FromServices] ICommandHandler<ClaimWorkItem, JobId> handler, CancellationToken ct) =>
             id <= 0
                 ? TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["id"] = ["A work item id is positive."] })
                 : (await handler.Handle(new ClaimWorkItem(WorkItemId.From(id), Force: true), ct).ConfigureAwait(false))
-                    .ToHttpResult(job => TypedResults.Accepted($"/api/jobs/{job}", new RunAcceptedVm(job.Value))));
+                    .ToHttpResult(job => TypedResults.Accepted($"/api/jobs/{job}", new RunAcceptedVm(job.Value))))
+            .WithName("RunWorkItem").Produces<RunAcceptedVm>(StatusCodes.Status202Accepted).ProducesValidationProblem()
+            .ProducesProblem(StatusCodes.Status404NotFound).ProducesProblem(StatusCodes.Status409Conflict);
 
         api.MapGet("/jobs/{id:long}/diff", async (long id, [FromServices] IQueryHandler<GetJobDiff, Result<BranchDiff>> handler, CancellationToken ct) =>
-            (await handler.Handle(new GetJobDiff(new JobId(id)), ct).ConfigureAwait(false)).ToHttpResult(diff => TypedResults.Ok(DiffVm.From(diff))));
+            (await handler.Handle(new GetJobDiff(new JobId(id)), ct).ConfigureAwait(false)).ToHttpResult(diff => TypedResults.Ok(DiffVm.From(diff))))
+            .WithName("GetJobDiff").Produces<DiffVm>().ProducesProblem(StatusCodes.Status404NotFound);
 
         return api;
     }
 
     private static string UserName(ClaimsPrincipal user) => user.Identity?.Name ?? "web";
 
-    public sealed record MessageRequest(string? Text);
+    public sealed record MessageRequest(string Text);
 }

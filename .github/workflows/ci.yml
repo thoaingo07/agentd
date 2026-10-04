@@ -65,6 +65,13 @@ jobs:
           cache-dependency-path: src/Agentd.Web/package-lock.json
 
       - run: npm ci
+
+      # openapi.json is checked against the server by Bff.Tests; schema.d.ts must match openapi.json.
+      - name: API types match the BFF contract
+        run: |
+          npm run gen:api
+          git diff --exit-code ClientApps/shared/api/schema.d.ts || { echo "::error::run \`npm run gen:api\` in src/Agentd.Web and commit"; exit 1; }
+
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run test -- --run
