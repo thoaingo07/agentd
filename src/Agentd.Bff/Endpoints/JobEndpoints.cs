@@ -1,4 +1,5 @@
 using Agentd.Application.Abstractions;
+using Agentd.Application.Events;
 using Agentd.Application.Queries;
 using Agentd.Bff.ViewModels;
 using Agentd.Domain.Jobs;
@@ -50,6 +51,12 @@ public static class JobEndpoints
             var page = await handler.Handle(new GetJobEvents(new JobId(id), after, before, limit ?? DefaultEventLimit), ct).ConfigureAwait(false);
             return TypedResults.Ok(EventPageVm.From(page));
         }).WithName("GetJobEvents").Produces<EventPageVm>().ProducesValidationProblem();
+
+        api.MapGet("/jobs/{id:long}/events/{seq:long}", async Task<IResult> (long id, long seq, [FromServices] IQueryHandler<GetJobEventDetail, AgentEventDto?> handler, CancellationToken ct) =>
+            await handler.Handle(new GetJobEventDetail(new JobId(id), seq), ct).ConfigureAwait(false) is { } found
+                ? TypedResults.Ok(EventVm.From(found))
+                : NotFound($"Event {seq} of job {id} was not found."))
+            .WithName("GetJobEvent").Produces<EventVm>().ProducesProblem(StatusCodes.Status404NotFound);
 
         api.MapGet("/history", async Task<IResult> (string? state, string? repo, string? q, int? page, int? pageSize, [FromServices] IQueryHandler<SearchHistory, HistoryPage> handler, CancellationToken ct) =>
         {

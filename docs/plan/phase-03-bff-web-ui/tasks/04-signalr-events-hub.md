@@ -63,7 +63,47 @@ connections.
   - calling an unknown hub method fails; there is no server method that mutates state.
 
 ## Done when
-- [ ] Replay-then-live with no gaps or duplicates, proven by the race test.
-- [ ] The `all` stream carries only summary events, and job streams carry full ones.
-- [ ] A cross-origin connection is refused.
-- [ ] The hub requires authentication (the local pseudo-user in Mode None).
+- [x] Replay-then-live with no gaps or duplicates, proven by the race test.
+- [x] The `all` stream carries only summary events, and job streams carry full ones.
+- [x] A cross-origin connection is refused.
+- [x] The hub requires authentication (the local pseudo-user in Mode None).
+
+## As built
+- **Events commit in `seq` order** (a prerequisite that T3.1 missed). Several transactions write
+  events at once. A transaction holding seq 10 could commit after one holding 11, and then every
+  "after seq N" reader (hub replay, UI reconnect) would skip 10 forever.
+  - Fix: the `events_serialize` trigger (`BEFORE INSERT … FOR EACH STATEMENT` on `agentd.events`)
+    takes `pg_advisory_xact_lock`, so seq values are drawn and committed one writer at a time.
+  - `EventStreamTests.Concurrent_writers_commit_events_in_seq_order` fails without the trigger and
+    passes with it.
+- **`ILiveEvents` changes:**
+  - `Subscribe` registers the subscriber **when called**, not on first enumeration. That's what
+    makes "subscribe, then replay" airtight.
+  - A full buffer no longer drops the oldest events silently. The stream ends with
+    `LiveEventsOverflowException` after the buffered events, and the pump re-subscribes and replays
+    from its last sent `seq`.
+- **Files and contract:**
+  - `Hubs/EventsHub.cs` (`Subscribe(stream, afterSeq)`, `Unsubscribe(stream)`), plus
+    `Hubs/EventStreams.cs` (the pumps). The file is named `EventStreams`, not
+    `HubSubscriptionManager`.
+  - Server → client is `event(stream, EventVm)`. The stream name is included so the client can keep
+    `lastSeq` per stream.
+- **Payloads over 64 KB** are streamed as `{ "truncated": true, "bytes": n }`. The full event comes
+  from the new `GET /api/jobs/{id}/events/{seq}` (404 if the seq belongs to another job).
+- **Origin guard:** `Http/HubOriginGuard.cs` (`UseBffHubOriginGuard`, called by the Host).
+  - `/hubs/*` needs `Origin` = the request's own `scheme://host`, or `Web:PublicOrigin`. Missing or
+    foreign → 403.
+  - The planned shared `Security/OriginAllowlistMiddleware.cs` is left to T3.6, if CSP needs it.
+- **Tests:** `Bff.Tests/EventsHubTests` uses the SignalR .NET client over TestServer long polling,
+  with an in-memory store that commits in seq order and the real `EventHub`:
+  - replay, then live, giving 1–55;
+  - resume after 30;
+  - subscribing while a writer runs (contiguous);
+  - overflow → resume;
+  - the `all` stream is summary-only, and big payloads are trimmed;
+  - read-only (an unknown method fails), with stream validation;
+  - foreign or missing `Origin` → 403;
+  - disconnecting stops the pumps.
+
+  These run in-process with fakes, not WebApplicationFactory + PostgreSQL. The commit-order
+  guarantee is tested against PostgreSQL in Infrastructure.

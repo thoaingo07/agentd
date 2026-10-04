@@ -13,6 +13,25 @@ BEGIN
 END
 $$;
 
+-- Events commit in seq order. Every statement inserting events first takes a transaction-scoped
+-- advisory lock, so seq values are drawn (per row, after this BEFORE STATEMENT trigger) and committed
+-- one writer at a time. Without it, a transaction holding seq 10 could commit after one holding 11,
+-- and a reader resuming "after 11" (UI reconnect, hub replay) would never see 10.
+-- Writers insert events after their row locks (job_save: UPDATE jobs, then INSERT events), so the
+-- lock is held only from the event insert to commit and doesn't order against row locks.
+CREATE OR REPLACE FUNCTION agentd.events_serialize()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    PERFORM pg_advisory_xact_lock(hashtext('agentd.events'));
+    RETURN NULL;
+END
+$$;
+
+DROP TRIGGER IF EXISTS trg_events_serialize ON agentd.events;
+CREATE TRIGGER trg_events_serialize BEFORE INSERT ON agentd.events FOR EACH STATEMENT EXECUTE FUNCTION agentd.events_serialize();
+
 DROP TRIGGER IF EXISTS trg_events_notify ON agentd.events;
 CREATE TRIGGER trg_events_notify AFTER INSERT ON agentd.events FOR EACH ROW EXECUTE FUNCTION agentd.events_notify();
 

@@ -1,4 +1,5 @@
 using Agentd.Application.Abstractions;
+using Agentd.Application.Events;
 using Agentd.Application.Jobs;
 using Agentd.Application.Messaging;
 using Agentd.Application.Ports;
@@ -34,6 +35,7 @@ public static class DependencyInjection
         services.AddScoped<IQueryHandler<GetDashboard, Dashboard>, GetDashboardHandler>();
         services.AddScoped<IQueryHandler<GetJob, JobDetail?>, GetJobHandler>();
         services.AddScoped<IQueryHandler<GetJobEvents, EventPage>, GetJobEventsHandler>();
+        services.AddScoped<IQueryHandler<GetJobEventDetail, AgentEventDto?>, GetJobEventDetailHandler>();
         services.AddScoped<IQueryHandler<SearchHistory, HistoryPage>, SearchHistoryHandler>();
         services.AddScoped<IQueryHandler<GetJobDiff, Result<BranchDiff>>, GetJobDiffHandler>();
         services.AddScoped<ICommandHandler<AddRepository, Repository>, AddRepositoryHandler>();

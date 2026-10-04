@@ -27,29 +27,41 @@ public sealed class EventHubAndRedactorTests
     }
 
     [TestMethod]
-    public async Task A_slow_subscriber_keeps_the_newest_events()
+    public async Task A_slow_subscriber_gets_what_was_buffered_then_an_overflow_signal()
     {
         var hub = new EventHub(NullLogger<EventHub>.Instance);
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        var enumerator = hub.Subscribe(7, stop.Token).GetAsyncEnumerator(stop.Token);
-        var first = enumerator.MoveNextAsync();   // registers the subscriber
-        await WaitFor(() => hub.SubscriberCount == 1);
+        var events = hub.Subscribe(7, stop.Token);
+        Assert.AreEqual(1, hub.SubscriberCount, "subscribed when called, before enumerating");
 
         for (var seq = 1; seq <= EventHub.BufferSize + 10; seq++)
         {
             hub.Publish(Event(seq, 7, "agent.text"));
         }
 
-        Assert.IsTrue(await first);
-        var seen = new List<long> { enumerator.Current.Seq };
-        while (seen[^1] < EventHub.BufferSize + 10 && await enumerator.MoveNextAsync())
+        var seen = new List<long>();
+        await Assert.ThrowsExactlyAsync<LiveEventsOverflowException>(async () =>
         {
-            seen.Add(enumerator.Current.Seq);
-        }
+            await foreach (var e in events)
+            {
+                seen.Add(e.Seq);
+            }
+        });
 
-        Assert.AreEqual(EventHub.BufferSize + 10, seen[^1], "the newest event arrives");
-        Assert.IsLessThanOrEqualTo(EventHub.BufferSize + 1, seen.Count, "the oldest ones were dropped");
-        await enumerator.DisposeAsync();
+        CollectionAssert.AreEqual(Enumerable.Range(1, EventHub.BufferSize).Select(i => (long)i).ToArray(), seen.ToArray(), "no gaps before the signal");
+        Assert.AreEqual(0, hub.SubscriberCount);
+    }
+
+    [TestMethod]
+    public void Cancelling_unsubscribes_even_if_never_enumerated()
+    {
+        var hub = new EventHub(NullLogger<EventHub>.Instance);
+        using var stop = new CancellationTokenSource();
+        _ = hub.Subscribe(null, stop.Token);
+
+        stop.Cancel();
+
+        Assert.AreEqual(0, hub.SubscriberCount);
     }
 
     [TestMethod]

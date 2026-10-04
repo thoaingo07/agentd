@@ -1,9 +1,12 @@
 using System.Net;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Agentd.Application.Events;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Agentd.Bff.Tests;
 
@@ -67,6 +70,7 @@ public sealed class OpenApiContractTests
         var builder = WebApplication.CreateSlimBuilder(new WebApplicationOptions { EnvironmentName = environment, ApplicationName = "Agentd.Host" });
         builder.WebHost.UseTestServer();
         builder.Services.AddBff();
+        builder.Services.AddSingleton<ILiveEvents>(new EventHub(NullLogger<EventHub>.Instance));   // the hub's dependency (Development validates on build)
         var app = builder.Build();
         app.MapBff();
         await app.StartAsync();

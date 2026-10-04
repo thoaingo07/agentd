@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Agentd.Application.Events;
 using Agentd.Application.Ports;
 using Agentd.Application.Queries;
 
@@ -69,14 +70,34 @@ public sealed record JobDetailVm(
 }
 
 /// <summary>One event; the payload is JSON passed through (it was redacted when stored).</summary>
-public sealed record EventVm(long Seq, long? JobId, DateTimeOffset Ts, string Type, JsonElement Payload);
+public sealed record EventVm(long Seq, long? JobId, DateTimeOffset Ts, string Type, JsonElement Payload)
+{
+    /// <summary>The live stream's limit per payload; bigger ones become <c>{ "truncated": true, "bytes": n }</c>.</summary>
+    public const int MaxStreamedPayloadBytes = 64 * 1024;
+
+    public static EventVm From(AgentEventDto e)
+    {
+        ArgumentNullException.ThrowIfNull(e);
+        return new(e.Seq, e.JobId, e.Ts, e.Type, e.Payload);
+    }
+
+    /// <summary>For the live stream: a payload over <see cref="MaxStreamedPayloadBytes"/> is replaced; the UI loads it with <c>GET /api/jobs/{id}/events/{seq}</c>.</summary>
+    public static EventVm ForStream(AgentEventDto e)
+    {
+        ArgumentNullException.ThrowIfNull(e);
+        var bytes = System.Text.Encoding.UTF8.GetByteCount(e.Payload.GetRawText());
+        return bytes <= MaxStreamedPayloadBytes
+            ? From(e)
+            : new(e.Seq, e.JobId, e.Ts, e.Type, JsonSerializer.SerializeToElement(new { truncated = true, bytes }));
+    }
+}
 
 public sealed record EventPageVm(IReadOnlyList<EventVm> Events, long? OldestSeq, long? NewestSeq, bool HasMore)
 {
     public static EventPageVm From(EventPage p)
     {
         ArgumentNullException.ThrowIfNull(p);
-        return new(p.Events.Select(e => new EventVm(e.Seq, e.JobId, e.Ts, e.Type, e.Payload)).ToList(), p.OldestSeq, p.NewestSeq, p.HasMore);
+        return new(p.Events.Select(EventVm.From).ToList(), p.OldestSeq, p.NewestSeq, p.HasMore);
     }
 }
 
