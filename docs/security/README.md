@@ -169,6 +169,11 @@ export async function send<T>(method: 'POST' | 'PUT' | 'PATCH' | 'DELETE', url: 
 export function resetXsrf() { xsrf = null }            // call after login/logout
 ```
 
+Cross-cutting behaviour (the 401 handling, error toasts, dev logging) is added with
+`use({ onRequest, onResponse, onError })` interceptors in `http.ts`, never with a second fetch
+wrapper. The XSRF header and its one retry stay built in, so no middleware can drop or replay them
+([T3.7](../plan/phase-03-bff-web-ui/tasks/07-web-api-layer-and-stores.md)).
+
 ### 2.5 SignalR hub (`/hubs/events`)
 
 - WebSocket upgrades are not covered by antiforgery tokens. Instead:
