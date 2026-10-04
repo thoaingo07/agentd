@@ -67,7 +67,55 @@ never base-ui-vue directly.
 - The ESLint rule fails when a view imports `base-ui-vue`.
 
 ## Done when
-- [ ] Every component listed exists, is typed, and follows the data-attribute styling pattern.
+- [x] Every component listed exists, is typed, and follows the data-attribute styling pattern.
 - [ ] Both themes look right, and the focus ring is visible on every interactive component.
-- [ ] Only `components/ui/` imports `base-ui-vue` (enforced by lint).
-- [ ] Any deviation from base-ui-vue is documented in the component file.
+- [x] Only `components/ui/` imports `base-ui-vue` (enforced by lint).
+- [x] Any deviation from base-ui-vue is documented in the component file.
+
+## As built
+- **base-ui-vue 0.5.0** (MIT, peer `vue >= 3.5`). Part names, `data-*` attributes and CSS variables
+  were checked against the package exports:
+  - `data-active` on tabs, `data-pressed` on toggles, `data-panel-open` on the collapsible trigger;
+  - `data-starting-style` / `data-ending-style`;
+  - `--active-tab-left` / `--active-tab-width`, `--collapsible-panel-height`.
+  - Events are `valueChange`; v-model is wired by hand.
+- **CSP finding:** base-ui-vue has a `CSPProvider`. `ScrollArea` would otherwise inject a `<style>`
+  element. `App.vue` wraps everything in `<AgCspProvider disable-style-elements>` (and
+  `<AgTooltipProvider>`). The tooltip positioner sets coordinates through Vue `:style` (the CSSOM),
+  which `style-src 'self'` allows. `TabsIndicator` only renders its inline script with
+  `renderBeforeHydration` (SSR), which isn't used here.
+- **Files:**
+  - `shared/components/ui/Ag*.vue` plus `index.ts`. The barrel also re-exports `CSPProvider` and
+    `TooltipProvider` as `AgCspProvider` / `AgTooltipProvider`, so even `App.vue` doesn't import
+    base-ui-vue.
+  - Icons are one `shared/components/icons/AgIcon.vue`, with a `name` prop and Lucide paths (ISC),
+    not one file per icon.
+- **`AgButton`:** `loading` keeps the button focusable (`aria-disabled`, `aria-busy`, a spinner), and
+  clicks are ignored.
+- **`AgModal`:** a native `<dialog>` driven by `v-model:open`. Esc (`cancel`) and the backdrop close
+  it.
+- **`AgToast` / `AgToastHost`:**
+  - They take the toasts as a prop and emit `dismiss`. They don't read the `ui` store directly,
+    because shared components don't depend on an app's store; T3.7 wires the store in.
+  - A toast dismisses itself after 5 s.
+- **`AgStateBadge`:** every `JobState` (including `InReview`, which design system §2.3 doesn't list
+  yet; it uses accent + an eye icon) gets a label and an icon. `Running` gets a pulsing dot with
+  `motion-reduce:animate-none`.
+- **Not built yet:** `AgSwitch`, `AgScrollArea`, `AgProgress`, `AgField` / `AgInput` (design system
+  §6.2) aren't in this task's file list. They come with the screens that need them (Settings, the
+  composer).
+- **Lint:** `no-restricted-imports` blocks `base-ui-vue` in `ClientApps/**` outside
+  `shared/components/ui/`. A vitest test runs ESLint to prove it.
+- **Tests:** `tests/ag-components.spec.ts` (vitest + `@vue/test-utils`):
+  - slot and class merge;
+  - loading button;
+  - collapsible toggle from a native button;
+  - tabs: arrow keys move the focus, and v-model;
+  - the toggle group;
+  - meter ARIA;
+  - modal `showModal` and Esc;
+  - toast auto-dismiss;
+  - a badge label and icon for every state;
+  - the lint rule.
+- **Still open:** a visual check of both themes and the focus rings needs a browser. It happens with
+  the Dashboard (T3.9) and the Playwright pass (T3.12).

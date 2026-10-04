@@ -1,0 +1,13 @@
+// The only entry point to reusable UI. Feature code imports from here, never from base-ui-vue (eslint enforces it).
+export { default as AgButton } from './AgButton.vue'
+export { default as AgCollapsible } from './AgCollapsible.vue'
+export { default as AgTabs, type AgTab } from './AgTabs.vue'
+export { default as AgTooltip } from './AgTooltip.vue'
+export { default as AgToggleGroup } from './AgToggleGroup.vue'
+export { default as AgMeter } from './AgMeter.vue'
+export { default as AgModal } from './AgModal.vue'
+export { default as AgToast, type ToastItem } from './AgToast.vue'
+export { default as AgToastHost } from './AgToastHost.vue'
+export { default as AgStateBadge } from './AgStateBadge.vue'
+export { default as AgIcon, type IconName } from '../icons/AgIcon.vue'
+export { CSPProvider as AgCspProvider, TooltipProvider as AgTooltipProvider } from 'base-ui-vue'

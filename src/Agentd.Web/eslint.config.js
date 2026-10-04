@@ -20,6 +20,17 @@ export default tseslint.config(
     },
   },
   {
+    // Reusable UI is built once in shared/components/ui (design system §6); features use the Ag* components.
+    files: ['ClientApps/**/*.ts', 'ClientApps/**/*.vue'],
+    ignores: ['ClientApps/shared/components/ui/**'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        { paths: [{ name: 'base-ui-vue', message: 'Import the Ag* components from shared/components/ui instead.' }] },
+      ],
+    },
+  },
+  {
     files: ['public/**/*.js'],
     languageOptions: { sourceType: 'script' },
     // Plain ES5 for the pre-paint loader: catch bindings are required there.
