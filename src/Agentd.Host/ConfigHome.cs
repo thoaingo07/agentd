@@ -8,7 +8,7 @@ internal sealed class ConfigHome(string root)
 {
     public const string Variable = "AGENTD_HOME";
 
-    private static readonly string[] s_folders = ["config", "repos", "worktrees", "logs", "claude", "run"];
+    private static readonly string[] s_folders = ["config", "repos", "worktrees", "logs", "claude", "run", "keys"];
 
     public string Root { get; } = Path.GetFullPath(root);
 
@@ -19,6 +19,9 @@ internal sealed class ConfigHome(string root)
     public string Worktrees => Path.Combine(Root, "worktrees");
 
     public string Logs => Path.Combine(Root, "logs");
+
+    /// <summary>ASP.NET Core Data Protection keys (antiforgery and, later, auth cookies), so they survive restarts.</summary>
+    public string Keys => Path.Combine(Root, "keys");
 
     public static ConfigHome Resolve(Func<string, string?>? environment = null)
     {

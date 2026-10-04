@@ -8,6 +8,9 @@
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
   </ItemGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="Agentd.Bff.Tests" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\Agentd.Application\Agentd.Application.csproj" />
     <ProjectReference Include="..\Agentd.Domain\Agentd.Domain.csproj" />
   </ItemGroup>

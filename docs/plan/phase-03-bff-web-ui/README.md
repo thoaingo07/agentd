@@ -74,7 +74,7 @@ Detailed tasks: [tasks/README.md](tasks/README.md)
 | T3.3 | [OpenAPI document and generated TypeScript types](tasks/03-openapi-and-ts-types.md) | T3.2 | S | ☑ |
 | T3.4 | [SignalR events hub with replay](tasks/04-signalr-events-hub.md) | T3.1 | M | ☑ |
 | T3.5 | [Antiforgery with HttpOnly cookies](tasks/05-antiforgery-and-cookies.md) | T3.2 | M | ☑ |
-| T3.6 | [Security headers, strict CSP and CSP reporting](tasks/06-security-headers-and-csp.md) | T3.2, Phase 0 (web build in `wwwroot`) | M | ☐ |
+| T3.6 | [Security headers, strict CSP and CSP reporting](tasks/06-security-headers-and-csp.md) | T3.2, Phase 0 (web build in `wwwroot`) | M | ☑ |
 | T3.7 | [Web API layer and Pinia stores](tasks/07-web-api-layer-and-stores.md) | T3.3, T3.4, T3.5 | L | ☐ |
 | T3.8 | [Reusable `Ag*` components (base-ui-vue + daisyUI)](tasks/08-ag-components.md) | Phase 0 (theme, web scaffold) | M | ☐ |
 | T3.9 | [App shell and Dashboard view](tasks/09-dashboard-view.md) | T3.7, T3.8 | M | ☐ |

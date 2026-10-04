@@ -67,6 +67,8 @@ internal sealed class AgentdHostFactory(
         var content = Path.Combine(dir, "_content", "Agentd.Web");
         Directory.CreateDirectory(content);
         File.WriteAllText(Path.Combine(content, "theme-init.js"), "/* theme */");
+        Directory.CreateDirectory(Path.Combine(content, "assets"));
+        File.WriteAllText(Path.Combine(content, "assets", "dashboard-abc123.js"), "/* app */");
         if (withManifest)
         {
             File.WriteAllText(Path.Combine(content, "test-manifest.json"), Manifest);

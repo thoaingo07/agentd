@@ -48,6 +48,7 @@ public static class BffModule
             o.Cookie.SecurePolicy = https ? CookieSecurePolicy.Always : CookieSecurePolicy.SameAsRequest;
         });
         services.AddSignalR();
+        services.AddCspReportRateLimit();
         services.AddSingleton<EventStreams>();
         return services;
     }
@@ -62,6 +63,7 @@ public static class BffModule
             endpoints.MapOpenApi("/openapi/{documentName}.json");
         }
 
+        endpoints.MapCspReport();   // outside the groups: anonymous, no antiforgery (browsers send it)
         var api = endpoints.MapGroup("/api").RequireAuthorization().AddEndpointFilter<AntiforgeryFilter>();
         endpoints.MapGroup("/bff").RequireAuthorization().AddEndpointFilter<AntiforgeryFilter>().MapSession();
         api.MapJobReads();
