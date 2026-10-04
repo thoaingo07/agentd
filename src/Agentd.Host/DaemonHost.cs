@@ -1,10 +1,13 @@
 using Agentd.Bff;
 using Agentd.Bff.Http;
+using Agentd.Bff.Security;
 using Agentd.Host.Workers;
 using Agentd.Infrastructure.Claude;
 using Agentd.Infrastructure.Persistence;
 using Agentd.Mcp;
 using Agentd.Web;
+using Agentd.Web.Vite;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Options;
 
 namespace Agentd.Host;
@@ -20,7 +23,9 @@ internal static class DaemonHost
         builder.WebHost.UseStaticWebAssets();
 
         builder.AddServiceDefaults();
-        builder.AddAgentdCore(args);
+        var home = builder.AddAgentdCore(args);
+        // Cookies (antiforgery now, SSO later) stay valid across restarts and upgrades.
+        builder.Services.AddDataProtection().SetApplicationName("agentd").PersistKeysToFileSystem(new DirectoryInfo(home.Keys));
         HostUrls.ApplyDefault(builder);
         builder.Services.AddWebHosting(builder.Configuration);
         builder.Services.AddSingleton<IPostConfigureOptions<ClaudeOptions>, McpUrlFromServer>();
@@ -45,6 +50,8 @@ internal static class DaemonHost
 
         var app = builder.Build();
 
+        app.UseSecurityHeaders(o => o.AllowInlineStylesForDevServer = app.Services.GetRequiredService<ViteHelper>().UsesDevServer);   // first: every response
+
         app.UseAgentdMcpOriginGuard();            // browsers never reach /mcp
         app.UseBffHubOriginGuard();               // /hubs: same-origin browsers only
 
@@ -55,6 +62,7 @@ internal static class DaemonHost
         {
             pipeline.UseAuthentication();
             pipeline.UseAuthorization();
+            pipeline.UseRateLimiter();
         });
 
         await app.RunAsync(cancellationToken).ConfigureAwait(false);

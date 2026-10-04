@@ -62,7 +62,44 @@ script. Trusted Types start in **report-only** mode.
 - The Playwright checks are in T3.12.
 
 ## Done when
-- [ ] Every response carries the enforced CSP and the security headers.
+- [x] Every response carries the enforced CSP and the security headers.
 - [ ] The built UI runs with **zero** CSP violations; Trusted Types violations are reported, not enforced.
-- [ ] Violation reports are logged and rate-limited.
-- [ ] CI fails on inline script or style, or on use of dangerous DOM sinks.
+- [x] Violation reports are logged and rate-limited.
+- [x] CI fails on inline script or style, or on use of dangerous DOM sinks.
+
+## As built
+- **Code:** `Security/SecurityHeaders.cs` (`UseSecurityHeaders`, the policy strings) and
+  `Endpoints/CspReportEndpoint.cs`. The Host calls `UseSecurityHeaders` first. Headers are added in
+  `Response.OnStarting`, so static files, the Razor shell, API responses and 404s all get them.
+- **Policy details:**
+  - The policy includes `report-uri /api/csp-report` next to `report-to csp`, because Firefox doesn't
+    support `report-to` yet.
+  - `upgrade-insecure-requests` and HSTS are sent only over https.
+- **Development with the Vite dev server proxied** (`ViteHelper.UsesDevServer`):
+  `style-src 'self' 'unsafe-inline'`, because Vite's HMR client injects `<style>` elements. It's
+  never on otherwise, and `script-src` stays `'self'`. The production build served by the daemon
+  always gets the strict policy.
+- **Caching:**
+  - `/api` and `/bff` → `no-store`;
+  - `/_content/Agentd.Web/assets/*` (hashed) → `public, max-age=31536000, immutable`;
+  - HTML (the Razor shell) → `no-cache`.
+- **`/api/csp-report`:**
+  - anonymous and outside the antiforgery groups;
+  - reads at most 8 KB + 1 byte (413 beyond 8 KB);
+  - accepts the Reporting API array and the legacy `csp-report` object;
+  - logs one warning per violation;
+  - fixed-window rate limit of 30/minute per IP (429), through `UseRateLimiter`;
+  - left out of the OpenAPI document.
+- **Data Protection keys are persisted** (added): `~/.agentd/keys` (0700), application name
+  `agentd`. The antiforgery cookie (and the SSO cookies in Phase 5) survive restarts.
+- **CI:** the web job fails on `v-html`, `innerHTML`, `outerHTML`, `insertAdjacentHTML`,
+  `document.write`, `new Function` or `eval(` under `ClientApps/`. The shell's no-inline check
+  already lives in `Agentd.Web.Tests`.
+- **"Zero CSP violations in the built UI"** is checked in a real browser by T3.12 (Playwright). The
+  shell, `theme-init.js` and the runtime-only Vue build were reviewed here.
+- **Tests:**
+  - `Agentd.Web.Tests/SecurityHeaderTests` runs the daemon's real pipeline: `/`, a client route, a
+    hashed asset, a static file, `/bff/user`, a `/api` 404, https (HSTS + upgrade), and a report
+    without a token → 204.
+  - `Bff.Tests/CspReportTests`: both report formats logged, 413, 429 on the 31st request, and junk
+    input ignored.

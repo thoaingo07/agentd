@@ -72,6 +72,13 @@ jobs:
           npm run gen:api
           git diff --exit-code ClientApps/shared/api/schema.d.ts || { echo "::error::run \`npm run gen:api\` in src/Agentd.Web and commit"; exit 1; }
 
+      # CSP / XSS guard: no raw-HTML sinks or eval in app code (docs/security §3.2).
+      - name: No dangerous DOM sinks
+        run: |
+          if grep -rnE 'v-html|innerHTML|outerHTML|insertAdjacentHTML|document\.write|new Function|eval\(' ClientApps; then
+            echo "::error::raw HTML sinks or eval are forbidden (strict CSP, Trusted Types)"; exit 1
+          fi
+
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run test -- --run
