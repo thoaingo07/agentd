@@ -37,6 +37,12 @@ public sealed class EventStore(NpgsqlDataSource dataSource) : IEventStore, IEven
         return found.Count > 0 ? found[0] : null;
     }
 
+    public async Task<long> LatestSeqAsync(CancellationToken cancellationToken)
+    {
+        await using var cmd = dataSource.CreateCommand("SELECT agentd.event_latest_seq()");
+        return (long)(await cmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false))!;
+    }
+
     private async Task<IReadOnlyList<AgentEventDto>> ReadAsync(string sql, CancellationToken ct, params NpgsqlParameter[] parameters)
     {
         await using var cmd = dataSource.CreateCommand(sql);

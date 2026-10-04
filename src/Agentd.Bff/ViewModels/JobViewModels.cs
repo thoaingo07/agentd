@@ -31,12 +31,12 @@ public sealed record JobSummaryVm(
     }
 }
 
-public sealed record DashboardVm(IReadOnlyDictionary<string, int> Stats, IReadOnlyList<JobSummaryVm> ActiveJobs)
+public sealed record DashboardVm(IReadOnlyDictionary<string, int> Stats, IReadOnlyList<JobSummaryVm> ActiveJobs, long LatestSeq)
 {
     public static DashboardVm From(Dashboard d)
     {
         ArgumentNullException.ThrowIfNull(d);
-        return new(d.CountsByState.ToDictionary(kv => kv.Key.ToString(), kv => kv.Value), d.ActiveJobs.Select(JobSummaryVm.From).ToList());
+        return new(d.CountsByState.ToDictionary(kv => kv.Key.ToString(), kv => kv.Value), d.ActiveJobs.Select(JobSummaryVm.From).ToList(), d.LatestSeq);
     }
 }
 

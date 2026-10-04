@@ -214,6 +214,8 @@ export interface components {
                 [key: string]: number;
             };
             activeJobs: components["schemas"]["JobSummaryVm"][];
+            /** Format: int64 */
+            latestSeq: number;
         };
         /** @description A job's changes; `unifiedDiff` is null when `truncated` (over 2 MB), leaving the file list. */
         DiffVm: {

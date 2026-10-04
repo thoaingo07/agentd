@@ -10,7 +10,7 @@ The detailed implementation tasks for [Phase 3: BFF + Web UI v1 + browser securi
 | T3.4 | [SignalR events hub with replay](04-signalr-events-hub.md) | T3.1 | M | ☑ |
 | T3.5 | [Antiforgery with HttpOnly cookies](05-antiforgery-and-cookies.md) | T3.2 | M | ☑ |
 | T3.6 | [Security headers, strict CSP and CSP reporting](06-security-headers-and-csp.md) | T3.2, Phase 0 (web build in `wwwroot`) | M | ☑ |
-| T3.7 | [Web API layer and Pinia stores](07-web-api-layer-and-stores.md) | T3.3, T3.4, T3.5 | L | ☐ |
+| T3.7 | [Web API layer and Pinia stores](07-web-api-layer-and-stores.md) | T3.3, T3.4, T3.5 | L | ☑ |
 | T3.8 | [Reusable `Ag*` components (base-ui-vue + daisyUI)](08-ag-components.md) | Phase 0 (theme, web scaffold) | M | ☑ |
 | T3.9 | [App shell and Dashboard view](09-dashboard-view.md) | T3.7, T3.8 | M | ☐ |
 | T3.10 | [Session view: transcript, diff, details, composer](10-session-view.md) | T3.7, T3.8, T3.9 | L | ☐ |

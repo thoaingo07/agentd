@@ -1,5 +1,20 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+import { AgToastHost } from '../../shared/components/ui'
+import { useConnectionStore } from '../stores/connection'
+import { useJobsStore } from '../stores/jobs'
+import { useUiStore } from '../stores/ui'
 import ThemeToggle from './ThemeToggle.vue'
+
+const connection = useConnectionStore()
+const jobs = useJobsStore()
+const ui = useUiStore()
+const live = computed(() => ({
+  connecting: { label: 'Connecting…', dot: 'bg-base-300' },
+  live: { label: 'Live', dot: 'bg-primary' },
+  reconnecting: { label: 'Reconnecting…', dot: 'bg-warning' },
+  offline: { label: 'Offline', dot: 'bg-error' },
+})[connection.status])
 </script>
 
 <template>
@@ -23,19 +38,25 @@ import ThemeToggle from './ThemeToggle.vue'
             active-class="!border-primary !text-base-content"
           >
             Dashboard
+            <span
+              v-if="jobs.waitingCount > 0"
+              class="badge badge-warning badge-xs ml-1"
+              :aria-label="`${jobs.waitingCount} waiting for you`"
+            >{{ jobs.waitingCount }}</span>
           </RouterLink>
         </nav>
       </div>
       <div class="flex items-center gap-4">
         <span
           class="flex items-center gap-2 text-xs text-muted"
-          title="Live connection arrives in Phase 3"
+          role="status"
         >
           <span
-            class="size-2 rounded-full bg-base-300"
+            class="size-2 rounded-full"
+            :class="live.dot"
             aria-hidden="true"
           />
-          Offline
+          {{ live.label }}
         </span>
         <ThemeToggle />
       </div>
@@ -43,5 +64,9 @@ import ThemeToggle from './ThemeToggle.vue'
     <main class="p-4 lg:p-6">
       <slot />
     </main>
+    <AgToastHost
+      :toasts="ui.toasts"
+      @dismiss="ui.dismiss"
+    />
   </div>
 </template>

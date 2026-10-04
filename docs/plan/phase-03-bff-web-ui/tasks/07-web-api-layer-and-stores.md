@@ -109,9 +109,63 @@ keep a bounded window of events per job, and resubscribe correctly after a recon
   - `jobs.active` sorts waiting jobs first.
 
 ## Done when
-- [ ] No data-fetching or caching library is in `package.json`; only `@microsoft/signalr` was added.
-- [ ] The XSRF token lives only in memory, and stale tokens are recovered automatically.
-- [ ] Every request goes through `http.ts` and its interceptors (`use()`). `fetch` isn't called
+- [x] No data-fetching or caching library is in `package.json`; only `@microsoft/signalr` was added.
+- [x] The XSRF token lives only in memory, and stale tokens are recovered automatically.
+- [x] Every request goes through `http.ts` and its interceptors (`use()`). `fetch` isn't called
       anywhere else (eslint).
-- [ ] After a reconnect the UI has no gaps or duplicates (verified by unit tests; end-to-end in T3.12).
-- [ ] The stores are fully typed from the generated `types.ts`.
+- [x] After a reconnect the UI has no gaps or duplicates (verified by unit tests; end-to-end in T3.12).
+- [x] The stores are fully typed from the generated `types.ts`.
+
+## As built
+- **`http.ts`:** `get`, `send`, `use()` interceptors, `ApiError.from`, `onUnauthorized()`,
+  `resetXsrf()`.
+  - The antiforgery token is a module variable. `send` refetches it and retries exactly once on
+    `antiforgery_invalid`; that's the only retry in the client.
+  - The 401 hook runs before the `onError` interceptors.
+  - Requests are built against `document.baseURI`, so they're same-origin. Request implementations
+    without a base URL (Node in tests) also accept that.
+  - An empty body (204, or a 202 without content) becomes `undefined`.
+- **Interceptors:**
+  - `onRequest` and `onResponse` can replace the request or response.
+  - A throwing interceptor rejects the call, with no retry.
+  - The app registers two in `main.ts`: a toast on 5xx, and `console.debug` in Development.
+  - eslint `no-restricted-globals: fetch` applies outside `shared/api/`.
+- **`hub.ts`:** a small `EventConnection` interface over `@microsoft/signalr` 10.0.11 (automatic
+  reconnect delays 0, 1, 2, 5, 10, 30 s). `setEventConnectionFactory()` lets tests inject a fake hub.
+- **The `jobs` store doesn't decode event payloads.** Backend events are named after the C# domain
+  events (`JobStarted`, `JobFailed`, `PullRequestCreated`, …), and their payloads aren't a stable UI
+  contract.
+  - Instead, a summary event for a job schedules one debounced (250 ms) re-read of `/api/jobs/{id}`.
+    A burst of events means one request.
+  - `cancel` / `retry` are optimistic, with a `pending` set. They roll back and show a toast on
+    `ApiError`.
+- **Dashboard stream position (added):** `/api/dashboard` now returns `latestSeq`. It's read
+  *before* the jobs (`agentd.event_latest_seq()`, `IEventReader.LatestSeqAsync`), and `main.ts`
+  subscribes `all` from there, so it doesn't replay the whole history (`0`). Events committed while
+  the snapshot is taken are replayed, and the re-read is idempotent.
+- **`events` store:**
+  - `open` loads the newest 500 events, then subscribes the job stream from their `newestSeq`.
+  - `append` ignores `seq ≤ newestSeq` and trims to 2,000 rendered events (`hasMore = true`).
+  - `loadEarlier` prepends 200 at a time.
+  - `close` unsubscribes now and drops the window after 5 minutes.
+- **`connection` store:**
+  - `status` is `connecting | live | reconnecting | offline`, plus `subscriptions` (stream → last
+    seq).
+  - `onReconnected` resubscribes every stream from its own last seq.
+  - When automatic reconnect gives up (`onclose`), `start()` is retried after 1, 2, 5, 10, then 30 s.
+- **Shell (`AppShell`):** a live status indicator (with `role="status"`), the waiting count next to
+  "Dashboard", and the toast host bound to the `ui` store.
+- **Tests:**
+  - `tests/http.spec.ts`: the token retry happens once and the token never touches storage; giving
+    up after one retry; ProblemDetails → `ApiError`, plus the 401 hook; interceptor order and
+    replacement; `onError` with the code and unregister; a throwing interceptor.
+  - `tests/stores.spec.ts`: dedupe and the 2,000 trim; load earlier; resubscribe after a reconnect
+    with each stream's last seq; waiting jobs first; one re-read per burst; optimistic cancel rolled
+    back on 409 with a toast.
+- **Smoke test** against the demo database, with the daemon in Production mode and polling and
+  Discord off, in headless Chrome over CDP:
+  - the shell, `/bff/user`, `/api/dashboard`, then the hub over WebSockets, and the status shows
+    **Live**;
+  - no CSP violations;
+  - the only console error is `/favicon.ico` 404. No favicon exists yet; it comes with the
+    Dashboard (T3.9).

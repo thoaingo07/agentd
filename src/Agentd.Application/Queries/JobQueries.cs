@@ -40,7 +40,11 @@ public sealed record JobDetail(
 
 public sealed record ConversationLink(string Provider, Uri? Link, bool Open);
 
-public sealed record Dashboard(IReadOnlyDictionary<JobState, int> CountsByState, IReadOnlyList<JobSummary> ActiveJobs);
+/// <summary>The dashboard snapshot.</summary>
+/// <param name="CountsByState">Active jobs per state.</param>
+/// <param name="ActiveJobs">Waiting jobs first.</param>
+/// <param name="LatestSeq">The event stream position this snapshot is at least as new as: stream "all" from here.</param>
+public sealed record Dashboard(IReadOnlyDictionary<JobState, int> CountsByState, IReadOnlyList<JobSummary> ActiveJobs, long LatestSeq);
 
 public sealed record EventPage(IReadOnlyList<AgentEventDto> Events, long? OldestSeq, long? NewestSeq, bool HasMore);
 
@@ -70,15 +74,17 @@ internal static class JobViews
 }
 
 /// <summary>Active jobs (those waiting for a human first) and job counts by state.</summary>
-public sealed class GetDashboardHandler(IJobRepository jobs, JobActivity activity, IClock clock) : IQueryHandler<GetDashboard, Dashboard>
+public sealed class GetDashboardHandler(IJobRepository jobs, IEventReader events, JobActivity activity, IClock clock) : IQueryHandler<GetDashboard, Dashboard>
 {
     public async Task<Dashboard> Handle(GetDashboard query, CancellationToken cancellationToken)
     {
+        // Read the position first: events committed while the jobs are listed are replayed, never skipped.
+        var latest = await events.LatestSeqAsync(cancellationToken).ConfigureAwait(false);
         var active = await jobs.ListByStateAsync(JobViews.Active, cancellationToken).ConfigureAwait(false);
         var now = clock.UtcNow;
         var ordered = active.OrderBy(j => Array.IndexOf(JobViews.Active, j.State)).ThenBy(j => j.CreatedAt)
             .Select(j => JobViews.Summary(j, activity, now)).ToList();
-        return new Dashboard(active.GroupBy(j => j.State).ToDictionary(g => g.Key, g => g.Count()), ordered);
+        return new Dashboard(active.GroupBy(j => j.State).ToDictionary(g => g.Key, g => g.Count()), ordered, latest);
     }
 }
 

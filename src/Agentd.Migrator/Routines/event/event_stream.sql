@@ -56,6 +56,12 @@ BEGIN
 END
 $$;
 
+-- The newest committed seq, 0 when empty (the dashboard snapshot's stream position).
+CREATE OR REPLACE FUNCTION agentd.event_latest_seq()
+RETURNS bigint
+LANGUAGE sql STABLE
+AS $$ SELECT coalesce(max(seq), 0) FROM agentd.events $$;
+
 CREATE OR REPLACE FUNCTION agentd.event_get(p_seq bigint)
 RETURNS SETOF agentd.events
 LANGUAGE sql STABLE
