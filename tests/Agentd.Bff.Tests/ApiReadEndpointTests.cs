@@ -63,6 +63,18 @@ public sealed class ApiReadEndpointTests
     }
 
     [TestMethod]
+    public async Task A_single_event_is_served_in_full_for_its_job_only()
+    {
+        await using var app = await StartAsync();
+
+        var found = await GetJsonAsync(app, "/api/jobs/7/events/42");
+        using var otherJob = await app.GetTestClient().GetAsync(new Uri("/api/jobs/8/events/42", UriKind.Relative));
+
+        Assert.AreEqual(42, found.GetProperty("seq").GetInt64());
+        Assert.AreEqual(HttpStatusCode.NotFound, otherJob.StatusCode);
+    }
+
+    [TestMethod]
     public async Task History_validates_states_and_paging()
     {
         await using var app = await StartAsync();
@@ -97,6 +109,8 @@ public sealed class ApiReadEndpointTests
             new EventPage([Event(q.Before!.Value - 2), Event(q.Before.Value - 1)], q.Before.Value - 2, q.Before.Value - 1, true)));
         builder.Services.AddSingleton<IQueryHandler<SearchHistory, HistoryPage>>(new Fixed<SearchHistory, HistoryPage>(q =>
             new HistoryPage([s_waiting with { Title = $"{string.Join(',', q.States!)}|{q.Repository}|{q.Text}|{q.Page}|{q.PageSize}" }], 11, q.Page, q.PageSize)));
+        builder.Services.AddSingleton<IQueryHandler<GetJobEventDetail, AgentEventDto?>>(new Fixed<GetJobEventDetail, AgentEventDto?>(q => q.JobId.Value == 7 ? Event(q.Seq) : null));
+        builder.Services.AddSingleton<ILiveEvents>(new EventHub(Microsoft.Extensions.Logging.Abstractions.NullLogger<EventHub>.Instance));
         var app = builder.Build();
         if (remote is not null)
         {

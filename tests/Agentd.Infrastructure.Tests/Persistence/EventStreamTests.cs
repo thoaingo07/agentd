@@ -114,6 +114,70 @@ public sealed class EventStreamTests
     }
 
     [TestMethod]
+    public async Task Concurrent_writers_commit_events_in_seq_order()
+    {
+        await using var db = await Database.CreateMigratedAsync(Name());
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+        var notified = new List<long>();
+        await using var listen = await db.OpenConnectionAsync(stop.Token);
+        listen.Notification += (_, e) =>
+        {
+            lock (notified)
+            {
+                notified.Add(long.Parse(e.Payload, System.Globalization.CultureInfo.InvariantCulture));
+            }
+        };
+        await using (var cmd = new NpgsqlCommand("LISTEN agentd_events", listen))
+        {
+            await cmd.ExecuteNonQueryAsync(stop.Token);
+        }
+
+        var waiting = Task.Run(async () =>
+        {
+            while (!stop.IsCancellationRequested)
+            {
+                await listen.WaitAsync(stop.Token);
+            }
+        }, stop.Token);
+
+        // Each writer draws a seq, then holds its transaction open for a random time before committing:
+        // without serialization, later seqs regularly commit (and notify) before earlier ones.
+        const int Writers = 8, PerWriter = 15;
+        await Task.WhenAll(Enumerable.Range(0, Writers).Select(w => Task.Run(async () =>
+        {
+            var random = new Random(w);
+            for (var i = 0; i < PerWriter; i++)
+            {
+                await using var conn = await db.OpenConnectionAsync(stop.Token);
+                await using var tx = await conn.BeginTransactionAsync(stop.Token);
+                await using (var append = new NpgsqlCommand("SELECT agentd.event_append(NULL, 'order.test', '{}')", conn, tx))
+                {
+                    await append.ExecuteScalarAsync(stop.Token);
+                }
+
+                await Task.Delay(random.Next(0, 15), stop.Token);
+                await tx.CommitAsync(stop.Token);
+            }
+        }, stop.Token)));
+
+        while (!stop.IsCancellationRequested && notified.Count < Writers * PerWriter)
+        {
+            await Task.Delay(50, stop.Token);
+        }
+
+        await stop.CancelAsync();
+        await Assert.ThrowsAsync<OperationCanceledException>(() => waiting);
+        long[] order;
+        lock (notified)
+        {
+            order = [.. notified];
+        }
+
+        Assert.HasCount(Writers * PerWriter, order);
+        CollectionAssert.AreEqual(order.Order().ToArray(), order, "commit (notification) order is seq order");
+    }
+
+    [TestMethod]
     public async Task Secrets_are_redacted_before_they_are_stored()
     {
         await using var db = await Database.CreateMigratedAsync(Name());

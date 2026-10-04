@@ -7,7 +7,7 @@ The detailed implementation tasks for [Phase 3: BFF + Web UI v1 + browser securi
 | T3.1 | [Event store and live publisher](01-event-store-and-publisher.md) | Phase 1 (`events` table, `RecordAgentOutput`) | L | ☑ |
 | T3.2 | [BFF endpoints and view models](02-bff-endpoints-and-view-models.md) | T3.1, Phase 2 (`SubmitDeveloperMessage`) | M | ☑ |
 | T3.3 | [OpenAPI document and generated TypeScript types](03-openapi-and-ts-types.md) | T3.2 | S | ☑ |
-| T3.4 | [SignalR events hub with replay](04-signalr-events-hub.md) | T3.1 | M | ☐ |
+| T3.4 | [SignalR events hub with replay](04-signalr-events-hub.md) | T3.1 | M | ☑ |
 | T3.5 | [Antiforgery with HttpOnly cookies](05-antiforgery-and-cookies.md) | T3.2 | M | ☐ |
 | T3.6 | [Security headers, strict CSP and CSP reporting](06-security-headers-and-csp.md) | T3.2, Phase 0 (web build in `wwwroot`) | M | ☐ |
 | T3.7 | [Web API layer and Pinia stores](07-web-api-layer-and-stores.md) | T3.3, T3.4, T3.5 | L | ☐ |

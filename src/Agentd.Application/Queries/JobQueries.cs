@@ -53,6 +53,9 @@ public sealed record GetJob(JobId JobId);
 /// <summary>A page of a job's events: after <see cref="After"/> (live catch-up) or before <see cref="Before"/> (load earlier), never both.</summary>
 public sealed record GetJobEvents(JobId JobId, long? After, long? Before, int Limit);
 
+/// <summary>One event of a job in full (the live stream trims big payloads).</summary>
+public sealed record GetJobEventDetail(JobId JobId, long Seq);
+
 public sealed record SearchHistory(IReadOnlyCollection<JobState>? States, string? Repository, string? Text, int Page, int PageSize);
 
 internal static class JobViews
@@ -111,6 +114,16 @@ public sealed class GetJobEventsHandler(IEventReader events) : IQueryHandler<Get
         var hasMore = page.Count > query.Limit;
         var trimmed = hasMore ? (query.Before is null ? page.Take(query.Limit) : page.Skip(1)).ToList() : page.ToList();
         return new EventPage(trimmed, trimmed.Count > 0 ? trimmed[0].Seq : null, trimmed.Count > 0 ? trimmed[^1].Seq : null, hasMore);
+    }
+}
+
+public sealed class GetJobEventDetailHandler(IEventReader events) : IQueryHandler<GetJobEventDetail, AgentEventDto?>
+{
+    public async Task<AgentEventDto?> Handle(GetJobEventDetail query, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        var found = await events.GetAsync(query.Seq, cancellationToken).ConfigureAwait(false);
+        return found?.JobId == query.JobId.Value ? found : null;
     }
 }
 

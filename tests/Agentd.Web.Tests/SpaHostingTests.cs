@@ -69,7 +69,9 @@ public sealed partial class SpaHostingTests
     {
         using var response = await s_client.GetAsync(new Uri(path, UriKind.Relative));
 
-        Assert.AreEqual(HttpStatusCode.NotFound, response.StatusCode);
+        // /hubs/* is refused by the hub origin guard (403) before routing; the rest is a plain 404.
+        var expected = path.StartsWith("/hubs", StringComparison.Ordinal) ? HttpStatusCode.Forbidden : HttpStatusCode.NotFound;
+        Assert.AreEqual(expected, response.StatusCode);
     }
 
     [TestMethod]

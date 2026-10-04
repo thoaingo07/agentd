@@ -1,4 +1,5 @@
 using Agentd.Bff;
+using Agentd.Bff.Http;
 using Agentd.Host.Workers;
 using Agentd.Infrastructure.Claude;
 using Agentd.Infrastructure.Persistence;
@@ -45,6 +46,7 @@ internal static class DaemonHost
         var app = builder.Build();
 
         app.UseAgentdMcpOriginGuard();            // browsers never reach /mcp
+        app.UseBffHubOriginGuard();               // /hubs: same-origin browsers only
 
         app.MapDefaultEndpoints();
         app.MapAgentdMcp();                       // per-job bearer tokens, agents only

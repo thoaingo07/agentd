@@ -60,7 +60,9 @@ keep a bounded window of events per job, and resubscribe correctly after a recon
    - `new HubConnectionBuilder().withUrl('/hubs/events').withAutomaticReconnect().build()`;
    - `status` is `connecting | live | reconnecting | offline`;
    - `subscriptions: Map<string, number /* lastSeq */>`;
-   - `on('event', route)`;
+   - `on('event', (stream, evt) => route(stream, evt))`. The hub names the stream, so each
+     subscription's `lastSeq` is tracked per stream. A summary event can arrive on both `all` and
+     its job's stream, and both stores apply it idempotently by `seq`;
    - `onreconnected` → resubscribe every entry with its own `lastSeq`;
    - `onclose` → `offline`, retrying `start()` with backoff (1, 2, 5, 10, 30 s).
 3. **Routing:** `route(e)` updates `subscriptions.get(key)` to the max `seq`, then calls

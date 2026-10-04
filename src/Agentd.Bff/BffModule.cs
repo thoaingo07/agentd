@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using Agentd.Bff.Endpoints;
 using Agentd.Bff.Http;
+using Agentd.Bff.Hubs;
 using Agentd.Bff.OpenApi;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
@@ -24,6 +25,8 @@ public static class BffModule
         services.AddAuthentication(LocalUserAuthenticationHandler.SchemeName)
             .AddScheme<AuthenticationSchemeOptions, LocalUserAuthenticationHandler>(LocalUserAuthenticationHandler.SchemeName, _ => { });
         services.AddAuthorization();
+        services.AddSignalR();
+        services.AddSingleton<EventStreams>();
         return services;
     }
 
@@ -40,6 +43,7 @@ public static class BffModule
         var api = endpoints.MapGroup("/api").RequireAuthorization();
         api.MapJobReads();
         api.MapJobActions();
+        endpoints.MapHub<EventsHub>(EventsHub.Path).RequireAuthorization();
         return api;
     }
 }
