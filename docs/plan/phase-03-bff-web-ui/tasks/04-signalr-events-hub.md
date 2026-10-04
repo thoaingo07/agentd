@@ -46,7 +46,7 @@ connections.
 6. **Origin check:**
    - reject `/hubs/*` requests (negotiate and the WebSocket upgrade) whose `Origin` header is not the
      app's own origin → 403;
-   - the allowed origins come from `Web:PublicOrigin`, or are derived from the bound URL in
+   - the allowed origins come from `Agentd:Web:PublicOrigin`, or are derived from the bound URL in
      loopback mode;
    - requests without an `Origin` header are rejected on `/hubs`.
 7. **Transport:** WebSockets preferred, with the default fallbacks allowed. Keep the default JSON
@@ -91,7 +91,7 @@ connections.
 - **Payloads over 64 KB** are streamed as `{ "truncated": true, "bytes": n }`. The full event comes
   from the new `GET /api/jobs/{id}/events/{seq}` (404 if the seq belongs to another job).
 - **Origin guard:** `Http/HubOriginGuard.cs` (`UseBffHubOriginGuard`, called by the Host).
-  - `/hubs/*` needs `Origin` = the request's own `scheme://host`, or `Web:PublicOrigin`. Missing or
+  - `/hubs/*` needs `Origin` = the request's own `scheme://host`, or `Agentd:Web:PublicOrigin`. Missing or
     foreign → 403.
   - The planned shared `Security/OriginAllowlistMiddleware.cs` is left to T3.6, if CSP needs it.
 - **Tests:** `Bff.Tests/EventsHubTests` uses the SignalR .NET client over TestServer long polling,

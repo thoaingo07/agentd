@@ -96,7 +96,7 @@ safe default.
   - In Mode None the forwarding headers aren't processed, so the local-user handler still refuses
     them.
 - **Hub origin:** the guard compares against `https://<Host header>`. cloudflared forwards the public
-  host by default. Set `Web:PublicOrigin` (e.g. `https://agentd.example.com`) if the tunnel rewrites
+  host by default. Set `Agentd:Web:PublicOrigin` (e.g. `https://agentd.example.com`) if the tunnel rewrites
   `Host`.
 - **`/mcp`:** the MCP origin guard also refuses any request carrying `Cf-Connecting-IP` (403), whatever
   the ingress rules say.
