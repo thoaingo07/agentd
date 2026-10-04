@@ -123,3 +123,8 @@ public sealed record DiffVm(string BaseRef, string HeadRef, IReadOnlyList<string
         return new(diff.BaseRef, diff.HeadRef, diff.Files, diff.UnifiedDiff, diff.Truncated);
     }
 }
+
+public sealed record AntiforgeryTokenVm(string Token);
+
+/// <summary>The signed-in user; in Mode None, <c>{ name: "local", roles: ["Admin"], provider: "local" }</c>.</summary>
+public sealed record UserVm(string Name, IReadOnlyList<string> Roles, string Provider);

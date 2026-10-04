@@ -1,5 +1,4 @@
 using System.Net;
-using System.Net.Http.Json;
 using System.Text.Json;
 using Agentd.Application.Abstractions;
 using Agentd.Application.Jobs;
@@ -124,13 +123,8 @@ public sealed class ApiActionEndpointTests
     private Command<TCommand, TResult> Handler<TCommand, TResult>(Func<TCommand, Result<TResult>> answer)
         where TCommand : notnull => new(answer, _commands);
 
-    private static async Task<HttpResponseMessage> PostAsync(WebApplication app, string url, object? body = null)
-    {
-        using var client = app.GetTestClient();
-        return body is null
-            ? await client.PostAsync(new Uri(url, UriKind.Relative), null)
-            : await client.PostAsJsonAsync(new Uri(url, UriKind.Relative), body);
-    }
+    private static async Task<HttpResponseMessage> PostAsync(WebApplication app, string url, object? body = null) =>
+        await (await new AntiforgeryClient(app).InitAsync()).PostAsync(url, body);
 
     private static async Task<JsonElement> ProblemAsync(HttpResponseMessage response) =>
         JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement.Clone();

@@ -516,10 +516,61 @@
           }
         }
       }
+    },
+    "/bff/antiforgery": {
+      "get": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "GetAntiforgeryToken",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AntiforgeryTokenVm"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/bff/user": {
+      "get": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "GetUser",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserVm"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "AntiforgeryTokenVm": {
+        "required": [
+          "token"
+        ],
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string"
+          }
+        }
+      },
       "ConversationVm": {
         "required": [
           "provider",
@@ -1039,6 +1090,29 @@
             "format": "date-time"
           }
         }
+      },
+      "UserVm": {
+        "required": [
+          "name",
+          "roles",
+          "provider"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "provider": {
+            "type": "string"
+          }
+        },
+        "description": "The signed-in user; in Mode None, \u0060{ name: \u0022local\u0022, roles: [\u0022Admin\u0022], provider: \u0022local\u0022 }\u0060."
       }
     }
   },

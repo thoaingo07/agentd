@@ -3,11 +3,16 @@ using Agentd.Bff.Endpoints;
 using Agentd.Bff.Http;
 using Agentd.Bff.Hubs;
 using Agentd.Bff.OpenApi;
+using Agentd.Bff.Security;
+using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 
 namespace Agentd.Bff;
 
@@ -25,6 +30,23 @@ public static class BffModule
         services.AddAuthentication(LocalUserAuthenticationHandler.SchemeName)
             .AddScheme<AuthenticationSchemeOptions, LocalUserAuthenticationHandler>(LocalUserAuthenticationHandler.SchemeName, _ => { });
         services.AddAuthorization();
+        services.AddOptions<BffAuthOptions>().BindConfiguration(BffAuthOptions.Section).ValidateOnStart();
+        services.AddSingleton<IValidateOptions<BffAuthOptions>, BffAuthOptionsValidator>();
+        services.AddAntiforgery();
+        services.AddOptions<AntiforgeryOptions>().Configure<IConfiguration>((o, configuration) =>
+        {
+            o.HeaderName = AntiforgeryFilter.HeaderName;
+            o.Cookie.HttpOnly = true;
+            o.Cookie.SameSite = SameSiteMode.Strict;
+            o.Cookie.Path = "/";
+            o.SuppressXFrameOptionsHeader = true;                // CSP frame-ancestors (T3.6)
+
+            // Served over https: "__Host-" + Secure. Plain http is only allowed on loopback (Mode None), where
+            // ASP.NET refuses to issue a Secure antiforgery cookie, so the cookie is "agentd.af" without Secure.
+            var https = BffAuthOptionsValidator.AllHttps(configuration);
+            o.Cookie.Name = https ? AntiforgeryFilter.SecureCookieName : AntiforgeryFilter.CookieName;
+            o.Cookie.SecurePolicy = https ? CookieSecurePolicy.Always : CookieSecurePolicy.SameAsRequest;
+        });
         services.AddSignalR();
         services.AddSingleton<EventStreams>();
         return services;
@@ -40,7 +62,8 @@ public static class BffModule
             endpoints.MapOpenApi("/openapi/{documentName}.json");
         }
 
-        var api = endpoints.MapGroup("/api").RequireAuthorization();
+        var api = endpoints.MapGroup("/api").RequireAuthorization().AddEndpointFilter<AntiforgeryFilter>();
+        endpoints.MapGroup("/bff").RequireAuthorization().AddEndpointFilter<AntiforgeryFilter>().MapSession();
         api.MapJobReads();
         api.MapJobActions();
         endpoints.MapHub<EventsHub>(EventsHub.Path).RequireAuthorization();

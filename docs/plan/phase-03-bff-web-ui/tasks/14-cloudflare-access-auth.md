@@ -47,12 +47,16 @@ safe default.
    - A missing or invalid token → 401. Loopback gives no exemption in this mode.
 3. **Startup checks:** `Mode = CloudflareAccess` requires `TeamDomain` and `Audience`. With this mode
    the daemon may still bind loopback only. `cloudflared` is the only way in.
-4. **Antiforgery (T3.5) stays on.** Access cookies are sent cross-site like any other cookie, so CSRF
+4. **https behind the tunnel:** `cloudflared` connects over plain http. Enable `UseForwardedHeaders`
+   for `X-Forwarded-Proto` / `X-Forwarded-Host`, trusting only the loopback proxy, so the daemon
+   sees `https`. Then the antiforgery cookie is `__Host-agentd.af` + `Secure` (T3.5 As built), and
+   the hub origin check compares against the public host.
+5. **Antiforgery (T3.5) stays on.** Access cookies are sent cross-site like any other cookie, so CSRF
    protection is still needed.
-5. **`/mcp` is never published.** The deployment doc's tunnel config routes only `/`, `/api`, `/bff`,
+6. **`/mcp` is never published.** The deployment doc's tunnel config routes only `/`, `/api`, `/bff`,
    `/hubs` and `/_content`. In addition, the MCP endpoint rejects any request that carries
    `Cf-Connecting-IP`.
-6. **Deployment doc:**
+7. **Deployment doc:**
    - `cloudflared tunnel create agentd`;
    - an ingress rule `agentd.<domain>` → `http://127.0.0.1:<port>`, plus the `/mcp` exclusion;
    - an Access self-hosted application with an allow policy for your emails;
