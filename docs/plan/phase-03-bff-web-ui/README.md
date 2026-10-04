@@ -82,7 +82,7 @@ Detailed tasks: [tasks/README.md](tasks/README.md)
 | T3.11 | [History view with server-side paging](tasks/11-history-view.md) | T3.2, T3.9, T3.10 | S | ☐ |
 | T3.12 | [Playwright smoke tests and BFF security test suite](tasks/12-e2e-and-bff-security-tests.md) | T3.4, T3.5, T3.6, T3.9, T3.10, T3.11 | M | ☐ |
 | T3.13 | [Work item view: one timeline across jobs](tasks/13-work-item-view.md) | T3.2, T3.4, T3.7, T3.10 | M | ☐ |
-| T3.14 | [Cloudflare Access sign-in mode](tasks/14-cloudflare-access-auth.md) | T3.5 | S | ☐ |
+| T3.14 | [Cloudflare Access sign-in mode](tasks/14-cloudflare-access-auth.md) | T3.5 | S | ☑ |
 
 ## Exit criteria (the demo)
 

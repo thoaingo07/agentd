@@ -205,7 +205,25 @@ The daemon keeps listening on `127.0.0.1` only, and `cloudflared` on the same se
    for your email(s) (email one-time code, GitHub or Google login).
 3. **agentd:** set `Auth.Mode = CloudflareAccess`, plus `TeamDomain` and the application's
    `Audience` (its AUD tag). agentd verifies the `Cf-Access-Jwt-Assertion` token on every request,
-   and uses its email as the user (T3.14).
+   and uses its email as the user (T3.14):
+   ```jsonc
+   // ~/.agentd/config/agentd.json (none of these are secrets)
+   "Agentd": {
+     "Auth": {
+       "Mode": "CloudflareAccess",
+       "CloudflareAccess": {
+         "TeamDomain": "<team>.cloudflareaccess.com",
+         "Audience": "<AUD tag from the Access application>",
+         "AllowedEmails": ["you@example.com"],   // optional, on top of the Access policy
+         "AdminEmails": ["you@example.com"]
+       }
+     },
+     "Web": { "Urls": "http://127.0.0.1:7780", "PublicOrigin": "https://agentd.<your domain>" }
+   }
+   ```
+   The daemon still listens on `127.0.0.1` only. It trusts `X-Forwarded-Proto` from cloudflared,
+   so it knows the browser is on https. `PublicOrigin` is only needed if the tunnel rewrites the
+   `Host` header.
 
 **Never point a tunnel or reverse proxy at the daemon in Mode `None`.** Every proxied request
 arrives from `127.0.0.1`. That's why Mode `None` rejects requests carrying forwarding headers
