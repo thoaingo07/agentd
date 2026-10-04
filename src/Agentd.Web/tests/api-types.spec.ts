@@ -24,6 +24,7 @@ const dashboard: Dashboard = {
       lastError: null,
     },
   ],
+  latestSeq: 42,
 }
 
 const page: EventPage = {

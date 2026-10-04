@@ -22,11 +22,12 @@ public sealed class JobQueryTests
         await t.Jobs.SaveAsync(job, default);
         t.Activity.SetPhase(running.JobId, "implement");
 
-        var dashboard = await new GetDashboardHandler(t.Jobs, t.Activity, t.Clock).Handle(new GetDashboard(), default);
+        var dashboard = await new GetDashboardHandler(t.Jobs, new Reader([41, 42]), t.Activity, t.Clock).Handle(new GetDashboard(), default);
 
         CollectionAssert.AreEqual(new[] { waiting.JobId.Value, running.JobId.Value }, dashboard.ActiveJobs.Select(j => j.Id).ToArray());
         Assert.AreEqual("implement", dashboard.ActiveJobs[1].Phase);
         Assert.AreEqual(1, dashboard.CountsByState[JobState.WaitingForHuman]);
+        Assert.AreEqual(42, dashboard.LatestSeq, "the stream position the snapshot is at");
     }
 
     [TestMethod]
@@ -71,6 +72,8 @@ public sealed class JobQueryTests
             Task.FromResult<IReadOnlyList<AgentEventDto>>(seqs.Where(s => s < beforeSeq).TakeLast(limit).Select(Event).ToList());
 
         public Task<AgentEventDto?> GetAsync(long seq, CancellationToken cancellationToken) => Task.FromResult<AgentEventDto?>(null);
+
+        public Task<long> LatestSeqAsync(CancellationToken cancellationToken) => Task.FromResult(seqs.Count == 0 ? 0 : seqs.Max());
 
         private static AgentEventDto Event(long seq) => new(seq, 1, DateTimeOffset.UnixEpoch, "x", JsonDocument.Parse("{}").RootElement.Clone());
     }

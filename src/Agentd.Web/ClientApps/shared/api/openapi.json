@@ -597,7 +597,8 @@
       "DashboardVm": {
         "required": [
           "stats",
-          "activeJobs"
+          "activeJobs",
+          "latestSeq"
         ],
         "type": "object",
         "properties": {
@@ -613,6 +614,10 @@
             "items": {
               "$ref": "#/components/schemas/JobSummaryVm"
             }
+          },
+          "latestSeq": {
+            "type": "integer",
+            "format": "int64"
           }
         }
       },

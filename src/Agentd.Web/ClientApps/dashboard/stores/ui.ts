@@ -1,7 +1,11 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { reactive, ref } from 'vue'
+import type { ToastItem } from '../../shared/components/ui'
 
 export type ThemeChoice = 'system' | 'agentd' | 'agentd-dark'
+
+/** Transcript filter categories (Session view). */
+export type EventCategory = 'text' | 'tools' | 'messages' | 'state' | 'errors'
 
 const storageKey = 'agentd.theme'
 
@@ -23,9 +27,13 @@ function apply(choice: ThemeChoice): void {
   }
 }
 
-/** UI preferences: currently the theme (System / Light / Dark). */
+/** UI preferences and transient UI state: theme, toasts, per-job transcript filters and follow mode. */
 export const useUiStore = defineStore('ui', () => {
   const theme = ref<ThemeChoice>(readStored())
+  const toasts = ref<ToastItem[]>([])
+  const filters = reactive(new Map<number, Set<EventCategory>>())
+  const follow = reactive(new Map<number, boolean>())
+  let nextToast = 1
 
   function setTheme(choice: ThemeChoice): void {
     theme.value = choice
@@ -41,5 +49,13 @@ export const useUiStore = defineStore('ui', () => {
     apply(choice)
   }
 
-  return { theme, setTheme }
+  function toast(message: string, kind: ToastItem['kind'] = 'info'): void {
+    toasts.value = [...toasts.value.slice(-4), { id: nextToast++, kind, message }]
+  }
+
+  function dismiss(id: number): void {
+    toasts.value = toasts.value.filter((t) => t.id !== id)
+  }
+
+  return { theme, setTheme, toasts, toast, dismiss, filters, follow }
 })

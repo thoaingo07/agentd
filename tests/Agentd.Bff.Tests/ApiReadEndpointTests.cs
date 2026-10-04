@@ -25,6 +25,7 @@ public sealed class ApiReadEndpointTests
         var json = await GetJsonAsync(app, "/api/dashboard");
 
         Assert.AreEqual(1, json.GetProperty("stats").GetProperty("WaitingForHuman").GetInt32());
+        Assert.AreEqual(99, json.GetProperty("latestSeq").GetInt64());
         var job = json.GetProperty("activeJobs")[0];
         CollectionAssert.AreEqual(
             new[] { "id", "workItemId", "title", "repo", "branch", "state", "phase", "startedAt", "elapsedSeconds", "prUrl", "waitingSince", "planStatus", "handoff", "fixRounds", "lastError" },
@@ -103,7 +104,7 @@ public sealed class ApiReadEndpointTests
         var builder = WebApplication.CreateSlimBuilder();
         builder.WebHost.UseTestServer();
         builder.Services.AddBff();
-        builder.Services.AddSingleton<IQueryHandler<GetDashboard, Dashboard>>(new Fixed<GetDashboard, Dashboard>(_ => new Dashboard(new Dictionary<JobState, int> { [JobState.WaitingForHuman] = 1 }, [s_waiting])));
+        builder.Services.AddSingleton<IQueryHandler<GetDashboard, Dashboard>>(new Fixed<GetDashboard, Dashboard>(_ => new Dashboard(new Dictionary<JobState, int> { [JobState.WaitingForHuman] = 1 }, [s_waiting], 99)));
         builder.Services.AddSingleton<IQueryHandler<GetJob, JobDetail?>>(new Fixed<GetJob, JobDetail?>(q => q.JobId.Value == 7 ? new JobDetail(s_waiting, 1, 0, 0, null, null, null, null, []) : null));
         builder.Services.AddSingleton<IQueryHandler<GetJobEvents, EventPage>>(new Fixed<GetJobEvents, EventPage>(q =>
             new EventPage([Event(q.Before!.Value - 2), Event(q.Before.Value - 1)], q.Before.Value - 2, q.Before.Value - 1, true)));

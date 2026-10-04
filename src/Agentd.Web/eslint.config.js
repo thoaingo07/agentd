@@ -31,6 +31,14 @@ export default tseslint.config(
     },
   },
   {
+    // Every request goes through shared/api/http.ts and its interceptors (T3.7).
+    files: ['ClientApps/**/*.ts', 'ClientApps/**/*.vue'],
+    ignores: ['ClientApps/shared/api/**'],
+    rules: {
+      'no-restricted-globals': ['error', { name: 'fetch', message: 'Use get/send from shared/api/http.ts.' }],
+    },
+  },
+  {
     files: ['public/**/*.js'],
     languageOptions: { sourceType: 'script' },
     // Plain ES5 for the pre-paint loader: catch bindings are required there.

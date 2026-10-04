@@ -52,6 +52,9 @@ public interface IEventReader
     Task<IReadOnlyList<Events.AgentEventDto>> ReadBeforeAsync(JobId jobId, long beforeSeq, int limit, CancellationToken cancellationToken);
 
     Task<Events.AgentEventDto?> GetAsync(long seq, CancellationToken cancellationToken);
+
+    /// <summary>The newest committed seq (0 when there are none): where a client that just loaded a snapshot starts streaming.</summary>
+    Task<long> LatestSeqAsync(CancellationToken cancellationToken);
 }
 
 /// <summary>Registered repositories (database-backed, config-seeded).</summary>

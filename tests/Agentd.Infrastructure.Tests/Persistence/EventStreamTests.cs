@@ -40,6 +40,8 @@ public sealed class EventStreamTests
         Assert.AreEqual(after[150].Seq, page[0].Seq, "the 50 events just before, ascending");
         Assert.AreEqual(after[199].Seq, page[^1].Seq);
 
+        var last = (await store.ReadAfterAsync(jobs[2], 0, 1000, default))[^1].Seq;   // job 3 was written last
+        Assert.AreEqual(last, await store.LatestSeqAsync(default));
         var all = await store.ReadAfterAsync(null, 0, 10_000, default);
         Assert.IsTrue(all.All(e => e.IsSummary), "no agent.* in the all-jobs stream");
         Assert.IsTrue(all.Any(e => e.Type == "phase.set"));

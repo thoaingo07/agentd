@@ -297,6 +297,8 @@ public sealed class EventsHubTests
         public Task<IReadOnlyList<AgentEventDto>> ReadBeforeAsync(JobId jobId, long beforeSeq, int limit, CancellationToken cancellationToken) => throw new NotSupportedException();
 
         public Task<AgentEventDto?> GetAsync(long seq, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<long> LatestSeqAsync(CancellationToken cancellationToken) => Task.FromResult(LastSeq);
     }
 
     /// <summary>The first live subscription overflows straight away, as a stalled client's would.</summary>
