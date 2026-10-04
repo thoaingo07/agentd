@@ -74,9 +74,9 @@ So it can never obtain the request token.
 builder.Services.AddAntiforgery(o =>
 {
     o.HeaderName = "X-XSRF-TOKEN";
-    o.Cookie.Name = "__Host-agentd.af";
+    o.Cookie.Name = "__Host-agentd.af";                 // "agentd.af" when served over plain http (loopback only, Mode None)
     o.Cookie.HttpOnly = true;
-    o.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+    o.Cookie.SecurePolicy = CookieSecurePolicy.Always;  // SameAsRequest on plain http: ASP.NET won't issue a Secure antiforgery cookie there
     o.Cookie.SameSite = SameSiteMode.Strict;
     o.Cookie.Path = "/";
     o.SuppressXFrameOptionsHeader = true;   // CSP frame-ancestors covers it (§3)

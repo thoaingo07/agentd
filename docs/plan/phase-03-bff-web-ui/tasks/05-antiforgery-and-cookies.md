@@ -70,7 +70,47 @@ filter on the `/api` and `/bff` groups validates every unsafe method.
 - Startup test: Mode None + `Urls=http://0.0.0.0:7780` → the host fails to start.
 
 ## Done when
-- [ ] Every unsafe method under `/api` and `/bff` requires a valid `X-XSRF-TOKEN`.
-- [ ] No cookie set by agentd is readable by JavaScript.
-- [ ] Mode None refuses non-loopback binding, non-loopback clients, and forwarded requests.
-- [ ] CORS is not enabled anywhere.
+- [x] Every unsafe method under `/api` and `/bff` requires a valid `X-XSRF-TOKEN`.
+- [x] No cookie set by agentd is readable by JavaScript.
+- [x] Mode None refuses non-loopback binding, non-loopback clients, and forwarded requests.
+- [x] CORS is not enabled anywhere.
+
+## As built
+- **Cookie name depends on the scheme.** ASP.NET Core refuses to issue an antiforgery cookie with
+  `SecurePolicy = Always` on a plain-http request. It throws, so the `__Host-` cookie can't work on
+  `http://127.0.0.1:7780`, whatever the browser thinks of loopback.
+  - When every configured URL is https, the cookie is `__Host-agentd.af` (`Secure`).
+  - Otherwise it's `agentd.af` (`SameAsRequest`). That's only allowed on loopback, because Mode None
+    refuses anything else.
+  - Both are `HttpOnly`, `SameSite=Strict`, `Path=/`, with no `Domain`.
+  - T3.14 (Cloudflare) terminates TLS at the edge. It needs forwarded-proto handling, so the daemon
+    sees https and uses `__Host-`.
+- **Mode None:**
+  - `Agentd:Auth:Mode`: `None`, `CloudflareAccess` (T3.14) or `Sso` (Phase 5). Modes that aren't
+    built yet fail startup.
+  - `BffAuthOptionsValidator` (`ValidateOnStart`) fails startup if any `urls` /
+    `Kestrel:Endpoints` URL isn't loopback, or if `http_ports` / `https_ports` (every interface)
+    are set.
+  - A URL that isn't a URL at all is left to Kestrel, which refuses to bind it anyway.
+- **Forwarded requests:** `LocalUserAuthenticationHandler` treats any forwarding header
+  (`Forwarded`, `X-Forwarded-For`, `X-Forwarded-Host`, `X-Real-IP`, `Cf-Connecting-IP`, `Cf-Ray`) as
+  not local → 401.
+- **Code layout:**
+  - `Security/AntiforgeryFilter.cs` is an endpoint filter on the `/api` and `/bff` groups.
+    `app.UseAntiforgery()` isn't needed: that middleware only covers form-bound endpoints, and the
+    filter calls `IAntiforgery.IsRequestValidAsync` itself.
+  - The handler stays in `Http/LocalUserAuthentication.cs` (from T3.2) and isn't moved to
+    `Security/`.
+- **Endpoints:** `GET /bff/antiforgery` (`{ token }`, `no-store`) and `GET /bff/user`
+  (`{ name, roles, provider }`).
+- **Tests (`BffSecurityTests`):**
+  - header required (400 `antiforgery_invalid`);
+  - a token only works with its own cookie;
+  - cookie flags over http and https;
+  - `/bff/user`;
+  - forwarded headers → 401;
+  - no CORS headers;
+  - the loopback checks (including `*`, `+`, `0.0.0.0`, `http_ports`, Kestrel endpoints);
+  - the host failing to start.
+
+  The action endpoint tests now go through `AntiforgeryClient`, which does what the SPA does.
