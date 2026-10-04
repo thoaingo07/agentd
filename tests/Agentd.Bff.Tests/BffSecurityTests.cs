@@ -129,7 +129,10 @@ public sealed class BffSecurityTests
     {
         Assert.IsTrue(Validate(new() { ["http_ports"] = "8080" }, AuthMode.None).Failed);
         Assert.IsTrue(Validate(new() { ["Kestrel:Endpoints:Web:Url"] = "http://0.0.0.0:7780" }, AuthMode.None).Failed);
-        Assert.IsTrue(Validate([], AuthMode.CloudflareAccess).Failed, "until T3.14");
+        Assert.IsTrue(Validate([], AuthMode.Sso).Failed, "until Phase 5");
+        Assert.IsTrue(Validate([], AuthMode.CloudflareAccess).Failed, "needs TeamDomain and Audience");
+        Assert.IsTrue(Validate(new() { ["Agentd:Auth:CloudflareAccess:TeamDomain"] = "t.cloudflareaccess.com", ["Agentd:Auth:CloudflareAccess:Audience"] = "aud" }, AuthMode.CloudflareAccess).Succeeded);
+        Assert.IsTrue(Validate(new() { ["Agentd:Auth:CloudflareAccess:TeamDomain"] = "t", ["Agentd:Auth:CloudflareAccess:Audience"] = "a", ["urls"] = "http://0.0.0.0:7780" }, AuthMode.CloudflareAccess).Failed, "cloudflared is the only way in");
     }
 
     [TestMethod]

@@ -86,6 +86,18 @@ public sealed partial class SpaHostingTests
     }
 
     [TestMethod]
+    public async Task Mcp_endpoint_refuses_tunnelled_requests()
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, new Uri("/mcp", UriKind.Relative));
+        request.Headers.Add("Cf-Connecting-IP", "203.0.113.9");
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", "anything");
+
+        using var response = await s_client.SendAsync(request);
+
+        Assert.AreEqual(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [TestMethod]
     public async Task Mcp_endpoint_refuses_browser_requests()
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, new Uri("/mcp", UriKind.Relative));

@@ -50,6 +50,7 @@ internal static class DaemonHost
 
         var app = builder.Build();
 
+        app.UseBffForwardedHeaders();             // Cloudflare Tunnel only: https + visitor IP from cloudflared
         app.UseSecurityHeaders(o => o.AllowInlineStylesForDevServer = app.Services.GetRequiredService<ViteHelper>().UsesDevServer);   // first: every response
 
         app.UseAgentdMcpOriginGuard();            // browsers never reach /mcp

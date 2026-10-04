@@ -38,7 +38,9 @@ public static class McpHosting
     public static IApplicationBuilder UseAgentdMcpOriginGuard(this IApplicationBuilder app) =>
         app.Use(async (context, next) =>
         {
-            if (context.Request.Path.StartsWithSegments(Path, StringComparison.Ordinal) && context.Request.Headers.Origin.Count > 0)
+            // Browsers always send Origin; a tunnel (cloudflared) adds Cf-Connecting-IP. /mcp is for local agents only.
+            if (context.Request.Path.StartsWithSegments(Path, StringComparison.Ordinal)
+                && (context.Request.Headers.Origin.Count > 0 || context.Request.Headers.ContainsKey("Cf-Connecting-IP")))
             {
                 context.Response.StatusCode = StatusCodes.Status403Forbidden;
                 return;

@@ -24,7 +24,12 @@ public static class SessionEndpoints
         bff.MapGet("/user", (ClaimsPrincipal user) => TypedResults.Ok(new UserVm(
             user.Identity?.Name ?? string.Empty,
             user.FindAll(ClaimTypes.Role).Select(c => c.Value).ToList(),
-            user.Identity?.AuthenticationType == Http.LocalUserAuthenticationHandler.SchemeName ? "local" : user.Identity?.AuthenticationType ?? string.Empty)))
+            user.Identity?.AuthenticationType switch
+            {
+                Http.LocalUserAuthenticationHandler.SchemeName => "local",
+                Security.CloudflareAccessAuthenticationHandler.SchemeName => "cloudflare",
+                var other => other ?? string.Empty,
+            })))
             .WithName("GetUser");
 
         return bff;

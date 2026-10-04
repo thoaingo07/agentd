@@ -73,7 +73,42 @@ safe default.
 
 ## Done when
 - [ ] With Cloudflare Tunnel and Access, the UI works from another network after signing in.
-- [ ] Without a valid Access token, every `/api`, `/bff` and hub request is 401, including from
+- [x] Without a valid Access token, every `/api`, `/bff` and hub request is 401, including from
       localhost.
-- [ ] `/mcp` can't be reached through the tunnel.
-- [ ] The deployment doc has the full tunnel and Access setup.
+- [x] `/mcp` can't be reached through the tunnel.
+- [x] The deployment doc has the full tunnel and Access setup.
+
+## As built
+- **Code:**
+  - `Security/CloudflareAccessAuthentication.cs`: `CloudflareAccessOptions`, the handler, and
+    `CloudflareAccessKeys`.
+  - Validation uses `Microsoft.IdentityModel.JsonWebTokens` 8.23.0: RS256 only, issuer
+    `https://<TeamDomain>`, audience = `Audience`, lifetime required, 1 minute of clock skew.
+  - The keys come from `https://<TeamDomain>/cdn-cgi/access/certs`. They're cached for up to 12
+    hours, and an unknown `kid` refetches them (at most once a minute) before the token is rejected.
+- **Scheme selection:** `Agentd:Auth:Mode` picks the default authentication scheme, so the
+  endpoints, the `/bff` group and the hub are unchanged. `Sso` still fails startup.
+  - `CloudflareAccess` requires `TeamDomain` and `Audience`.
+  - It still requires a loopback-only binding: cloudflared is the only way in.
+- **https behind the tunnel:** `UseBffForwardedHeaders()` runs first in the Host, in this mode only.
+  - It trusts `X-Forwarded-Proto` / `X-Forwarded-For` from loopback (127.0.0.0/8, ::1).
+  - The antiforgery cookie is always `__Host-agentd.af` + `Secure` in this mode.
+  - In Mode None the forwarding headers aren't processed, so the local-user handler still refuses
+    them.
+- **Hub origin:** the guard compares against `https://<Host header>`. cloudflared forwards the public
+  host by default. Set `Agentd:Web:PublicOrigin` (e.g. `https://agentd.example.com`) if the tunnel rewrites
+  `Host`.
+- **`/mcp`:** the MCP origin guard also refuses any request carrying `Cf-Connecting-IP` (403), whatever
+  the ingress rules say.
+- **`/bff/user`** reports `provider: "cloudflare"`.
+- **Not done here:** "the UI works from another network" needs a real tunnel and Access application.
+  It's checked by hand when the UI screens exist.
+- **Tests:**
+  - `Bff.Tests/CloudflareAccessTests`, with an in-test RSA key behind a fake certs endpoint:
+    - a valid token → the email;
+    - admin role;
+    - wrong audience, wrong issuer, expired, bad signature, no email, not allowed → 401;
+    - no token from localhost → 401;
+    - key rotation refetches once;
+    - forwarded https → the `__Host-` Secure cookie.
+  - `Agentd.Web.Tests`: `/mcp` with `Cf-Connecting-IP` → 403.

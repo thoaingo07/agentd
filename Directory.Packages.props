@@ -28,6 +28,7 @@
   <ItemGroup Label="Web hosting">
     <PackageVersion Include="Microsoft.AspNetCore.SpaServices.Extensions" Version="10.0.12" />
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.IdentityModel.JsonWebTokens" Version="8.23.0" />
   </ItemGroup>
   <ItemGroup Label="Persistence (no ORM: PostgreSQL functions via Npgsql, see docs/architect/data-access.md)">
     <PackageVersion Include="Dapper" Version="2.1.89" />

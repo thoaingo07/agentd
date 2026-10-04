@@ -25,7 +25,8 @@ public sealed class BffAuthOptions
 }
 
 /// <summary>
-/// Fails startup (fail closed) when Mode None would be reachable from other machines: any configured
+/// Fails startup (fail closed) when the daemon would be reachable from other machines (both modes listen on
+/// loopback only; with CloudflareAccess, cloudflared on the same machine is the only way in): any configured
 /// URL that isn't loopback (<c>urls</c> / <c>Kestrel:Endpoints</c>), or <c>http_ports</c> / <c>https_ports</c>,
 /// which bind every interface. Modes that aren't built yet are refused too.
 /// </summary>
@@ -33,14 +34,23 @@ public sealed class BffAuthOptionsValidator(IConfiguration configuration) : IVal
 {
     public ValidateOptionsResult Validate(string? name, BffAuthOptions options)
     {
-        if (options.Mode != AuthMode.None)
+        if (options.Mode == AuthMode.Sso)
         {
-            return ValidateOptionsResult.Fail($"Agentd:Auth:Mode '{options.Mode}' is not available yet; use None (loopback only).");
+            return ValidateOptionsResult.Fail("Agentd:Auth:Mode 'Sso' is not available yet (Phase 5); use None or CloudflareAccess.");
+        }
+
+        if (options.Mode == AuthMode.CloudflareAccess)
+        {
+            var access = configuration.GetSection(BffAuthOptions.Section + ":CloudflareAccess");
+            if (string.IsNullOrWhiteSpace(access["TeamDomain"]) || string.IsNullOrWhiteSpace(access["Audience"]))
+            {
+                return ValidateOptionsResult.Fail("Agentd:Auth:Mode CloudflareAccess needs Agentd:Auth:CloudflareAccess:TeamDomain and :Audience (the Access application's AUD tag).");
+            }
         }
 
         if (!string.IsNullOrWhiteSpace(configuration["http_ports"]) || !string.IsNullOrWhiteSpace(configuration["https_ports"]))
         {
-            return ValidateOptionsResult.Fail("Agentd:Auth:Mode None can't use http_ports/https_ports (they bind every interface); set loopback urls instead.");
+            return ValidateOptionsResult.Fail("agentd can't use http_ports/https_ports (they bind every interface); set loopback urls instead.");
         }
 
         var urls = (configuration["urls"] ?? string.Empty).Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
@@ -48,7 +58,7 @@ public sealed class BffAuthOptionsValidator(IConfiguration configuration) : IVal
         var exposed = urls.Where(u => Parse(u) is { } uri && !IsLoopback(uri)).ToList();
         return exposed.Count == 0
             ? ValidateOptionsResult.Success
-            : ValidateOptionsResult.Fail($"Agentd:Auth:Mode None only listens on loopback, but these URLs aren't: {string.Join(", ", exposed)}. Bind 127.0.0.1, or reach the UI through an SSH tunnel.");
+            : ValidateOptionsResult.Fail($"agentd only listens on loopback (Mode {options.Mode}), but these URLs aren't: {string.Join(", ", exposed)}. Bind 127.0.0.1, or reach the UI through an SSH tunnel.");
     }
 
     /// <summary>
