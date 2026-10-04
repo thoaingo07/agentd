@@ -75,6 +75,7 @@ Extra tokens not covered by daisyUI:
 | `Running` | `badge-primary` | pulsing dot | the dot animates; respect `prefers-reduced-motion` |
 | `WaitingForHuman` | `badge-warning` | message-question | **the only attention color**; also a counter in the nav |
 | `Publishing` | `badge-accent badge-soft` | git-pull-request | |
+| `InReview` | `badge-accent badge-soft` | eye | PR open, review loop running (Phase 2b) |
 | `Done` | `badge-success` | check | |
 | `Failed` | `badge-error` | x-octagon | |
 | `Cancelled` | `badge-ghost` + muted text | slash | |
