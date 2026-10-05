@@ -12,6 +12,11 @@ updates:
     schedule: { interval: monthly }
     groups:
       npm: { patterns: ["*"] }
+    ignore:
+      # typescript-eslint supports TypeScript < 6.1 (and openapi-typescript is overridden to our version):
+      # a TypeScript major breaks `npm ci`. Lift this when typescript-eslint supports the next major.
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: /
