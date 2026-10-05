@@ -18,6 +18,7 @@ agentd runs one `claude` process per job, in that job's worktree.
 | `--max-turns <n>` | a hard stop for runaway agents |
 | `--append-system-prompt "<text>"` | agentd rules (use MCP tools, commit often, call `finish`) |
 | `--mcp-config <file.json>` | registers the agentd MCP server for this job |
+| `--strict-mcp-config` | only the servers from `--mcp-config`. Without it, a subscription login also loads the operator's claude.ai connectors (Drive, Docs, …) into the agent's session (checked on CLI 2.1.289: `['probe', 'claude.ai Claude Docs', 'claude.ai Google Drive']` → `['probe']`). |
 
 ## Environment per model profile
 

@@ -28,6 +28,8 @@ public sealed class ClaudeOptionsTests
         var without = ClaudeArgs.Build(request, new ClaudeOptions(), null).ToList();
 
         Assert.AreEqual("mcp__agentd__permission", withMcp[withMcp.IndexOf("--permission-prompt-tool") + 1]);
+        CollectionAssert.Contains(withMcp, "--strict-mcp-config", "only agentd's MCP server, no claude.ai connectors");
+        CollectionAssert.Contains(without, "--strict-mcp-config", "and no MCP at all without agentd's");
         CollectionAssert.DoesNotContain(without, "--permission-prompt-tool", "no MCP server: nothing could answer");
     }
 

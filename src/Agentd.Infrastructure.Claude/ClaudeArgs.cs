@@ -41,6 +41,10 @@ public static class ClaudeArgs
             args.Add("Edit,Write,MultiEdit,NotebookEdit");
         }
 
+        // Only agentd's MCP server: never the operator's own MCP config or claude.ai connectors (Drive, Docs, …),
+        // which a subscription login would otherwise load into the agent's session.
+        args.Add("--strict-mcp-config");
+
         if (mcpConfigPath is not null)
         {
             args.Add("--mcp-config");
