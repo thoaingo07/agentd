@@ -112,7 +112,7 @@ public sealed class ChatCommandsTests
         Assert.AreEqual("command:help", (await Run("help", null)).Code);
 
         var help = _chat.SentText.Single();
-        foreach (var command in new[] { "status", "logs", "cancel", "retry", "handoff", "list", "run <work item id>", "idea [--model m] [--effort e] <text>", "help" })
+        foreach (var command in new[] { "status", "logs", "cancel", "retry", "handoff", "list", "run <work item id>", "idea [--model m] [--effort e] <text>", "repo list|add <url>|remove <name>", "help" })
         {
             StringAssert.Contains(help, $"`{command}`");
         }
@@ -163,13 +163,37 @@ public sealed class ChatCommandsTests
         StringAssert.Contains(_chat.SentText.Single(), "Brainstorming is coming soon", "without the idea service (tests, or not configured)");
     }
 
-    internal static ChatCommands Commands(TestContext t, FakeOutbox outbox, ITranscriptReader transcripts, IMessagingProvider? chat = null)
+    [TestMethod]
+    public async Task Repo_list_shows_the_registered_repositories()
+    {
+        Assert.AreEqual("command:repo", (await Run("repo", null, "list")).Code);
+
+        StringAssert.Contains(_chat.SentText.Single(), "`sysmin`: ermsystem/Portal/sysmin (base `develop`), matched by tag `repo:sysmin` or area `Portal\\Platform`");
+    }
+
+    [TestMethod]
+    public async Task Only_admins_add_or_remove_repositories()
+    {
+        var add = new FakeAdd();
+        var commands = Commands(_t, _outbox, _transcripts, _chat, add);
+        InboundMessage Message(params string[] args) => new(s_discord, Guid.NewGuid().ToString(), "channel-1", "1", "x", null, new InboundCommand("repo", args), null, DateTimeOffset.UtcNow);
+
+        await commands.ExecuteAsync(Message("add", "git@erm-azdo:v3/ermsystem/Portal/portal-mobile-app"), new AgentdUser(new UserId(0), "guest", ["Operator"], true), null, default);
+        Assert.IsEmpty(add.Commands, "a guest can't");
+        StringAssert.Contains(_chat.SentText.Last(), "Only an Admin");
+
+        await commands.ExecuteAsync(Message("add", "git@erm-azdo:v3/ermsystem/Portal/portal-mobile-app", "--name", "mobile", "--area-path", "Portal\\Mobile"), s_user, null, default);
+        Assert.AreEqual(("git@erm-azdo:v3/ermsystem/Portal/portal-mobile-app", "mobile", "Portal\\Mobile"), (add.Commands.Single().Url, add.Commands.Single().Name, add.Commands.Single().MatchAreaPaths!.Single()));
+        StringAssert.Contains(_chat.SentText.Last(), "Registered `mobile`");
+    }
+
+    internal static ChatCommands Commands(TestContext t, FakeOutbox outbox, ITranscriptReader transcripts, IMessagingProvider? chat = null, FakeAdd? add = null)
     {
         var options = new MessagingOptions();
         options.Providers["discord"] = new MessagingProviderSettings { Enabled = true };
         var registry = new MessagingProviderRegistry(chat is null ? [] : [chat], Microsoft.Extensions.Options.Options.Create(options));
         return new ChatCommands(t.Jobs, new GetJobStatusHandler(t.Jobs, t.Clock), t.Cancel(), new RetryJobHandler(t.Jobs), t.Claim(), t.StartHandoff(),
-            t.Conversations, transcripts, outbox, registry, NullLogger<ChatCommands>.Instance, t.Events);
+            t.Conversations, transcripts, outbox, registry, NullLogger<ChatCommands>.Instance, t.Events, repositories: t.Registry, addRepository: add);
     }
 
     private MessagingProviderRegistry Registry() =>
@@ -200,5 +224,18 @@ internal sealed class FakeTranscripts : ITranscriptReader
     {
         AskedFor = workItem;
         return Task.FromResult(Tail);
+    }
+}
+
+internal sealed class FakeAdd : Agentd.Application.Abstractions.ICommandHandler<Agentd.Application.Repositories.AddRepository, Agentd.Domain.Repositories.Repository>
+{
+    public List<Agentd.Application.Repositories.AddRepository> Commands { get; } = [];
+
+    public Task<Agentd.Domain.Common.Result<Agentd.Domain.Repositories.Repository>> Handle(Agentd.Application.Repositories.AddRepository command, CancellationToken cancellationToken)
+    {
+        Commands.Add(command);
+        var url = Agentd.Domain.Repositories.RemoteUrl.Parse(command.Url).Value!;
+        return Task.FromResult<Agentd.Domain.Common.Result<Agentd.Domain.Repositories.Repository>>(
+            Agentd.Domain.Repositories.Repository.From(url, command.Name, "develop", command.MatchTag, command.MatchAreaPaths));
     }
 }

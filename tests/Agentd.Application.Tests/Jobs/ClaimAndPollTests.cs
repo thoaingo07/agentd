@@ -66,6 +66,18 @@ public sealed class ClaimAndPollTests
     }
 
     [TestMethod]
+    public async Task An_unknown_repo_tag_is_named_with_how_to_add_it()
+    {
+        var t = new TestContext();
+        t.WorkItems.Add(98, areaPath: "Other\\Team", tags: ["ai-workflow", "repo:portal-mobile-app"]);
+
+        var claimed = await t.Claim().Handle(new ClaimWorkItem(WorkItemId.From(98)), CancellationToken.None);
+
+        StringAssert.Contains(claimed.Error!.Message, "tagged `repo:portal-mobile-app`, but agentd doesn't know that repository (registered: `sysmin`)");
+        StringAssert.Contains(t.WorkItems.Comments.Single().Text, "!repo add <clone url> --name portal-mobile-app");
+    }
+
+    [TestMethod]
     public async Task Ambiguous_match_is_refused_with_a_comment()
     {
         var t = new TestContext();
