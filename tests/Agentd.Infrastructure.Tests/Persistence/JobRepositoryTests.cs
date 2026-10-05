@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Agentd.Application.Ports;
 using Agentd.Domain.Common;
 using Agentd.Domain.Jobs;
 using Agentd.Domain.Jobs.ValueObjects;
@@ -220,28 +221,42 @@ public sealed class JobRepositoryTests
     }
 
     [TestMethod]
-    public async Task History_search_filters_and_pages_newest_first()
+    public async Task History_search_combines_filters_pages_newest_first_and_caps_the_count()
     {
         var repo = Repo();
-        var a = NewJob();
-        await repo.AddAsync(a, default);
-        _clock.UtcNow = _clock.UtcNow.AddMinutes(1);
-        var b = Job.Create(WorkItemId.From(Interlocked.Increment(ref s_nextWorkItem)), RepositoryName.From("sysmin"), "Refine the AGENTS.md", _clock);
-        await repo.AddAsync(b, default);
-        b.Cancel("tngo");
-        await repo.SaveAsync(b, default);
+        var tag = $"hist{Interlocked.Increment(ref s_nextWorkItem)}";   // this test's rows only (the database is shared)
+        var jobs = new List<Job>();
+        for (var i = 0; i < 5; i++)
+        {
+            _clock.UtcNow = _clock.UtcNow.AddMinutes(1);
+            var job = Job.Create(WorkItemId.From(Interlocked.Increment(ref s_nextWorkItem)), RepositoryName.From(i < 4 ? "sysmin" : "other"), $"{tag} job {i}", _clock);
+            await repo.AddAsync(job, default);
+            if (i % 2 == 0)
+            {
+                job.Cancel("tngo");
+                await repo.SaveAsync(job, default);
+            }
 
-        var cancelled = await repo.SearchAsync([JobState.Cancelled], RepositoryName.From("sysmin"), "agents", 0, 10, default);
-        Assert.IsTrue(cancelled.Jobs.Any(j => j.Id == b.Id));
-        Assert.IsTrue(cancelled.Jobs.All(j => j.State == JobState.Cancelled));
-        Assert.AreEqual(cancelled.Jobs.Count, (int)cancelled.Total);
+            jobs.Add(job);
+        }
 
-        var byId = await repo.SearchAsync(null, null, b.WorkItemId.ToString(), 0, 10, default);
-        Assert.AreEqual(b.Id, byId.Jobs.Single().Id);
+        var cancelled = await repo.SearchAsync(new JobSearchFilter([JobState.Cancelled], RepositoryName.From("sysmin"), tag.ToUpperInvariant()), 0, 10, 100, default);
+        CollectionAssert.AreEqual(new[] { jobs[2].Id, jobs[0].Id }, cancelled.Jobs.Select(j => j.Id).ToArray(), "Cancelled + sysmin + title, newest first");
+        Assert.AreEqual(2L, cancelled.Total);
 
-        var newestFirst = await repo.SearchAsync(null, null, null, 0, 2, default);
-        Assert.IsTrue(newestFirst.Jobs[0].CreatedAt >= newestFirst.Jobs[1].CreatedAt);
-        Assert.IsGreaterThanOrEqualTo(2L, newestFirst.Total);
+        var page2 = await repo.SearchAsync(new JobSearchFilter(Title: tag), 2, 2, 100, default);
+        CollectionAssert.AreEqual(new[] { jobs[2].Id, jobs[1].Id }, page2.Jobs.Select(j => j.Id).ToArray(), "offset 2, limit 2");
+        Assert.AreEqual(5L, page2.Total);
+        Assert.IsEmpty((await repo.SearchAsync(new JobSearchFilter(Title: tag), 5, 2, 100, default)).Jobs, "past the end");
+
+        var exact = await repo.SearchAsync(new JobSearchFilter(WorkItem: jobs[3].WorkItemId), 0, 10, 100, default);
+        Assert.AreEqual(jobs[3].Id, exact.Jobs.Single().Id);
+
+        var window = await repo.SearchAsync(new JobSearchFilter(Title: tag, From: jobs[1].UpdatedAt, To: jobs[3].UpdatedAt), 0, 10, 100, default);
+        CollectionAssert.AreEquivalent(new[] { jobs[1].Id, jobs[2].Id }, window.Jobs.Select(j => j.Id).ToArray(), "from inclusive, to exclusive");
+
+        var capped = await repo.SearchAsync(new JobSearchFilter(Title: tag), 0, 1, 3, default);
+        Assert.AreEqual(4L, capped.Total, "counting stops at cap + 1");
     }
 
     private Job NewJob(int? workItem = null) =>

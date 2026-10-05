@@ -10,7 +10,7 @@ import { useJobsStore } from '../ClientApps/dashboard/stores/jobs'
 
 const job = (id: number, state: string, startedAt = '2026-10-04T10:00:00Z'): JobSummary => ({
   id, workItemId: 5600 + id, title: `job ${id}`, repo: 'sysmin', branch: null, state, phase: null, startedAt,
-  elapsedSeconds: 60, prUrl: null, waitingSince: null, planStatus: 'NotRequired', handoff: 'None', fixRounds: 0, lastError: null,
+  elapsedSeconds: 60, prUrl: null, waitingSince: null, planStatus: 'NotRequired', handoff: 'None', fixRounds: 0, lastError: null, completedAt: null,
 })
 
 function makeRouter() {

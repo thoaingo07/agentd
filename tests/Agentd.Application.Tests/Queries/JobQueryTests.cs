@@ -63,6 +63,21 @@ public sealed class JobQueryTests
         Assert.IsFalse(last.HasMore);
     }
 
+    [TestMethod]
+    [DataRow("WI-5613", null, 5613)]
+    [DataRow("wi5613", null, 5613)]
+    [DataRow("5613", "5613", 5613)]
+    [DataRow("  AGENTS.md ", "AGENTS.md", null)]
+    [DataRow("WI-", "WI-", null)]
+    [DataRow("", null, null)]
+    public void History_text_means_a_title_or_an_exact_work_item(string text, string? title, int? workItem)
+    {
+        var (t, w) = SearchHistoryHandler.ParseText(text);
+
+        Assert.AreEqual(title, t);
+        Assert.AreEqual(workItem, w?.Value);
+    }
+
     private sealed class Reader(List<long> seqs) : IEventReader
     {
         public Task<IReadOnlyList<AgentEventDto>> ReadAfterAsync(JobId? jobId, long afterSeq, int limit, CancellationToken cancellationToken) =>

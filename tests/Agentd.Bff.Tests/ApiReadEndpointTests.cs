@@ -28,7 +28,7 @@ public sealed class ApiReadEndpointTests
         Assert.AreEqual(99, json.GetProperty("latestSeq").GetInt64());
         var job = json.GetProperty("activeJobs")[0];
         CollectionAssert.AreEqual(
-            new[] { "id", "workItemId", "title", "repo", "branch", "state", "phase", "startedAt", "elapsedSeconds", "prUrl", "waitingSince", "planStatus", "handoff", "fixRounds", "lastError" },
+            new[] { "id", "workItemId", "title", "repo", "branch", "state", "phase", "startedAt", "elapsedSeconds", "prUrl", "waitingSince", "planStatus", "handoff", "fixRounds", "lastError", "completedAt" },
             job.EnumerateObject().Select(p => p.Name).ToArray(), "the TS contract");
         Assert.AreEqual("WaitingForHuman", job.GetProperty("state").GetString());
         Assert.AreEqual(720, job.GetProperty("elapsedSeconds").GetInt64());
@@ -122,8 +122,8 @@ public sealed class ApiReadEndpointTests
     {
         await using var app = await StartAsync();
 
-        var page = await GetJsonAsync(app, "/api/history?state=done,failed&repo=sysmin&q=AGENTS&page=2&pageSize=10");
-        Assert.AreEqual("Done,Failed|sysmin|AGENTS|2|10", page.GetProperty("items")[0].GetProperty("title").GetString(), "filters reach the query");
+        var page = await GetJsonAsync(app, "/api/history?state=done,failed&repo=sysmin&q=AGENTS&from=2026-10-01&to=2026-10-03&page=2&pageSize=10");
+        Assert.AreEqual("Done,Failed|sysmin|AGENTS|2|10|2026-10-01|2026-10-04", page.GetProperty("items")[0].GetProperty("title").GetString(), "filters reach the query");
 
         using var bad = await app.GetTestClient().GetAsync(new Uri("/api/history?state=sleeping&pageSize=500", UriKind.Relative));
         Assert.AreEqual(HttpStatusCode.BadRequest, bad.StatusCode);
@@ -151,7 +151,7 @@ public sealed class ApiReadEndpointTests
         builder.Services.AddSingleton<IQueryHandler<GetJobEvents, EventPage>>(new Fixed<GetJobEvents, EventPage>(q =>
             new EventPage([Event(q.Before!.Value - 2), Event(q.Before.Value - 1)], q.Before.Value - 2, q.Before.Value - 1, true)));
         builder.Services.AddSingleton<IQueryHandler<SearchHistory, HistoryPage>>(new Fixed<SearchHistory, HistoryPage>(q =>
-            new HistoryPage([s_waiting with { Title = $"{string.Join(',', q.States!)}|{q.Repository}|{q.Text}|{q.Page}|{q.PageSize}" }], 11, q.Page, q.PageSize)));
+            new HistoryPage([s_waiting with { Title = $"{string.Join(',', q.States!)}|{q.Repository}|{q.Text}|{q.Page}|{q.PageSize}|{q.From:yyyy-MM-dd}|{q.To:yyyy-MM-dd}" }], 11, false, q.Page, q.PageSize)));
         builder.Services.AddSingleton<IQueryHandler<GetJobEventDetail, AgentEventDto?>>(new Fixed<GetJobEventDetail, AgentEventDto?>(q => q.JobId.Value == 7 ? Event(q.Seq) : null));
         builder.Services.AddSingleton<ILiveEvents>(new EventHub(Microsoft.Extensions.Logging.Abstractions.NullLogger<EventHub>.Instance));
         builder.Services.AddSingleton<IQueryHandler<GetConfigSummary, ConfigSummary>>(new Fixed<GetConfigSummary, ConfigSummary>(_ =>

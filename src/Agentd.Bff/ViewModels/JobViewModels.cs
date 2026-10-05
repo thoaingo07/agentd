@@ -21,13 +21,14 @@ public sealed record JobSummaryVm(
     string PlanStatus,
     string Handoff,
     int FixRounds,
-    string? LastError)
+    string? LastError,
+    DateTimeOffset? CompletedAt)
 {
     public static JobSummaryVm From(JobSummary s)
     {
         ArgumentNullException.ThrowIfNull(s);
         return new(s.Id, s.WorkItemId, s.Title, s.Repository, s.Branch, s.State.ToString(), s.Phase, s.StartedAt, (long)s.Elapsed.TotalSeconds,
-            s.PullRequestUrl, s.WaitingSince, s.PlanStatus.ToString(), s.Handoff.ToString(), s.FixRounds, s.LastError);
+            s.PullRequestUrl, s.WaitingSince, s.PlanStatus.ToString(), s.Handoff.ToString(), s.FixRounds, s.LastError, s.CompletedAt);
     }
 }
 
@@ -101,12 +102,13 @@ public sealed record EventPageVm(IReadOnlyList<EventVm> Events, long? OldestSeq,
     }
 }
 
-public sealed record HistoryPageVm(IReadOnlyList<JobSummaryVm> Items, long Total, int Page, int PageSize)
+/// <summary>A history page; <c>totalCapped</c> means "more than <c>total</c>" (shown as 10,000+).</summary>
+public sealed record HistoryPageVm(IReadOnlyList<JobSummaryVm> Items, long Total, bool TotalCapped, int Page, int PageSize)
 {
     public static HistoryPageVm From(HistoryPage p)
     {
         ArgumentNullException.ThrowIfNull(p);
-        return new(p.Items.Select(JobSummaryVm.From).ToList(), p.Total, p.Page, p.PageSize);
+        return new(p.Items.Select(JobSummaryVm.From).ToList(), p.Total, p.TotalCapped, p.Page, p.PageSize);
     }
 }
 

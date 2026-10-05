@@ -79,7 +79,7 @@ Detailed tasks: [tasks/README.md](tasks/README.md)
 | T3.8 | [Reusable `Ag*` components (base-ui-vue + daisyUI)](tasks/08-ag-components.md) | Phase 0 (theme, web scaffold) | M | ☑ |
 | T3.9 | [App shell and Dashboard view](tasks/09-dashboard-view.md) | T3.7, T3.8 | M | ☑ |
 | T3.10 | [Session view: transcript, diff, details, composer](tasks/10-session-view.md) | T3.7, T3.8, T3.9 | L | ☑ |
-| T3.11 | [History view with server-side paging](tasks/11-history-view.md) | T3.2, T3.9, T3.10 | S | ☐ |
+| T3.11 | [History view with server-side paging](tasks/11-history-view.md) | T3.2, T3.9, T3.10 | S | ☑ |
 | T3.12 | [Playwright smoke tests and BFF security test suite](tasks/12-e2e-and-bff-security-tests.md) | T3.4, T3.5, T3.6, T3.9, T3.10, T3.11 | M | ☐ |
 | T3.13 | [Work item view: one timeline across jobs](tasks/13-work-item-view.md) | T3.2, T3.4, T3.7, T3.10 | M | ☐ |
 | T3.14 | [Cloudflare Access sign-in mode](tasks/14-cloudflare-access-auth.md) | T3.5 | S | ☑ |
