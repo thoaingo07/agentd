@@ -15,6 +15,9 @@ export type Estimate = Schemas['EstimateVm']
 export type Usage = Schemas['UsageVm']
 export type Conversation = Schemas['ConversationVm']
 export type PermissionRequest = Schemas['PermissionRequestVm']
+export type IdeaSummary = Schemas['IdeaSummaryVm']
+export type IdeaDetail = Schemas['IdeaDetailVm']
+export type WorkItemDraft = Schemas['WorkItemDraftVm']
 export type PermissionRule = Schemas['PermissionRuleVm']
 /** The Web UI's answers, the same as the chat's 1–4. */
 export type PermissionChoice = 'once' | 'job' | 'repo' | 'deny'
