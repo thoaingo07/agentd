@@ -112,7 +112,7 @@ public sealed class ChatCommandsTests
         Assert.AreEqual("command:help", (await Run("help", null)).Code);
 
         var help = _chat.SentText.Single();
-        foreach (var command in new[] { "status", "logs", "cancel", "retry", "handoff", "list", "run <work item id>", "help" })
+        foreach (var command in new[] { "status", "logs", "cancel", "retry", "handoff", "list", "run <work item id>", "idea <text>", "help" })
         {
             StringAssert.Contains(help, $"`{command}`");
         }
@@ -153,6 +153,15 @@ public sealed class ChatCommandsTests
         Assert.AreEqual(conversation.JobId, recorded.Job);
         StringAssert.Contains(recorded.Payload, "\"name\":\"status\"");
         StringAssert.Contains(recorded.Payload, "\"provider\":\"discord\"");
+    }
+
+    [TestMethod]
+    public async Task Idea_says_brainstorming_is_coming_soon()
+    {
+        Assert.AreEqual("command:idea", (await Run("idea", null, "dark", "mode", "for", "the", "portal")).Code);
+
+        StringAssert.Contains(_chat.SentText.Single(), "Brainstorming is coming soon");
+        StringAssert.Contains(ChatCommands.Help, "coming soon");
     }
 
     internal static ChatCommands Commands(TestContext t, FakeOutbox outbox, ITranscriptReader transcripts, IMessagingProvider? chat = null)

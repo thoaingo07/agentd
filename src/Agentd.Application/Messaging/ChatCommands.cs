@@ -43,7 +43,12 @@ public sealed partial class ChatCommands(
 
     /// <summary>The command list alone (the reply to an unknown command).</summary>
     public static readonly string Commands =
-        "In a job's thread: `status`, `logs`, `cancel`, `retry`, `handoff`. Anywhere: `list`, `run <work item id>`, `help`.";
+        "In a job's thread: `status`, `logs`, `cancel`, `retry`, `handoff`. Anywhere: `list`, `run <work item id>`, `idea <text>` (coming soon), `help`.";
+
+    /// <summary>The reply to <c>idea</c> until brainstorming (Phase 2d) is built.</summary>
+    public const string IdeaComingSoon =
+        "💡 **Brainstorming is coming soon.** `idea <your idea>` will open a thread where the agent explores the idea against the code, " +
+        "proposes User Stories and Tasks, and creates them in Azure DevOps when you agree. It isn't available yet; your idea wasn't saved, so post it again then.";
 
     /// <summary>Everything agentd does and how to talk to it (the reply to <c>help</c>). Commands start with the chat's prefix (<c>!</c> on Discord).</summary>
     public static readonly string Help = string.Join('\n',
@@ -59,6 +64,7 @@ public sealed partial class ChatCommands(
         "Anywhere:",
         "• `list`: active jobs",
         "• `run <work item id>`: start a work item now, even without the tag",
+        "• `idea <text>`: brainstorm an idea into User Stories and Tasks in Azure DevOps (**coming soon**)",
         "• `help`: this message",
         "",
         "**Talking to the agent** (in a job's thread)",
@@ -136,13 +142,16 @@ public sealed partial class ChatCommands(
 
                 reply = new(MessageKind.Info, $"Can't start the hand-off: {started.Error.Message}");
                 break;
+            case "idea":
+                reply = new(MessageKind.Info, IdeaComingSoon);
+                break;
             default:
                 reply = new(MessageKind.Info, name == "help" ? Help : $"Unknown command `{name}`. {Commands} Send `help` for everything I can do.");
                 break;
         }
 
         await ReplyAsync(message, job, reply, ct).ConfigureAwait(false);
-        return new InboundOutcome($"command:{(name is "list" or "run" or "status" or "cancel" or "retry" or "logs" or "handoff" or "help" ? name : "unknown")}", job);
+        return new InboundOutcome($"command:{(name is "list" or "run" or "status" or "cancel" or "retry" or "logs" or "handoff" or "idea" or "help" ? name : "unknown")}", job);
     }
 
     private async Task RecordAsync(JobId job, InboundMessage message, InboundCommand command, AgentdUser user, CancellationToken ct)
