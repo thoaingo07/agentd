@@ -103,6 +103,26 @@ public sealed class ChatCommandsTests
         Assert.AreEqual("command:unknown", (await Run("deploy", null)).Code);
         StringAssert.Contains(_chat.SentText[1], "Unknown command `deploy`");
         StringAssert.Contains(_chat.SentText[1], "`list`");
+        Assert.IsLessThan(300, _chat.SentText[1].Length, "an unknown command gets the short list");
+    }
+
+    [TestMethod]
+    public async Task Help_lists_every_command_and_feature()
+    {
+        Assert.AreEqual("command:help", (await Run("help", null)).Code);
+
+        var help = _chat.SentText.Single();
+        foreach (var command in new[] { "status", "logs", "cancel", "retry", "handoff", "list", "run <work item id>", "help" })
+        {
+            StringAssert.Contains(help, $"`{command}`");
+        }
+
+        foreach (var feature in new[] { "plan", "pull request", "Review loop", "hand-off", "Close-out", "heartbeat", "80%", "ai-auto", "progress" })
+        {
+            StringAssert.Contains(help, feature);
+        }
+
+        Assert.IsLessThan(2000, help.Length, "fits in one Discord message");
     }
 
     [TestMethod]

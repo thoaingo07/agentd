@@ -37,9 +37,44 @@ public sealed partial class ChatCommands(
 {
     public const int LogLines = 200;
 
-    public static readonly string Help =
-        "**agentd commands**\n\nIn a job's thread: `status`, `cancel`, `retry` (failed jobs), `logs`, `handoff` (after the PR is merged).\n" +
-        "Anywhere: `list` (active jobs), `run <work item id>`, `help`.\n\nAny other message in a job's thread goes to the agent.";
+    /// <summary>The command list alone (the reply to an unknown command).</summary>
+    public static readonly string Commands =
+        "In a job's thread: `status`, `logs`, `cancel`, `retry`, `handoff`. Anywhere: `list`, `run <work item id>`, `help`.";
+
+    /// <summary>Everything agentd does and how to talk to it (the reply to <c>help</c>). Commands start with the chat's prefix (<c>!</c> on Discord).</summary>
+    public static readonly string Help = string.Join('\n',
+        "**agentd: what I can do**",
+        "",
+        "**Commands** (start with `!` on Discord)",
+        "In a job's thread:",
+        "• `status`: phase, current activity, elapsed time and usage",
+        "• `logs`: the last " + LogLines + " lines of the agent's transcript",
+        "• `cancel`: stop the job",
+        "• `retry`: run a failed job again",
+        "• `handoff`: start the knowledge hand-off (after the PR is merged)",
+        "Anywhere:",
+        "• `list`: active jobs",
+        "• `run <work item id>`: start a work item now, even without the tag",
+        "• `help`: this message",
+        "",
+        "**Talking to the agent** (in a job's thread)",
+        "• Any other message goes to the agent. While it's working you get the current status right away, and it reads your message at its next step.",
+        "• Ask \"what's the progress?\" at any time.",
+        "• Answer a question with its number (`1`, `2`, …) or in your own words.",
+        "",
+        "**The job cycle** (one thread per work item)",
+        "1. I pick up work items tagged `ai-workflow`, or the one you `run`.",
+        "2. Clarify, then **plan**, with a time and usage estimate. Reply `1` or `approve`, or say what to change. The `ai-auto` tag skips the approval.",
+        "3. Implement and verify, then open a **pull request**.",
+        "4. **Review loop:** I fix PR comments and reply in their threads until the PR is ready to complete.",
+        "5. After the merge, **hand-off:** I propose the knowledge and learnings to sync into the repo. Agree, ask for changes, or decline.",
+        "6. **Close-out:** I ask whether to delete this thread (`1` delete, `2` keep).",
+        "",
+        "**Along the way**",
+        "• A heartbeat in the thread every minute while I work, with the timestamp",
+        "• A warning when usage reaches 80% of the 5-hour or weekly window",
+        "• Reminders while I'm waiting for you",
+        "• Everything is also on the web dashboard.");
 
     public async Task<InboundOutcome> ExecuteAsync(InboundMessage message, AgentdUser user, Conversation? conversation, CancellationToken ct)
     {
@@ -93,7 +128,7 @@ public sealed partial class ChatCommands(
                 reply = new(MessageKind.Info, $"Can't start the hand-off: {started.Error.Message}");
                 break;
             default:
-                reply = new(MessageKind.Info, (name == "help" ? "" : $"Unknown command `{name}`.\n\n") + Help);
+                reply = new(MessageKind.Info, name == "help" ? Help : $"Unknown command `{name}`. {Commands} Send `help` for everything I can do.");
                 break;
         }
 
