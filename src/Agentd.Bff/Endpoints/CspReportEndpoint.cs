@@ -30,7 +30,7 @@ public static partial class CspReportEndpoint
         });
 
     public static IEndpointConventionBuilder MapCspReport(this IEndpointRouteBuilder endpoints) =>
-        endpoints.MapPost(SecurityHeaders.ReportPath, async (HttpContext http, ILoggerFactory loggers) =>
+        endpoints.MapPost(SecurityHeaders.ReportPath, async (HttpContext http, ILoggerFactory loggers, Testing.CspReportLog log) =>
         {
             if (http.Request.ContentLength > MaxBodyBytes)
             {
@@ -54,6 +54,7 @@ public static partial class CspReportEndpoint
             foreach (var report in Parse(Encoding.UTF8.GetString(buffer, 0, read)))
             {
                 LogViolation(logger, report.Directive, report.BlockedUrl, report.DocumentUrl, report.Disposition);
+                log.Add(new Testing.CspReport(report.Directive, report.BlockedUrl, report.DocumentUrl, report.Disposition));
             }
 
             return Results.NoContent();

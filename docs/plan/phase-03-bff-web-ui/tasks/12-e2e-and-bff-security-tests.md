@@ -66,7 +66,28 @@ This task *is* the tests. Also keep the `Bff.Tests` security suite green:
 - no CORS headers.
 
 ## Done when
-- [ ] CI runs the Playwright suite against the built app with a fake runner.
-- [ ] Zero enforced CSP violations on every page and interaction covered.
-- [ ] The antiforgery, cookie and reconnect tests pass in Chromium and Firefox.
-- [ ] `/__test/*` endpoints cannot be mapped outside the `E2E` environment (a unit test).
+- [x] CI runs the Playwright suite against the built app (no agents: see As built).
+- [x] Zero enforced CSP violations on every page and interaction covered.
+- [x] The antiforgery, cookie and reconnect tests pass in Chromium and Firefox.
+- [x] `/__test/*` endpoints cannot be mapped outside the `E2E` environment (a unit test).
+
+## As built (2026-10-05)
+- **No fake runner:** the E2E Host runs with `Agentd:Scheduler:Enabled=false`, so nothing polls Azure DevOps or
+  starts an agent. `/__test/jobs` creates a Running (or waiting) job directly, `/__test/jobs/{id}/events` appends
+  agent text, `/__test/jobs/{id}/permissions` opens a permission request, and `/__test/csp-reports` returns the
+  CSP reports the server received (a 100-entry `CspReportLog`).
+- **Reconnect:** `context.setOffline` doesn't close an open WebSocket, so `live-stream.spec.ts` routes the hub's
+  socket through `page.routeWebSocket`, drops it, refuses reconnects while 20 more events are seeded, then lets it
+  reconnect. 50 rows, in order, with no duplicate `data-seq`.
+- **Also covered:** answering a permission request from the session banner (the rule then shows in Settings).
+- **axe found and this fixed:** low-contrast stat titles and table headers (daisyUI's 60% text → the muted token),
+  the toggle group's `aria-orientation` on `role=group` (now `role=toolbar`), and the permission banner's
+  amber-on-amber text.
+- **CI:** the `e2e` job runs on every PR and on `main` (no path filter, to avoid a third-party action; it takes a
+  few minutes). Traces, screenshots and the Host log are uploaded on failure.
+- **Not done here:** consolidating the T3.4–T3.6 Bff security tests into `Security/*` (they already pass where
+  they are).
+- **Locally:** build the web, then start the Host with `ASPNETCORE_ENVIRONMENT=E2E`,
+  `AGENTD_Scheduler__Enabled=false` and `AGENTD_Web__Urls=http://127.0.0.1:7797` on a migrated database, and run
+  `npm run test:e2e` in `src/Agentd.Web`. Restart the Host after rebuilding the web (it reads the Vite manifest at
+  startup).
