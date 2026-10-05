@@ -4,6 +4,7 @@ import { createEventConnection, type EventConnection } from '../../shared/api/hu
 import type { AgentEvent } from '../../shared/api/types'
 import { useEventsStore } from './events'
 import { useJobsStore } from './jobs'
+import { useWorkItemsStore } from './workItems'
 
 export type ConnectionStatus = 'connecting' | 'live' | 'reconnecting' | 'offline'
 
@@ -24,7 +25,10 @@ export const useConnectionStore = defineStore('connection', () => {
   function route(stream: string, evt: AgentEvent): void {
     subscriptions.set(stream, Math.max(subscriptions.get(stream) ?? 0, evt.seq))
     if (stream === 'all') useJobsStore().apply(evt)
-    else useEventsStore().append(evt)
+    else {
+      useEventsStore().append(evt)
+      useWorkItemsStore().append(evt)
+    }
   }
 
   async function resubscribeAll(): Promise<void> {

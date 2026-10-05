@@ -42,3 +42,5 @@ export function isJobState(value: string): value is JobState {
 
 export type Config = Schemas['ConfigVm']
 export type Repository = Schemas['RepositoryVm']
+export type WorkItem = Schemas['WorkItemVm']
+export type ConversationEntry = Schemas['ConversationEntryVm']

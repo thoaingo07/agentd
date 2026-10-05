@@ -96,7 +96,14 @@ function onKey(e: KeyboardEvent): void {
         >
           <td><AgStateBadge :state="job.state as JobState" /></td>
           <td class="max-w-72">
-            <span class="font-mono text-[13px] text-muted">WI-{{ job.workItemId }}</span>
+            <RouterLink
+              :to="{ name: 'work-item', params: { id: job.workItemId } }"
+              class="link font-mono text-[13px] text-muted"
+              title="Every run of this work item"
+              @click.stop
+            >
+              WI-{{ job.workItemId }}
+            </RouterLink>
             <span class="block truncate">{{ job.title }}</span>
           </td>
           <td class="hidden md:table-cell">

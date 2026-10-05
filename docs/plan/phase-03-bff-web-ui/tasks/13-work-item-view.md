@@ -50,7 +50,7 @@ several jobs and PRs, and its chat thread may already be deleted.
   expands, and the plan shows actual against estimate.
 
 ## Done when
-- [ ] #5613's page shows all three jobs, both PRs, the hand-off and the close-out, with the full
+- [x] #5613's page shows all three jobs, both PRs, the hand-off and the close-out, with the full
   conversation, even though its thread is deleted.
 
 ## As built
@@ -95,7 +95,43 @@ T3.13 is split in two PRs, so each stays under 1,000 lines.
   #3936, and both Discord threads (closed: the thread was deleted). The conversation has 33 entries
   with the 5 replies, ending with the hand-off and close-out.
 
-**T3.13b: the screen (next)**
-- `WorkItemView` with tabs (Timeline with a section per job, Conversation with a composer, Activity,
-  PRs, Plan & usage), the `workItems` store with live updates, and links from History and the
-  Session header.
+**T3.13b: the screen**
+- **Route:** `/workitems/:id`. The WI label in every job table (Dashboard, History) and in the
+  Session header links here.
+- **`stores/workItems.ts`:** `open(id)` loads the summary, the first timeline page (read from the
+  beginning, with "Load more" forward), the conversation, and each job's detail.
+  - It subscribes the hub for each active job from the timeline's newest seq. The connection store
+    now routes job-stream events to this store as well as the events store.
+  - Live events are appended (deduplicated by seq). A non-agent event refreshes the conversation 2 s
+    later, because chat posts aren't events.
+- **Header:** state, WI and title, repo, number of runs, time from first pick-up to last activity,
+  phase, links (work item, each PR), and each thread: a link while open, "thread closed" once it's
+  closed or deleted.
+- **Tabs** (`components/workitem/`):
+  - **Timeline:** a section per job, labelled "Run 1", "Run n (rework)", plus "· hand-off" when the
+    run carried the hand-off. Steps, questions, replies and errors reuse the Session view's rows;
+    agent output is left to Activity.
+  - **Conversation:** agentd's posts (Markdown, provider, delivery-status badge with the error as a
+    tooltip), then replies and commands (author, provider). The message box targets the active job,
+    if any.
+  - **Activity:** each run's agent text and tool cards, plus a link to the full transcript.
+  - **Pull requests:** each PR with the run that opened it and that run's review fix rounds. Review
+    threads per PR come with the PR reviewer (Phase 7).
+  - **Plan & usage:** per run, plan status, actual time against the estimate, peak 5-hour usage
+    against the estimate, and weekly usage, from `agent.rate_limit` readings (listed under a
+    disclosure).
+- **Tests (`tests/workitem.spec.ts`):**
+  - sections and labels, usage readings;
+  - the Timeline has a section per job without agent output;
+  - the Conversation shows both directions, status badge and error;
+  - Plan shows the estimate against actual;
+  - the store loads the story, subscribes the active job from the newest seq, and appends live
+    events once.
+- **Smoke test** on the demo database (`/workitems/5613`):
+  - header: PR 3935 and PR 3936, and both Discord threads "closed";
+  - timeline: Run 1 / Run 2 (rework) / Run 3 (rework) · hand-off with their steps;
+  - conversation: 28 posts and the 5 replies, ending with the close-out question;
+  - plan: each run's actual time; pull requests: each PR with its run;
+  - no console errors.
+
+  This meets the "Done when" item.
