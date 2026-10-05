@@ -97,6 +97,33 @@ public sealed class InboundMessageHandlerTests
     }
 
     [TestMethod]
+    public async Task With_allow_everyone_a_stranger_acts_under_their_display_name()
+    {
+        var job = await JobInThreadAsync(waiting: true);
+        var open = new MessagingOptions();
+        open.Providers["discord"] = new MessagingProviderSettings { Enabled = true, AllowEveryone = true };
+
+        var outcome = await Handler(open).ProcessAsync(Message("use v2", userId: "stranger"), default);
+
+        Assert.AreEqual("resumed", outcome.Code);
+        Assert.AreEqual(JobState.Running, _t.Jobs.Get(job).State);
+        Assert.AreEqual("Thoai", _t.Jobs.SavedEvents.OfType<DeveloperReplied>().Single().From, "their display name");
+        Assert.AreEqual(("resumed", (long?)job.Value, (long?)null), _log.Outcomes.Single(), "a guest is not stored as a user");
+    }
+
+    [TestMethod]
+    public async Task Allow_everyone_never_unblocks_a_listed_user_marked_inactive()
+    {
+        await JobInThreadAsync(waiting: true);
+        var open = new MessagingOptions();
+        open.Providers["discord"] = new MessagingProviderSettings { Enabled = true, AllowEveryone = true };
+
+        var outcome = await Handler(open).ProcessAsync(Message("hi", userId: "inactive"), default);
+
+        Assert.AreEqual("ignored_unknown_user", outcome.Code);
+    }
+
+    [TestMethod]
     public async Task Messages_outside_a_job_thread_are_ignored()
     {
         Assert.AreEqual("ignored_no_job", (await Handler().ProcessAsync(Message("hi"), default)).Code);
@@ -134,8 +161,18 @@ public sealed class InboundMessageHandlerTests
         }
     }
 
-    private InboundMessageHandler Handler() =>
-        new(_log, _users, _t.Conversations, new SubmitDeveloperMessageHandler(_t.Jobs), ChatCommandsTests.Commands(_t, _outbox, new FakeTranscripts()), _t.AnswerCloseOut(), _outbox, _t.Jobs, _activity, _t.Clock, NullLogger<InboundMessageHandler>.Instance);
+    private InboundMessageHandler Handler(MessagingOptions? messaging = null) =>
+        new(_log, _users, _t.Conversations, new SubmitDeveloperMessageHandler(_t.Jobs), ChatCommandsTests.Commands(_t, _outbox, new FakeTranscripts()), _t.AnswerCloseOut(), _outbox, _t.Jobs, _activity, _t.Clock, NullLogger<InboundMessageHandler>.Instance,
+            messaging is null ? null : new Monitor(messaging));
+
+    private sealed class Monitor(MessagingOptions value) : Microsoft.Extensions.Options.IOptionsMonitor<MessagingOptions>
+    {
+        public MessagingOptions CurrentValue => value;
+
+        public MessagingOptions Get(string? name) => value;
+
+        public IDisposable? OnChange(Action<MessagingOptions, string?> listener) => null;
+    }
 
     private async Task<JobId> JobInThreadAsync(bool waiting)
     {
@@ -187,7 +224,12 @@ public sealed class InboundMessageHandlerTests
         public Task<AgentdUser?> FindByIdentityAsync(ProviderKey provider, string externalId, CancellationToken cancellationToken) =>
             Throw
                 ? throw new InvalidOperationException("db down")
-                : Task.FromResult(externalId == "789" ? new AgentdUser(new UserId(1), "tngo", ["Admin"], true) : null);
+                : Task.FromResult(externalId switch
+                {
+                    "789" => new AgentdUser(new UserId(1), "tngo", ["Admin"], true),
+                    "inactive" => new AgentdUser(new UserId(2), "former", [], false),
+                    _ => null,
+                });
 
         public Task SyncAsync(IReadOnlyList<User> users, CancellationToken cancellationToken) => Task.CompletedTask;
     }

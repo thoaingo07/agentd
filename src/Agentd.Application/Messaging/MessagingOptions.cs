@@ -30,6 +30,14 @@ public sealed class MessagingOptions
 public sealed class MessagingProviderSettings
 {
     public bool Enabled { get; set; }
+
+    /// <summary>
+    /// Accept messages from anyone who can post in this provider's agentd channel and its threads, not just
+    /// the users in <c>Agentd:Users</c>. Then who may post there (the chat's own channel permissions) is the
+    /// access control. A stranger acts under their display name with the Operator role; listed users keep
+    /// their name and roles, and a listed user marked inactive stays blocked. Off by default.
+    /// </summary>
+    public bool AllowEveryone { get; set; }
 }
 
 /// <summary>Fails startup on messaging configuration that cannot work.</summary>

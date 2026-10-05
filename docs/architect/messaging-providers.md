@@ -167,6 +167,15 @@ Chat identities are part of the shared **user directory** (top-level `Users`, wi
 ([authentication.md §4](../security/authentication.md#4-users-identities-and-roles)). Chat actions
 follow the same roles. For example, only an `Operator` can reply to an agent or `cancel` a job.
 
+By default, messages from people who aren't in `Users` are ignored, without a reply. A provider can
+set **`AllowEveryone: true`** instead. Then anyone who can post in agentd's channel and its threads
+is accepted:
+- strangers act under their display name with the `Operator` role, and aren't stored as users;
+- listed users keep their own name and roles, and a listed user marked inactive stays blocked.
+
+The chat's own channel permissions then become the access control, so lock the channel down to the
+people who should drive agents.
+
 ```jsonc
 "Messaging": {
   "DefaultProviders": ["discord"],            // conversations opened for every job; empty = every enabled provider
@@ -174,7 +183,8 @@ follow the same roles. For example, only an `Operator` can reply to an agent or 
     "Discord": {
       "Enabled": true,
       "GuildId": "123...",
-      "ChannelId": "456..."                   // parent channel; one thread per job
+      "ChannelId": "456...",                  // parent channel; one thread per job
+      "AllowEveryone": false                  // true: anyone who can post in the channel, not only Users
       // token: Agentd__Messaging__Providers__Discord__BotToken
     },
     "Telegram": {
