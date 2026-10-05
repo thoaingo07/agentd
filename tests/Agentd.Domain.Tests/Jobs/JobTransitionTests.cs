@@ -35,6 +35,8 @@ public sealed class JobTransitionTests
         ["StartFixRound"] = j => j.StartFixRound(["rename X"], [11]),
         ["AnnounceReady"] = j => j.AnnounceReady(),
         ["Merged"] = j => j.Merged(),
+        ["Pause"] = j => j.Pause("tngo"),
+        ["Resume"] = j => j.Resume("tngo"),
     };
 
     private static readonly Dictionary<(JobState From, string Op), (JobState To, Type Event)> s_allowed = new()
@@ -67,6 +69,13 @@ public sealed class JobTransitionTests
         [(JobState.Preparing, "Cancel")] = (JobState.Cancelled, typeof(JobCancelled)),
         [(JobState.Running, "Cancel")] = (JobState.Cancelled, typeof(JobCancelled)),
         [(JobState.Publishing, "Cancel")] = (JobState.Cancelled, typeof(JobCancelled)),
+        [(JobState.Queued, "Pause")] = (JobState.Paused, typeof(JobPaused)),
+        [(JobState.Running, "Pause")] = (JobState.Paused, typeof(JobPaused)),
+        [(JobState.WaitingForHuman, "Pause")] = (JobState.Paused, typeof(JobPaused)),
+        [(JobState.Paused, "Resume")] = (JobState.Queued, typeof(JobResumed)),
+        [(JobState.Paused, "Cancel")] = (JobState.Cancelled, typeof(JobCancelled)),
+        [(JobState.Paused, "Fail")] = (JobState.Failed, typeof(JobFailed)),
+        [(JobState.Cancelled, "Retry")] = (JobState.Queued, typeof(JobRetried)),
     };
 
     public static IEnumerable<object[]> EveryStateAndOperation =>
@@ -276,6 +285,11 @@ public sealed class JobTransitionTests
                 break;
             case JobState.Cancelled:
                 job.Cancel("tngo");
+                break;
+            case JobState.Paused:
+                job.BeginPreparing();
+                job.Start(s_worktree, s_branch, s_session);
+                job.Pause("tngo");
                 break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(state));

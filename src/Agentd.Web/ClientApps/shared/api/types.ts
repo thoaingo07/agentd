@@ -32,6 +32,7 @@ export const jobStates = [
   'InReview',
   'Done',
   'Failed',
+  'Paused',
   'Cancelled',
 ] as const
 export type JobState = (typeof jobStates)[number]

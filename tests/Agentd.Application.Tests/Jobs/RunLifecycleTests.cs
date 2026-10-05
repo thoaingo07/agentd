@@ -82,7 +82,7 @@ public sealed class RunLifecycleTests
         Assert.IsTrue(resumed.Resume);
         Assert.AreEqual(request.Session, resumed.Session);
         Assert.AreEqual(request.Worktree, resumed.Worktree);
-        Assert.HasCount(1, t.Worktrees.Created, "the worktree is reused, not recreated");
+        Assert.HasCount(2, t.Worktrees.Created, "CreateAsync again: the manager reuses the existing worktree at the same path");
     }
 
     [TestMethod]

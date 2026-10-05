@@ -29,6 +29,18 @@ public sealed class ApiActionEndpointTests
     }
 
     [TestMethod]
+    public async Task Pause_and_resume_are_204_and_record_the_signed_in_user()
+    {
+        await using var app = await StartAsync();
+
+        using var paused = await PostAsync(app, "/api/jobs/7/pause");
+        using var resumed = await PostAsync(app, "/api/jobs/7/resume");
+
+        Assert.AreEqual((HttpStatusCode.NoContent, HttpStatusCode.NoContent), (paused.StatusCode, resumed.StatusCode));
+        CollectionAssert.AreEqual(new object[] { new PauseJob(new JobId(7), "local"), new ResumeJob(new JobId(7), "local") }, _commands);
+    }
+
+    [TestMethod]
     public async Task An_invalid_transition_is_a_409_problem_with_its_code()
     {
         await using var app = await StartAsync();
@@ -106,6 +118,8 @@ public sealed class ApiActionEndpointTests
         builder.WebHost.UseTestServer();
         builder.Services.AddBff();
         builder.Services.AddSingleton<ICommandHandler<CancelJob, Unit>>(Handler<CancelJob, Unit>(_ => Unit.Value));
+        builder.Services.AddSingleton<ICommandHandler<PauseJob, Unit>>(Handler<PauseJob, Unit>(_ => Unit.Value));
+        builder.Services.AddSingleton<ICommandHandler<ResumeJob, Unit>>(Handler<ResumeJob, Unit>(_ => Unit.Value));
         builder.Services.AddSingleton<ICommandHandler<RetryJob, int>>(Handler<RetryJob, int>(c => DomainError.InvalidTransition("Done", "retry")));
         builder.Services.AddSingleton<ICommandHandler<SubmitDeveloperMessage, DeveloperMessageOutcome>>(Handler<SubmitDeveloperMessage, DeveloperMessageOutcome>(c =>
             c.JobId.Value == 7 ? DeveloperMessageOutcome.Resumed : DeveloperMessageOutcome.NotAccepted));

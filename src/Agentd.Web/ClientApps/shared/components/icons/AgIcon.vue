@@ -13,6 +13,7 @@ export type IconName =
   | 'chevron-down'
   | 'x'
   | 'eye'
+  | 'pause'
 
 const paths: Record<IconName, string[]> = {
   clock: ['M12 6v6l4 2', 'M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0z'],
@@ -24,6 +25,7 @@ const paths: Record<IconName, string[]> = {
   slash: ['M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0z', 'm4.9 4.9 14.2 14.2'],
   'chevron-down': ['m6 9 6 6 6-6'],
   x: ['M18 6 6 18', 'm6 6 12 12'],
+  pause: ['M10 4H6v16h4z', 'M18 4h-4v16h4z'],
   eye: ['M2.06 12.35a1 1 0 0 1 0-.7 10.75 10.75 0 0 1 19.88 0 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-19.88 0', 'M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0z'],
 }
 

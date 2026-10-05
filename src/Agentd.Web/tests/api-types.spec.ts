@@ -44,7 +44,7 @@ describe('BFF contract types', () => {
   })
 
   it('knows every job state', () => {
-    expect(jobStates).toHaveLength(9)
+    expect(jobStates).toHaveLength(10)
     expect(dashboard.activeJobs.every((j) => isJobState(j.state))).toBe(true)
     expect(isJobState('Sleeping')).toBe(false)
   })

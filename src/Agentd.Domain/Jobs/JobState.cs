@@ -13,6 +13,9 @@ public enum JobState
 
     /// <summary>The pull request is open; agentd watches it for review comments until it is merged.</summary>
     InReview,
+
+    /// <summary>Stopped by a developer for now; the session, worktree, branch and thread are kept for a resume.</summary>
+    Paused,
     Done,
     Failed,
     Cancelled,

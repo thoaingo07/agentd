@@ -25,6 +25,14 @@ public static class JobActionEndpoints
             (await handler.Handle(new CancelJob(new JobId(id), UserName(user)), ct).ConfigureAwait(false)).ToHttpResult(_ => TypedResults.NoContent()))
             .WithName("CancelJob").Produces(StatusCodes.Status204NoContent).ProducesProblem(StatusCodes.Status404NotFound).ProducesProblem(StatusCodes.Status409Conflict);
 
+        api.MapPost("/jobs/{id:long}/pause", async (long id, ClaimsPrincipal user, [FromServices] ICommandHandler<PauseJob, Unit> handler, CancellationToken ct) =>
+            (await handler.Handle(new PauseJob(new JobId(id), UserName(user)), ct).ConfigureAwait(false)).ToHttpResult(_ => TypedResults.NoContent()))
+            .WithName("PauseJob").Produces(StatusCodes.Status204NoContent).ProducesProblem(StatusCodes.Status404NotFound).ProducesProblem(StatusCodes.Status409Conflict);
+
+        api.MapPost("/jobs/{id:long}/resume", async (long id, ClaimsPrincipal user, [FromServices] ICommandHandler<ResumeJob, Unit> handler, CancellationToken ct) =>
+            (await handler.Handle(new ResumeJob(new JobId(id), UserName(user)), ct).ConfigureAwait(false)).ToHttpResult(_ => TypedResults.NoContent()))
+            .WithName("ResumeJob").Produces(StatusCodes.Status204NoContent).ProducesProblem(StatusCodes.Status404NotFound).ProducesProblem(StatusCodes.Status409Conflict);
+
         api.MapPost("/jobs/{id:long}/retry", async (long id, [FromServices] ICommandHandler<RetryJob, int> handler, CancellationToken ct) =>
             (await handler.Handle(new RetryJob(new JobId(id)), ct).ConfigureAwait(false)).ToHttpResult(_ => TypedResults.NoContent()))
             .WithName("RetryJob").Produces(StatusCodes.Status204NoContent).ProducesProblem(StatusCodes.Status404NotFound).ProducesProblem(StatusCodes.Status409Conflict);

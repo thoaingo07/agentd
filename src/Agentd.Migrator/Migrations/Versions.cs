@@ -46,3 +46,6 @@ public sealed class Permissions : SqlMigration;
 
 [Migration(2026_10_11_0001, "Brainstormed ideas and their conversation")]
 public sealed class Ideas : SqlMigration;
+
+[Migration(2026_10_12_0001, "Paused job state")]
+public sealed class Paused : SqlMigration;

@@ -157,6 +157,18 @@ While the PR is in review, a message in the job's thread starts a **fix round**,
 take messages right now". In other states that can't take messages (queued, publishing, failed,
 cancelled, done), the reply now says why and what to do instead (`!retry`, `!run <id>`).
 
+### Pause and resume (added 2026-10-05)
+
+- **`!pause`** (or **Pause** on the session page, `POST /api/jobs/{id}/pause`) works on a queued,
+  running or waiting job. The agent is stopped, and the job becomes **Paused**. The Claude session,
+  worktree, branch and thread are all kept; the agent's exit doesn't cancel it.
+- **`!resume`** (or **Resume**) queues it again. The next start reuses the worktree and resumes the
+  same session (`--resume`), so the agent continues where it stopped.
+- **`!retry` also works on a cancelled job.** Cancelling removes the worktree, but the branch is
+  kept, so the retry recreates the worktree at the same path from the branch and resumes the session.
+- A paused job still counts as active (one job per work item), takes no messages (the reply points
+  to `!resume`), and can be cancelled.
+
 ### Progress
 - **PR 1a (#26), merged:** unread messages are returned on every tool call, and `finish` is refused
   until they are read; one thread per work item; start, resume and push notifications.

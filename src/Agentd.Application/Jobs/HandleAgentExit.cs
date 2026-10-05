@@ -34,6 +34,7 @@ public sealed class HandleAgentExitHandler(
             return job.State;
         }
 
+        // Paused: the agent was stopped on purpose; keep the worktree and session for the resume.
         // Publishing (retrying) or any other non-running state: nothing to do here.
         if (job.State != JobState.Running)
         {

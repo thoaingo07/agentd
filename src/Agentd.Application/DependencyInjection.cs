@@ -29,6 +29,8 @@ public static class DependencyInjection
         services.AddScoped<ICommandHandler<FinishWork, PullRequestRef>, FinishWorkHandler>();
         services.AddScoped<ICommandHandler<PublishPullRequest, PullRequestRef>, PublishPullRequestHandler>();
         services.AddScoped<ICommandHandler<CancelJob, Unit>, CancelJobHandler>();
+        services.AddScoped<ICommandHandler<PauseJob, Unit>, PauseJobHandler>();
+        services.AddScoped<ICommandHandler<ResumeJob, Unit>, ResumeJobHandler>();
         services.AddScoped<ICommandHandler<RecoverJobsOnStartup, RecoveryPlan>, RecoverJobsOnStartupHandler>();
         services.AddScoped<ICommandHandler<RetryDuePublishes, int>, RetryDuePublishesHandler>();
         services.AddSingleton<JobDispatcher>();

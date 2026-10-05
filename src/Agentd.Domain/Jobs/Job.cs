@@ -402,9 +402,36 @@ public sealed class Job : AggregateRoot<JobId>
         return Result.Ok;
     }
 
+    /// <summary>Stops the job for now (the runner stops the agent). Everything is kept, so <see cref="Resume"/> continues the same session.</summary>
+    public Result Pause(string by)
+    {
+        if (Require("pause", JobState.Queued, JobState.Running, JobState.WaitingForHuman) is { } error)
+        {
+            return error;
+        }
+
+        var from = State;
+        NotBefore = null;
+        Transition(JobState.Paused, new JobPaused(by, from, Now));
+        return Result.Ok;
+    }
+
+    /// <summary>Queues a paused job again; it resumes its session in the same worktree.</summary>
+    public Result Resume(string by)
+    {
+        if (Require("resume", JobState.Paused) is { } error)
+        {
+            return error;
+        }
+
+        Transition(JobState.Queued, new JobResumed(by, Now));
+        return Result.Ok;
+    }
+
+    /// <summary>Queues a failed or cancelled job again (a new attempt); with a session and branch it resumes where it stopped.</summary>
     public Result Retry()
     {
-        if (Require("retry", JobState.Failed) is { } error)
+        if (Require("retry", JobState.Failed, JobState.Cancelled) is { } error)
         {
             return error;
         }

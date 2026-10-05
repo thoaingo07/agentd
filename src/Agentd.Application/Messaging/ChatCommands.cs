@@ -40,7 +40,9 @@ public sealed partial class ChatCommands(
     Ideas.IIdeaStore? ideaStore = null,
     IRepositoryRegistry? repositories = null,
     ICommandHandler<Repositories.AddRepository, Domain.Repositories.Repository>? addRepository = null,
-    ICommandHandler<Repositories.RemoveRepository, Unit>? removeRepository = null)
+    ICommandHandler<Repositories.RemoveRepository, Unit>? removeRepository = null,
+    ICommandHandler<PauseJob, Unit>? pause = null,
+    ICommandHandler<ResumeJob, Unit>? resume = null)
 {
     /// <summary>Commands typed in a job's thread are recorded, so the work item conversation shows both directions.</summary>
     public const string CommandEventType = "chat.command";
@@ -49,7 +51,7 @@ public sealed partial class ChatCommands(
 
     /// <summary>The command list alone (the reply to an unknown command).</summary>
     public static readonly string Commands =
-        "In a job's thread: `status`, `logs`, `cancel`, `retry`, `handoff`, `approve`, `deny`. Anywhere: `list`, `run <work item id>`, `idea <text>`, `repo`, `help`. In an idea's thread: `model`, `effort`.";
+        "In a job's thread: `status`, `logs`, `pause`, `resume`, `cancel`, `retry`, `handoff`, `approve`, `deny`. Anywhere: `list`, `run <work item id>`, `idea <text>`, `repo`, `help`. In an idea's thread: `model`, `effort`.";
 
     /// <summary>The reply to <c>idea</c> until brainstorming (Phase 2d) is built.</summary>
     public const string IdeaComingSoon =
@@ -64,8 +66,8 @@ public sealed partial class ChatCommands(
         "In a job's thread:",
         "• `status`: phase, current activity, elapsed time and usage",
         "• `logs`: the agent's recent transcript",
-        "• `cancel`: stop the job",
-        "• `retry`: run a failed job again",
+        "• `pause` / `resume`: stop for now, continue later (`cancel` ends it)",
+        "• `retry`: run a failed or cancelled job again",
         "• `handoff`: start the knowledge hand-off (after the PR is merged)",
         "• `approve [job|always]` / `deny`: answer a permission request",
         "Anywhere:",
@@ -116,7 +118,7 @@ public sealed partial class ChatCommands(
             case "run":
                 reply = await RunAsync(command.Args, ct).ConfigureAwait(false);
                 break;
-            case "status" or "cancel" or "retry" or "logs" or "handoff" or "approve" or "deny" when job is null:
+            case "status" or "cancel" or "retry" or "logs" or "handoff" or "approve" or "deny" or "pause" or "resume" when job is null:
                 reply = new(MessageKind.Info, $"`{name}` works in a job's thread. Use `list` to find one.");
                 break;
             case "status":
@@ -132,6 +134,10 @@ public sealed partial class ChatCommands(
 
                 reply = new(MessageKind.Info, $"Can't cancel: {cancelled.Error.Message}");
                 break;
+            case "pause" when pause is not null:
+                return await PauseOrResumeAsync(message, job!.Value, "pause", await pause.Handle(new PauseJob(job.Value, user.Name), ct).ConfigureAwait(false), ct).ConfigureAwait(false);
+            case "resume" when resume is not null:
+                return await PauseOrResumeAsync(message, job!.Value, "resume", await resume.Handle(new ResumeJob(job.Value, user.Name), ct).ConfigureAwait(false), ct).ConfigureAwait(false);
             case "retry":
                 var retried = await retry.Handle(new RetryJob(job!.Value), ct).ConfigureAwait(false);
                 reply = retried.IsSuccess
@@ -174,7 +180,7 @@ public sealed partial class ChatCommands(
         }
 
         await ReplyAsync(message, job, reply, ct).ConfigureAwait(false);
-        return new InboundOutcome($"command:{(name is "list" or "run" or "status" or "cancel" or "retry" or "logs" or "handoff" or "approve" or "deny" or "idea" or "model" or "effort" or "repo" or "help" ? name : "unknown")}", job);
+        return new InboundOutcome($"command:{(name is "list" or "run" or "status" or "cancel" or "retry" or "logs" or "handoff" or "approve" or "deny" or "idea" or "model" or "effort" or "repo" or "pause" or "resume" or "help" ? name : "unknown")}", job);
     }
 
     /// <summary><c>approve [request] [once|job|always]</c> or <c>deny [request]</c>; null when it was decided (announced in the thread).</summary>
@@ -288,6 +294,17 @@ public sealed partial class ChatCommands(
     private static string Match(Domain.Repositories.Repository r) =>
         string.Join(" or ", new[] { r.MatchTag is { Length: > 0 } t ? $"tag `{t}`" : null }
             .Concat(r.MatchAreaPaths.Select(a => $"area `{a}`")).OfType<string>().DefaultIfEmpty("nothing (add a tag or area path)"));
+
+    /// <summary>On success the paused / resumed notice is posted to every conversation; otherwise say why here.</summary>
+    private async Task<InboundOutcome> PauseOrResumeAsync(InboundMessage message, JobId job, string name, Domain.Common.Result<Unit> changed, CancellationToken ct)
+    {
+        if (!changed.IsSuccess)
+        {
+            await ReplyAsync(message, job, new(MessageKind.Info, $"Can't {name}: {changed.Error.Message}"), ct).ConfigureAwait(false);
+        }
+
+        return new InboundOutcome($"command:{name}", job);
+    }
 
     private async Task RecordAsync(JobId job, InboundMessage message, InboundCommand command, AgentdUser user, CancellationToken ct)
     {

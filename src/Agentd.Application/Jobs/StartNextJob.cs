@@ -44,9 +44,9 @@ public sealed class StartNextJobHandler(
             var session = job.Session ?? ClaudeSessionId.New();
 
             await worktrees.EnsureCloneAsync(repository, cancellationToken).ConfigureAwait(false);
-            var worktree = resume
-                ? job.Worktree!.Value
-                : await worktrees.CreateAsync(repository, job.WorkItemId, branch, cancellationToken).ConfigureAwait(false);
+            // Resuming reuses the worktree, or recreates it at the same path from the kept branch (e.g. after a cancel
+            // removed it), so the Claude session, which is tied to that path, can continue.
+            var worktree = await worktrees.CreateAsync(repository, job.WorkItemId, branch, cancellationToken).ConfigureAwait(false);
 
             WorkItemDetails? item = null;
             string prompt;

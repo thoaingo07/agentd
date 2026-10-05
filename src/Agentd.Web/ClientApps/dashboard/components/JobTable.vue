@@ -143,7 +143,7 @@ function onKey(e: KeyboardEvent): void {
               rel="noopener noreferrer"
             >PR ↗</a>
             <button
-              v-if="job.state === 'Failed'"
+              v-if="job.state === 'Failed' || job.state === 'Cancelled'"
               type="button"
               class="btn btn-ghost btn-xs"
               :disabled="pending?.has(job.id)"

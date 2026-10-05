@@ -73,7 +73,7 @@ public sealed record SearchHistory(IReadOnlyCollection<JobState>? States, string
 internal static class JobViews
 {
     public static readonly JobState[] Active =
-        [JobState.WaitingForHuman, JobState.Running, JobState.Preparing, JobState.Queued, JobState.Publishing, JobState.InReview];
+        [JobState.WaitingForHuman, JobState.Running, JobState.Preparing, JobState.Queued, JobState.Publishing, JobState.InReview, JobState.Paused];
 
     public static JobSummary Summary(Job job, JobActivity activity, DateTimeOffset now) => new(
         job.Id.Value, job.WorkItemId.Value, job.Title, job.Repository.Value, job.Branch?.Value, job.State,
