@@ -155,4 +155,27 @@ public sealed class WorkItemSourceTests
         var text = JsonNode.Parse(ado.Requests.Single().Body!)!["text"]!.GetValue<string>();
         Assert.AreEqual("agentd &lt;script&gt;alert(1)&lt;/script&gt; &amp; done", text);
     }
+
+    [TestMethod]
+    public async Task Creating_a_task_posts_its_fields_estimate_tags_and_parent_link()
+    {
+        var ado = new FakeAdo().On(HttpMethod.Post, "/ermsystem/Portal/_apis/wit/workitems/$Task", HttpStatusCode.OK,
+            """{ "id": 9002, "_links": { "html": { "href": "https://dev.azure.com/ermsystem/Portal/_workitems/edit/9002" } } }""");
+
+        var created = await Source(ado).CreateAsync(new Agentd.Application.Ports.NewWorkItem(
+            "Task", "Theme tokens", "Add tokens:\n- dark\n- light", "<b>works</b>", ["ui", "ai-workflow"], 4, 9001, "Portal\\Platform"), default);
+
+        Assert.AreEqual((9002, "https://dev.azure.com/ermsystem/Portal/_workitems/edit/9002"), (created.Id, created.Url!.ToString()));
+        var request = ado.Requests.Single();
+        Assert.AreEqual("application/json-patch+json", request.ContentType);
+        var ops = JsonNode.Parse(request.Body!)!.AsArray().ToDictionary(o => o!["path"]!.GetValue<string>(), o => o!["value"]!);
+        Assert.AreEqual("Theme tokens", ops["/fields/System.Title"].GetValue<string>());
+        Assert.AreEqual("<p>Add tokens:</p><ul><li>dark</li><li>light</li></ul>", ops["/fields/System.Description"].GetValue<string>());
+        Assert.AreEqual("<p>&lt;b&gt;works&lt;/b&gt;</p>", ops["/fields/Microsoft.VSTS.Common.AcceptanceCriteria"].GetValue<string>(), "escaped, never raw HTML");
+        Assert.AreEqual("ui; ai-workflow", ops["/fields/System.Tags"].GetValue<string>());
+        Assert.AreEqual(4, ops["/fields/Microsoft.VSTS.Scheduling.OriginalEstimate"].GetValue<double>());
+        Assert.AreEqual("Portal\\Platform", ops["/fields/System.AreaPath"].GetValue<string>());
+        Assert.AreEqual("System.LinkTypes.Hierarchy-Reverse", ops["/relations/-"]["rel"]!.GetValue<string>());
+        StringAssert.EndsWith(ops["/relations/-"]["url"]!.GetValue<string>(), "ermsystem/_apis/wit/workItems/9001");
+    }
 }

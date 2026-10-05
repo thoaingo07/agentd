@@ -137,4 +137,28 @@ Requested on 2026-10-03. Decisions:
 - **Finished ideas** (closed, discarded, created) refuse new messages and point to `!idea`.
 - **The usage limit or a failed turn** is reported in the thread; send the message again later.
 - **Not done yet:** heartbeat and instant status replies for ideas.
-**PR 2:** create the work items in Azure DevOps, "and start", discard, close-out.
+**PR 2: create in Azure DevOps, close-out**
+- **The drafts message offers choices:** **1** ✅ Create · **2** 🚀 Create and start · **3** ✏️ Change
+  · **4** 🗑 Discard. People answer with the number, the label or a word. Any other text goes to the
+  agent to revise.
+- **`IWorkItemSource.CreateAsync`:** a JSON-patch `POST …/_apis/wit/workitems/$<type>` with:
+  - title;
+  - description and acceptance criteria as escaped simple HTML (paragraphs, `- ` lists; never raw
+    HTML);
+  - tags;
+  - story points for stories, original estimate and remaining work in hours for tasks;
+  - the repository's first area path;
+  - a parent link (`System.LinkTypes.Hierarchy-Reverse`).
+
+  It's created in the configured organization and project, with the operator's `az login`.
+- **Order:** stories first, then their tasks linked to them. Each description ends with "From agentd
+  idea #N, brainstormed with <author>".
+- **Create and start** also tags the **stories** (and parentless tasks) with `ai-workflow` and the
+  repository's match tag (`repo:<name>`), so the normal polling picks them up. Each becomes its own
+  job thread, with plan approval on. Tasks stay under their story's job.
+- **After creating,** the links are posted, the idea becomes Created (with the work item ids), and
+  the close-out is asked: **1** delete the thread · **2** keep it (archived). If deleting fails (no
+  Manage Threads permission), the thread is archived with a note. The conversation stays in
+  agentd's database either way.
+- **Discard** marks the idea Discarded, creates nothing, and asks the same close-out.
+- **A failure partway through** reports which items were created and where it stopped.

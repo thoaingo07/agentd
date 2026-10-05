@@ -69,6 +69,52 @@ public sealed class AzureDevOpsWorkItemSource(HttpClient http, IOptions<AzureDev
             item["_links"]?["html"]?["href"]?.GetValue<string>() is { } href ? new Uri(href) : null);
     }
 
+    public async Task<CreatedWorkItem> CreateAsync(NewWorkItem item, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        var patch = new JsonArray();
+        void Field(string name, JsonNode? value)
+        {
+            if (value is not null)
+            {
+                patch.Add(new JsonObject { ["op"] = "add", ["path"] = "/fields/" + name, ["value"] = value });
+            }
+        }
+
+        Field("System.Title", item.Title);
+        Field("System.Description", HtmlText.FromText(item.Description));
+        Field("Microsoft.VSTS.Common.AcceptanceCriteria", HtmlText.FromText(item.AcceptanceCriteria));
+        Field("System.Tags", item.Tags.Count > 0 ? string.Join("; ", item.Tags) : null);
+        Field("System.AreaPath", item.AreaPath);
+        if (item.Estimate is { } estimate)
+        {
+            if (item.Type == "Task")
+            {
+                Field("Microsoft.VSTS.Scheduling.OriginalEstimate", estimate);
+                Field("Microsoft.VSTS.Scheduling.RemainingWork", estimate);
+            }
+            else
+            {
+                Field("Microsoft.VSTS.Scheduling.StoryPoints", estimate);
+            }
+        }
+
+        if (item.ParentId is { } parent)
+        {
+            patch.Add(new JsonObject
+            {
+                ["op"] = "add",
+                ["path"] = "/relations/-",
+                ["value"] = new JsonObject { ["rel"] = "System.LinkTypes.Hierarchy-Reverse", ["url"] = new Uri(http.BaseAddress!, $"{Org}/_apis/wit/workItems/{parent}").ToString() },
+            });
+        }
+
+        var created = await SendAsync(http, HttpMethod.Post, $"{Org}/{Project}/_apis/wit/workitems/${Uri.EscapeDataString(item.Type)}?api-version={ApiVersion}", patch, JsonPatch, cancellationToken).ConfigureAwait(false)
+            ?? throw new InvalidOperationException("Azure DevOps returned no work item.");
+        var html = created["_links"]?["html"]?["href"]?.GetValue<string>();
+        return new CreatedWorkItem(created["id"]!.GetValue<int>(), html is null ? null : new Uri(html));
+    }
+
     public async Task<bool> TryClaimAsync(int id, int rev, string claimTag, CancellationToken cancellationToken)
     {
         var current = await GetAsync(id, cancellationToken).ConfigureAwait(false);

@@ -79,13 +79,78 @@ public sealed class IdeaServiceTests
         Assert.IsEmpty(h.Chat.Opened);
     }
 
+    [TestMethod]
+    public async Task Create_and_start_makes_the_story_then_its_tasks_and_tags_the_story_for_agentd()
+    {
+        var h = new Harness();
+        var idea = await h.ProposedAsync();
+
+        Assert.IsTrue(await h.Service.HandleMessageAsync(idea, "tngo", "2", default));
+
+        CollectionAssert.AreEqual(new[] { "User Story:Dark mode:", "Task:Tokens:9001", "Task:Toggle:9001" }, h.WorkItems.Created.Select(c => $"{c.Type}:{c.Title}:{c.ParentId}").ToArray());
+        CollectionAssert.AreEqual(new[] { "ui", "ai-workflow", "repo:sysmin" }, h.WorkItems.Created[0].Tags.ToArray(), "agentd picks the story up");
+        Assert.IsEmpty(h.WorkItems.Created[1].Tags, "tasks belong to the story's job");
+        Assert.AreEqual("Portal\\Platform", h.WorkItems.Created[0].AreaPath, "the repository's area path");
+        StringAssert.Contains(h.WorkItems.Created[0].Description, "From agentd idea #1");
+        Assert.AreEqual(IdeaStatus.Created, h.Store.Rows[1].Status);
+        CollectionAssert.AreEqual(new[] { 9001, 9002, 9003 }, h.Store.Rows[1].CreatedWorkItems.ToArray());
+        StringAssert.Contains(h.Chat.SentText[^2], "User Story #9001:** Dark mode (https://dev.azure.com/ermsystem/Portal/_workitems/edit/9001)");
+        StringAssert.Contains(h.Chat.SentText[^2], "Tagged `ai-workflow`");
+        StringAssert.Contains(h.Chat.SentText[^1], "Delete this thread?");
+    }
+
+    [TestMethod]
+    public async Task Create_without_start_adds_no_agentd_tags_and_change_asks_for_details()
+    {
+        var h = new Harness();
+        var idea = await h.ProposedAsync();
+
+        await h.Service.HandleMessageAsync(idea, "tngo", "3", default);
+        Assert.IsEmpty(h.WorkItems.Created);
+        StringAssert.Contains(h.Chat.SentText.Last(), "Tell me what to change");
+
+        await h.Service.HandleMessageAsync(h.Store.Rows[1], "tngo", "✅ Create", default);
+        Assert.IsFalse(h.WorkItems.Created.SelectMany(c => c.Tags).Contains("ai-workflow"));
+    }
+
+    [TestMethod]
+    public async Task Discard_creates_nothing_then_the_close_out_deletes_the_thread()
+    {
+        var h = new Harness();
+        var idea = await h.ProposedAsync();
+
+        await h.Service.HandleMessageAsync(idea, "tngo", "discard", default);
+        Assert.AreEqual(IdeaStatus.Discarded, h.Store.Rows[1].Status);
+        StringAssert.Contains(h.Chat.SentText.Last(), "Delete this thread?");
+
+        Assert.IsTrue(await h.Service.HandleMessageAsync(h.Store.Rows[1], "tngo", "1", default));
+
+        Assert.AreEqual(IdeaStatus.Closed, h.Store.Rows[1].Status);
+        CollectionAssert.Contains(h.Chat.DeletedThreads, idea.ThreadId);
+        Assert.IsEmpty(h.WorkItems.Created);
+    }
+
+    [TestMethod]
+    public async Task While_proposed_other_text_goes_to_the_agent_to_revise()
+    {
+        var h = new Harness();
+        var idea = await h.ProposedAsync();
+        h.Agent.Replies.Enqueue("Revised.");
+
+        await h.Service.HandleMessageAsync(idea, "tngo", "split the toggle into two tasks", default);
+        await h.WaitForSentAsync(3);
+
+        Assert.AreEqual("tngo: split the toggle into two tasks", h.Agent.Turns.Last().Prompt);
+        Assert.IsEmpty(h.WorkItems.Created);
+    }
+
     private sealed class Harness
     {
         public Harness()
         {
             var options = Microsoft.Extensions.Options.Options.Create(new MessagingOptions());
             options.Value.Providers["discord"] = new MessagingProviderSettings { Enabled = true };
-            Service = new IdeaService(Store, Registry, Worktrees, Agent, new MessagingProviderRegistry([Chat], options), NullLogger<IdeaService>.Instance);
+            Service = new IdeaService(Store, Registry, Worktrees, Agent, new MessagingProviderRegistry([Chat], options), NullLogger<IdeaService>.Instance, WorkItems);
         }
 
         public FakeChat Chat { get; } = new("discord");
@@ -95,6 +160,18 @@ public sealed class IdeaServiceTests
         public FakeWorktrees Worktrees { get; } = new();
 
         public Agent Agent { get; } = new();
+
+        public FakeWorkItems WorkItems { get; } = new();
+
+        /// <summary>An idea whose agent proposed a story with two tasks.</summary>
+        public async Task<Idea> ProposedAsync()
+        {
+            Agent.Replies.Enqueue("Plan.\n```work-items\n[{\"type\":\"User Story\",\"title\":\"Dark mode\",\"estimate\":5,\"tags\":[\"ui\"]}," +
+                "{\"type\":\"Task\",\"title\":\"Tokens\",\"estimate\":4,\"parent\":0},{\"type\":\"Task\",\"title\":\"Toggle\",\"estimate\":3,\"parent\":0}]\n```");
+            await Service.StartAsync(ProviderKey.From("discord"), "tngo", "dark mode", null, default);
+            await WaitForSentAsync(2);
+            return Store.Rows[1];
+        }
 
         public Store Store { get; } = new();
 

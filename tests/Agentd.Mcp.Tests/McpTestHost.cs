@@ -166,6 +166,8 @@ internal sealed class McpTestHost : IAsyncDisposable
         public Task<bool> TryClaimAsync(int id, int rev, string claimTag, CancellationToken cancellationToken) => throw new NotSupportedException();
 
         public Task AddCommentAsync(int id, string text, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task<CreatedWorkItem> CreateAsync(NewWorkItem item, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 
     /// <summary>Stands in for push + PR creation: completes the job with a fixed PR URL.</summary>

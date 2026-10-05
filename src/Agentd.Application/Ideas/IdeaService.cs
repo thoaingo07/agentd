@@ -21,7 +21,8 @@ public sealed partial class IdeaService(
     IWorktreeManager worktrees,
     IBrainstormAgent agent,
     IMessagingProviderRegistry providers,
-    ILogger<IdeaService> logger) : IDisposable
+    ILogger<IdeaService> logger,
+    IWorkItemSource? workItems = null) : IDisposable
 {
     public const int MaxConcurrentIdeas = 2;
     public const int TitleLength = 60;
@@ -88,10 +89,32 @@ public sealed partial class IdeaService(
         return $"⚙️ From my next reply: model **{updated.Model ?? "default"}**, effort **{updated.Effort ?? "default"}**.";
     }
 
+    public const string LabelCreate = "✅ Create";
+    public const string LabelStart = "🚀 Create and start";
+    public const string LabelChange = "✏️ Change";
+    public const string LabelDiscard = "🗑 Discard";
+    public const string LabelDelete = "🗑 Delete thread";
+    public const string LabelKeep = "📦 Keep (archive)";
+
     /// <summary>A message in an idea's thread. Returns false when the idea no longer takes messages.</summary>
     public async Task<bool> HandleMessageAsync(Idea idea, string author, string text, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(idea);
+        ArgumentNullException.ThrowIfNull(text);
+        var answer = text.Trim().TrimEnd('.', '!');
+        if (idea.Status is IdeaStatus.Created or IdeaStatus.Discarded && CloseOutAnswer(answer) is { } delete)
+        {
+            await CloseOutAsync(idea, delete, author, ct).ConfigureAwait(false);
+            return true;
+        }
+
+        if (idea.Status == IdeaStatus.Proposed && Choice(answer) is { } choice)
+        {
+            await ideas.AddMessageAsync(idea.Id, "in", author, answer, ct).ConfigureAwait(false);
+            await ChooseAsync(idea, choice, author, ct).ConfigureAwait(false);
+            return true;
+        }
+
         if (idea.Status is IdeaStatus.Closed or IdeaStatus.Discarded or IdeaStatus.Created)
         {
             await PostAsync(idea, new OutboundMessage(MessageKind.Info, "This idea is finished, so I didn't pass your message on. Start a new one with `!idea <text>`."), ct).ConfigureAwait(false);
@@ -206,11 +229,127 @@ public sealed partial class IdeaService(
         if (drafts is not null)
         {
             await PostAsync(idea, new OutboundMessage(MessageKind.Question,
-                WorkItemDrafts.Render(drafts) + "\n\nReply with changes and I'll revise them. Creating them in Azure DevOps comes in the next update."), ct).ConfigureAwait(false);
+                WorkItemDrafts.Render(drafts) + "\n\n**1** create them in Azure DevOps · **2** create and start (agentd picks them up) · **3** change · **4** discard. Or just tell me what to change.",
+                [new MessageOption("idea-create", LabelCreate), new MessageOption("idea-start", LabelStart), new MessageOption("idea-change", LabelChange), new MessageOption("idea-discard", LabelDiscard)]), ct).ConfigureAwait(false);
         }
         else if (problem is not null)
         {
             Enqueue(idea.Id, $"(agentd) Your work-items block couldn't be read: {problem}. Send the corrected block.");
+        }
+    }
+
+    private enum IdeaChoice
+    {
+        Create,
+        Start,
+        Change,
+        Discard,
+    }
+
+    private static IdeaChoice? Choice(string answer) =>
+        Is(answer, "1", "create", LabelCreate) ? IdeaChoice.Create
+        : Is(answer, "2", "start", "create and start", LabelStart) ? IdeaChoice.Start
+        : Is(answer, "3", "change", LabelChange) ? IdeaChoice.Change
+        : Is(answer, "4", "discard", LabelDiscard) ? IdeaChoice.Discard
+        : null;
+
+    /// <summary>true = delete the thread, false = keep (archive), null = not a close-out answer.</summary>
+    private static bool? CloseOutAnswer(string answer) =>
+        Is(answer, "1", "delete", LabelDelete) ? true : Is(answer, "2", "keep", "archive", LabelKeep) ? false : null;
+
+    private static bool Is(string answer, params string[] options) => options.Any(o => string.Equals(answer, o, StringComparison.OrdinalIgnoreCase));
+
+    private async Task ChooseAsync(Idea idea, IdeaChoice choice, string author, CancellationToken ct)
+    {
+        switch (choice)
+        {
+            case IdeaChoice.Change:
+                await PostAsync(idea, new OutboundMessage(MessageKind.Info, "✏️ Tell me what to change, and I'll send a revised list."), ct).ConfigureAwait(false);
+                return;
+            case IdeaChoice.Discard:
+                await ideas.SaveAsync(idea with { Status = IdeaStatus.Discarded }, ct).ConfigureAwait(false);
+                await PostAsync(idea, new OutboundMessage(MessageKind.Info, $"🗑 Discarded by {author}; nothing was created."), ct).ConfigureAwait(false);
+                await AskCloseOutAsync(idea, ct).ConfigureAwait(false);
+                return;
+            default:
+                await CreateAsync(idea, start: choice == IdeaChoice.Start, author, ct).ConfigureAwait(false);
+                return;
+        }
+    }
+
+    /// <summary>Creates the drafts in Azure DevOps: stories first, then tasks linked to them; "start" adds the tags agentd polls for.</summary>
+    private async Task CreateAsync(Idea idea, bool start, string author, CancellationToken ct)
+    {
+        if (workItems is null || idea.Drafts is not { Count: > 0 } drafts
+            || await repositories.GetAsync(RepositoryName.From(idea.Repository), ct).ConfigureAwait(false) is not { } repo)
+        {
+            await PostAsync(idea, new OutboundMessage(MessageKind.Info, "I can't create work items here (no drafts, or Azure DevOps isn't configured)."), ct).ConfigureAwait(false);
+            return;
+        }
+
+        var startTags = start ? new[] { "ai-workflow", repo.MatchTag ?? $"repo:{repo.Name}" } : [];
+        var ids = new Dictionary<int, CreatedWorkItem>();
+        var order = drafts.Select((d, i) => (d, i)).OrderBy(x => x.d.Parent is null ? 0 : 1).ToList();
+        string? failure = null;
+        foreach (var (draft, index) in order)
+        {
+            var tags = (draft.Tags ?? []).Concat(draft.Parent is null ? startTags : []).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            var description = $"{draft.Description}\n\nFrom agentd idea #{idea.Id}, brainstormed with {idea.Author}.".Trim();
+            try
+            {
+                ids[index] = await workItems.CreateAsync(new NewWorkItem(draft.Type, draft.Title, description, draft.AcceptanceCriteria, tags, draft.Estimate,
+                    draft.Parent is { } p && ids.TryGetValue(p, out var parent) ? parent.Id : null, repo.MatchAreaPaths.Count > 0 ? repo.MatchAreaPaths[0] : null), ct).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                failure = $"\"{draft.Title}\": {ex.Message}";
+                break;
+            }
+        }
+
+        var created = drafts.Select((d, i) => (d, i)).Where(x => ids.ContainsKey(x.i)).ToList();
+        await ideas.SaveAsync(idea with { Status = created.Count > 0 ? IdeaStatus.Created : idea.Status, CreatedWorkItems = [.. ids.Values.Select(c => c.Id)] }, ct).ConfigureAwait(false);
+        var lines = created.Select(x => $"{(x.d.Parent is null ? "- " : "    - ")}**{x.d.Type} #{ids[x.i].Id}:** {x.d.Title}{(ids[x.i].Url is { } u ? $" ({u})" : string.Empty)}");
+        var text = $"✅ **Created in Azure DevOps** by {author}:\n{string.Join('\n', lines)}"
+            + (start ? $"\n\n🚀 Tagged `ai-workflow` and `{startTags[1]}`: agentd picks them up at its next poll and opens a thread for each, with the plan for your approval." : string.Empty)
+            + (failure is null ? string.Empty : $"\n\n⚠️ Stopped at {failure}. The items above were created; add the rest by hand or start a new idea.");
+        await PostAsync(idea, new OutboundMessage(MessageKind.Result, created.Count > 0 ? text : $"⚠️ Nothing was created: {failure}"), ct).ConfigureAwait(false);
+        if (created.Count > 0)
+        {
+            await AskCloseOutAsync(idea, ct).ConfigureAwait(false);
+        }
+    }
+
+    private Task AskCloseOutAsync(Idea idea, CancellationToken ct) =>
+        PostAsync(idea, new OutboundMessage(MessageKind.Question, "🧹 **All done.** Delete this thread? **1** delete · **2** keep it (archived). The conversation stays in agentd either way.",
+            [new MessageOption("idea-delete", LabelDelete), new MessageOption("idea-keep", LabelKeep)]), ct);
+
+    private async Task CloseOutAsync(Idea idea, bool delete, string author, CancellationToken ct)
+    {
+        await ideas.SaveAsync(idea with { Status = IdeaStatus.Closed }, ct).ConfigureAwait(false);
+        var provider = providers.Resolve(idea.Provider);
+        var thread = new ConversationRef(idea.Provider, idea.ThreadId, idea.SpaceId);
+        try
+        {
+            if (delete)
+            {
+                await provider.DeleteConversationAsync(thread, ct).ConfigureAwait(false);
+                return;
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            LogPostFailed(logger, ex, idea.Id);
+            await PostAsync(idea, new OutboundMessage(MessageKind.Info, "I couldn't delete this thread (the bot may lack the Manage Threads permission), so I archived it."), ct).ConfigureAwait(false);
+        }
+
+        try
+        {
+            await provider.CloseConversationAsync(thread, $"Closed by {author}", ct).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            LogPostFailed(logger, ex, idea.Id);
         }
     }
 

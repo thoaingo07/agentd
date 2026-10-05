@@ -142,6 +142,15 @@ internal sealed class FakeWorkItems : IWorkItemSource
         return Task.CompletedTask;
     }
 
+    public List<NewWorkItem> Created { get; } = [];
+
+    public Task<CreatedWorkItem> CreateAsync(NewWorkItem item, CancellationToken cancellationToken)
+    {
+        Created.Add(item);
+        var id = 9000 + Created.Count;
+        return Task.FromResult(new CreatedWorkItem(id, new Uri($"https://dev.azure.com/ermsystem/Portal/_workitems/edit/{id}")));
+    }
+
     public WorkItemDetails Add(int id, string title = "Fix login", string areaPath = "Portal\\Platform", params string[] tags)
     {
         var item = new WorkItemDetails(id, 3, title, "Active", areaPath, tags.Length == 0 ? ["ai-workflow"] : tags,
