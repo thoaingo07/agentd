@@ -48,6 +48,12 @@ public sealed class EventStore(NpgsqlDataSource dataSource) : IEventStore, IEven
         await using var cmd = dataSource.CreateCommand(sql);
         cmd.Parameters.AddRange(parameters);
         await using var r = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
+        return await ReadRowsAsync(r, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>Maps <c>agentd.events</c> rows.</summary>
+    internal static async Task<IReadOnlyList<AgentEventDto>> ReadRowsAsync(NpgsqlDataReader r, CancellationToken ct)
+    {
         var events = new List<AgentEventDto>();
         while (await r.ReadAsync(ct).ConfigureAwait(false))
         {

@@ -152,3 +152,36 @@ public sealed record ConfigVm(
             c.Repositories.Select(r => new RepositoryVm(r.Name, r.Organization, r.Project, r.BaseBranch)).ToList(), c.MessagingProviders);
     }
 }
+
+public sealed record PullRequestLinkVm(long JobId, string Url);
+
+/// <summary>One work item across its jobs (oldest first), with its PRs and chat threads (open or closed).</summary>
+public sealed record WorkItemVm(
+    int WorkItemId,
+    string Title,
+    string Repo,
+    IReadOnlyList<JobSummaryVm> Jobs,
+    IReadOnlyList<PullRequestLinkVm> PullRequests,
+    IReadOnlyList<ConversationVm> Conversations,
+    DateTimeOffset FirstSeenAt,
+    DateTimeOffset LastActivityAt)
+{
+    public static WorkItemVm From(WorkItemSummary w)
+    {
+        ArgumentNullException.ThrowIfNull(w);
+        return new(w.WorkItemId, w.Title, w.Repository, w.Jobs.Select(JobSummaryVm.From).ToList(),
+            w.PullRequests.Select(p => new PullRequestLinkVm(p.JobId, p.Url)).ToList(),
+            w.Conversations.Select(c => new ConversationVm(c.Provider, c.Link, c.Open)).ToList(),
+            w.FirstSeenAt, w.LastActivityAt);
+    }
+}
+
+/// <summary>A conversation line: <c>direction</c> is <c>out</c> (agentd) or <c>in</c> (a developer's reply or command, by <c>author</c>).</summary>
+public sealed record ConversationEntryVm(DateTimeOffset At, long? JobId, string Direction, string Kind, string Text, string? Provider, string? Author, string? Status, string? Error)
+{
+    public static ConversationEntryVm From(ConversationEntry e)
+    {
+        ArgumentNullException.ThrowIfNull(e);
+        return new(e.At, e.JobId, e.Direction, e.Kind, e.Text, e.Provider, e.From, e.Status, e.Error);
+    }
+}

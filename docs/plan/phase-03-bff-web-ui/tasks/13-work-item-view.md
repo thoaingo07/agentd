@@ -52,3 +52,50 @@ several jobs and PRs, and its chat thread may already be deleted.
 ## Done when
 - [ ] #5613's page shows all three jobs, both PRs, the hand-off and the close-out, with the full
   conversation, even though its thread is deleted.
+
+## As built
+T3.13 is split in two PRs, so each stays under 1,000 lines.
+
+**T3.13a: backend (this PR)**
+- **Routines** (`Routines/workitem/workitem_history.sql`):
+  - `job_list_by_work_item`: oldest first.
+  - `event_list_by_work_item`: keyset by `seq`; `after` ascending, `before` newest first, then
+    reversed. Since T3.4, `seq` order is commit order, so `(seq)` is enough and no `(created, seq)`
+    key is needed.
+  - `outbox_list_by_work_item`: every provider, with delivery status. Heartbeats
+    (`replaceStatusMessage`) are left out.
+  - The planned file names are merged into one file, and there's no separate inbound-message
+    routine: inbound rows don't store text. Replies come from `DeveloperReplied`, as planned.
+- **Migration** `202610090001_work_item_history`: `ix_jobs_work_item (work_item_id, created_at)` and
+  `ix_outbound_job (job_id, created_at)`.
+- **Port and store:** `IWorkItemHistory` (`ListJobsAsync`, `ReadEventsAsync`, `ListPostedAsync`)
+  with `WorkItemHistoryStore`.
+- **Queries:** in `Application/Queries/WorkItemQueries.cs`.
+  - `GetWorkItem`: jobs, the distinct PRs (one per job URL: the code PR and the knowledge sync PR),
+    and every conversation link, open or closed, plus the first-seen and last-activity times.
+  - `GetWorkItemTimeline`: event pages with `hasMore`.
+  - `GetWorkItemConversation`: posted messages, plus `DeveloperReplied` and `chat.command` events,
+    merged in time order. At most 2,000 posted messages; it scans up to 50,000 events for replies.
+- **Endpoints:** `GET /api/workitems/{id}` (404 when agentd has no job for it),
+  `/api/workitems/{id}/timeline?after|before&limit`, and `/api/workitems/{id}/conversation`.
+  - The conversation has its own endpoint instead of being interleaved in the timeline. Chat lines
+    and events are paged differently, and the UI merges them per tab.
+  - In the view model, the writer of a reply is `author`, because `From` is the factory method.
+- **`chat.command` events:** `ChatCommands` records each command typed in a job's thread (`name`,
+  `args`, `text`, `user`, `provider`) before running it. A failure to record is logged and doesn't
+  stop the command. Commands outside a thread have no job, and aren't recorded.
+- **Tests:**
+  - Infrastructure: events of three jobs of one work item (plus another work item's) come back in
+    order, and paging is stable both ways; posted messages keep their delivery status, and
+    heartbeats are skipped.
+  - Application: the conversation merges both directions in time order (provider, error, author);
+    timeline `hasMore`; a command in a thread is recorded.
+  - Bff: summary, conversation, 404, and `after`+`before` → 400.
+- **Checked on the demo database:** `/api/workitems/5613` shows jobs 1–3 (Done), PRs #3935 and
+  #3936, and both Discord threads (closed: the thread was deleted). The conversation has 33 entries
+  with the 5 replies, ending with the hand-off and close-out.
+
+**T3.13b: the screen (next)**
+- `WorkItemView` with tabs (Timeline with a section per job, Conversation with a composer, Activity,
+  PRs, Plan & usage), the `workItems` store with live updates, and links from History and the
+  Session header.

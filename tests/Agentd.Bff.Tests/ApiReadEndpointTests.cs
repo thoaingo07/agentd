@@ -118,6 +118,25 @@ public sealed class ApiReadEndpointTests
     }
 
     [TestMethod]
+    public async Task A_work_item_lists_its_jobs_prs_and_threads_and_its_conversation()
+    {
+        await using var app = await StartAsync();
+
+        var wi = await GetJsonAsync(app, "/api/workitems/5613");
+        var conversation = await GetJsonAsync(app, "/api/workitems/5613/conversation");
+        using var missing = await app.GetTestClient().GetAsync(new Uri("/api/workitems/1", UriKind.Relative));
+        using var both = await app.GetTestClient().GetAsync(new Uri("/api/workitems/5613/timeline?after=1&before=5", UriKind.Relative));
+
+        Assert.AreEqual(7, wi.GetProperty("jobs")[0].GetProperty("id").GetInt64());
+        Assert.AreEqual("https://dev.azure.com/ermsystem/Portal/_git/sysmin/pullrequest/3936", wi.GetProperty("pullRequests")[0].GetProperty("url").GetString());
+        Assert.IsFalse(wi.GetProperty("conversations")[0].GetProperty("open").GetBoolean(), "a deleted thread is still listed");
+        Assert.AreEqual("in", conversation[0].GetProperty("direction").GetString());
+        Assert.AreEqual("tngo", conversation[0].GetProperty("author").GetString());
+        Assert.AreEqual(HttpStatusCode.NotFound, missing.StatusCode);
+        Assert.AreEqual(HttpStatusCode.BadRequest, both.StatusCode);
+    }
+
+    [TestMethod]
     public async Task History_validates_states_and_paging()
     {
         await using var app = await StartAsync();
@@ -156,6 +175,12 @@ public sealed class ApiReadEndpointTests
         builder.Services.AddSingleton<ILiveEvents>(new EventHub(Microsoft.Extensions.Logging.Abstractions.NullLogger<EventHub>.Instance));
         builder.Services.AddSingleton<IQueryHandler<GetConfigSummary, ConfigSummary>>(new Fixed<GetConfigSummary, ConfigSummary>(_ =>
             new ConfigSummary("ai-workflow", "ai-in-progress", TimeSpan.FromMinutes(1), 2, true, true, true, [new RepositorySummary("sysmin", "ermsystem", "Portal", "develop")], ["discord"])));
+        builder.Services.AddSingleton<IQueryHandler<GetWorkItem, WorkItemSummary?>>(new Fixed<GetWorkItem, WorkItemSummary?>(q => q.WorkItemId.Value != 5613 ? null :
+            new WorkItemSummary(5613, "Refine the AGENTS.md", "sysmin", [s_waiting], [new PullRequestLink(7, "https://dev.azure.com/ermsystem/Portal/_git/sysmin/pullrequest/3936")],
+                [new ConversationLink("discord", new Uri("https://discord.com/channels/1/2"), false)], DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch)));
+        builder.Services.AddSingleton<IQueryHandler<GetWorkItemConversation, IReadOnlyList<ConversationEntry>>>(new Fixed<GetWorkItemConversation, IReadOnlyList<ConversationEntry>>(_ =>
+            [new ConversationEntry(DateTimeOffset.UnixEpoch, 7, "in", "reply", "v2", "discord", "tngo", null, null)]));
+        builder.Services.AddSingleton<IQueryHandler<GetWorkItemTimeline, EventPage>>(new Fixed<GetWorkItemTimeline, EventPage>(_ => new EventPage([], null, null, false)));
         var app = builder.Build();
         if (remote is not null)
         {

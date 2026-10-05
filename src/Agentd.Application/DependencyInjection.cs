@@ -36,6 +36,9 @@ public static class DependencyInjection
         services.AddScoped<IQueryHandler<GetJob, JobDetail?>, GetJobHandler>();
         services.AddScoped<IQueryHandler<GetJobEvents, EventPage>, GetJobEventsHandler>();
         services.AddScoped<IQueryHandler<GetConfigSummary, ConfigSummary>, GetConfigSummaryHandler>();
+        services.AddScoped<IQueryHandler<GetWorkItem, WorkItemSummary?>, GetWorkItemHandler>();
+        services.AddScoped<IQueryHandler<GetWorkItemTimeline, EventPage>, GetWorkItemTimelineHandler>();
+        services.AddScoped<IQueryHandler<GetWorkItemConversation, IReadOnlyList<ConversationEntry>>, GetWorkItemConversationHandler>();
         services.AddScoped<IQueryHandler<GetJobEventDetail, AgentEventDto?>, GetJobEventDetailHandler>();
         services.AddScoped<IQueryHandler<SearchHistory, HistoryPage>, SearchHistoryHandler>();
         services.AddScoped<IQueryHandler<GetJobDiff, Result<BranchDiff>>, GetJobDiffHandler>();

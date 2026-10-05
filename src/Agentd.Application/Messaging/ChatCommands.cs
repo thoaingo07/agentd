@@ -33,8 +33,12 @@ public sealed partial class ChatCommands(
     ITranscriptReader transcripts,
     IOutbox outbox,
     IMessagingProviderRegistry providers,
-    ILogger<ChatCommands> logger)
+    ILogger<ChatCommands> logger,
+    IEventStore? events = null)
 {
+    /// <summary>Commands typed in a job's thread are recorded, so the work item conversation shows both directions.</summary>
+    public const string CommandEventType = "chat.command";
+
     public const int LogLines = 200;
 
     /// <summary>The command list alone (the reply to an unknown command).</summary>
@@ -83,6 +87,11 @@ public sealed partial class ChatCommands(
         var command = message.Command!;
         var name = command.Name.ToLowerInvariant();
         var job = conversation?.JobId;
+        if (job is { } recorded && events is not null)
+        {
+            await RecordAsync(recorded, message, command, user, ct).ConfigureAwait(false);
+        }
+
         OutboundMessage reply;
         switch (name)
         {
@@ -134,6 +143,19 @@ public sealed partial class ChatCommands(
 
         await ReplyAsync(message, job, reply, ct).ConfigureAwait(false);
         return new InboundOutcome($"command:{(name is "list" or "run" or "status" or "cancel" or "retry" or "logs" or "handoff" or "help" ? name : "unknown")}", job);
+    }
+
+    private async Task RecordAsync(JobId job, InboundMessage message, InboundCommand command, AgentdUser user, CancellationToken ct)
+    {
+        try
+        {
+            var payload = System.Text.Json.JsonSerializer.Serialize(new { name = command.Name, args = command.Args, text = message.Text, user = user.Name, provider = message.Provider.Value });
+            await events!.AppendAsync(job, CommandEventType, payload, ct).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            LogRecordFailed(logger, ex, command.Name);   // the command still runs
+        }
     }
 
     private async Task<OutboundMessage> ListAsync(ProviderKey provider, CancellationToken ct)
@@ -240,6 +262,9 @@ public sealed partial class ChatCommands(
         t.TotalHours >= 1
             ? string.Create(CultureInfo.InvariantCulture, $"{(int)t.TotalHours}h{t.Minutes:00}m")
             : string.Create(CultureInfo.InvariantCulture, $"{(int)t.TotalMinutes}m");
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Recording the {Command} command failed")]
+    private static partial void LogRecordFailed(ILogger logger, Exception exception, string command);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Replying to a {Provider} command outside a job thread failed")]
     private static partial void LogReplyFailed(ILogger logger, Exception exception, string provider);

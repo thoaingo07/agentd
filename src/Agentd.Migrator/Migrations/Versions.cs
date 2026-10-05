@@ -37,3 +37,6 @@ public sealed class EventsPartitioned : SqlMigration;
 
 [Migration(2026_10_08_0001, "History indexes on jobs.updated_at")]
 public sealed class HistoryIndex : SqlMigration;
+
+[Migration(2026_10_09_0001, "Work item history indexes")]
+public sealed class WorkItemHistory : SqlMigration;
