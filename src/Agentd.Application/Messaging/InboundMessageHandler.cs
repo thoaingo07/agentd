@@ -157,7 +157,8 @@ public sealed partial class InboundMessageHandler(
         JobState.Queued or JobState.Preparing => "⏳ This job hasn't started yet, so your message wasn't delivered. Send it again once the agent is working (you'll see it here).",
         JobState.Publishing => "📤 agentd is pushing and opening the pull request right now. Send your message again in a moment; during review it starts a fix round.",
         JobState.Failed => "❌ This job failed, so your message wasn't delivered. Use `!retry` to run it again (it resumes where it stopped), then send your message.",
-        JobState.Cancelled => "🚫 This job was cancelled, so your message wasn't delivered. Use `!run <work item id>` to start a new run.",
+        JobState.Paused => "⏸ This job is paused, so your message wasn't delivered. `!resume` continues it, then send your message.",
+        JobState.Cancelled => "🚫 This job was cancelled, so your message wasn't delivered. `!retry` resumes it where it stopped, or `!run <work item id>` starts a new run.",
         JobState.Done => "✅ This job is done, so your message wasn't delivered. For more changes, use `!run <work item id>` to start a new run.",
         _ => "This job can't take messages right now, so your message wasn't delivered.",
     };

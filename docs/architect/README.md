@@ -257,11 +257,16 @@ stateDiagram-v2
     Running --> Failed: crash / timeout / max turns
     WaitingForHuman --> Failed: wait timeout
     Failed --> Queued: !retry
+    Cancelled --> Queued: !retry (resumes the session on the kept branch)
+    Queued --> Paused: !pause
+    Running --> Paused: !pause (agent stopped, worktree kept)
+    WaitingForHuman --> Paused: !pause
+    Paused --> Queued: !resume (same session)
+    Paused --> Cancelled: !cancel
     Queued --> Cancelled: !cancel / tag removed
     Running --> Cancelled
     WaitingForHuman --> Cancelled
     Done --> [*]
-    Cancelled --> [*]
 ```
 
 **Job record** (PostgreSQL `agentd.jobs` table, accessed via `agentd.job_*` functions):

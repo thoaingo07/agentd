@@ -186,7 +186,7 @@ onBeforeUnmount(() => {
           >Pull request ↗</a>
           <span class="flex-1" />
           <AgButton
-            v-if="job.state === 'Failed'"
+            v-if="job.state === 'Failed' || job.state === 'Cancelled'"
             size="sm"
             variant="outline"
             :loading="jobs.pending.has(id)"
@@ -195,7 +195,24 @@ onBeforeUnmount(() => {
             Retry
           </AgButton>
           <AgButton
-            v-else-if="!final"
+            v-if="job.state === 'Paused'"
+            size="sm"
+            :loading="jobs.pending.has(id)"
+            @click="jobs.resume(id)"
+          >
+            Resume
+          </AgButton>
+          <AgButton
+            v-else-if="['Queued', 'Running', 'WaitingForHuman'].includes(job.state)"
+            size="sm"
+            variant="outline"
+            :loading="jobs.pending.has(id)"
+            @click="jobs.pause(id)"
+          >
+            Pause
+          </AgButton>
+          <AgButton
+            v-if="!final"
             size="sm"
             variant="error"
             :loading="jobs.pending.has(id)"

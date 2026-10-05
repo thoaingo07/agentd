@@ -66,7 +66,7 @@ export const useJobsStore = defineStore('jobs', () => {
   }
 
   /** Optimistic: shows the new state at once, rolls back (with a toast) if the server says no. */
-  async function act(id: number, action: 'cancel' | 'retry', optimistic: JobState): Promise<void> {
+  async function act(id: number, action: 'cancel' | 'retry' | 'pause' | 'resume', optimistic: JobState): Promise<void> {
     const before = byId.get(id)
     pending.add(id)
     if (before) byId.set(id, { ...before, state: optimistic })
@@ -82,6 +82,8 @@ export const useJobsStore = defineStore('jobs', () => {
 
   const cancel = (id: number) => act(id, 'cancel', 'Cancelled')
   const retry = (id: number) => act(id, 'retry', 'Queued')
+  const pause = (id: number) => act(id, 'pause', 'Paused')
+  const resume = (id: number) => act(id, 'resume', 'Queued')
 
-  return { byId, details, pending, active, waitingCount, stats, load, refresh, apply, cancel, retry }
+  return { byId, details, pending, active, waitingCount, stats, load, refresh, apply, cancel, retry, pause, resume }
 })

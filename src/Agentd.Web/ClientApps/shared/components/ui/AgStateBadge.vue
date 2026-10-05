@@ -15,6 +15,7 @@ const map: Record<JobState, { cls: string; label: string; icon: IconName | 'dot'
   InReview: { cls: 'badge-accent badge-soft', label: 'In review', icon: 'eye' },
   Done: { cls: 'badge-success', label: 'Done', icon: 'check' },
   Failed: { cls: 'badge-error', label: 'Failed', icon: 'x-octagon' },
+  Paused: { cls: 'badge-neutral badge-soft', label: 'Paused', icon: 'pause' },
   Cancelled: { cls: 'badge-ghost text-muted', label: 'Cancelled', icon: 'slash' },
 }
 const view = computed(() => map[props.state])

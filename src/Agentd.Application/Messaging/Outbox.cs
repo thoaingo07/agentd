@@ -75,6 +75,8 @@ public static class JobEventMessages
             string.Create(CultureInfo.InvariantCulture, $"Publishing failed (attempt {e.Attempt}): {e.Reason}. Retrying at {e.RetryAt:HH:mm} UTC."))),
         JobFailed e => new(MessageCatalog.Failed(e.Reason)),
         JobCancelled e => new(MessageCatalog.Cancelled(e.By)),
+        JobPaused e => new(new OutboundMessage(MessageKind.Info, $"⏸ **Paused** by {e.By}. Everything is kept; `!resume` continues the same session where it stopped.")),
+        JobResumed e => new(new OutboundMessage(MessageKind.Info, $"▶️ **Resumed** by {e.By}. The agent continues where it stopped.")),
         JobDeferred e => new(MessageCatalog.Deferred(e.NotBefore, e.Reason)),
         JobRecovered => new(new OutboundMessage(MessageKind.Info, "agentd restarted; the agent is resuming where it left off.")),
         DeveloperQuestionAsked e => new(MessageCatalog.Question(e.Question, Options(e.Options))),

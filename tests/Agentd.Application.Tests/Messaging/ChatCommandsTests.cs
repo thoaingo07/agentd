@@ -47,6 +47,22 @@ public sealed class ChatCommandsTests
     }
 
     [TestMethod]
+    public async Task Pause_and_resume_change_the_job_and_explain_a_refusal()
+    {
+        var conversation = await JobThreadAsync();
+
+        await Run("pause", conversation);
+        Assert.AreEqual(JobState.Paused, _t.Jobs.Get(conversation.JobId).State);
+        Assert.IsEmpty(_outbox.Enqueued, "the JobPaused event posts the message");
+
+        await Run("pause", conversation);
+        StringAssert.StartsWith(_outbox.Enqueued.Single().Message.Message.Markdown, "Can't pause:");
+
+        await Run("resume", conversation);
+        Assert.AreEqual(JobState.Queued, _t.Jobs.Get(conversation.JobId).State);
+    }
+
+    [TestMethod]
     public async Task Retry_only_works_on_failed_jobs()
     {
         var conversation = await JobThreadAsync();
@@ -193,7 +209,8 @@ public sealed class ChatCommandsTests
         options.Providers["discord"] = new MessagingProviderSettings { Enabled = true };
         var registry = new MessagingProviderRegistry(chat is null ? [] : [chat], Microsoft.Extensions.Options.Options.Create(options));
         return new ChatCommands(t.Jobs, new GetJobStatusHandler(t.Jobs, t.Clock), t.Cancel(), new RetryJobHandler(t.Jobs), t.Claim(), t.StartHandoff(),
-            t.Conversations, transcripts, outbox, registry, NullLogger<ChatCommands>.Instance, t.Events, repositories: t.Registry, addRepository: add);
+            t.Conversations, transcripts, outbox, registry, NullLogger<ChatCommands>.Instance, t.Events, repositories: t.Registry, addRepository: add,
+            pause: new PauseJobHandler(t.Jobs, t.Runner), resume: new ResumeJobHandler(t.Jobs));
     }
 
     private MessagingProviderRegistry Registry() =>

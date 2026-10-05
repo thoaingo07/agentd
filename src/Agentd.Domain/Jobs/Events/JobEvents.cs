@@ -19,6 +19,10 @@ public sealed record JobCancelled(string By, JobState FromState, DateTimeOffset 
 
 public sealed record JobRetried(int Attempt, DateTimeOffset OccurredAt) : IDomainEvent;
 
+public sealed record JobPaused(string By, JobState FromState, DateTimeOffset OccurredAt) : IDomainEvent;
+
+public sealed record JobResumed(string By, DateTimeOffset OccurredAt) : IDomainEvent;
+
 public sealed record JobRecovered(int ResumeCount, DateTimeOffset OccurredAt) : IDomainEvent;
 
 public sealed record JobRequeued(string Reason, DateTimeOffset OccurredAt) : IDomainEvent;
