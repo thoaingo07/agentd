@@ -100,6 +100,19 @@ public sealed class ReviewLoopTests
     }
 
     [TestMethod]
+    public async Task A_chat_message_during_review_starts_a_fix_round_like_a_comment()
+    {
+        var job = await InReviewAsync();
+
+        var outcome = await new SubmitDeveloperMessageHandler(_t.Jobs).Handle(new SubmitDeveloperMessage(job, "also update the README", "tngo"), default);
+
+        Assert.AreEqual(DeveloperMessageOutcome.FixRound, outcome.Value);
+        var j = _t.Jobs.Get(job);
+        Assert.AreEqual((JobState.Running, 1), (j.State, j.FixRounds));
+        CollectionAssert.AreEqual(new[] { "tngo (in chat): also update the README" }, j.PendingMessages.ToArray(), "the agent resumes with it");
+    }
+
+    [TestMethod]
     [DataRow("https://dev.azure.com/ermsystem/Portal/_git/sysmin/pullrequest/3935", 3935)]
     [DataRow("https://dev.azure.com/o/p/_git/r/pullrequest/7/", 7)]
     public void The_pr_id_comes_from_its_url(string url, int id) =>

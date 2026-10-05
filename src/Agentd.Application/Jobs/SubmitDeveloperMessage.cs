@@ -24,6 +24,9 @@ public enum DeveloperMessageOutcome
 
     /// <summary>The developer declined the knowledge sync; the job is done.</summary>
     HandoffDeclined,
+
+    /// <summary>The PR was in review: the message started a fix round, like a review comment.</summary>
+    FixRound,
 }
 
 /// <summary>
@@ -44,6 +47,24 @@ public sealed class SubmitDeveloperMessageHandler(IJobRepository jobs, ICommandH
             if (job is null)
             {
                 return DomainError.NotFound($"Job {command.JobId}");
+            }
+
+            if (job.State == JobState.InReview)
+            {
+                // Feedback on the open PR from chat counts like a review comment: the agent resumes to address it.
+                var started = job.StartFixRound([$"{command.From} (in chat): {command.Text}"], []);
+                var fixSaved = started.IsSuccess ? await jobs.SaveAsync(job, cancellationToken).ConfigureAwait(false) : Result.Fail(started.Error);
+                if (fixSaved.IsSuccess)
+                {
+                    return DeveloperMessageOutcome.FixRound;
+                }
+
+                if (fixSaved.Error.Code != "conflict" || attempt == MaxAttempts)
+                {
+                    return fixSaved.Error;
+                }
+
+                continue;
             }
 
             if (job.State is not (JobState.WaitingForHuman or JobState.Running))

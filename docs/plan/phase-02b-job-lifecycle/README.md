@@ -150,6 +150,13 @@ This is a per-repository allowlist; still no `git push`, since agentd pushes.
 5. **Polish:** limits, resolving agentd's own PR threads, tests against the real ADO API, a live
    demo on a sandbox work item.
 
+### Chat feedback during review (added 2026-10-05)
+
+While the PR is in review, a message in the job's thread starts a **fix round**, like a review comment
+(`tngo (in chat): …` becomes the agent's next turn). Before this, it was refused with "This job doesn't
+take messages right now". In other states that can't take messages (queued, publishing, failed,
+cancelled, done), the reply now says why and what to do instead (`!retry`, `!run <id>`).
+
 ### Progress
 - **PR 1a (#26), merged:** unread messages are returned on every tool call, and `finish` is refused
   until they are read; one thread per work item; start, resume and push notifications.

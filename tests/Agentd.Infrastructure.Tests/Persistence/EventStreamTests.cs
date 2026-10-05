@@ -168,7 +168,14 @@ public sealed class EventStreamTests
         }
 
         await stop.CancelAsync();
-        await Assert.ThrowsAsync<OperationCanceledException>(() => waiting);
+        try
+        {
+            await waiting;   // ends by cancellation, or normally if the cancel lands between two waits
+        }
+        catch (OperationCanceledException)
+        {
+        }
+
         long[] order;
         lock (notified)
         {
