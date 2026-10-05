@@ -79,7 +79,7 @@ public sealed partial class ChatCommands(
         "1. I pick up work items tagged `ai-workflow`, or the one you `run`.",
         "2. Clarify, then **plan**, with a time and usage estimate. Reply `1` or `approve`, or say what to change. The `ai-auto` tag skips the approval.",
         "3. Implement and verify, then open a **pull request**.",
-        "4. **Review loop:** I fix PR comments and reply in their threads until the PR is ready to complete.",
+        "4. **Review loop:** I fix PR comments, or your messages here, until the PR is ready to complete.",
         "5. After the merge, **hand-off:** I propose the knowledge and learnings to sync into the repo. Agree, ask for changes, or decline.",
         "6. **Close-out:** I ask whether to delete this thread (`1` delete, `2` keep).",
         "",

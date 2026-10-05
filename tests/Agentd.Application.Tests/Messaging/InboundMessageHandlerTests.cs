@@ -70,6 +70,8 @@ public sealed class InboundMessageHandlerTests
 
         var reply = _outbox.Enqueued.Single();
         CollectionAssert.AreEqual(new[] { s_discord }, reply.Message.Options!.OnlyProviders!.ToArray());
+        StringAssert.Contains(reply.Message.Message.Markdown, "cancelled", "says why");
+        StringAssert.Contains(reply.Message.Message.Markdown, "!run", "and what to do instead");
     }
 
     [TestMethod]

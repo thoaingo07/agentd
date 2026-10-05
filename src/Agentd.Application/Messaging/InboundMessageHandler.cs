@@ -2,6 +2,7 @@ using Agentd.Application.Abstractions;
 using Agentd.Application.Jobs;
 using Agentd.Application.Ports;
 using Agentd.Application.Users;
+using Agentd.Domain.Jobs;
 using Agentd.Domain.Jobs.ValueObjects;
 using Agentd.Domain.Messaging;
 using Agentd.Domain.Users;
@@ -115,8 +116,9 @@ public sealed partial class InboundMessageHandler(
 
         if (result.Value == DeveloperMessageOutcome.NotAccepted)
         {
+            var state = (await jobs.GetAsync(conversation.JobId, ct).ConfigureAwait(false))?.State;
             await outbox.EnqueueAsync(conversation.JobId,
-                [new OutboxMessage(new OutboundMessage(MessageKind.Info, "This job doesn't take messages right now (it isn't running)."), new EnqueueOptions(OnlyProviders: [message.Provider]))],
+                [new OutboxMessage(new OutboundMessage(MessageKind.Info, NotAcceptedText(state)), new EnqueueOptions(OnlyProviders: [message.Provider]))],
                 ct).ConfigureAwait(false);
             return new InboundOutcome("not_accepted", conversation.JobId);
         }
@@ -135,9 +137,21 @@ public sealed partial class InboundMessageHandler(
         {
             DeveloperMessageOutcome.Resumed => "resumed",
             DeveloperMessageOutcome.HandoffDeclined => "handoff_declined",
+            DeveloperMessageOutcome.FixRound => "fix_round",
             _ => "queued",
         }, conversation.JobId);
     }
+
+    /// <summary>Why the message wasn't delivered, and what to do instead.</summary>
+    internal static string NotAcceptedText(JobState? state) => state switch
+    {
+        JobState.Queued or JobState.Preparing => "⏳ This job hasn't started yet, so your message wasn't delivered. Send it again once the agent is working (you'll see it here).",
+        JobState.Publishing => "📤 agentd is pushing and opening the pull request right now. Send your message again in a moment; during review it starts a fix round.",
+        JobState.Failed => "❌ This job failed, so your message wasn't delivered. Use `!retry` to run it again (it resumes where it stopped), then send your message.",
+        JobState.Cancelled => "🚫 This job was cancelled, so your message wasn't delivered. Use `!run <work item id>` to start a new run.",
+        JobState.Done => "✅ This job is done, so your message wasn't delivered. For more changes, use `!run <work item id>` to start a new run.",
+        _ => "This job can't take messages right now, so your message wasn't delivered.",
+    };
 
     /// <summary>A stranger on a provider that allows everyone: acts under their display name; not stored as a user.</summary>
     private AgentdUser? Guest(InboundMessage message)
