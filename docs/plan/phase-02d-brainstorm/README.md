@@ -162,3 +162,15 @@ Requested on 2026-10-03. Decisions:
   agentd's database either way.
 - **Discard** marks the idea Discarded, creates nothing, and asks the same close-out.
 - **A failure partway through** reports which items were created and where it stopped.
+
+**PR 3: the Ideas page (Web UI)**, in two parts: 3a the API and live events, 3b the pages
+- **`/ideas`:** the newest 200 ideas with status, repo, author, message and draft counts, and the
+  work items they created. **`/ideas/:id`:** model and effort, the latest drafts as stories with their
+  tasks, the created work items, and the whole conversation. Read-only; people continue in chat.
+- **API:** `GET /api/ideas[?workItem=<id>]` and `GET /api/ideas/{id}`, from a new `idea_summaries`
+  routine.
+- **Live:** `idea_message_add` and `idea_update` also write `idea.message` / `idea.updated` events
+  (ids and status only; the text stays in `idea_messages`) with no job, so the page refreshes from the
+  "all" stream. (The planned `idea_id` column on `events` wasn't needed.)
+- **The work item page** links back: "💡 born from idea #N".
+

@@ -260,6 +260,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/ideas": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetIdeas"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ideas/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetIdea"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/workitems/{id}": {
         parameters: {
             query?: never;
@@ -450,6 +482,38 @@ export interface components {
                 [key: string]: string[];
             };
         };
+        IdeaDetailVm: {
+            idea: components["schemas"]["IdeaSummaryVm"];
+            drafts: components["schemas"]["WorkItemDraftVm"][];
+            messages: components["schemas"]["IdeaMessageVm"][];
+        };
+        /** @description One message of the idea's conversation: `in` from a person, `out` from the agent (Markdown). */
+        IdeaMessageVm: {
+            direction: string;
+            author: string;
+            text: string;
+            /** Format: date-time */
+            at: string;
+        };
+        IdeaSummaryVm: {
+            /** Format: int64 */
+            id: number;
+            repo: string;
+            title: string;
+            author: string;
+            status: string;
+            model: null | string;
+            effort: null | string;
+            /** Format: int32 */
+            drafts: number;
+            createdWorkItems: number[];
+            /** Format: int32 */
+            messages: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
         JobDetailVm: {
             job: components["schemas"]["JobSummaryVm"];
             /** Format: int32 */
@@ -562,6 +626,18 @@ export interface components {
             name: string;
             roles: string[];
             provider: string;
+        };
+        /** @description A proposed work item; a task's `parent` is its story's index in the list. */
+        WorkItemDraftVm: {
+            type: string;
+            title: string;
+            description: null | string;
+            acceptanceCriteria: null | string;
+            /** Format: double */
+            estimate: null | number;
+            /** Format: int32 */
+            parent: null | number;
+            tags: string[];
         };
         /** @description One work item across its jobs (oldest first), with its PRs and chat threads (open or closed). */
         WorkItemVm: {
@@ -1126,6 +1202,68 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetIdeas: {
+        parameters: {
+            query?: {
+                workItem?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdeaSummaryVm"][];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    GetIdea: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdeaDetailVm"];
+                };
             };
             /** @description Not Found */
             404: {

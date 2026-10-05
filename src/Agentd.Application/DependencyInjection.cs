@@ -46,6 +46,8 @@ public static class DependencyInjection
         services.AddScoped<ICommandHandler<Permissions.PermissionAnswer, bool>, Permissions.PermissionAnswerHandler>();
         services.AddScoped<IQueryHandler<Permissions.GetPermissionRules, IReadOnlyList<Permissions.PermissionRule>>, Permissions.GetPermissionRulesHandler>();
         services.AddScoped<ICommandHandler<Permissions.RevokePermissionRule, Unit>, Permissions.RevokePermissionRuleHandler>();
+        services.AddScoped<IQueryHandler<GetIdeas, IReadOnlyList<Ideas.IdeaSummary>>, GetIdeasHandler>();
+        services.AddScoped<IQueryHandler<GetIdea, IdeaDetail?>, GetIdeaHandler>();
         services.AddScoped<IQueryHandler<GetWorkItem, WorkItemSummary?>, GetWorkItemHandler>();
         services.AddScoped<IQueryHandler<GetWorkItemTimeline, EventPage>, GetWorkItemTimelineHandler>();
         services.AddScoped<IQueryHandler<GetWorkItemConversation, IReadOnlyList<ConversationEntry>>, GetWorkItemConversationHandler>();

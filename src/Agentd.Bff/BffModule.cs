@@ -103,6 +103,7 @@ public static class BffModule
         api.MapJobActions();
         api.MapConfig();
         api.MapPermissions();
+        api.MapIdeas();
         api.MapWorkItems();
         endpoints.MapHub<EventsHub>(EventsHub.Path).RequireAuthorization();
         return api;

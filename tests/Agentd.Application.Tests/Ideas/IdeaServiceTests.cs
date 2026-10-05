@@ -236,5 +236,11 @@ public sealed class IdeaServiceTests
         }
 
         public Task<IReadOnlyList<IdeaMessage>> ListMessagesAsync(long ideaId, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<IdeaMessage>>([]);
+
+        public Task<IReadOnlyList<IdeaSummary>> ListSummariesAsync(long? id, int? workItem, int limit, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<IdeaSummary>>(Rows.Values.Where(i => (id is null || i.Id == id) && (workItem is null || i.CreatedWorkItems.Contains(workItem.Value)))
+                .OrderByDescending(i => i.Id).Take(limit)
+                .Select(i => new IdeaSummary(i.Id, i.Repository, i.Title, i.Author, i.Status, i.Model, i.Effort, i.Drafts?.Count ?? 0, i.CreatedWorkItems, 0, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch))
+                .ToList());
     }
 }

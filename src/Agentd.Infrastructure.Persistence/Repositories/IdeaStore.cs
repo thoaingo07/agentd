@@ -55,6 +55,23 @@ public sealed class IdeaStore(NpgsqlDataSource dataSource) : IIdeaStore
         return messages;
     }
 
+    public async Task<IReadOnlyList<IdeaSummary>> ListSummariesAsync(long? id, int? workItem, int limit, CancellationToken cancellationToken)
+    {
+        await using var cmd = dataSource.CreateCommand(
+            "SELECT id, repo, title, author, status, model, effort, drafts, created_work_items, messages, created_at, updated_at FROM agentd.idea_summaries($1, $2, $3)");
+        cmd.Parameters.AddRange(new[] { P(id, NpgsqlDbType.Bigint), P(workItem, NpgsqlDbType.Integer), P(limit, NpgsqlDbType.Integer) });
+        await using var r = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        var rows = new List<IdeaSummary>();
+        while (await r.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            rows.Add(new IdeaSummary(
+                r.GetInt64(0), r.GetString(1), r.GetString(2), r.GetString(3), r.GetString(4), r.IsDBNull(5) ? null : r.GetString(5), r.IsDBNull(6) ? null : r.GetString(6),
+                r.GetInt32(7), r.GetFieldValue<int[]>(8), r.GetInt32(9), r.GetFieldValue<DateTimeOffset>(10), r.GetFieldValue<DateTimeOffset>(11)));
+        }
+
+        return rows;
+    }
+
     private async Task<IReadOnlyList<Idea>> ReadAsync(string sql, CancellationToken ct, params NpgsqlParameter[] parameters)
     {
         await using var cmd = dataSource.CreateCommand(sql);
