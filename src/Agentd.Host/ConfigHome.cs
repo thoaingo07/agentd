@@ -8,6 +8,9 @@ internal sealed class ConfigHome(string root)
 {
     public const string Variable = "AGENTD_HOME";
 
+    /// <summary>The Data Protection application name: the daemon's cookies and the secret store share one key ring.</summary>
+    public const string ApplicationName = "agentd";
+
     private static readonly string[] s_folders = ["config", "repos", "worktrees", "logs", "claude", "run", "keys"];
 
     public string Root { get; } = Path.GetFullPath(root);
@@ -20,7 +23,7 @@ internal sealed class ConfigHome(string root)
 
     public string Logs => Path.Combine(Root, "logs");
 
-    /// <summary>ASP.NET Core Data Protection keys (antiforgery and, later, auth cookies), so they survive restarts.</summary>
+    /// <summary>ASP.NET Core Data Protection keys (antiforgery cookies and the secret store), so they survive restarts.</summary>
     public string Keys => Path.Combine(Root, "keys");
 
     public static ConfigHome Resolve(Func<string, string?>? environment = null)

@@ -105,6 +105,20 @@ Repositories aren't local folders in config. agentd **clones and owns** them:
   ([model-profiles.md §6](model-profiles.md#6-security-and-terms)).
 - In containers, the same keys can come from environment variables or mounted files instead.
 
+**As built (T1b.2):**
+- **Names are configuration paths** under `Agentd`: `AzureDevOps:Pat` fills `Agentd:AzureDevOps:Pat`. A name
+  starting with `ConnectionStrings:` is used as is, so `ConnectionStrings:agentd` can hold the database password.
+- **Layering:** `agentd.json` < `secrets.json` < `AGENTD_*` variables < command line. Containers can still override a
+  secret with the environment.
+- **`agentd secrets set <name>`** reads the value from **piped stdin or a no-echo prompt**, and refuses a value given
+  as an argument, which would end up in the shell history and `ps`. `list` shows names, dates, who set them, and
+  whether each one still decrypts. Values are at most 64 KiB.
+- **Encryption:** Data Protection with purpose `agentd.secrets.v1`, on the daemon's key ring (`~/.agentd/keys`,
+  application name `agentd`). The file is replaced atomically (temp file + rename, mode 0600) under a lock file.
+- **A secret that no longer decrypts** (the key ring was replaced) is skipped, with one warning naming the key and
+  never the value. Set it again to fix it.
+- **The daemon reads secrets at startup:** restart it after a change.
+
 ---
 
 ## 5. Credentials on a headless server

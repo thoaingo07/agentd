@@ -11,7 +11,8 @@ internal static class AgentdConfiguration
 
     /// <summary>
     /// Layers the config home on top of the host's configuration (lowest → highest): home defaults,
-    /// appsettings (development only), <c>config/agentd.json</c>, <c>AGENTD_*</c> variables, command line.
+    /// appsettings (development only), <c>config/agentd.json</c>, the encrypted <c>config/secrets.json</c>,
+    /// <c>AGENTD_*</c> variables, command line.
     /// Keys in agentd.json and AGENTD_* follow the schema of the <c>Agentd</c> section.
     /// </summary>
     public static void AddConfigHome(this IConfigurationManager configuration, ConfigHome home, string[] args)
@@ -26,6 +27,7 @@ internal static class AgentdConfiguration
             ReloadOnChange = false,
         };
         configuration.Add(new PrefixedConfigurationSource(json, "Agentd"));
+        configuration.Add(new SecretsConfigurationSource(home));   // already prefixed (Agentd:… or ConnectionStrings:…)
         configuration.Add(new PrefixedConfigurationSource(new EnvironmentVariablesConfigurationSource { Prefix = EnvironmentPrefix }, "Agentd"));
         configuration.AddCommandLine(args);
 

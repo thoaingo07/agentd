@@ -18,7 +18,9 @@ internal static class AgentdCli
         TextWriter error,
         Func<IServiceProvider> services,
         Daemon daemon,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Func<ConfigHome>? home = null,
+        Func<string, string?>? readSecret = null)
     {
         ArgumentNullException.ThrowIfNull(args);
         ArgumentNullException.ThrowIfNull(daemon);
@@ -27,7 +29,7 @@ internal static class AgentdCli
             return await daemon(args, cancellationToken).ConfigureAwait(false);
         }
 
-        var context = new CliContext(output, error, services);
+        var context = new CliContext(output, error, services, home, readSecret);
         await using (context.ConfigureAwait(false))
         {
             var parse = Build(context, daemon).Parse(args);
@@ -80,6 +82,7 @@ internal static class AgentdCli
         root.Subcommands.Add(RepoCommand.Create(context));
         root.Subcommands.Add(DbCommand.Create(context));
         root.Subcommands.Add(DoctorCommand.Create(context));
+        root.Subcommands.Add(SecretsCommand.Create(context));
         return root;
     }
 }
