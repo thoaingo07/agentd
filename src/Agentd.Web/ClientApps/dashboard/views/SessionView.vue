@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import type { AgentEvent, JobState } from '../../shared/api/types'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { ApiError, get } from '../../shared/api/http'
+import type { AgentEvent, Diff, JobState } from '../../shared/api/types'
 import { AgButton, AgModal, AgStateBadge, AgTabs } from '../../shared/components/ui'
 import { duration, percent } from '../../shared/utils/format'
+import DiffView from '../components/session/DiffView.vue'
 import EventList from '../components/session/EventList.vue'
 import MessageComposer from '../components/session/MessageComposer.vue'
 import { useConfigStore } from '../stores/config'
@@ -16,6 +18,7 @@ const config = useConfigStore()
 const tab = ref('transcript')
 const tabs = [
   { value: 'transcript', label: 'Transcript', keepMounted: true },
+  { value: 'diff', label: 'Diff' },
   { value: 'details', label: 'Details' },
 ]
 const confirming = ref<'cancel' | 'retry' | null>(null)
@@ -38,10 +41,47 @@ const shownReplies = computed(() => {
   return pendingReplies.value.filter((r) => !arrived.has(r))
 })
 
+/** Loaded on the first visit to the Diff tab, then refreshed (2 s debounce) after the agent edits files. */
+const diffRefreshMs = 2000
+const diff = ref<Diff | null>(null)
+const diffError = ref<string | null>(null)
+let diffTimer: ReturnType<typeof setTimeout> | undefined
+
+async function loadDiff(): Promise<void> {
+  try {
+    diff.value = await get<Diff>(`/api/jobs/${props.id}/diff`)
+    diffError.value = null
+  } catch (err) {
+    diffError.value = err instanceof ApiError && err.status === 404 ? 'No branch yet: the diff appears once the agent starts working.' : 'Could not load the diff.'
+  }
+}
+
+watch(tab, (t) => {
+  if (t === 'diff' && !diff.value) void loadDiff()
+})
+
+/** Finished Edit / MultiEdit / Write calls in the transcript. */
+const editResults = computed(() => {
+  const calls = new Map<string, string>()
+  let count = 0
+  for (const e of eventWindow.value?.events ?? []) {
+    const p = e.payload as Record<string, unknown>
+    if (e.type === 'agent.tool_call') calls.set(String(p.id), String(p.name))
+    else if (e.type === 'agent.tool_result' && ['Edit', 'MultiEdit', 'Write'].includes(calls.get(String(p.toolUseId)) ?? '')) count++
+  }
+  return count
+})
+
+watch(editResults, (now, before) => {
+  if (now <= before || tab.value !== 'diff') return
+  clearTimeout(diffTimer)
+  diffTimer = setTimeout(() => void loadDiff(), diffRefreshMs)
+})
+
 function onKey(e: KeyboardEvent): void {
   const target = e.target as HTMLElement
   if (target.closest('input, textarea') || e.ctrlKey || e.metaKey || e.altKey) return
-  if (e.key === '1' || e.key === '2') tab.value = tabs[Number(e.key) - 1]!.value
+  if (e.key === '1' || e.key === '2' || e.key === '3') tab.value = tabs[Number(e.key) - 1]!.value
 }
 
 async function act(): Promise<void> {
@@ -65,6 +105,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   globalThis.removeEventListener('keydown', onKey)
   clearInterval(ticker)
+  clearTimeout(diffTimer)
   events.close(props.id)
 })
 </script>
@@ -195,6 +236,24 @@ onBeforeUnmount(() => {
               @sent="pendingReplies.push($event)"
             />
           </div>
+        </template>
+        <template #diff>
+          <DiffView
+            v-if="diff"
+            :diff="diff"
+          />
+          <p
+            v-else-if="diffError"
+            class="text-sm text-muted"
+          >
+            {{ diffError }}
+          </p>
+          <p
+            v-else
+            class="text-sm text-muted"
+          >
+            Loading the diff…
+          </p>
         </template>
         <template #details>
           <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">

@@ -30,13 +30,13 @@ flowchart LR
 
 | # | Phase | Outcome (the demo) | Size | Plan review | Build review |
 |---|---|---|---|---|---|
-| 0 | [Foundation](phase-00-foundation/README.md) | Aspire AppHost runs PostgreSQL + Host + Vite; empty green Vue shell and `/healthz`; architecture tests; GitHub Actions CI | M | ☑ approved | ◐ built, awaiting review |
-| 1 | [Walking skeleton](phase-01-walking-skeleton/README.md) | Tag a work item `ai-workflow` → Claude works in a worktree → a PR is opened and linked | L | ☐ pending | ☐ |
+| 0 | [Foundation](phase-00-foundation/README.md) | Aspire AppHost runs PostgreSQL + Host + Vite; empty green Vue shell and `/healthz`; architecture tests; GitHub Actions CI | M | ☑ approved | ☑ built and merged |
+| 1 | [Walking skeleton](phase-01-walking-skeleton/README.md) | Tag a work item `ai-workflow` → Claude works in a worktree → a PR is opened and linked | L | ☑ approved | ☑ built and merged (live demo on WI-5613) |
 | 1b | [Portable distribution](phase-01b-portable-distribution/README.md) *(runs after Phase 3)* | On a fresh VPS: `install.sh` → `daemon install` → **web setup wizard** (DB, ADO PAT, SSH key, Claude, repo) → `doctor` all ✅ → tagged work item → PR. Docker Compose works too. | XL | ☐ pending | ☐ |
-| 2 | [Messaging](phase-02-messaging/README.md) | The agent asks a question in a Discord thread / Telegram topic; the reply resumes the session | L | ☐ pending | ☐ |
-| 2b | [Full job lifecycle in chat](phase-02b-job-lifecycle/README.md) | Clarify → plan (your OK) → implement → verify → PR → review loop until ready → hand-off (knowledge sync PR) → close-out; one thread per work item; every step posted | L | ☐ pending | ☐ |
-| 2d | [Brainstorm → work items](phase-02d-brainstorm/README.md) *(after Phase 3)* | `!idea` → read-only brainstorm thread grounded in the code → proposed User Stories + Tasks → created in ADO (optionally started) → close-out | M | ☐ pending | ☐ |
-| 3 | [BFF + Web UI v1](phase-03-bff-web-ui/README.md) | Live dashboard and session trace in the browser, under strict CSP and antiforgery | L | ☐ pending | ☐ |
+| 2 | [Messaging](phase-02-messaging/README.md) | The agent asks a question in a Discord thread / Telegram topic; the reply resumes the session | L | ☑ approved | ◐ Discord built and merged; Telegram not built |
+| 2b | [Full job lifecycle in chat](phase-02b-job-lifecycle/README.md) | Clarify → plan (your OK) → implement → verify → PR → review loop until ready → hand-off (knowledge sync PR) → close-out; one thread per work item; every step posted | L | ☑ approved | ◐ built and merged (live demo on WI-5613); polish pending |
+| 2d | [Brainstorm → work items](phase-02d-brainstorm/README.md) *(after Phase 3)* | `!idea` → read-only brainstorm thread grounded in the code → proposed User Stories + Tasks → created in ADO (optionally started) → close-out | M | ☑ planned (2026-10-03) | ☐ after Phase 3 |
+| 3 | [BFF + Web UI v1](phase-03-bff-web-ui/README.md) | Live dashboard and session trace in the browser, under strict CSP and antiforgery | L | ☑ approved | ◐ in progress: T3.1–T3.10 and T3.14 merged; T3.11–T3.13 left |
 | 4 | [Workflow phases + kit v1](phase-04-workflow-and-kit/README.md) | Jobs run Design → Plan → Implement → Test → Review on MAF, with a plan gate, and survive restarts; `.agentd/` kit init | XL | ☐ pending | ☐ |
 | 5 | [SSO + roles](phase-05-sso-and-roles/README.md) | Sign in with Microsoft or Google; Viewer / Operator / Admin enforced in the UI, API and chat | M | ☐ pending | ☐ |
 | 6 | [Model profiles](phase-06-model-profiles/README.md) | Implement runs on DeepSeek/GLM, Review on another family; fallback on errors; cost per phase | L | ☐ pending | ☐ |

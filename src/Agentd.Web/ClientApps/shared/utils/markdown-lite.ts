@@ -1,4 +1,4 @@
-// Markdown for agent output, rendered as VNodes, never as an HTML string (no v-html; docs/security §3.4).
+// Markdown for agent output, rendered as VNodes: never an HTML string, never raw HTML binding (docs/security §3.4).
 // Supported: paragraphs, "- " lists, fenced code, `code`, **bold**, and http(s) links. Everything else
 // is plain text, so <script>, <img onerror> or javascript: links come out inert.
 import { h, type VNode } from 'vue'

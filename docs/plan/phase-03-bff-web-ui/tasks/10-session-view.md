@@ -90,7 +90,7 @@ Build `/jobs/:id`, the page for tracing one session live:
 ## Done when
 - [x] Transcripts stream live, with correct pairing of tool calls and results.
 - [x] Long sessions stay smooth: at most 2,000 rendered events, with load earlier working.
-- [ ] The diff tab shows the branch diff and refreshes after edits.
+- [x] The diff tab shows the branch diff and refreshes after edits.
 - [x] There is no `v-html` anywhere; untrusted text always renders inert.
 - [ ] A message from the UI resumes a waiting job and is mirrored to chat.
 
@@ -161,6 +161,27 @@ T3.10 is split in two PRs, so each stays under 1,000 lines.
   checked by hand or in Playwright (T3.12). The endpoint and resume path have their own tests
   (T3.2b, Phase 2).
 
-**T3.10b: Diff tab (next)**
-- `diff.ts` parser, `DiffView`, inline diffs for Edit/Write tool calls, and a debounced refresh
-  after edits.
+**T3.10b: Diff tab**
+- **`shared/utils/diff.ts`:** parses `git diff` output into files, hunks and numbered lines.
+  - Handles modified / added / deleted / renamed files, binary files (`Binary files … differ`,
+    `GIT binary patch`), several hunks per file, the `\ No newline at end of file` marker
+    (`noNewline` on the line), and quoted paths.
+  - `blockDiff(before, after)` turns an Edit's `old_string` / `new_string` into removed and added
+    lines (whole blocks, no line matching).
+- **`DiffView`:** a file list (status letter, +/− counts) and the selected file's hunks.
+  - Line numbers, with additions and deletions tinted `bg-success/10` and `bg-error/10`.
+  - A truncated diff (over 2 MB) shows the file list with a note.
+  - `DiffLines` is shared with the tool cards.
+- **The Diff tab** is the second tab; `1` / `2` / `3` switch tabs.
+  - It loads on the first visit (`GET /api/jobs/{id}/diff`). A 404 means "no branch yet".
+  - It reloads 2 s after another Edit / MultiEdit / Write result arrives, while the tab is open.
+- **Tool cards for Edit, MultiEdit and Write** start expanded and show the change inline, instead of
+  the raw input JSON.
+- **Tests (`tests/diff.spec.ts`):**
+  - every file status, binary, line numbers across hunks, the counts, the no-newline marker, and
+    `blockDiff`;
+  - the `DiffView` file list, tints, rename header, and the truncated fallback;
+  - an Edit card shows removed and added lines, expanded.
+- **Smoke test** on demo job #3: the Diff tab lists the 4 files of `ai/5613-knowledge` against
+  `origin/develop` with tinted lines, 6 Edit calls show inline diffs, and there are no console
+  errors.
