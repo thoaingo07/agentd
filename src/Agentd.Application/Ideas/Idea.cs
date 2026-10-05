@@ -44,6 +44,11 @@ public sealed record WorkItemDraft(
 
 public sealed record IdeaMessage(string Direction, string Author, string Text, DateTimeOffset At);
 
+/// <summary>An idea as the Web UI lists it: counts instead of the drafts and the conversation.</summary>
+public sealed record IdeaSummary(
+    long Id, string Repository, string Title, string Author, string Status, string? Model, string? Effort,
+    int Drafts, IReadOnlyList<int> CreatedWorkItems, int Messages, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
+
 /// <summary>Ideas and their conversation (PostgreSQL routines).</summary>
 public interface IIdeaStore
 {
@@ -58,6 +63,9 @@ public interface IIdeaStore
     Task AddMessageAsync(long ideaId, string direction, string author, string text, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<IdeaMessage>> ListMessagesAsync(long ideaId, CancellationToken cancellationToken);
+
+    /// <summary>Newest first: one idea (<paramref name="id"/>), those that created <paramref name="workItem"/>, or all.</summary>
+    Task<IReadOnlyList<IdeaSummary>> ListSummariesAsync(long? id, int? workItem, int limit, CancellationToken cancellationToken);
 }
 
 /// <summary>One brainstorm turn: a read-only agent session in the idea's checkout, on the idea's model and effort.</summary>

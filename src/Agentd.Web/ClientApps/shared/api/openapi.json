@@ -767,6 +767,90 @@
         }
       }
     },
+    "/api/ideas": {
+      "get": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "GetIdeas",
+        "parameters": [
+          {
+            "name": "workItem",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/IdeaSummaryVm"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ideas/{id}": {
+      "get": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "GetIdea",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdeaDetailVm"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/workitems/{id}": {
       "get": {
         "tags": [
@@ -1353,6 +1437,126 @@
           }
         }
       },
+      "IdeaDetailVm": {
+        "required": [
+          "idea",
+          "drafts",
+          "messages"
+        ],
+        "type": "object",
+        "properties": {
+          "idea": {
+            "$ref": "#/components/schemas/IdeaSummaryVm"
+          },
+          "drafts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkItemDraftVm"
+            }
+          },
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IdeaMessageVm"
+            }
+          }
+        }
+      },
+      "IdeaMessageVm": {
+        "required": [
+          "direction",
+          "author",
+          "text",
+          "at"
+        ],
+        "type": "object",
+        "properties": {
+          "direction": {
+            "type": "string"
+          },
+          "author": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "One message of the idea\u0027s conversation: \u0060in\u0060 from a person, \u0060out\u0060 from the agent (Markdown)."
+      },
+      "IdeaSummaryVm": {
+        "required": [
+          "id",
+          "repo",
+          "title",
+          "author",
+          "status",
+          "model",
+          "effort",
+          "drafts",
+          "createdWorkItems",
+          "messages",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "repo": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "author": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "model": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "effort": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "drafts": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "createdWorkItems": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "messages": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "JobDetailVm": {
         "required": [
           "job",
@@ -1777,6 +1981,59 @@
           }
         },
         "description": "The signed-in user; in Mode None, \u0060{ name: \u0022local\u0022, roles: [\u0022Admin\u0022], provider: \u0022local\u0022 }\u0060."
+      },
+      "WorkItemDraftVm": {
+        "required": [
+          "type",
+          "title",
+          "description",
+          "acceptanceCriteria",
+          "estimate",
+          "parent",
+          "tags"
+        ],
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "acceptanceCriteria": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "estimate": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "parent": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "description": "A proposed work item; a task\u0027s \u0060parent\u0060 is its story\u0027s index in the list."
       },
       "WorkItemVm": {
         "required": [
