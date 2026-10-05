@@ -128,3 +128,25 @@ public sealed record AntiforgeryTokenVm(string Token);
 
 /// <summary>The signed-in user; in Mode None, <c>{ name: "local", roles: ["Admin"], provider: "local" }</c>.</summary>
 public sealed record UserVm(string Name, IReadOnlyList<string> Roles, string Provider);
+
+public sealed record RepositoryVm(string Name, string Organization, string Project, string BaseBranch);
+
+/// <summary>Read-only settings. Explicit fields only: tokens, keys and secrets have no way in.</summary>
+public sealed record ConfigVm(
+    string Tag,
+    string ClaimTag,
+    long PollIntervalSeconds,
+    int MaxConcurrent,
+    bool RequirePlanApproval,
+    bool ReviewLoop,
+    bool Handoff,
+    IReadOnlyList<RepositoryVm> Repositories,
+    IReadOnlyList<string> MessagingProviders)
+{
+    public static ConfigVm From(ConfigSummary c)
+    {
+        ArgumentNullException.ThrowIfNull(c);
+        return new(c.Tag, c.ClaimTag, (long)c.PollInterval.TotalSeconds, c.MaxConcurrent, c.RequirePlanApproval, c.ReviewLoop, c.Handoff,
+            c.Repositories.Select(r => new RepositoryVm(r.Name, r.Organization, r.Project, r.BaseBranch)).ToList(), c.MessagingProviders);
+    }
+}

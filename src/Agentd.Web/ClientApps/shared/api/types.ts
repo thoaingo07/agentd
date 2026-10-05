@@ -39,3 +39,6 @@ export type JobState = (typeof jobStates)[number]
 export function isJobState(value: string): value is JobState {
   return (jobStates as readonly string[]).includes(value)
 }
+
+export type Config = Schemas['ConfigVm']
+export type Repository = Schemas['RepositoryVm']

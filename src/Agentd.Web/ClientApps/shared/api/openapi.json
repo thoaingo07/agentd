@@ -517,6 +517,26 @@
         }
       }
     },
+    "/api/config": {
+      "get": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "GetConfig",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigVm"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/bff/antiforgery": {
       "get": {
         "tags": [
@@ -570,6 +590,58 @@
             "type": "string"
           }
         }
+      },
+      "ConfigVm": {
+        "required": [
+          "tag",
+          "claimTag",
+          "pollIntervalSeconds",
+          "maxConcurrent",
+          "requirePlanApproval",
+          "reviewLoop",
+          "handoff",
+          "repositories",
+          "messagingProviders"
+        ],
+        "type": "object",
+        "properties": {
+          "tag": {
+            "type": "string"
+          },
+          "claimTag": {
+            "type": "string"
+          },
+          "pollIntervalSeconds": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "maxConcurrent": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "requirePlanApproval": {
+            "type": "boolean"
+          },
+          "reviewLoop": {
+            "type": "boolean"
+          },
+          "handoff": {
+            "type": "boolean"
+          },
+          "repositories": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RepositoryVm"
+            }
+          },
+          "messagingProviders": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "description": "Read-only settings. Explicit fields only: tokens, keys and secrets have no way in."
       },
       "ConversationVm": {
         "required": [
@@ -1050,6 +1122,29 @@
               "null",
               "string"
             ]
+          }
+        }
+      },
+      "RepositoryVm": {
+        "required": [
+          "name",
+          "organization",
+          "project",
+          "baseBranch"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "organization": {
+            "type": "string"
+          },
+          "project": {
+            "type": "string"
+          },
+          "baseBranch": {
+            "type": "string"
           }
         }
       },

@@ -9,6 +9,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@(ViewData["Title"] ?? "agentd")</title>
     @* External (CSP-safe) pre-paint theme loader, then the app's styles/preloads/entry. No inline code. *@
+    <link rel="icon" type="image/svg+xml" href="@Vite.Url("favicon.svg")" />
     <script src="@Vite.Url("theme-init.js")"></script>
     @Vite.Tags(app)
 </head>
