@@ -12,7 +12,7 @@ agentd runs one `claude` process per job, in that job's worktree.
 | `--output-format stream-json --verbose` | stream events as JSON lines for parsing and logging |
 | `--model <id>` | e.g. `claude-opus-5-5` |
 | `--permission-mode <mode>` | e.g. `acceptEdits`; avoid `bypassPermissions` outside a sandbox |
-| `--allowedTools "Read" "Edit" "Bash(git:*)"` | tool allowlist |
+| `--allowedTools "Read" "Edit" "Bash(git:*)"` | tool allowlist. Headless runs can't answer a prompt, so anything not listed is refused and the refusal goes back to the agent. agentd's defaults are in `ClaudeOptions.AllowedTools` / `ReadOnlyTools`: read and search tools; `git status/diff/add/commit/log/show/fetch` (no push: agentd pushes); dotnet/npm build and test. `Agentd:Claude:AllowedTools` entries are **added** to the defaults. For a compound command (`a && b`, `a \| b`), every part must match. |
 | `--disallowedTools ...` | tool denylist |
 | `--max-turns <n>` | a hard stop for runaway agents |
 | `--append-system-prompt "<text>"` | agentd rules (use MCP tools, commit often, call `finish`) |
