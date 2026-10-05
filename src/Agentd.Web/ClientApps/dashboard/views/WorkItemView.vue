@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import type { JobState } from '../../shared/api/types'
+import { get } from '../../shared/api/http'
+import type { IdeaSummary, JobState } from '../../shared/api/types'
 import { AgStateBadge, AgTabs } from '../../shared/components/ui'
 import { duration } from '../../shared/utils/format'
 import ActivityTab from '../components/workitem/ActivityTab.vue'
@@ -28,7 +29,13 @@ const span = computed(() => (store.summary ? (Date.parse(store.summary.lastActiv
 const jobOf = (jobId: number) => store.summary?.jobs.findIndex((j) => j.id === jobId) ?? -1
 
 onMounted(() => void config.load().catch(() => {}))
-watch(() => props.id, (id) => void store.open(id), { immediate: true })
+/** The brainstormed idea(s) this work item was created from (Phase 2d). */
+const bornFrom = ref<IdeaSummary[]>([])
+watch(() => props.id, (id) => {
+  void store.open(id)
+  bornFrom.value = []
+  void get<IdeaSummary[]>(`/api/ideas?workItem=${id}`).then((ideas) => (bornFrom.value = ideas), () => {})
+}, { immediate: true })
 onBeforeUnmount(() => store.close())
 </script>
 
@@ -68,6 +75,14 @@ onBeforeUnmount(() => store.close())
           <span>{{ store.summary.jobs.length }} run{{ store.summary.jobs.length === 1 ? '' : 's' }}</span>
           <span class="tabular-nums">{{ duration(span) }} from first pick-up to last activity</span>
           <span v-if="latest?.phase">phase: {{ latest.phase }}</span>
+          <RouterLink
+            v-for="idea in bornFrom"
+            :key="idea.id"
+            :to="{ name: 'idea', params: { id: idea.id } }"
+            class="link"
+          >
+            💡 born from idea #{{ idea.id }}: {{ idea.title }}
+          </RouterLink>
         </p>
         <div class="flex flex-wrap items-center gap-2">
           <a

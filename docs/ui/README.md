@@ -43,6 +43,8 @@ Adding anything else needs a note in this section explaining why.
 | `/jobs/:id` | `SessionView` | live trace of one job (tabs: Transcript · Diff · Details) |
 | `/history` | `HistoryView` | finished, failed and cancelled jobs, with search and filters |
 | `/workitems/:id` | `WorkItemView` | **the whole life of one work item** across all its jobs: timeline, conversation, agent activity, PRs, plan vs actual, usage |
+| `/ideas` | `IdeasView` | brainstormed ideas (`!idea`), newest first: status, repo, author, the work items they created |
+| `/ideas/:id` | `IdeaView` | one idea: drafts as stories with their tasks, created work items, and the whole conversation (read-only; people continue in the chat thread) |
 | `/prs` | `PullRequestsView` | **PR dashboard**: all open PRs across repos, with run review / fix now / monitor / hotfix |
 | `/prs/:repo/:id` | `PullRequestView` | review runs & findings per reviewer, fix rounds, live trace |
 | `/learnings` | `LearningsView` | approved learnings per repo, pending candidates, distill runs and Learnings PRs, and global-learning approval cards |
@@ -248,6 +250,22 @@ after the chat thread is deleted, because the history lives in agentd's database
 - Connection: hub URL, state, last event `seq`, and a reconnect button.
 - Read-only daemon config summary (`GET /api/config`, with secrets redacted): the tag, poll
   interval, max concurrency and repositories.
+- **Remembered permissions** (`GET /api/permissions/rules`): "for this job" and "always in this repo"
+  approvals. Admins revoke them.
+
+### 4.6 Ideas (`/ideas`, `/ideas/:id`)
+
+- **Read-only.** Ideas start and continue in chat (`!idea`); the page reads `GET /api/ideas` and
+  `GET /api/ideas/{id}`.
+- **List:** status badge (Brainstorming, Proposed, Created, Discarded, Closed), repo, author, message
+  and draft counts, and links to the created work items.
+- **Idea:** model and effort, the latest drafts (stories with their tasks and estimates), the created
+  work items, and the conversation. The agent's replies are Markdown (`MarkdownText`); people's
+  messages are plain text.
+- **Live:** the idea routines write `idea.message` / `idea.updated` events (ids and status only,
+  never the text) with no job. The `ideas` store reads them from the "all" stream and re-reads the
+  list and the open idea (debounced).
+- **Work item page:** "💡 born from idea #N" (`GET /api/ideas?workItem=<id>`).
 
 ---
 

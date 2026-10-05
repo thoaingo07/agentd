@@ -10,6 +10,7 @@ const ui = useUiStore()
 const links = [
   { to: '/', label: 'Dashboard' },
   { to: '/history', label: 'History' },
+  { to: '/ideas', label: 'Ideas' },
   { to: '/settings', label: 'Settings' },
 ]
 </script>
