@@ -43,3 +43,6 @@ public sealed class WorkItemHistory : SqlMigration;
 
 [Migration(2026_10_10_0001, "Permission requests and remembered approvals")]
 public sealed class Permissions : SqlMigration;
+
+[Migration(2026_10_11_0001, "Brainstormed ideas and their conversation")]
+public sealed class Ideas : SqlMigration;

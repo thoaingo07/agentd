@@ -33,6 +33,12 @@ public interface IWorktreeManager
     Task PruneAsync(Repository repository, CancellationToken cancellationToken);
 
     /// <summary>
+    /// A detached, read-only-by-convention checkout of the latest base branch at <c>worktrees/&lt;repo&gt;/&lt;name&gt;</c>
+    /// (e.g. an idea's). An existing checkout at that path is reused.
+    /// </summary>
+    Task<string> CheckoutDetachedAsync(Repository repository, string name, CancellationToken cancellationToken);
+
+    /// <summary>
     /// What <paramref name="branch"/> changes against the base branch: the live worktree (including uncommitted
     /// edits) while it exists, otherwise the branch in the managed clone. Null when the branch doesn't exist.
     /// Over <paramref name="maxBytes"/> the diff text is left out and only the file list is returned.

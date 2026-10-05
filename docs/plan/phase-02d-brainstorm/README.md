@@ -94,3 +94,28 @@ Requested on 2026-10-03. Decisions:
   first one?
 - **Idea timeout:** close an idle brainstorm after N days (proposed: 7, with reminders like the
   question timeout)?
+
+## As built
+
+**PR 1a: foundations**
+- Tables `ideas` (repo, title, author, thread, status, Claude session, **model**, **effort**,
+  checkout, drafts, created work items) and `idea_messages` (the conversation, both directions;
+  it outlives the thread), with their routines and `IdeaStore`.
+- **`ClaudeBrainstormAgent`:** Claude Code with the read-only tools minus agentd's MCP tools,
+  `--disallowedTools` edits, and `--strict-mcp-config` with no MCP config (no agentd tools, no
+  claude.ai connectors), plus `--model` / `--effort` from the idea. The reply is the session's
+  final message; the transcript goes to `logs/idea-<id>/`.
+- **`IWorktreeManager.CheckoutDetachedAsync`:** a detached checkout of the latest base branch at
+  `worktrees/<repo>/idea-<id>`, reused if it's there.
+- **`WorkItemDrafts`:** the agent proposes work items with a fenced ` ```work-items ` JSON block
+  (ideas have no agentd MCP session, so there's no `propose_work_items` tool).
+  - It's validated: User Story or Task, a title, a parent that's a story in the list, at most 10
+    items.
+  - It's rendered as stories with their tasks.
+- **`BrainstormSettings`:** parses `--repo` / `--model` / `--effort`. Model is an alias or a full
+  name; effort is `low` … `max`. Model and effort were requested on 2026-10-05.
+- **Checked live** with CLI 2.1.289 and these exact arguments (`--model sonnet --effort low`):
+  exit 0, the requested model, **no MCP servers**, and a valid `work-items` block.
+
+**PR 1b (next):** `!idea`, the brainstorm thread, turns and drafts in chat, `!model` / `!effort`.
+**PR 2:** create the work items in Azure DevOps, "and start", discard, close-out.

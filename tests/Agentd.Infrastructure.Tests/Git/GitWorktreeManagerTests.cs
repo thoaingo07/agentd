@@ -169,4 +169,18 @@ public sealed class GitWorktreeManagerTests
         CollectionAssert.AreEqual(new[] { "big.txt" }, diff.Files.ToArray());
         Assert.IsNull(await box.Manager.DiffAsync(box.Repository, BranchName.For(WorkItemId.From(9), "nope"), null, 500, default));
     }
+
+    [TestMethod]
+    public async Task A_detached_checkout_follows_the_base_branch_and_is_reused()
+    {
+        using var box = new GitSandbox();
+
+        var path = await box.Manager.CheckoutDetachedAsync(box.Repository, "idea-7", default);
+        var again = await box.Manager.CheckoutDetachedAsync(box.Repository, "idea-7", default);
+
+        Assert.AreEqual(path, again);
+        StringAssert.EndsWith(path, Path.Combine("worktrees", "sysmin", "idea-7"));
+        Assert.AreEqual("HEAD", GitSandbox.Run(path, "rev-parse", "--abbrev-ref", "HEAD"), "detached: no branch to commit to");
+        Assert.AreEqual(GitSandbox.Run(box.RemotePath, "rev-parse", "develop"), GitSandbox.Run(path, "rev-parse", "HEAD"));
+    }
 }
