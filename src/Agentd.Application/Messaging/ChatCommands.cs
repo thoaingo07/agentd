@@ -68,7 +68,7 @@ public sealed partial class ChatCommands(
         "Anywhere:",
         "• `list`: active jobs",
         "• `run <work item id>`: start a work item now, even without the tag",
-        "• `idea [--model m] [--effort e] <text>`: brainstorm an idea into User Stories and Tasks (`model`/`effort` change them in its thread)",
+        "• `idea [--model m] [--effort e] <text>`: brainstorm into User Stories/Tasks; then 1 create · 2 create+start · 3 change · 4 discard",
         "• `help`: this message",
         "",
         "**Talking to the agent** (in a job's thread)",

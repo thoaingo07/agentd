@@ -28,4 +28,20 @@ public interface IWorkItemSource
     Task<bool> TryClaimAsync(int id, int rev, string claimTag, CancellationToken cancellationToken);
 
     Task AddCommentAsync(int id, string text, CancellationToken cancellationToken);
+
+    /// <summary>Creates a work item (the only write besides tags and comments): returns its id and web link.</summary>
+    Task<CreatedWorkItem> CreateAsync(NewWorkItem item, CancellationToken cancellationToken);
 }
+
+/// <summary>A work item to create. <paramref name="Estimate"/> is story points for stories, hours for tasks.</summary>
+/// <param name="Type">"User Story" or "Task".</param>
+/// <param name="Title">The title.</param>
+/// <param name="Description">Markdown-ish text (stored as simple HTML).</param>
+/// <param name="AcceptanceCriteria">Markdown-ish text.</param>
+/// <param name="Tags">Tags.</param>
+/// <param name="Estimate">Story points (stories) or hours (tasks).</param>
+/// <param name="ParentId">The parent work item (a task's story).</param>
+/// <param name="AreaPath">The area path; null = the project default.</param>
+public sealed record NewWorkItem(string Type, string Title, string? Description, string? AcceptanceCriteria, IReadOnlyList<string> Tags, double? Estimate, int? ParentId, string? AreaPath);
+
+public sealed record CreatedWorkItem(int Id, Uri? Url);
