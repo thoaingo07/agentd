@@ -103,7 +103,7 @@ public sealed class DiscordMessagingProvider(DiscordRest rest, IOptions<DiscordO
     public static string ThreadName(ConversationSpec spec)
     {
         ArgumentNullException.ThrowIfNull(spec);
-        var name = $"WI-{spec.WorkItemId} · {spec.Title.ReplaceLineEndings(" ").Trim()}";
+        var name = spec.Name?.ReplaceLineEndings(" ").Trim() ?? $"WI-{spec.WorkItemId} · {spec.Title.ReplaceLineEndings(" ").Trim()}";
         return name.Length <= ThreadNameLimit ? name : name[..(ThreadNameLimit - 1)] + "…";
     }
 

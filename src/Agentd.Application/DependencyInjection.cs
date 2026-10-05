@@ -39,6 +39,7 @@ public static class DependencyInjection
         services.AddScoped<IQueryHandler<GetConfigSummary, ConfigSummary>, GetConfigSummaryHandler>();
         services.TryAddSingleton(TimeProvider.System);
         services.AddSingleton<Permissions.PermissionWaiter>();
+        services.AddSingleton<Ideas.IdeaService>();
         services.AddScoped<ICommandHandler<Permissions.PermissionAsk, Permissions.PermissionDecision>, Permissions.PermissionAskHandler>();
         services.AddScoped<ICommandHandler<Permissions.PermissionAnswer, bool>, Permissions.PermissionAnswerHandler>();
         services.AddScoped<IQueryHandler<GetWorkItem, WorkItemSummary?>, GetWorkItemHandler>();

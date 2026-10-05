@@ -100,13 +100,14 @@ public sealed record InboundMessage(
 /// <summary>A command in neutral form (e.g. <c>status</c>, <c>cancel</c>); unknown names are rejected by the Application layer.</summary>
 public sealed record InboundCommand(string Name, IReadOnlyList<string> Args);
 
-/// <summary>What a provider needs to open a job's conversation.</summary>
-/// <param name="JobId">The job.</param>
-/// <param name="WorkItemId">The work item, used in the thread title.</param>
-/// <param name="Title">The work item title.</param>
-/// <param name="Repository">The repository the job works on.</param>
-/// <param name="Opening">The first message in the thread.</param>
-public sealed record ConversationSpec(JobId JobId, WorkItemId WorkItemId, string Title, RepositoryName Repository, OutboundMessage Opening);
+/// <summary>What a provider needs to open a conversation (a job's, or an idea's).</summary>
+/// <param name="JobId">The job (default for a thread that isn't a job's, e.g. an idea).</param>
+/// <param name="WorkItemId">Its work item (default when there is none).</param>
+/// <param name="Title">The job or idea title.</param>
+/// <param name="Repository">The repository.</param>
+/// <param name="Opening">The first message.</param>
+/// <param name="Name">The thread name; null = <c>WI-1234 · Title</c>.</param>
+public sealed record ConversationSpec(JobId JobId, WorkItemId WorkItemId, string Title, RepositoryName Repository, OutboundMessage Opening, string? Name = null);
 
 /// <summary>A conversation on a provider: the thread id and, where it matters, its space (guild, chat).</summary>
 public sealed record ConversationRef(ProviderKey Provider, string ExternalConversationId, string? ExternalSpaceId);

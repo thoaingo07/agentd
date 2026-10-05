@@ -35,7 +35,9 @@ public sealed partial class ChatCommands(
     IMessagingProviderRegistry providers,
     ILogger<ChatCommands> logger,
     IEventStore? events = null,
-    ICommandHandler<Permissions.PermissionAnswer, bool>? permissions = null)
+    ICommandHandler<Permissions.PermissionAnswer, bool>? permissions = null,
+    Ideas.IdeaService? ideas = null,
+    Ideas.IIdeaStore? ideaStore = null)
 {
     /// <summary>Commands typed in a job's thread are recorded, so the work item conversation shows both directions.</summary>
     public const string CommandEventType = "chat.command";
@@ -44,7 +46,7 @@ public sealed partial class ChatCommands(
 
     /// <summary>The command list alone (the reply to an unknown command).</summary>
     public static readonly string Commands =
-        "In a job's thread: `status`, `logs`, `cancel`, `retry`, `handoff`, `approve`, `deny`. Anywhere: `list`, `run <work item id>`, `idea <text>` (coming soon), `help`.";
+        "In a job's thread: `status`, `logs`, `cancel`, `retry`, `handoff`, `approve`, `deny`. Anywhere: `list`, `run <work item id>`, `idea <text>`, `help`. In an idea's thread: `model`, `effort`.";
 
     /// <summary>The reply to <c>idea</c> until brainstorming (Phase 2d) is built.</summary>
     public const string IdeaComingSoon =
@@ -66,7 +68,7 @@ public sealed partial class ChatCommands(
         "Anywhere:",
         "• `list`: active jobs",
         "• `run <work item id>`: start a work item now, even without the tag",
-        "• `idea <text>`: brainstorm an idea into User Stories and Tasks in Azure DevOps (**coming soon**)",
+        "• `idea [--model m] [--effort e] <text>`: brainstorm an idea into User Stories and Tasks (`model`/`effort` change them in its thread)",
         "• `help`: this message",
         "",
         "**Talking to the agent** (in a job's thread)",
@@ -154,7 +156,10 @@ public sealed partial class ChatCommands(
                 reply = problem;
                 break;
             case "idea":
-                reply = new(MessageKind.Info, IdeaComingSoon);
+                reply = await StartIdeaAsync(message, user, command.Args, ct).ConfigureAwait(false);
+                break;
+            case "model" or "effort":
+                reply = await IdeaSettingsAsync(message, name, command.Args, ct).ConfigureAwait(false);
                 break;
             default:
                 reply = new(MessageKind.Info, name == "help" ? Help : $"Unknown command `{name}`. {Commands} Send `help` for everything I can do.");
@@ -162,7 +167,7 @@ public sealed partial class ChatCommands(
         }
 
         await ReplyAsync(message, job, reply, ct).ConfigureAwait(false);
-        return new InboundOutcome($"command:{(name is "list" or "run" or "status" or "cancel" or "retry" or "logs" or "handoff" or "approve" or "deny" or "idea" or "help" ? name : "unknown")}", job);
+        return new InboundOutcome($"command:{(name is "list" or "run" or "status" or "cancel" or "retry" or "logs" or "handoff" or "approve" or "deny" or "idea" or "model" or "effort" or "help" ? name : "unknown")}", job);
     }
 
     /// <summary><c>approve [request] [once|job|always]</c> or <c>deny [request]</c>; null when it was decided (announced in the thread).</summary>
@@ -178,6 +183,42 @@ public sealed partial class ChatCommands(
         var answer = name == "deny" ? "deny" : scope switch { "job" => "job", "always" or "repo" => "always", _ => "once" };
         var handled = await permissions.Handle(new Permissions.PermissionAnswer(job, answer, user.Name, id), ct).ConfigureAwait(false);
         return handled is { IsSuccess: true, Value: true } ? null : new(MessageKind.Info, "There's no open permission request to answer in this thread.");
+    }
+
+    /// <summary><c>idea [--repo r] [--model m] [--effort e] &lt;text&gt;</c>: opens a brainstorm thread.</summary>
+    private async Task<OutboundMessage> StartIdeaAsync(InboundMessage message, AgentdUser user, IReadOnlyList<string> args, CancellationToken ct)
+    {
+        if (ideas is null)
+        {
+            return new(MessageKind.Info, IdeaComingSoon);
+        }
+
+        var (text, repo, model, effort, problem) = Ideas.BrainstormSettings.Parse(args);
+        if (problem is not null)
+        {
+            return new(MessageKind.Info, problem);
+        }
+
+        var started = await ideas.StartAsync(message.Provider, user.Name, text, repo, ct, model, effort).ConfigureAwait(false);
+        return new(MessageKind.Info, started.IsSuccess ? started.Value : started.Error.Message);
+    }
+
+    /// <summary><c>model &lt;name&gt;</c> / <c>effort &lt;level&gt;</c> in an idea's thread.</summary>
+    private async Task<OutboundMessage> IdeaSettingsAsync(InboundMessage message, string name, IReadOnlyList<string> args, CancellationToken ct)
+    {
+        if (ideas is null || ideaStore is null
+            || await ideaStore.FindByThreadAsync(message.Provider, message.ExternalConversationId, ct).ConfigureAwait(false) is not { } idea)
+        {
+            return new(MessageKind.Info, $"`{name}` works in an idea's thread (start one with `idea <text>`).");
+        }
+
+        if (args.Count == 0)
+        {
+            return new(MessageKind.Info, $"Model **{idea.Model ?? "default"}**, effort **{idea.Effort ?? "default"}**. Change with `model <fable|opus|sonnet|full name>` or `effort <{string.Join("|", Ideas.BrainstormSettings.Efforts)}>`.");
+        }
+
+        var text = await ideas.ChangeSettingsAsync(idea, name == "model" ? args[0] : null, name == "effort" ? args[0] : null, ct).ConfigureAwait(false);
+        return new(MessageKind.Info, text);
     }
 
     private async Task RecordAsync(JobId job, InboundMessage message, InboundCommand command, AgentdUser user, CancellationToken ct)
