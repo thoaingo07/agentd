@@ -11,6 +11,7 @@ using Agentd.Domain.Jobs;
 using Agentd.Domain.Jobs.ValueObjects;
 using Agentd.Domain.Repositories;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Agentd.Application;
 
@@ -36,6 +37,10 @@ public static class DependencyInjection
         services.AddScoped<IQueryHandler<GetJob, JobDetail?>, GetJobHandler>();
         services.AddScoped<IQueryHandler<GetJobEvents, EventPage>, GetJobEventsHandler>();
         services.AddScoped<IQueryHandler<GetConfigSummary, ConfigSummary>, GetConfigSummaryHandler>();
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddSingleton<Permissions.PermissionWaiter>();
+        services.AddScoped<ICommandHandler<Permissions.PermissionAsk, Permissions.PermissionDecision>, Permissions.PermissionAskHandler>();
+        services.AddScoped<ICommandHandler<Permissions.PermissionAnswer, bool>, Permissions.PermissionAnswerHandler>();
         services.AddScoped<IQueryHandler<GetWorkItem, WorkItemSummary?>, GetWorkItemHandler>();
         services.AddScoped<IQueryHandler<GetWorkItemTimeline, EventPage>, GetWorkItemTimelineHandler>();
         services.AddScoped<IQueryHandler<GetWorkItemConversation, IReadOnlyList<ConversationEntry>>, GetWorkItemConversationHandler>();

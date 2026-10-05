@@ -43,6 +43,15 @@ public sealed class ClaudeOptions
 
     public int MaxTurns { get; set; } = 200;
 
+    /// <summary>
+    /// The agentd MCP tool that answers permission prompts (a person decides in chat or the Web UI). Empty: no
+    /// prompt tool, so anything outside the allowlist is refused.
+    /// </summary>
+    public string PermissionPromptTool { get; set; } = "mcp__agentd__permission";
+
+    /// <summary>How long the CLI waits on an MCP tool call (MCP_TOOL_TIMEOUT): longer than the permission timeout.</summary>
+    public TimeSpan McpToolTimeout { get; set; } = TimeSpan.FromMinutes(15);
+
     /// <summary>Kill the process when it produces no output for this long.</summary>
     public TimeSpan IdleTimeout { get; set; } = TimeSpan.FromMinutes(30);
 

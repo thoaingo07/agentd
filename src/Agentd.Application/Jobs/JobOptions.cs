@@ -50,4 +50,7 @@ public sealed class JobOptions
 
     /// <summary>Back-off when a usage limit reports no reset time.</summary>
     public TimeSpan UsageLimitBackoff { get; set; } = TimeSpan.FromMinutes(30);
+
+    /// <summary>How long the agent waits for someone to answer a permission request; then it's denied.</summary>
+    public TimeSpan PermissionTimeout { get; set; } = TimeSpan.FromMinutes(10);
 }

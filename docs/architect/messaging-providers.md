@@ -224,7 +224,7 @@ settings.
 | Open conversation | starter message + thread | `createForumTopic` → `message_thread_id` |
 | Send | message in the thread | `sendMessage(chat_id, message_thread_id, parse_mode=HTML)` |
 | Options | a numbered list (`SupportsOptions = false`); a reply like `2` is mapped back to the option | inline keyboard → `callback_query` (+ `answerCallbackQuery`) |
-| Commands | typed `!status`, `!cancel`, `!retry`, `!logs`, `!handoff`, `!list`, `!run <id>`, `!idea <text>` (coming soon, Phase 2d), `!help` (`!help` lists every command and the whole job cycle; an unknown command gets the short list) | `setMyCommands` (group scope): `/status`, `/cancel`, `/retry`, `/logs`, `/list`, `/run <id>` |
+| Commands | typed `!status`, `!cancel`, `!retry`, `!logs`, `!handoff`, `!approve [job|always]` / `!deny` (answer a permission request), `!list`, `!run <id>`, `!idea <text>` (coming soon, Phase 2d), `!help` (`!help` lists every command and the whole job cycle; an unknown command gets the short list) | `setMyCommands` (group scope): `/status`, `/cancel`, `/retry`, `/logs`, `/list`, `/run <id>` |
 | Edit progress | ✅ | ✅ `editMessageText` |
 | Attachments | ✅ | ✅ `sendDocument` |
 | Close | archive thread | `closeForumTopic` |

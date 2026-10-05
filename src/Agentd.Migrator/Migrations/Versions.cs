@@ -40,3 +40,6 @@ public sealed class HistoryIndex : SqlMigration;
 
 [Migration(2026_10_09_0001, "Work item history indexes")]
 public sealed class WorkItemHistory : SqlMigration;
+
+[Migration(2026_10_10_0001, "Permission requests and remembered approvals")]
+public sealed class Permissions : SqlMigration;

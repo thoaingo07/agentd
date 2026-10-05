@@ -1,3 +1,4 @@
+using Agentd.Application.Abstractions;
 using Agentd.Application.Jobs;
 using Agentd.Application.Messaging;
 using Agentd.Application.Tests.Fakes;
@@ -124,6 +125,20 @@ public sealed class InboundMessageHandlerTests
     }
 
     [TestMethod]
+    public async Task A_number_answers_an_open_permission_request_before_anything_else()
+    {
+        var job = await JobInThreadAsync(waiting: false);
+        var permissions = new FakePermissions();
+
+        var outcome = await Handler(permissions: permissions).ProcessAsync(Message("2"), default);
+        var ordinary = await Handler(permissions: new FakePermissions { Handles = false }).ProcessAsync(Message("why npm install?"), default);
+
+        Assert.AreEqual(new InboundOutcome("permission", job), outcome);
+        Assert.AreEqual(("2", "tngo"), (permissions.Answers.Single().Answer, permissions.Answers.Single().By));
+        Assert.AreEqual("queued", ordinary.Code, "not an answer: an ordinary message for the agent");
+    }
+
+    [TestMethod]
     public async Task Messages_outside_a_job_thread_are_ignored()
     {
         Assert.AreEqual("ignored_no_job", (await Handler().ProcessAsync(Message("hi"), default)).Code);
@@ -161,9 +176,22 @@ public sealed class InboundMessageHandlerTests
         }
     }
 
-    private InboundMessageHandler Handler(MessagingOptions? messaging = null) =>
+    private InboundMessageHandler Handler(MessagingOptions? messaging = null, ICommandHandler<Agentd.Application.Permissions.PermissionAnswer, bool>? permissions = null) =>
         new(_log, _users, _t.Conversations, new SubmitDeveloperMessageHandler(_t.Jobs), ChatCommandsTests.Commands(_t, _outbox, new FakeTranscripts()), _t.AnswerCloseOut(), _outbox, _t.Jobs, _activity, _t.Clock, NullLogger<InboundMessageHandler>.Instance,
-            messaging is null ? null : new Monitor(messaging));
+            messaging is null ? null : new Monitor(messaging), permissions);
+
+    private sealed class FakePermissions : ICommandHandler<Agentd.Application.Permissions.PermissionAnswer, bool>
+    {
+        public bool Handles { get; init; } = true;
+
+        public List<Agentd.Application.Permissions.PermissionAnswer> Answers { get; } = [];
+
+        public Task<Agentd.Domain.Common.Result<bool>> Handle(Agentd.Application.Permissions.PermissionAnswer command, CancellationToken cancellationToken)
+        {
+            Answers.Add(command);
+            return Task.FromResult<Agentd.Domain.Common.Result<bool>>(Handles);
+        }
+    }
 
     private sealed class Monitor(MessagingOptions value) : Microsoft.Extensions.Options.IOptionsMonitor<MessagingOptions>
     {

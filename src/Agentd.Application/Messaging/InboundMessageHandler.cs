@@ -43,7 +43,8 @@ public sealed partial class InboundMessageHandler(
     JobActivity activity,
     Domain.Common.IClock clock,
     ILogger<InboundMessageHandler> logger,
-    IOptionsMonitor<MessagingOptions>? messaging = null) : IInboundMessageSink
+    IOptionsMonitor<MessagingOptions>? messaging = null,
+    ICommandHandler<Permissions.PermissionAnswer, bool>? permissions = null) : IInboundMessageSink
 {
     /// <summary>The role a stranger gets on a provider that allows everyone (enforced from Phase 5).</summary>
     public const string GuestRole = "Operator";
@@ -92,6 +93,13 @@ public sealed partial class InboundMessageHandler(
         if (string.IsNullOrWhiteSpace(message.Text))
         {
             return new InboundOutcome("ignored_empty", conversation.JobId);
+        }
+
+        // "1"–"4" / allow / always / deny answer an open permission request first (the agent is waiting on it).
+        if (permissions is not null
+            && (await permissions.Handle(new Permissions.PermissionAnswer(conversation.JobId, message.Text, user.Name), ct).ConfigureAwait(false)) is { IsSuccess: true, Value: true })
+        {
+            return new InboundOutcome("permission", conversation.JobId);
         }
 
         if ((await closeOut.Handle(new AnswerCloseOut(conversation.JobId, message.Text), ct).ConfigureAwait(false)) is { IsSuccess: true, Value: true })

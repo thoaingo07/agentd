@@ -19,6 +19,19 @@ public sealed class ClaudeOptionsTests
     }
 
     [TestMethod]
+    public void With_mcp_the_cli_sends_permission_prompts_to_agentd()
+    {
+        var request = new Agentd.Application.Ports.AgentRunRequest(new Agentd.Domain.Jobs.ValueObjects.JobId(1), Agentd.Domain.Jobs.ValueObjects.WorkItemId.From(5615),
+            new Agentd.Domain.Jobs.ValueObjects.WorktreePath("/wt"), Agentd.Domain.Jobs.ValueObjects.ClaudeSessionId.New(), "go", false);
+
+        var withMcp = ClaudeArgs.Build(request, new ClaudeOptions(), "/tmp/mcp.json").ToList();
+        var without = ClaudeArgs.Build(request, new ClaudeOptions(), null).ToList();
+
+        Assert.AreEqual("mcp__agentd__permission", withMcp[withMcp.IndexOf("--permission-prompt-tool") + 1]);
+        CollectionAssert.DoesNotContain(without, "--permission-prompt-tool", "no MCP server: nothing could answer");
+    }
+
+    [TestMethod]
     public void Configured_tools_are_added_to_the_defaults()
     {
         var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
