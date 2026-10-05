@@ -164,6 +164,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetConfig"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/bff/antiforgery": {
         parameters: {
             query?: never;
@@ -202,6 +218,20 @@ export interface components {
     schemas: {
         AntiforgeryTokenVm: {
             token: string;
+        };
+        /** @description Read-only settings. Explicit fields only: tokens, keys and secrets have no way in. */
+        ConfigVm: {
+            tag: string;
+            claimTag: string;
+            /** Format: int64 */
+            pollIntervalSeconds: number;
+            /** Format: int32 */
+            maxConcurrent: number;
+            requirePlanApproval: boolean;
+            reviewLoop: boolean;
+            handoff: boolean;
+            repositories: components["schemas"]["RepositoryVm"][];
+            messagingProviders: string[];
         };
         ConversationVm: {
             provider: string;
@@ -329,6 +359,12 @@ export interface components {
             status?: null | number;
             detail?: null | string;
             instance?: null | string;
+        };
+        RepositoryVm: {
+            name: string;
+            organization: string;
+            project: string;
+            baseBranch: string;
         };
         RunAcceptedVm: {
             /** Format: int64 */
@@ -715,6 +751,26 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigVm"];
                 };
             };
         };

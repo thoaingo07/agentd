@@ -101,6 +101,7 @@ public static class BffModule
         endpoints.MapGroup("/bff").RequireAuthorization().AddEndpointFilter<AntiforgeryFilter>().MapSession();
         api.MapJobReads();
         api.MapJobActions();
+        api.MapConfig();
         endpoints.MapHub<EventsHub>(EventsHub.Path).RequireAuthorization();
         return api;
     }

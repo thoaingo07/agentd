@@ -67,6 +67,56 @@ Turn the Phase 0 empty shell into the real app frame:
 
 ## Done when
 - [ ] The dashboard updates live as jobs change state, turns and cost.
-- [ ] The waiting counter and connection indicator are accurate and announced to screen readers.
-- [ ] A work item can be started from the UI.
-- [ ] The layout works on phone widths, in both themes.
+- [x] The waiting counter and connection indicator are accurate and announced to screen readers.
+- [x] A work item can be started from the UI.
+- [x] The layout works on phone widths, in both themes.
+
+## As built
+- **Routes:**
+  - `/`: Dashboard;
+  - `/jobs/:id`: a minimal job page until the Session view (T3.10);
+  - `/history`: a placeholder until T3.11;
+  - `/settings`;
+  - a 404 page.
+
+  The job, history and settings views are lazy-loaded.
+- **Shell:**
+  - The links are Dashboard / History / Settings.
+  - The waiting badge links to `/?filter=waiting` and is labelled for screen readers.
+  - `ConnectionIndicator` has `role="status"` and `aria-live="polite"`.
+  - On phones the links fold into a daisyUI dropdown on a native `<details>` element, not a
+    `drawer`: no script, and the same result.
+  - The theme toggle is hidden below `sm` (it's on Settings).
+- **`StatsBar` doesn't show cost:** agentd runs on a Claude subscription, so there's no per-job
+  cost. "Done today" isn't shown either, because the dashboard snapshot only has active jobs.
+  - The tiles are Running x/max (Preparing counts as running), Waiting for you, Queued and In review
+    (+ Publishing).
+  - `AgMeter` shows the agent slots.
+  - Max concurrency comes from `/api/config`.
+- **`JobTable`:**
+  - Columns: state, WI + title, repo, branch, phase, elapsed. Elapsed ticks every 10 s for active
+    jobs.
+  - Waiting rows are tinted.
+  - A changed row (state, phase, PR, fix rounds) flashes `bg-primary/10` for 600 ms.
+  - `j` / `k` / Enter work.
+  - Row actions: Work item ↗ (the Azure DevOps URL built from `/api/config` repositories), PR ↗,
+    Retry (Failed) or Cancel. Cancel asks first in an `AgModal`.
+  - There's no "Open chat ↗": conversation links are on the job detail, not the summary. They come
+    with the Session view.
+- **Filters:** an `AgToggleGroup` used as a single choice, synced to `?filter=`, plus a client-side
+  search by title or `WI-id`.
+- **`RunWorkItemModal`:** accepts only a positive whole number (`abc`, `-1`, `0`, `1.5` are refused
+  before any request). It calls `POST /api/workitems/{id}/run`, then shows a toast and navigates to
+  the new job.
+- **`GET /api/config`:** `GetConfigSummary` → `ConfigVm`.
+  - Fields: tag, claim tag, poll interval, max concurrency, plan approval / review loop / hand-off,
+    repositories (name, organization, project, base branch) and the enabled chat providers.
+  - The view model is explicit, and a test checks that no key or property names a secret.
+- **Favicon:** `public/favicon.svg`, linked in the layout.
+- **Tests:**
+  - vitest: row flash; waiting first; the filter ↔ query string sync; the modal refuses bad IDs.
+  - `Bff.Tests`: `/api/config` contents and the no-secrets check.
+- **Smoke test** on the demo database in headless Chrome at 375 px: no horizontal scroll in either
+  theme, Live, no console errors, and Settings renders.
+- **Still open:** "updates live as jobs change state" needs a running job. The demo database has
+  none active, so it gets checked with the next real run. The store tests cover the refresh path.

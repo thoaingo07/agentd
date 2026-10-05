@@ -76,6 +76,48 @@ public sealed class ApiReadEndpointTests
     }
 
     [TestMethod]
+    public async Task Config_lists_settings_and_never_secrets()
+    {
+        await using var app = await StartAsync();
+
+        var json = await GetJsonAsync(app, "/api/config");
+
+        Assert.AreEqual("ai-workflow", json.GetProperty("tag").GetString());
+        Assert.AreEqual(60, json.GetProperty("pollIntervalSeconds").GetInt64());
+        Assert.AreEqual("ermsystem", json.GetProperty("repositories")[0].GetProperty("organization").GetString());
+        var names = new List<string>();
+        Collect(json, names);
+        foreach (var secret in new[] { "pat", "bottoken", "apikey", "clientsecret", "token", "password", "secret" })
+        {
+            Assert.IsFalse(names.Any(n => n.Contains(secret, StringComparison.OrdinalIgnoreCase)), $"'{secret}' in {string.Join(",", names)}");
+        }
+
+        // The view model itself has no such property, so no future config value can leak through it.
+        var vmProperties = typeof(Agentd.Bff.ViewModels.ConfigVm).GetProperties().Select(p => p.Name)
+            .Concat(typeof(Agentd.Bff.ViewModels.RepositoryVm).GetProperties().Select(p => p.Name));
+        Assert.IsFalse(vmProperties.Any(n => n.Contains("Secret", StringComparison.Ordinal) || n.Contains("Token", StringComparison.Ordinal) || n.Contains("Key", StringComparison.Ordinal) || n == "Pat"));
+    }
+
+    private static void Collect(JsonElement e, List<string> names)
+    {
+        if (e.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var p in e.EnumerateObject())
+            {
+                names.Add(p.Name);
+                Collect(p.Value, names);
+            }
+        }
+        else if (e.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in e.EnumerateArray())
+            {
+                Collect(item, names);
+            }
+        }
+    }
+
+    [TestMethod]
     public async Task History_validates_states_and_paging()
     {
         await using var app = await StartAsync();
@@ -112,6 +154,8 @@ public sealed class ApiReadEndpointTests
             new HistoryPage([s_waiting with { Title = $"{string.Join(',', q.States!)}|{q.Repository}|{q.Text}|{q.Page}|{q.PageSize}" }], 11, q.Page, q.PageSize)));
         builder.Services.AddSingleton<IQueryHandler<GetJobEventDetail, AgentEventDto?>>(new Fixed<GetJobEventDetail, AgentEventDto?>(q => q.JobId.Value == 7 ? Event(q.Seq) : null));
         builder.Services.AddSingleton<ILiveEvents>(new EventHub(Microsoft.Extensions.Logging.Abstractions.NullLogger<EventHub>.Instance));
+        builder.Services.AddSingleton<IQueryHandler<GetConfigSummary, ConfigSummary>>(new Fixed<GetConfigSummary, ConfigSummary>(_ =>
+            new ConfigSummary("ai-workflow", "ai-in-progress", TimeSpan.FromMinutes(1), 2, true, true, true, [new RepositorySummary("sysmin", "ermsystem", "Portal", "develop")], ["discord"])));
         var app = builder.Build();
         if (remote is not null)
         {
