@@ -34,7 +34,7 @@ describe('HistoryView', () => {
       urls.push(new URL(req.url).pathname + new URL(req.url).search)
       return new Response(JSON.stringify(req.url.includes('/api/config') ? { repositories: [] } : page()))
     }))
-    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/history', component: HistoryView }, { path: '/jobs/:id', name: 'job', component: { template: '<div />' } }] })
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/history', component: HistoryView }, { path: '/jobs/:id', name: 'job', component: { template: '<div />' } }, { path: '/workitems/:id', name: 'work-item', component: { template: '<div />' } }] })
     await router.push('/history?state=Failed&page=2')
     const w = mount(HistoryView, { global: { plugins: [router] } })
     await flushPromises()

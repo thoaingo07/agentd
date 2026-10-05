@@ -18,7 +18,7 @@ function makeRouter() {
     history: createMemoryHistory(),
     routes: [
       { path: '/', component: DashboardView },
-      { path: '/jobs/:id', name: 'job', component: { template: '<div />' } },
+      { path: '/jobs/:id', name: 'job', component: { template: '<div />' } }, { path: '/workitems/:id', name: 'work-item', component: { template: '<div />' } },
     ],
   })
 }

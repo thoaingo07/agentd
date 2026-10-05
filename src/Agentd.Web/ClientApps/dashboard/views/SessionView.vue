@@ -129,7 +129,13 @@ onBeforeUnmount(() => {
         <div class="flex flex-wrap items-center gap-2">
           <AgStateBadge :state="job.state as JobState" />
           <h1 class="text-xl font-semibold">
-            <span class="font-mono text-muted">WI-{{ job.workItemId }}</span> · {{ job.title }}
+            <RouterLink
+              :to="{ name: 'work-item', params: { id: job.workItemId } }"
+              class="link font-mono text-muted"
+              title="Every run of this work item"
+            >
+              WI-{{ job.workItemId }}
+            </RouterLink> · {{ job.title }}
           </h1>
         </div>
         <p class="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
