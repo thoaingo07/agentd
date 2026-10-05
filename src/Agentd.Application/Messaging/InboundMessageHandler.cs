@@ -6,6 +6,7 @@ using Agentd.Domain.Jobs.ValueObjects;
 using Agentd.Domain.Messaging;
 using Agentd.Domain.Users;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Agentd.Application.Messaging;
 
@@ -27,7 +28,7 @@ public sealed record InboundOutcome(string Code, JobId? JobId = null);
 /// <summary>
 /// Handles every message from every provider: dedupe → authorize (user directory) → route to the job
 /// by its conversation → deliver as a developer message. Strangers get no reply, so the bot isn't
-/// confirmed to them. Commands go to <see cref="ChatCommands"/>. Mirroring to the job's other
+/// confirmed to them, unless the provider has <see cref="MessagingProviderSettings.AllowEveryone"/> on. Commands go to <see cref="ChatCommands"/>. Mirroring to the job's other
 /// conversations comes from the job's events.
 /// </summary>
 public sealed partial class InboundMessageHandler(
@@ -41,8 +42,12 @@ public sealed partial class InboundMessageHandler(
     IJobRepository jobs,
     JobActivity activity,
     Domain.Common.IClock clock,
-    ILogger<InboundMessageHandler> logger) : IInboundMessageSink
+    ILogger<InboundMessageHandler> logger,
+    IOptionsMonitor<MessagingOptions>? messaging = null) : IInboundMessageSink
 {
+    /// <summary>The role a stranger gets on a provider that allows everyone (enforced from Phase 5).</summary>
+    public const string GuestRole = "Operator";
+
     public Task HandleAsync(InboundMessage message, CancellationToken cancellationToken) => ProcessAsync(message, cancellationToken);
 
     public async Task<InboundOutcome> ProcessAsync(InboundMessage message, CancellationToken cancellationToken)
@@ -56,8 +61,9 @@ public sealed partial class InboundMessageHandler(
         try
         {
             var user = await users.FindByIdentityAsync(message.Provider, message.ExternalUserId, cancellationToken).ConfigureAwait(false);
-            var outcome = user is { IsActive: true }
-                ? await RouteAsync(message, user, cancellationToken).ConfigureAwait(false)
+            var actor = user ?? Guest(message);   // a listed but inactive user is never replaced by a guest
+            var outcome = actor is { IsActive: true }
+                ? await RouteAsync(message, actor, cancellationToken).ConfigureAwait(false)
                 : Unknown(message);
             await log.SetOutcomeAsync(message.Provider, message.ExternalMessageId, outcome.Code, outcome.JobId, user?.Id, cancellationToken).ConfigureAwait(false);
             return outcome;
@@ -125,11 +131,27 @@ public sealed partial class InboundMessageHandler(
         }, conversation.JobId);
     }
 
+    /// <summary>A stranger on a provider that allows everyone: acts under their display name; not stored as a user.</summary>
+    private AgentdUser? Guest(InboundMessage message)
+    {
+        if (messaging?.CurrentValue.Providers.TryGetValue(message.Provider.Value, out var settings) != true || !settings!.AllowEveryone)
+        {
+            return null;
+        }
+
+        LogGuest(logger, message.Provider.Value, message.ExternalUserId);
+        var name = string.IsNullOrWhiteSpace(message.UserDisplayName) ? $"{message.Provider.Value}:{message.ExternalUserId}" : message.UserDisplayName.Trim();
+        return new AgentdUser(new UserId(0), name, [GuestRole], true);
+    }
+
     private InboundOutcome Unknown(InboundMessage message)
     {
         LogUnknownUser(logger, message.Provider.Value, message.ExternalUserId);
         return new InboundOutcome("ignored_unknown_user");
     }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Accepted a {Provider} message from {ExternalUserId}, who isn't in Agentd:Users (AllowEveryone is on)")]
+    private static partial void LogGuest(ILogger logger, string provider, string externalUserId);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Ignored a {Provider} message from unknown or inactive user {ExternalUserId}")]
     private static partial void LogUnknownUser(ILogger logger, string provider, string externalUserId);
