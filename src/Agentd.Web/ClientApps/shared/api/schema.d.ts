@@ -180,6 +180,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/workitems/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetWorkItem"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workitems/{id}/timeline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetWorkItemTimeline"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workitems/{id}/conversation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetWorkItemConversation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/bff/antiforgery": {
         parameters: {
             query?: never;
@@ -232,6 +280,20 @@ export interface components {
             handoff: boolean;
             repositories: components["schemas"]["RepositoryVm"][];
             messagingProviders: string[];
+        };
+        /** @description A conversation line: `direction` is `out` (agentd) or `in` (a developer's reply or command, by `author`). */
+        ConversationEntryVm: {
+            /** Format: date-time */
+            at: string;
+            /** Format: int64 */
+            jobId: null | number;
+            direction: string;
+            kind: string;
+            text: string;
+            provider: null | string;
+            author: null | string;
+            status: null | string;
+            error: null | string;
         };
         ConversationVm: {
             provider: string;
@@ -364,6 +426,11 @@ export interface components {
             detail?: null | string;
             instance?: null | string;
         };
+        PullRequestLinkVm: {
+            /** Format: int64 */
+            jobId: number;
+            url: string;
+        };
         RepositoryVm: {
             name: string;
             organization: string;
@@ -387,6 +454,20 @@ export interface components {
             name: string;
             roles: string[];
             provider: string;
+        };
+        /** @description One work item across its jobs (oldest first), with its PRs and chat threads (open or closed). */
+        WorkItemVm: {
+            /** Format: int32 */
+            workItemId: number;
+            title: string;
+            repo: string;
+            jobs: components["schemas"]["JobSummaryVm"][];
+            pullRequests: components["schemas"]["PullRequestLinkVm"][];
+            conversations: components["schemas"]["ConversationVm"][];
+            /** Format: date-time */
+            firstSeenAt: string;
+            /** Format: date-time */
+            lastActivityAt: string;
         };
     };
     responses: never;
@@ -777,6 +858,103 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ConfigVm"];
+                };
+            };
+        };
+    };
+    GetWorkItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkItemVm"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetWorkItemTimeline: {
+        parameters: {
+            query?: {
+                after?: number;
+                before?: number;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventPageVm"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    GetWorkItemConversation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConversationEntryVm"][];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
                 };
             };
         };

@@ -30,6 +30,22 @@ public interface IJobRepository
 }
 
 /// <summary>History search over all jobs (newest first).</summary>
+/// <summary>A message agentd posted (the outbox row), for the work item conversation.</summary>
+public sealed record PostedMessage(long Id, long? JobId, string Provider, string Kind, string Status, string Markdown, DateTimeOffset At, string? LastError);
+
+/// <summary>A work item's history across all its jobs (the Web UI work item view).</summary>
+public interface IWorkItemHistory
+{
+    /// <summary>Every job of the work item, oldest first.</summary>
+    Task<IReadOnlyList<Job>> ListJobsAsync(WorkItemId workItem, CancellationToken cancellationToken);
+
+    /// <summary>Events of its jobs after <paramref name="after"/> (ascending) or the newest before <paramref name="before"/> (returned ascending).</summary>
+    Task<IReadOnlyList<Events.AgentEventDto>> ReadEventsAsync(WorkItemId workItem, long? after, long? before, int limit, CancellationToken cancellationToken);
+
+    /// <summary>What agentd posted for it, oldest first.</summary>
+    Task<IReadOnlyList<PostedMessage>> ListPostedAsync(WorkItemId workItem, int limit, CancellationToken cancellationToken);
+}
+
 /// <summary>History filters; null means "any".</summary>
 /// <param name="States">Job states.</param>
 /// <param name="Repository">One repository.</param>

@@ -141,13 +141,27 @@ public sealed class ChatCommandsTests
         Assert.AreEqual(0, (await repair.Handle(new RepairConversations(), default)).Value, "nothing missing any more");
     }
 
+    [TestMethod]
+    public async Task Commands_in_a_job_thread_are_recorded_for_the_work_item_conversation()
+    {
+        var conversation = await JobThreadAsync();
+
+        await Run("status", conversation);
+        await Run("list", null);
+
+        var recorded = _t.Events.Appended.Single(e => e.Type == ChatCommands.CommandEventType);
+        Assert.AreEqual(conversation.JobId, recorded.Job);
+        StringAssert.Contains(recorded.Payload, "\"name\":\"status\"");
+        StringAssert.Contains(recorded.Payload, "\"provider\":\"discord\"");
+    }
+
     internal static ChatCommands Commands(TestContext t, FakeOutbox outbox, ITranscriptReader transcripts, IMessagingProvider? chat = null)
     {
         var options = new MessagingOptions();
         options.Providers["discord"] = new MessagingProviderSettings { Enabled = true };
         var registry = new MessagingProviderRegistry(chat is null ? [] : [chat], Microsoft.Extensions.Options.Options.Create(options));
         return new ChatCommands(t.Jobs, new GetJobStatusHandler(t.Jobs, t.Clock), t.Cancel(), new RetryJobHandler(t.Jobs), t.Claim(), t.StartHandoff(),
-            t.Conversations, transcripts, outbox, registry, NullLogger<ChatCommands>.Instance);
+            t.Conversations, transcripts, outbox, registry, NullLogger<ChatCommands>.Instance, t.Events);
     }
 
     private MessagingProviderRegistry Registry() =>
