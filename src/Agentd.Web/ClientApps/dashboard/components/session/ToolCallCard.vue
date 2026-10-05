@@ -3,6 +3,8 @@ import { computed, ref } from 'vue'
 import { get } from '../../../shared/api/http'
 import type { AgentEvent } from '../../../shared/api/types'
 import { AgCollapsible } from '../../../shared/components/ui'
+import { blockDiff, type DiffLine } from '../../../shared/utils/diff'
+import DiffLines from './DiffLines.vue'
 import { toolSummary } from './transcript'
 
 const props = defineProps<{ call: AgentEvent; result?: AgentEvent }>()
@@ -17,6 +19,23 @@ const output = computed(() => (typeof payload.value.content === 'string' ? paylo
 const lines = computed(() => output.value.split('\n'))
 const showAll = ref(false)
 const visibleOutput = computed(() => (showAll.value ? output.value : lines.value.slice(0, maxLines).join('\n')))
+const parsedInput = computed<Record<string, unknown>>(() => {
+  try {
+    return JSON.parse(String((props.call.payload as Record<string, unknown>).inputJson ?? '{}')) as Record<string, unknown>
+  } catch {
+    return {}
+  }
+})
+/** Edit / MultiEdit / Write show what they change, inline. */
+const edits = computed<DiffLine[][] | null>(() => {
+  const name = String((props.call.payload as Record<string, unknown>).name ?? '')
+  const i = parsedInput.value
+  const s = (v: unknown) => (typeof v === 'string' ? v : '')
+  if (name === 'Edit') return [blockDiff(s(i.old_string), s(i.new_string))]
+  if (name === 'MultiEdit' && Array.isArray(i.edits)) return i.edits.map((e: Record<string, unknown>) => blockDiff(s(e.old_string), s(e.new_string)))
+  if (name === 'Write') return [blockDiff('', s(i.content))]
+  return null
+})
 const input = computed(() => {
   try {
     return JSON.stringify(JSON.parse(String((props.call.payload as Record<string, unknown>).inputJson ?? '{}')), null, 2)
@@ -37,7 +56,7 @@ async function expand(): Promise<void> {
 
 <template>
   <AgCollapsible
-    :default-open="failed"
+    :default-open="failed || edits !== null"
     :data-failed="failed || undefined"
   >
     <template #title>
@@ -59,7 +78,21 @@ async function expand(): Promise<void> {
       >✓</span>
     </template>
     <div class="grid gap-2">
-      <pre class="max-h-60 overflow-auto rounded bg-base-100 p-2 font-mono text-[12px]">{{ input }}</pre>
+      <div
+        v-if="edits"
+        class="grid max-h-96 gap-2 overflow-auto rounded bg-base-100 p-2"
+        data-inline-diff
+      >
+        <DiffLines
+          v-for="(lines, k) in edits"
+          :key="k"
+          :lines="lines"
+        />
+      </div>
+      <pre
+        v-else
+        class="max-h-60 overflow-auto rounded bg-base-100 p-2 font-mono text-[12px]"
+      >{{ input }}</pre>
       <template v-if="result">
         <pre
           class="max-h-96 overflow-auto rounded p-2 font-mono text-[12px]"
