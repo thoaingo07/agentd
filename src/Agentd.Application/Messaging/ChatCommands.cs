@@ -34,7 +34,8 @@ public sealed partial class ChatCommands(
     IOutbox outbox,
     IMessagingProviderRegistry providers,
     ILogger<ChatCommands> logger,
-    IEventStore? events = null)
+    IEventStore? events = null,
+    ICommandHandler<Permissions.PermissionAnswer, bool>? permissions = null)
 {
     /// <summary>Commands typed in a job's thread are recorded, so the work item conversation shows both directions.</summary>
     public const string CommandEventType = "chat.command";
@@ -43,7 +44,7 @@ public sealed partial class ChatCommands(
 
     /// <summary>The command list alone (the reply to an unknown command).</summary>
     public static readonly string Commands =
-        "In a job's thread: `status`, `logs`, `cancel`, `retry`, `handoff`. Anywhere: `list`, `run <work item id>`, `idea <text>` (coming soon), `help`.";
+        "In a job's thread: `status`, `logs`, `cancel`, `retry`, `handoff`, `approve`, `deny`. Anywhere: `list`, `run <work item id>`, `idea <text>` (coming soon), `help`.";
 
     /// <summary>The reply to <c>idea</c> until brainstorming (Phase 2d) is built.</summary>
     public const string IdeaComingSoon =
@@ -61,6 +62,7 @@ public sealed partial class ChatCommands(
         "• `cancel`: stop the job",
         "• `retry`: run a failed job again",
         "• `handoff`: start the knowledge hand-off (after the PR is merged)",
+        "• `approve [job|always]` / `deny`: answer a permission request",
         "Anywhere:",
         "• `list`: active jobs",
         "• `run <work item id>`: start a work item now, even without the tag",
@@ -71,6 +73,7 @@ public sealed partial class ChatCommands(
         "• Any other message goes to the agent. While it's working you get the current status right away, and it reads your message at its next step.",
         "• Ask \"what's the progress?\" at any time.",
         "• Answer a question with its number (`1`, `2`, …) or in your own words.",
+        "• 🔐 Permission requests: `1` once, `2` this job, `3` always (repo), `4` deny. No answer in 10 min = deny.",
         "",
         "**The job cycle** (one thread per work item)",
         "1. I pick up work items tagged `ai-workflow`, or the one you `run`.",
@@ -107,7 +110,7 @@ public sealed partial class ChatCommands(
             case "run":
                 reply = await RunAsync(command.Args, ct).ConfigureAwait(false);
                 break;
-            case "status" or "cancel" or "retry" or "logs" or "handoff" when job is null:
+            case "status" or "cancel" or "retry" or "logs" or "handoff" or "approve" or "deny" when job is null:
                 reply = new(MessageKind.Info, $"`{name}` works in a job's thread. Use `list` to find one.");
                 break;
             case "status":
@@ -142,6 +145,14 @@ public sealed partial class ChatCommands(
 
                 reply = new(MessageKind.Info, $"Can't start the hand-off: {started.Error.Message}");
                 break;
+            case "approve" or "deny":
+                if (await AnswerPermissionAsync(job!.Value, name, command.Args, user, ct).ConfigureAwait(false) is not { } problem)
+                {
+                    return new InboundOutcome($"command:{name}", job);   // the decision is announced in the thread
+                }
+
+                reply = problem;
+                break;
             case "idea":
                 reply = new(MessageKind.Info, IdeaComingSoon);
                 break;
@@ -151,7 +162,22 @@ public sealed partial class ChatCommands(
         }
 
         await ReplyAsync(message, job, reply, ct).ConfigureAwait(false);
-        return new InboundOutcome($"command:{(name is "list" or "run" or "status" or "cancel" or "retry" or "logs" or "handoff" or "idea" or "help" ? name : "unknown")}", job);
+        return new InboundOutcome($"command:{(name is "list" or "run" or "status" or "cancel" or "retry" or "logs" or "handoff" or "approve" or "deny" or "idea" or "help" ? name : "unknown")}", job);
+    }
+
+    /// <summary><c>approve [request] [once|job|always]</c> or <c>deny [request]</c>; null when it was decided (announced in the thread).</summary>
+    private async Task<OutboundMessage?> AnswerPermissionAsync(JobId job, string name, IReadOnlyList<string> args, AgentdUser user, CancellationToken ct)
+    {
+        if (permissions is null)
+        {
+            return new(MessageKind.Info, "Permission requests aren't enabled.");
+        }
+
+        long? id = args.Count > 0 && long.TryParse(args[0], NumberStyles.None, CultureInfo.InvariantCulture, out var n) ? n : null;
+        var scope = args.Skip(id is null ? 0 : 1).FirstOrDefault()?.ToLowerInvariant();
+        var answer = name == "deny" ? "deny" : scope switch { "job" => "job", "always" or "repo" => "always", _ => "once" };
+        var handled = await permissions.Handle(new Permissions.PermissionAnswer(job, answer, user.Name, id), ct).ConfigureAwait(false);
+        return handled is { IsSuccess: true, Value: true } ? null : new(MessageKind.Info, "There's no open permission request to answer in this thread.");
     }
 
     private async Task RecordAsync(JobId job, InboundMessage message, InboundCommand command, AgentdUser user, CancellationToken ct)

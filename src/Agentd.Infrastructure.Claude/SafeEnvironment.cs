@@ -31,6 +31,9 @@ public static class SafeEnvironment
             env["CLAUDE_CONFIG_DIR"] = Paths.Expand(options.ConfigDir);
         }
 
+        // A permission question may wait minutes for a person; the CLI's MCP call must not give up first.
+        env["MCP_TOOL_TIMEOUT"] = ((long)options.McpToolTimeout.TotalMilliseconds).ToString(System.Globalization.CultureInfo.InvariantCulture);
+
         if (!string.IsNullOrWhiteSpace(options.OAuthToken))
         {
             env[options.OAuthTokenVariable] = options.OAuthToken;

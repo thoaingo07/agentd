@@ -14,6 +14,7 @@ agentd runs one `claude` process per job, in that job's worktree.
 | `--permission-mode <mode>` | e.g. `acceptEdits`; avoid `bypassPermissions` outside a sandbox |
 | `--allowedTools "Read" "Edit" "Bash(git:*)"` | tool allowlist. Headless runs can't answer a prompt, so anything not listed is refused and the refusal goes back to the agent. agentd's defaults are in `ClaudeOptions.AllowedTools` / `ReadOnlyTools`: read and search tools; `git status/diff/add/commit/log/show/fetch` (no push: agentd pushes); dotnet/npm build and test. `Agentd:Claude:AllowedTools` entries are **added** to the defaults. For a compound command (`a && b`, `a \| b`), every part must match. |
 | `--disallowedTools ...` | tool denylist |
+| `--permission-prompt-tool mcp__agentd__permission` | a tool call outside the allowlist goes to agentd's MCP tool instead of being refused. A person decides in the job's chat thread (later also the Web UI). Contract, checked against CLI 2.1.289: arguments `tool_name`, `input`, `tool_use_id`; reply JSON text `{"behavior":"allow","updatedInput":<input>}` or `{"behavior":"deny","message":…}`. The CLI waits for the answer; agentd sets `MCP_TOOL_TIMEOUT` (15 min) above its own permission timeout (10 min, then deny). |
 | `--max-turns <n>` | a hard stop for runaway agents |
 | `--append-system-prompt "<text>"` | agentd rules (use MCP tools, commit often, call `finish`) |
 | `--mcp-config <file.json>` | registers the agentd MCP server for this job |
@@ -87,3 +88,20 @@ library API. From .NET, driving the CLI is the practical choice.
 
 - Docs: https://docs.claude.com/en/docs/claude-code/sdk
 - CLI reference: https://docs.claude.com/en/docs/claude-code/cli-reference
+
+## Permission requests (agentd)
+
+When the agent needs a command outside its allowlist, the CLI calls `mcp__agentd__permission`, and agentd:
+
+1. **Hard denies**, which no one can approve: `git push` (agentd pushes), `sudo`, piping a download into a
+   shell, `rm -rf /` or `~`, and anything touching `~/.agentd` (agentd's own files and secrets).
+2. **Allows** without asking when every part of the command is allowlisted or remembered. A shell command's
+   parts are split on `&&`, `||`, `;` and `|`; each part's key is its command and subcommand, e.g.
+   `Bash(npm install:*)`.
+3. **Otherwise asks** in the job's thread: **1** allow once · **2** allow for this job · **3** always allow
+   in this repository · **4** deny. People answer with the number, a word (`allow`, `always`, `deny`, …),
+   or `!approve [job|always]` / `!deny`. The first answer wins (an atomic routine), and the decision is
+   announced in the thread.
+4. "This job" and "always" are stored as rules (`permission_rules`). Every request and decision is an event
+   (`permission.requested`, `permission.decided`).
+5. No answer within `Agentd:Jobs:PermissionTimeout` (10 min) is a deny. The agent is told why and carries on.

@@ -25,6 +25,7 @@ public static class DependencyInjection
         services.AddSingleton<IEventReader>(sp => sp.GetRequiredService<EventStore>());
         services.AddSingleton<IRepositoryRegistry, RepositoryStore>();
         services.AddSingleton<IWorkItemHistory, WorkItemHistoryStore>();
+        services.AddSingleton<Application.Permissions.IPermissionStore, PermissionStore>();
         services.AddSingleton<IConversationStore, ConversationStore>();
         services.AddSingleton<IUserDirectory, UserDirectory>();
         services.AddSingleton<IOutbox, Outbox>();

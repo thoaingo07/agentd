@@ -26,8 +26,38 @@ public sealed class AgentdTools(
     ICommandHandler<TakeDeveloperMessages, IReadOnlyList<string>> unread,
     ICommandHandler<SetPhase, Unit> phases,
     ICommandHandler<SubmitPlan, PlanOutcome> plans,
-    ICommandHandler<ProposeKnowledge, Unit> knowledge)
+    ICommandHandler<ProposeKnowledge, Unit> knowledge,
+    ICommandHandler<Application.Permissions.PermissionAsk, Application.Permissions.PermissionDecision>? permissions = null)
 {
+    /// <summary>
+    /// Claude Code's permission prompt (<c>--permission-prompt-tool mcp__agentd__permission</c>): called by the CLI,
+    /// not by the agent, for a tool call outside the allowlist. A person allows or denies it in chat or the Web UI.
+    /// Contract (checked against CLI 2.1.289): arguments <c>tool_name</c>, <c>input</c>, <c>tool_use_id</c>; the
+    /// result is JSON text, <c>{"behavior":"allow","updatedInput":…}</c> or <c>{"behavior":"deny","message":…}</c>.
+    /// </summary>
+    [McpServerTool(Name = "permission"), Description("Permission prompt used by Claude Code itself. Agents never call this tool directly.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores", Justification = "Parameter names are the CLI's argument names.")]
+    public async Task<string> Permission(
+        [Description("The tool that needs permission.")] string tool_name,
+        [Description("The tool call's input.")] System.Text.Json.JsonElement input,
+        [Description("The tool call's id.")] string? tool_use_id,
+        CancellationToken cancellationToken)
+    {
+        _ = tool_use_id;
+        if (permissions is null)
+        {
+            return Reply(false, "agentd can't ask for permission right now.", input);
+        }
+
+        var result = await permissions.Handle(new Application.Permissions.PermissionAsk(CurrentJob(), tool_name, input.GetRawText()), cancellationToken).ConfigureAwait(false);
+        return result.IsSuccess ? Reply(result.Value.Allowed, result.Value.Message, input) : Reply(false, result.Error.Message, input);
+    }
+
+    private static string Reply(bool allowed, string message, System.Text.Json.JsonElement input) =>
+        allowed
+            ? System.Text.Json.JsonSerializer.Serialize(new { behavior = "allow", updatedInput = input })
+            : System.Text.Json.JsonSerializer.Serialize(new { behavior = "deny", message });
+
     [McpServerTool(Name = "finish"), Description(
         "Call exactly once when the work item is complete and all changes are committed. agentd pushes your branch and " +
         "opens the pull request. After calling this, end your turn.")]

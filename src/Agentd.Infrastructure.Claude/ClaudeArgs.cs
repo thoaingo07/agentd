@@ -45,6 +45,13 @@ public static class ClaudeArgs
         {
             args.Add("--mcp-config");
             args.Add(mcpConfigPath);
+
+            // Tool calls outside the allowlist are sent to agentd (a person approves or denies) instead of refused.
+            if (!string.IsNullOrWhiteSpace(options.PermissionPromptTool))
+            {
+                args.Add("--permission-prompt-tool");
+                args.Add(options.PermissionPromptTool);
+            }
         }
 
         return args;

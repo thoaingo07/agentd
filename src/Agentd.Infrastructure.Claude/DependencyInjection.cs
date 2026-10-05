@@ -10,6 +10,7 @@ public static class DependencyInjection
     {
         services.AddOptions<ClaudeOptions>().Bind(configuration.GetSection(ClaudeOptions.Section));
         services.AddSingleton<IAgentRunner, ClaudeCodeRunner>();
+        services.AddSingleton<Application.Permissions.IToolAllowlist, ClaudeToolAllowlist>();
         services.AddSingleton<Application.Messaging.ITranscriptReader, TranscriptReader>();
         return services;
     }
