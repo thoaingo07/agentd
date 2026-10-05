@@ -212,6 +212,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/jobs/{id}/permissions/{requestId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AnswerPermission"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/permissions/rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetPermissionRules"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/permissions/rules/{ruleId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["RevokePermissionRule"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/workitems/{id}": {
         parameters: {
             query?: never;
@@ -416,6 +464,7 @@ export interface components {
             lastActivityAt: null | string;
             usage: null | components["schemas"]["UsageVm"];
             conversations: components["schemas"]["ConversationVm"][];
+            permissions: components["schemas"]["PermissionRequestVm"][];
         };
         /** @description A job row (dashboard, history). State and statuses are strings for the UI. */
         JobSummaryVm: {
@@ -442,6 +491,8 @@ export interface components {
             lastError: null | string;
             /** Format: date-time */
             completedAt: null | string;
+            /** Format: int32 */
+            pendingPermissions: number;
         };
         JsonElement: unknown;
         MessageAcceptedVm: {
@@ -449,6 +500,31 @@ export interface components {
         };
         MessageRequest: {
             text: string;
+        };
+        PermissionAnswerRequest: {
+            choice: string;
+        };
+        /** @description A tool call outside the agent's allowlist, waiting for a person (`ruleKeys`: what "allow for this job / always" remembers). */
+        PermissionRequestVm: {
+            /** Format: int64 */
+            id: number;
+            tool: string;
+            summary: string;
+            ruleKeys: string[];
+            /** Format: date-time */
+            requestedAt: string;
+        };
+        /** @description A remembered approval; `jobId` null means every job of the repository. */
+        PermissionRuleVm: {
+            /** Format: int64 */
+            id: number;
+            repo: string;
+            /** Format: int64 */
+            jobId: null | number;
+            ruleKey: string;
+            createdBy: string;
+            /** Format: date-time */
+            createdAt: string;
         };
         ProblemDetails: {
             type?: null | string;
@@ -966,6 +1042,98 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ConfigVm"];
+                };
+            };
+        };
+    };
+    AnswerPermission: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+                requestId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": null | components["schemas"]["PermissionAnswerRequest"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetPermissionRules: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PermissionRuleVm"][];
+                };
+            };
+        };
+    };
+    RevokePermissionRule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ruleId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
         };

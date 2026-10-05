@@ -28,7 +28,7 @@ public sealed class ApiReadEndpointTests
         Assert.AreEqual(99, json.GetProperty("latestSeq").GetInt64());
         var job = json.GetProperty("activeJobs")[0];
         CollectionAssert.AreEqual(
-            new[] { "id", "workItemId", "title", "repo", "branch", "state", "phase", "startedAt", "elapsedSeconds", "prUrl", "waitingSince", "planStatus", "handoff", "fixRounds", "lastError", "completedAt" },
+            new[] { "id", "workItemId", "title", "repo", "branch", "state", "phase", "startedAt", "elapsedSeconds", "prUrl", "waitingSince", "planStatus", "handoff", "fixRounds", "lastError", "completedAt", "pendingPermissions" },
             job.EnumerateObject().Select(p => p.Name).ToArray(), "the TS contract");
         Assert.AreEqual("WaitingForHuman", job.GetProperty("state").GetString());
         Assert.AreEqual(720, job.GetProperty("elapsedSeconds").GetInt64());

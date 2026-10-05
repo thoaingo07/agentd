@@ -45,6 +45,36 @@ public sealed class JobQueryTests
     }
 
     [TestMethod]
+    public async Task Open_permission_requests_show_on_the_dashboard_and_the_job()
+    {
+        var t = new TestContext();
+        var asking = await t.RunningJobAsync(1);
+        var quiet = await t.RunningJobAsync(2);
+        var store = new Permissions.PermissionTests.FakeStore();
+        await store.InsertAsync(asking.JobId, "Bash", "npm install", ["Bash(npm install:*)"], default);
+        await store.DecideAsync(await store.InsertAsync(asking.JobId, "Bash", "make", ["Bash(make:*)"], default), "denied", null, "tngo", Domain.Jobs.ValueObjects.RepositoryName.From("sysmin"), default);
+
+        var dashboard = await new GetDashboardHandler(t.Jobs, new Reader([1]), t.Activity, t.Clock, store).Handle(new GetDashboard(), default);
+        var detail = await new GetJobHandler(t.Jobs, t.Conversations, t.Activity, t.Clock, store).Handle(new GetJob(asking.JobId), default);
+
+        Assert.AreEqual((1, 0), (dashboard.ActiveJobs.Single(j => j.Id == asking.JobId.Value).PendingPermissions, dashboard.ActiveJobs.Single(j => j.Id == quiet.JobId.Value).PendingPermissions));
+        Assert.AreEqual("npm install", detail!.Permissions!.Single().Summary, "only the open one");
+        Assert.AreEqual(1, detail.Summary.PendingPermissions);
+    }
+
+    [TestMethod]
+    public async Task Revoking_a_rule_that_is_gone_is_not_found()
+    {
+        var store = new Permissions.PermissionTests.FakeStore();
+        store.Rules.Add(new Application.Permissions.PermissionRule(7, "sysmin", null, "Bash(npm install:*)", "tngo", DateTimeOffset.UtcNow));
+        var revoke = new Application.Permissions.RevokePermissionRuleHandler(store);
+
+        Assert.IsTrue((await revoke.Handle(new Application.Permissions.RevokePermissionRule(7, "admin"), default)).IsSuccess);
+        Assert.AreEqual("not_found", (await revoke.Handle(new Application.Permissions.RevokePermissionRule(7, "admin"), default)).Error!.Code);
+        Assert.IsEmpty(await new Application.Permissions.GetPermissionRulesHandler(store).Handle(new Application.Permissions.GetPermissionRules(), default));
+    }
+
+    [TestMethod]
     public async Task Event_pages_report_whether_more_exist_in_that_direction()
     {
         var reader = new Reader(Enumerable.Range(1, 10).Select(i => (long)i).ToList());

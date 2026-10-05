@@ -101,8 +101,12 @@ When the agent needs a command outside its allowlist, the CLI calls `mcp__agentd
    `Bash(npm install:*)`.
 3. **Otherwise asks** in the job's thread: **1** allow once · **2** allow for this job · **3** always allow
    in this repository · **4** deny. People answer with the number, a word (`allow`, `always`, `deny`, …),
-   or `!approve [job|always]` / `!deny`. The first answer wins (an atomic routine), and the decision is
-   announced in the thread.
-4. "This job" and "always" are stored as rules (`permission_rules`). Every request and decision is an event
-   (`permission.requested`, `permission.decided`).
+   or `!approve [job|always]` / `!deny`. The **Web UI** asks too: a banner on the session page with the
+   same four buttons (`POST /api/jobs/{id}/permissions/{requestId}` with `choice` = `once`, `job`, `repo`
+   or `deny`; 409 `already_decided` when someone answered first), and a 🔐 badge on the dashboard's job
+   row. The first answer wins (an atomic routine), and the decision is announced in the thread.
+4. "This job" and "always" are stored as rules (`permission_rules`). The Settings page lists them
+   (`GET /api/permissions/rules`), and **Admins revoke** one (`DELETE /api/permissions/rules/{id}`), so
+   the agent is asked again. Every request, decision and revoke is an event (`permission.requested`,
+   `permission.decided`, `permission.revoked`).
 5. No answer within `Agentd:Jobs:PermissionTimeout` (10 min) is a deny. The agent is told why and carries on.

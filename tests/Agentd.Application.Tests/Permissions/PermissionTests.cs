@@ -147,7 +147,7 @@ public sealed class PermissionTests
     }
 
     /// <summary>In-memory store with the routine's first-answer-wins rule.</summary>
-    private sealed class FakeStore : IPermissionStore
+    internal sealed class FakeStore : IPermissionStore
     {
         private long _next;
 
@@ -202,5 +202,14 @@ public sealed class PermissionTests
 
         public Task<IReadOnlyList<string>> RuleKeysAsync(RepositoryName repository, JobId jobId, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<string>>(Remembered.Distinct().ToList());
+
+        public Task<IReadOnlyDictionary<JobId, int>> PendingCountsAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyDictionary<JobId, int>>(Rows.Values.Where(r => r.Status == "pending").GroupBy(r => r.JobId).ToDictionary(g => g.Key, g => g.Count()));
+
+        public List<PermissionRule> Rules { get; } = [];
+
+        public Task<IReadOnlyList<PermissionRule>> ListRulesAsync(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<PermissionRule>>(Rules);
+
+        public Task<bool> DeleteRuleAsync(long id, string by, CancellationToken cancellationToken) => Task.FromResult(Rules.RemoveAll(r => r.Id == id) > 0);
     }
 }

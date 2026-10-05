@@ -20,7 +20,7 @@ public static class ResultExtensions
         var (status, title) = error.Code switch
         {
             "not_found" => (StatusCodes.Status404NotFound, "Not found"),
-            "invalid_transition" or "conflict" or "not_accepted" => (StatusCodes.Status409Conflict, "Conflict"),
+            "invalid_transition" or "conflict" or "not_accepted" or "already_decided" => (StatusCodes.Status409Conflict, "Conflict"),
             "validation" => (StatusCodes.Status400BadRequest, "Invalid request"),
             _ => (StatusCodes.Status500InternalServerError, "Unexpected error"),
         };

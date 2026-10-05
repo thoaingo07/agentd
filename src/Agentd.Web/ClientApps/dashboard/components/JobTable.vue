@@ -90,11 +90,18 @@ function onKey(e: KeyboardEvent): void {
           :key="job.id"
           tabindex="0"
           class="cursor-pointer transition-colors hover:bg-base-200 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary motion-reduce:transition-none"
-          :class="[job.state === 'WaitingForHuman' ? 'bg-warning/10' : '', flashing.has(job.id) ? 'bg-primary/10' : '']"
+          :class="[job.state === 'WaitingForHuman' || job.pendingPermissions > 0 ? 'bg-warning/10' : '', flashing.has(job.id) ? 'bg-primary/10' : '']"
           :data-flash="flashing.has(job.id) || undefined"
           @click="open(job)"
         >
-          <td><AgStateBadge :state="job.state as JobState" /></td>
+          <td>
+            <AgStateBadge :state="job.state as JobState" />
+            <span
+              v-if="job.pendingPermissions > 0"
+              class="badge badge-warning badge-sm ml-1"
+              :title="`${job.pendingPermissions} permission request(s) waiting`"
+            >🔐 {{ job.pendingPermissions }}</span>
+          </td>
           <td class="max-w-72">
             <RouterLink
               :to="{ name: 'work-item', params: { id: job.workItemId } }"

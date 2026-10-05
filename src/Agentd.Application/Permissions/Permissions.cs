@@ -13,6 +13,9 @@ namespace Agentd.Application.Permissions;
 public sealed record PermissionRequest(
     long Id, JobId JobId, string ToolName, string Summary, IReadOnlyList<string> RuleKeys, string Status, string? Scope, string? DecidedBy, DateTimeOffset RequestedAt);
 
+/// <summary>A remembered approval: for one job (<paramref name="JobId"/> set) or every job of a repository.</summary>
+public sealed record PermissionRule(long Id, string Repository, JobId? JobId, string RuleKey, string CreatedBy, DateTimeOffset CreatedAt);
+
 /// <summary>Permission requests and remembered approvals (PostgreSQL routines).</summary>
 public interface IPermissionStore
 {
@@ -27,6 +30,14 @@ public interface IPermissionStore
 
     /// <summary>Rule keys remembered for the job and its repository.</summary>
     Task<IReadOnlyList<string>> RuleKeysAsync(RepositoryName repository, JobId jobId, CancellationToken cancellationToken);
+
+    /// <summary>Open requests per job; jobs without any are left out.</summary>
+    Task<IReadOnlyDictionary<JobId, int>> PendingCountsAsync(CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<PermissionRule>> ListRulesAsync(CancellationToken cancellationToken);
+
+    /// <summary>Revokes a remembered approval; false when it's already gone.</summary>
+    Task<bool> DeleteRuleAsync(long id, string by, CancellationToken cancellationToken);
 }
 
 /// <summary>The agent runner's own allowlist (Claude Code's <c>--allowedTools</c>), so already-allowed parts aren't asked about again.</summary>

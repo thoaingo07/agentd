@@ -67,3 +67,35 @@ CREATE OR REPLACE FUNCTION agentd.permission_rule_keys(p_repo text, p_job_id big
 RETURNS SETOF text
 LANGUAGE sql STABLE
 AS $$ SELECT DISTINCT rule_key FROM agentd.permission_rules WHERE repo = p_repo AND (job_id IS NULL OR job_id = p_job_id) $$;
+
+-- Open requests per job (the dashboard's badge).
+CREATE OR REPLACE FUNCTION agentd.permission_request_pending_counts()
+RETURNS TABLE (job_id bigint, pending integer)
+LANGUAGE sql STABLE
+AS $$ SELECT r.job_id, count(*)::integer FROM agentd.permission_requests AS r WHERE r.status = 'pending' GROUP BY r.job_id $$;
+
+-- Remembered approvals, newest first (the Settings page).
+CREATE OR REPLACE FUNCTION agentd.permission_rule_list()
+RETURNS SETOF agentd.permission_rules
+LANGUAGE sql STABLE
+AS $$ SELECT * FROM agentd.permission_rules ORDER BY id DESC $$;
+
+-- Revokes a remembered approval and records it in the event log; false when it's already gone.
+CREATE OR REPLACE FUNCTION agentd.permission_rule_delete(p_id bigint, p_by text)
+RETURNS boolean
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_rule agentd.permission_rules;
+BEGIN
+    DELETE FROM agentd.permission_rules AS r WHERE r.id = p_id RETURNING r.* INTO v_rule;
+    IF v_rule.id IS NULL THEN
+        RETURN false;
+    END IF;
+
+    INSERT INTO agentd.events (job_id, type, payload)
+    VALUES (v_rule.job_id, 'permission.revoked',
+            jsonb_build_object('id', v_rule.id, 'repo', v_rule.repo, 'ruleKey', v_rule.rule_key, 'by', p_by));
+    RETURN true;
+END
+$$;

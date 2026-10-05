@@ -641,6 +641,132 @@
         }
       }
     },
+    "/api/jobs/{id}/permissions/{requestId}": {
+      "post": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "AnswerPermission",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "requestId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/PermissionAnswerRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/permissions/rules": {
+      "get": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "GetPermissionRules",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PermissionRuleVm"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/permissions/rules/{ruleId}": {
+      "delete": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "RevokePermissionRule",
+        "parameters": [
+          {
+            "name": "ruleId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/workitems/{id}": {
       "get": {
         "tags": [
@@ -1237,7 +1363,8 @@
           "lastActivity",
           "lastActivityAt",
           "usage",
-          "conversations"
+          "conversations",
+          "permissions"
         ],
         "type": "object",
         "properties": {
@@ -1294,6 +1421,12 @@
             "items": {
               "$ref": "#/components/schemas/ConversationVm"
             }
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PermissionRequestVm"
+            }
           }
         }
       },
@@ -1314,7 +1447,8 @@
           "handoff",
           "fixRounds",
           "lastError",
-          "completedAt"
+          "completedAt",
+          "pendingPermissions"
         ],
         "type": "object",
         "properties": {
@@ -1390,6 +1524,10 @@
               "string"
             ],
             "format": "date-time"
+          },
+          "pendingPermissions": {
+            "type": "integer",
+            "format": "int32"
           }
         },
         "description": "A job row (dashboard, history). State and statuses are strings for the UI."
@@ -1416,6 +1554,88 @@
             "type": "string"
           }
         }
+      },
+      "PermissionAnswerRequest": {
+        "required": [
+          "choice"
+        ],
+        "type": "object",
+        "properties": {
+          "choice": {
+            "type": "string"
+          }
+        }
+      },
+      "PermissionRequestVm": {
+        "required": [
+          "id",
+          "tool",
+          "summary",
+          "ruleKeys",
+          "requestedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "tool": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "ruleKeys": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "requestedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "A tool call outside the agent\u0027s allowlist, waiting for a person (\u0060ruleKeys\u0060: what \u0022allow for this job / always\u0022 remembers)."
+      },
+      "PermissionRuleVm": {
+        "required": [
+          "id",
+          "repo",
+          "jobId",
+          "ruleKey",
+          "createdBy",
+          "createdAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "repo": {
+            "type": "string"
+          },
+          "jobId": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int64"
+          },
+          "ruleKey": {
+            "type": "string"
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "A remembered approval; \u0060jobId\u0060 null means every job of the repository."
       },
       "ProblemDetails": {
         "type": "object",

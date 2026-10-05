@@ -52,6 +52,31 @@ public sealed class PermissionStoreTests
         Assert.AreEqual(6L, (long)(await count.ExecuteScalarAsync())!, "every request and decision is in the event log");
     }
 
+    [TestMethod]
+    public async Task Pending_counts_and_rules_can_be_listed_and_a_rule_revoked_once()
+    {
+        await using var db = await Database.CreateMigratedAsync($"permissions_{Interlocked.Increment(ref s_next)}");
+        var (store, job) = await SetupAsync(db);
+        var repo = RepositoryName.From("sysmin");
+        await store.InsertAsync(job, "Bash", "make", ["Bash(make:*)"], default);
+        var forJob = await store.InsertAsync(job, "Bash", "npm install", ["Bash(npm install:*)"], default);
+        await store.DecideAsync(forJob, "allowed", "job", "tngo", repo, default);
+        var always = await store.InsertAsync(job, "WebFetch", "https://docs.npmjs.com", ["WebFetch(domain:docs.npmjs.com)"], default);
+        await store.DecideAsync(always, "allowed", "repo", "tngo", repo, default);
+
+        Assert.AreEqual(1, (await store.PendingCountsAsync(default))[job]);
+        var rules = await store.ListRulesAsync(default);
+        Assert.AreEqual(("WebFetch(domain:docs.npmjs.com)", (JobId?)null, "tngo"), (rules[0].RuleKey, rules[0].JobId, rules[0].CreatedBy), "newest first; a repo rule has no job");
+        Assert.AreEqual(("Bash(npm install:*)", (JobId?)job), (rules[1].RuleKey, rules[1].JobId));
+
+        var revoked = await Task.WhenAll(Enumerable.Range(0, 4).Select(_ => Task.Run(() => store.DeleteRuleAsync(rules[0].Id, "admin", default))));
+
+        Assert.AreEqual(1, revoked.Count(r => r), "exactly one caller revokes it");
+        CollectionAssert.AreEqual(new[] { "Bash(npm install:*)" }, (await store.RuleKeysAsync(repo, job, default)).ToArray());
+        await using var count = db.CreateCommand("SELECT count(*) FROM agentd.events WHERE type = 'permission.revoked'");
+        Assert.AreEqual(1L, (long)(await count.ExecuteScalarAsync())!);
+    }
+
     private static async Task<(PermissionStore Store, JobId Job)> SetupAsync(Npgsql.NpgsqlDataSource db, int workItem = 5615)
     {
         var job = Job.Create(WorkItemId.From(workItem), RepositoryName.From("sysmin"), "Tailwind v4", new Clock());
