@@ -83,9 +83,21 @@ public sealed class ClaimWorkItemHandler(
                 return DomainError.Validation($"Work item {item.Id} matches several repositories: {string.Join(", ", candidates)}.");
 
             default:
-                await NotifyOnceAsync(command.WorkItemId, "agentd: no registered repository matches this item. Add a `repo:<name>` tag.", cancellationToken).ConfigureAwait(false);
-                return DomainError.NotFound($"A repository for work item {item.Id}");
+                var known = (await repositories.ListAsync(cancellationToken).ConfigureAwait(false)).Select(r => r.Name.Value).ToList();
+                var message = NoMatchMessage(item.Tags, known);
+                await NotifyOnceAsync(command.WorkItemId, message, cancellationToken).ConfigureAwait(false);
+                return new DomainError("not_found", message.Replace("agentd: ", string.Empty, StringComparison.Ordinal));
         }
+    }
+
+    /// <summary>Names the unknown repository when the item has a <c>repo:</c> tag, and says how to add it.</summary>
+    internal static string NoMatchMessage(IReadOnlyList<string> tags, IReadOnlyList<string> known)
+    {
+        var registered = known.Count == 0 ? "none yet" : string.Join(", ", known.Select(k => $"`{k}`"));
+        var tag = tags.Select(t => t.Trim()).FirstOrDefault(t => t.StartsWith("repo:", StringComparison.OrdinalIgnoreCase) && t.Length > 5);
+        return tag is null
+            ? $"agentd: no registered repository matches this item (registered: {registered}). Add a `repo:<name>` tag."
+            : $"agentd: this item is tagged `{tag}`, but agentd doesn't know that repository (registered: {registered}). An admin can add it with `!repo add <clone url> --name {tag[5..]}` in chat, or `agentd repo add` on the server.";
     }
 
     private async Task NotifyOnceAsync(WorkItemId id, string text, CancellationToken ct)

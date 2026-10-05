@@ -83,6 +83,16 @@ Repositories aren't local folders in config. agentd **clones and owns** them:
 - **Multiple organizations:** `AzureDevOps:Organizations[]`, each with its own auth (the `az` login,
   a PAT secret, or a service principal).
 
+
+**From chat (added 2026-10-05):**
+- **`!repo list`** shows the registered repositories and what matches them.
+- **`!repo add <clone url> [--name x] [--tag t] [--base b] [--area-path p]`** and **`!repo remove
+  <name>`** do the same as the CLI.
+  - They need the **Admin** role from `Agentd:Users`. Strangers accepted by `AllowEveryone` are
+    Operators, so they can't register repositories for agents to clone.
+- **A work item tagged with an unknown `repo:<name>`** gets a comment naming that repository, the
+  registered ones, and the `!repo add` to fix it. Previously it said only "no registered repository
+  matches".
 ---
 
 ## 4. Secrets

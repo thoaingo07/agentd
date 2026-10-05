@@ -37,7 +37,10 @@ public sealed partial class ChatCommands(
     IEventStore? events = null,
     ICommandHandler<Permissions.PermissionAnswer, bool>? permissions = null,
     Ideas.IdeaService? ideas = null,
-    Ideas.IIdeaStore? ideaStore = null)
+    Ideas.IIdeaStore? ideaStore = null,
+    IRepositoryRegistry? repositories = null,
+    ICommandHandler<Repositories.AddRepository, Domain.Repositories.Repository>? addRepository = null,
+    ICommandHandler<Repositories.RemoveRepository, Unit>? removeRepository = null)
 {
     /// <summary>Commands typed in a job's thread are recorded, so the work item conversation shows both directions.</summary>
     public const string CommandEventType = "chat.command";
@@ -46,7 +49,7 @@ public sealed partial class ChatCommands(
 
     /// <summary>The command list alone (the reply to an unknown command).</summary>
     public static readonly string Commands =
-        "In a job's thread: `status`, `logs`, `cancel`, `retry`, `handoff`, `approve`, `deny`. Anywhere: `list`, `run <work item id>`, `idea <text>`, `help`. In an idea's thread: `model`, `effort`.";
+        "In a job's thread: `status`, `logs`, `cancel`, `retry`, `handoff`, `approve`, `deny`. Anywhere: `list`, `run <work item id>`, `idea <text>`, `repo`, `help`. In an idea's thread: `model`, `effort`.";
 
     /// <summary>The reply to <c>idea</c> until brainstorming (Phase 2d) is built.</summary>
     public const string IdeaComingSoon =
@@ -60,7 +63,7 @@ public sealed partial class ChatCommands(
         "**Commands** (start with `!` on Discord)",
         "In a job's thread:",
         "• `status`: phase, current activity, elapsed time and usage",
-        "• `logs`: the last " + LogLines + " lines of the agent's transcript",
+        "• `logs`: the agent's recent transcript",
         "• `cancel`: stop the job",
         "• `retry`: run a failed job again",
         "• `handoff`: start the knowledge hand-off (after the PR is merged)",
@@ -68,12 +71,13 @@ public sealed partial class ChatCommands(
         "Anywhere:",
         "• `list`: active jobs",
         "• `run <work item id>`: start a work item now, even without the tag",
-        "• `idea [--model m] [--effort e] <text>`: brainstorm into User Stories/Tasks; then 1 create · 2 create+start · 3 change · 4 discard",
+        "• `idea [--model m] [--effort e] <text>`: brainstorm into work items",
+        "• `repo list|add <url>|remove <name>`: repositories (Admins change them)",
         "• `help`: this message",
         "",
         "**Talking to the agent** (in a job's thread)",
         "• Any other message goes to the agent. While it's working you get the current status right away, and it reads your message at its next step.",
-        "• Ask \"what's the progress?\" at any time.",
+        "• Ask \"what's the progress?\" anytime.",
         "• Answer a question with its number (`1`, `2`, …) or in your own words.",
         "• 🔐 Permission requests: `1` once, `2` this job, `3` always (repo), `4` deny. No answer in 10 min = deny.",
         "",
@@ -86,8 +90,8 @@ public sealed partial class ChatCommands(
         "6. **Close-out:** I ask whether to delete this thread (`1` delete, `2` keep).",
         "",
         "**Along the way**",
-        "• A heartbeat in the thread every minute while I work, with the timestamp",
-        "• A warning when usage reaches 80% of the 5-hour or weekly window",
+        "• A heartbeat every minute while I work",
+        "• A warning at 80% of the 5-hour or weekly usage window",
         "• Reminders while I'm waiting for you",
         "• Everything is also on the web dashboard.");
 
@@ -158,6 +162,9 @@ public sealed partial class ChatCommands(
             case "idea":
                 reply = await StartIdeaAsync(message, user, command.Args, ct).ConfigureAwait(false);
                 break;
+            case "repo":
+                reply = await RepoAsync(command.Args, user, ct).ConfigureAwait(false);
+                break;
             case "model" or "effort":
                 reply = await IdeaSettingsAsync(message, name, command.Args, ct).ConfigureAwait(false);
                 break;
@@ -167,7 +174,7 @@ public sealed partial class ChatCommands(
         }
 
         await ReplyAsync(message, job, reply, ct).ConfigureAwait(false);
-        return new InboundOutcome($"command:{(name is "list" or "run" or "status" or "cancel" or "retry" or "logs" or "handoff" or "approve" or "deny" or "idea" or "model" or "effort" or "help" ? name : "unknown")}", job);
+        return new InboundOutcome($"command:{(name is "list" or "run" or "status" or "cancel" or "retry" or "logs" or "handoff" or "approve" or "deny" or "idea" or "model" or "effort" or "repo" or "help" ? name : "unknown")}", job);
     }
 
     /// <summary><c>approve [request] [once|job|always]</c> or <c>deny [request]</c>; null when it was decided (announced in the thread).</summary>
@@ -220,6 +227,67 @@ public sealed partial class ChatCommands(
         var text = await ideas.ChangeSettingsAsync(idea, name == "model" ? args[0] : null, name == "effort" ? args[0] : null, ct).ConfigureAwait(false);
         return new(MessageKind.Info, text);
     }
+
+    /// <summary><c>repo list</c> · <c>repo add &lt;url&gt; [--name x] [--tag t] [--base b] [--area-path p]</c> · <c>repo remove &lt;name&gt;</c>. Add and remove need the Admin role.</summary>
+    private async Task<OutboundMessage> RepoAsync(IReadOnlyList<string> args, AgentdUser user, CancellationToken ct)
+    {
+        if (repositories is null)
+        {
+            return new(MessageKind.Info, "Repository commands aren't available here.");
+        }
+
+        var sub = args.Count > 0 ? args[0].ToLowerInvariant() : "list";
+        if (sub == "list")
+        {
+            var all = await repositories.ListAsync(ct).ConfigureAwait(false);
+            return new(MessageKind.Info, all.Count == 0
+                ? "No repositories are registered. An admin can add one with `!repo add <clone url>`."
+                : "**Repositories**\n" + string.Join('\n', all.Select(r =>
+                    $"• `{r.Name}`: {r.AzureDevOps.Organization}/{r.AzureDevOps.Project}/{r.AzureDevOps.Name} (base `{r.BaseBranch}`), matched by {Match(r)}")));
+        }
+
+        if (sub is not ("add" or "remove"))
+        {
+            return new(MessageKind.Info, "Use `repo list`, `repo add <clone url> [--name x] [--tag t] [--base b] [--area-path p]` or `repo remove <name>`.");
+        }
+
+        if (!user.Roles.Contains("Admin", StringComparer.OrdinalIgnoreCase))
+        {
+            return new(MessageKind.Info, $"Only an Admin can {sub} repositories (agents clone and work on them).");
+        }
+
+        if (sub == "remove")
+        {
+            if (removeRepository is null || args.Count < 2 || !RepositoryName.Create(args[1]).IsSuccess)
+            {
+                return new(MessageKind.Info, "Use `repo remove <name>`.");
+            }
+
+            var removed = await removeRepository.Handle(new Repositories.RemoveRepository(RepositoryName.From(args[1])), ct).ConfigureAwait(false);
+            return new(MessageKind.Info, removed.IsSuccess ? $"🗑 Removed `{args[1]}` (its clone stays on disk; running jobs finish)." : removed.Error.Message);
+        }
+
+        if (addRepository is null || args.Count < 2)
+        {
+            return new(MessageKind.Info, "Use `repo add <clone url> [--name x] [--tag t] [--base b] [--area-path p]`.");
+        }
+
+        string? Option(string flag)
+        {
+            var at = args.ToList().FindIndex(a => string.Equals(a, flag, StringComparison.OrdinalIgnoreCase));
+            return at >= 0 && at + 1 < args.Count ? args[at + 1] : null;
+        }
+
+        var areas = args.Select((a, n) => (a, n)).Where(x => string.Equals(x.a, "--area-path", StringComparison.OrdinalIgnoreCase) && x.n + 1 < args.Count).Select(x => args[x.n + 1]).ToList();
+        var added = await addRepository.Handle(new Repositories.AddRepository(args[1], Option("--name"), Option("--base"), Option("--tag"), areas), ct).ConfigureAwait(false);
+        return new(MessageKind.Info, added.IsSuccess
+            ? $"✅ Registered `{added.Value.Name}` (base `{added.Value.BaseBranch}`), matched by {Match(added.Value)}. Work items with that tag are picked up at the next poll."
+            : $"Couldn't add it: {added.Error.Message}");
+    }
+
+    private static string Match(Domain.Repositories.Repository r) =>
+        string.Join(" or ", new[] { r.MatchTag is { Length: > 0 } t ? $"tag `{t}`" : null }
+            .Concat(r.MatchAreaPaths.Select(a => $"area `{a}`")).OfType<string>().DefaultIfEmpty("nothing (add a tag or area path)"));
 
     private async Task RecordAsync(JobId job, InboundMessage message, InboundCommand command, AgentdUser user, CancellationToken ct)
     {
