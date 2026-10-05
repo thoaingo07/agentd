@@ -75,7 +75,8 @@ jobs:
       # CSP / XSS guard: no raw-HTML sinks or eval in app code (docs/security §3.2).
       - name: No dangerous DOM sinks
         run: |
-          if grep -rnE 'v-html|innerHTML|outerHTML|insertAdjacentHTML|document\.write|new Function|eval\(' ClientApps; then
+          # Comment lines (// … or * …) may name the sinks; code may not.
+          if grep -rnE 'v-html|innerHTML|outerHTML|insertAdjacentHTML|document\.write|new Function|eval\(' ClientApps | grep -vE '^[^:]+:[0-9]+:[[:space:]]*(//|\*|/\*)'; then
             echo "::error::raw HTML sinks or eval are forbidden (strict CSP, Trusted Types)"; exit 1
           fi
 
