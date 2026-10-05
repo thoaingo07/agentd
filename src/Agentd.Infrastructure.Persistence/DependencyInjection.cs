@@ -26,6 +26,7 @@ public static class DependencyInjection
         services.AddSingleton<IRepositoryRegistry, RepositoryStore>();
         services.AddSingleton<IWorkItemHistory, WorkItemHistoryStore>();
         services.AddSingleton<Application.Permissions.IPermissionStore, PermissionStore>();
+        services.AddSingleton<Application.Ideas.IIdeaStore, IdeaStore>();
         services.AddSingleton<IConversationStore, ConversationStore>();
         services.AddSingleton<IUserDirectory, UserDirectory>();
         services.AddSingleton<IOutbox, Outbox>();

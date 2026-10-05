@@ -263,6 +263,14 @@ internal sealed class FakeWorktrees : IWorktreeManager
 
     public List<(string Branch, string? Worktree, int MaxBytes)> Diffed { get; } = [];
 
+    public List<string> Detached { get; } = [];
+
+    public Task<string> CheckoutDetachedAsync(Repository repository, string name, CancellationToken cancellationToken)
+    {
+        Detached.Add(name);
+        return Task.FromResult($"/home/agentd/.agentd/worktrees/{repository.Name}/{name}");
+    }
+
     public Task<BranchDiff?> DiffAsync(Repository repository, BranchName branch, WorktreePath? worktree, int maxBytes, CancellationToken cancellationToken)
     {
         Diffed.Add((branch.Value, worktree?.Value, maxBytes));

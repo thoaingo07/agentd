@@ -34,6 +34,21 @@ public sealed class ClaudeOptionsTests
     }
 
     [TestMethod]
+    public void Brainstorm_turns_are_read_only_isolated_and_use_the_ideas_model_and_effort()
+    {
+        var args = ClaudeBrainstormAgent.Args(new Agentd.Application.Ideas.BrainstormTurn(1, "/wt", Guid.NewGuid(), false, "hi", "opus", "high"), new ClaudeOptions()).ToList();
+
+        Assert.AreEqual("opus", args[args.IndexOf("--model") + 1]);
+        Assert.AreEqual("high", args[args.IndexOf("--effort") + 1]);
+        CollectionAssert.Contains(args, "--strict-mcp-config");
+        Assert.AreEqual("Edit,Write,MultiEdit,NotebookEdit", args[args.IndexOf("--disallowedTools") + 1]);
+        var tools = args[args.IndexOf("--allowedTools") + 1];
+        Assert.DoesNotContain("mcp__", tools, "no agentd tools: ideas aren't jobs");
+        Assert.DoesNotContain("git commit", tools);
+        CollectionAssert.DoesNotContain(args, "--mcp-config");
+    }
+
+    [TestMethod]
     public void Configured_tools_are_added_to_the_defaults()
     {
         var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>

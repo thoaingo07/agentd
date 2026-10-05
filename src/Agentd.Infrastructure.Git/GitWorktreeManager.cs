@@ -161,6 +161,24 @@ public sealed class GitWorktreeManager(GitCli git, IOptions<GitOptions> options)
             .Sum(parts => (long.TryParse(parts[0], CultureInfo.InvariantCulture, out var added) ? added : 0)
                 + (parts.Length > 1 && long.TryParse(parts[1], CultureInfo.InvariantCulture, out var removed) ? removed : 0)) * 10;
 
+    public async Task<string> CheckoutDetachedAsync(Repository repository, string name, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(repository);
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        return await WithRepoLockAsync(repository, async () =>
+        {
+            var clone = await EnsureCloneCoreAsync(repository, cancellationToken).ConfigureAwait(false);
+            var path = Path.Combine(GitOptions.Expand(options.Value.WorktreeRoot), Safe(repository.Name.Value), Safe(name));
+            if (!Directory.Exists(path))
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+                await git.RunAsync(clone, ["worktree", "add", "--detach", path, "origin/" + repository.BaseBranch], cancellationToken).ConfigureAwait(false);
+            }
+
+            return path;
+        }, cancellationToken).ConfigureAwait(false);
+    }
+
     /// <summary>Push arguments. There is deliberately no way to request a force push.</summary>
     internal static IReadOnlyList<string> BuildPushArgs(BranchName branch) => ["push", "--set-upstream", "origin", branch.Value];
 
