@@ -15,11 +15,16 @@ public sealed class ClaudeOptions
 
     public string PermissionMode { get; set; } = "acceptEdits";
 
-    /// <summary>Tools the agent may use without prompting (patterns as accepted by <c>--allowedTools</c>).</summary>
+    /// <summary>
+    /// Tools the agent may use without prompting (patterns as accepted by <c>--allowedTools</c>). Headless runs
+    /// can't answer a prompt, so anything else is refused and the refusal goes back to the agent. Entries in
+    /// config (<c>Agentd:Claude:AllowedTools</c>) are added to these defaults. Pushing stays with agentd.
+    /// </summary>
     public IList<string> AllowedTools { get; } =
     [
         "Read", "Edit", "Write", "Glob", "Grep",
         "Bash(git status:*)", "Bash(git diff:*)", "Bash(git add:*)", "Bash(git commit:*)", "Bash(git log:*)", "Bash(git show:*)",
+        "Bash(git fetch:*)",
         "Bash(ls:*)", "Bash(cat:*)", "Bash(head:*)", "Bash(tail:*)", "Bash(wc:*)", "Bash(grep:*)", "Bash(find:*)", "Bash(which:*)",
         "Bash(dotnet build:*)", "Bash(dotnet test:*)", "Bash(dotnet restore:*)", "Bash(dotnet format:*)",
         "Bash(npm ci:*)", "Bash(npm test:*)", "Bash(npm run:*)", "Bash(helm lint:*)", "Bash(helm template:*)",
@@ -31,6 +36,7 @@ public sealed class ClaudeOptions
     [
         "Read", "Glob", "Grep",
         "Bash(git status:*)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(git show:*)",
+        "Bash(git fetch:*)",   // read-only: updates origin/* so the agent can compare with the base branch
         "Bash(ls:*)", "Bash(cat:*)", "Bash(head:*)", "Bash(tail:*)", "Bash(wc:*)", "Bash(grep:*)", "Bash(find:*)", "Bash(which:*)",
         "mcp__agentd",
     ];
