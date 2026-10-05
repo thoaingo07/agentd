@@ -6,7 +6,8 @@ import { AgStateBadge } from '../../shared/components/ui'
 import type { JobState, JobSummary } from '../../shared/api/types'
 import { useConfigStore } from '../stores/config'
 
-const props = defineProps<{ jobs: JobSummary[]; pending?: Set<number> }>()
+/** `live: false` (History): no change flash; a Completed column instead of a ticking elapsed time. */
+const props = withDefaults(defineProps<{ jobs: JobSummary[]; pending?: Set<number>; live?: boolean }>(), { pending: undefined, live: true })
 const emit = defineEmits<{ cancel: [job: JobSummary]; retry: [job: JobSummary] }>()
 const router = useRouter()
 const config = useConfigStore()
@@ -21,7 +22,7 @@ watch(
     for (const [id, signature] of rows) {
       const before = seen.get(id)
       seen.set(id, signature)
-      if (before === undefined || before === signature) continue
+      if (!props.live || before === undefined || before === signature) continue
       flashing.value = new Set(flashing.value).add(id)
       timers.push(setTimeout(() => {
         const next = new Set(flashing.value)
@@ -73,8 +74,13 @@ function onKey(e: KeyboardEvent): void {
             Repo
           </th><th class="hidden lg:table-cell">
             Branch
-          </th><th>Phase</th><th class="text-right">
-            Elapsed
+          </th><th>Phase</th><th
+            v-if="!live"
+            class="hidden sm:table-cell"
+          >
+            Completed
+          </th><th class="text-right">
+            {{ live ? 'Elapsed' : 'Took' }}
           </th><th><span class="sr-only">Actions</span></th>
         </tr>
       </thead>
@@ -101,6 +107,12 @@ function onKey(e: KeyboardEvent): void {
           </td>
           <td class="text-muted">
             {{ job.phase ?? '—' }}
+          </td>
+          <td
+            v-if="!live"
+            class="hidden whitespace-nowrap text-muted sm:table-cell"
+          >
+            {{ job.completedAt ? new Date(job.completedAt).toLocaleString() : '—' }}
           </td>
           <td class="text-right tabular-nums">
             {{ elapsed(job) }}

@@ -34,3 +34,6 @@ public sealed class Handoff : SqlMigration;
 
 [Migration(2026_10_07_0001, "Events partitioned by month")]
 public sealed class EventsPartitioned : SqlMigration;
+
+[Migration(2026_10_08_0001, "History indexes on jobs.updated_at")]
+public sealed class HistoryIndex : SqlMigration;

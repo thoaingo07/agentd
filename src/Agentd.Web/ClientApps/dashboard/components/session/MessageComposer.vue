@@ -11,7 +11,11 @@ const busy = ref(false)
 const ui = useUiStore()
 const enabled = computed(() => props.state === 'WaitingForHuman' || props.state === 'Running')
 const hint = computed(() =>
-  props.state === 'WaitingForHuman' ? 'The agent is waiting for you.' : props.state === 'Running' ? 'Delivered at the agent’s next step.' : 'This job isn’t taking messages.',
+  props.state === 'WaitingForHuman' ? 'The agent is waiting for you.' : props.state === 'Running'
+        ? 'Delivered at the agent’s next step.'
+        : ['Done', 'Failed', 'Cancelled'].includes(props.state)
+          ? 'Job finished.'
+          : 'This job isn’t taking messages.',
 )
 
 async function submit(): Promise<void> {
@@ -60,7 +64,9 @@ async function submit(): Promise<void> {
       </AgButton>
     </div>
     <p class="text-xs text-muted">
-      {{ hint }} It's also posted to the job's chat thread.
+      {{ hint }}<template v-if="enabled">
+        It's also posted to the job's chat thread.
+      </template>
     </p>
   </form>
 </template>

@@ -30,10 +30,25 @@ public interface IJobRepository
 }
 
 /// <summary>History search over all jobs (newest first).</summary>
+/// <summary>History filters; null means "any".</summary>
+/// <param name="States">Job states.</param>
+/// <param name="Repository">One repository.</param>
+/// <param name="Title">A case-insensitive substring of the title.</param>
+/// <param name="WorkItem">An exact work item id (given with <paramref name="Title"/>, either may match).</param>
+/// <param name="From">Finished (last changed) at or after.</param>
+/// <param name="To">Finished before.</param>
+public sealed record JobSearchFilter(
+    IReadOnlyCollection<JobState>? States = null,
+    RepositoryName? Repository = null,
+    string? Title = null,
+    WorkItemId? WorkItem = null,
+    DateTimeOffset? From = null,
+    DateTimeOffset? To = null);
+
 public interface IJobSearch
 {
-    /// <summary>Jobs matching the filters (null = any), the requested page, and the total count.</summary>
-    Task<(IReadOnlyList<Job> Jobs, long Total)> SearchAsync(IReadOnlyCollection<JobState>? states, RepositoryName? repository, string? text, int offset, int limit, CancellationToken cancellationToken);
+    /// <summary>The requested page, newest first, and the number of matches counted up to <paramref name="countCap"/> + 1.</summary>
+    Task<(IReadOnlyList<Job> Jobs, long Total)> SearchAsync(JobSearchFilter filter, int offset, int limit, int countCap, CancellationToken cancellationToken);
 }
 
 /// <summary>The event log: every observable fact (domain events, agent output, messaging). Payloads are redacted at write time.</summary>

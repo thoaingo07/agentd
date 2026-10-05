@@ -58,7 +58,7 @@ public static class JobEndpoints
                 : NotFound($"Event {seq} of job {id} was not found."))
             .WithName("GetJobEvent").Produces<EventVm>().ProducesProblem(StatusCodes.Status404NotFound);
 
-        api.MapGet("/history", async Task<IResult> (string? state, string? repo, string? q, int? page, int? pageSize, [FromServices] IQueryHandler<SearchHistory, HistoryPage> handler, CancellationToken ct) =>
+        api.MapGet("/history", async Task<IResult> (string? state, string? repo, string? q, DateOnly? from, DateOnly? to, int? page, int? pageSize, [FromServices] IQueryHandler<SearchHistory, HistoryPage> handler, CancellationToken ct) =>
         {
             var errors = new Dictionary<string, string[]>();
             List<JobState>? states = null;
@@ -78,6 +78,11 @@ public static class JobEndpoints
                 }
             }
 
+            if (from is not null && to is not null && from > to)
+            {
+                errors["from"] = ["from must be on or before to."];
+            }
+
             if (page is < 1)
             {
                 errors["page"] = ["page starts at 1."];
@@ -93,7 +98,9 @@ public static class JobEndpoints
                 return TypedResults.ValidationProblem(errors);
             }
 
-            var result = await handler.Handle(new SearchHistory(states, repo, q, page ?? 1, pageSize ?? 25), ct).ConfigureAwait(false);
+            var result = await handler.Handle(new SearchHistory(states, repo, q, page ?? 1, pageSize ?? 25,
+                from is { } f ? new DateTimeOffset(f.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero) : null,
+                to is { } t ? new DateTimeOffset(t.AddDays(1).ToDateTime(TimeOnly.MinValue), TimeSpan.Zero) : null), ct).ConfigureAwait(false);
             return TypedResults.Ok(HistoryPageVm.From(result));
         }).WithName("SearchHistory").Produces<HistoryPageVm>().ProducesValidationProblem();
 

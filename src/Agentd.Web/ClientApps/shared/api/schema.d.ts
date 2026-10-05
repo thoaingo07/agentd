@@ -286,10 +286,12 @@ export interface components {
             type: string;
             payload: components["schemas"]["JsonElement"];
         };
+        /** @description A history page; `totalCapped` means "more than `total`" (shown as 10,000+). */
         HistoryPageVm: {
             items: components["schemas"]["JobSummaryVm"][];
             /** Format: int64 */
             total: number;
+            totalCapped: boolean;
             /** Format: int32 */
             page: number;
             /** Format: int32 */
@@ -344,6 +346,8 @@ export interface components {
             /** Format: int32 */
             fixRounds: number;
             lastError: null | string;
+            /** Format: date-time */
+            completedAt: null | string;
         };
         JsonElement: unknown;
         MessageAcceptedVm: {
@@ -517,6 +521,8 @@ export interface operations {
                 state?: string;
                 repo?: string;
                 q?: string;
+                from?: string;
+                to?: string;
                 page?: number;
                 pageSize?: number;
             };

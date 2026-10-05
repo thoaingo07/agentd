@@ -116,16 +116,23 @@ public sealed class JobRepository(NpgsqlDataSource dataSource, IClock clock) : I
     public Task<IReadOnlyList<Job>> ListRecentAsync(TimeSpan window, CancellationToken cancellationToken) =>
         ListAsync("SELECT * FROM agentd.job_list_recent($1)", cancellationToken, P(clock.UtcNow - window, NpgsqlDbType.TimestampTz));
 
-    public async Task<(IReadOnlyList<Job> Jobs, long Total)> SearchAsync(
-        IReadOnlyCollection<JobState>? states, RepositoryName? repository, string? text, int offset, int limit, CancellationToken cancellationToken)
+    public async Task<(IReadOnlyList<Job> Jobs, long Total)> SearchAsync(JobSearchFilter filter, int offset, int limit, int countCap, CancellationToken cancellationToken)
     {
-        var statesParam = P(states?.Select(s => s.ToString()).ToArray(), NpgsqlDbType.Array | NpgsqlDbType.Text);
-        var jobs = await ListAsync("SELECT * FROM agentd.job_search($1, $2, $3, $4, $5)", cancellationToken,
-            statesParam, P(repository?.Value, NpgsqlDbType.Text), P(text, NpgsqlDbType.Text), P(offset, NpgsqlDbType.Integer), P(limit, NpgsqlDbType.Integer)).ConfigureAwait(false);
-        await using var count = dataSource.CreateCommand("SELECT agentd.job_search_count($1, $2, $3)");
-        count.Parameters.Add(P(states?.Select(s => s.ToString()).ToArray(), NpgsqlDbType.Array | NpgsqlDbType.Text));
-        count.Parameters.Add(P(repository?.Value, NpgsqlDbType.Text));
-        count.Parameters.Add(P(text, NpgsqlDbType.Text));
+        ArgumentNullException.ThrowIfNull(filter);
+        NpgsqlParameter[] Filters() =>
+        [
+            P(filter.States?.Select(s => s.ToString()).ToArray(), NpgsqlDbType.Array | NpgsqlDbType.Text),
+            P(filter.Repository?.Value, NpgsqlDbType.Text),
+            P(filter.Title, NpgsqlDbType.Text),
+            P(filter.WorkItem?.Value, NpgsqlDbType.Integer),
+            P(filter.From, NpgsqlDbType.TimestampTz),
+            P(filter.To, NpgsqlDbType.TimestampTz),
+        ];
+
+        var jobs = await ListAsync("SELECT * FROM agentd.job_search($1, $2, $3, $4, $5, $6, $7, $8)", cancellationToken,
+            [.. Filters(), P(offset, NpgsqlDbType.Integer), P(limit, NpgsqlDbType.Integer)]).ConfigureAwait(false);
+        await using var count = dataSource.CreateCommand("SELECT agentd.job_search_count($1, $2, $3, $4, $5, $6, $7)");
+        count.Parameters.AddRange(Filters().Append(P(countCap, NpgsqlDbType.Integer)).ToArray());
         return (jobs, (long)(await count.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false))!);
     }
 

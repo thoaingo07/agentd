@@ -29,7 +29,7 @@ class FakeHub implements EventConnection {
 const ev = (seq: number, jobId = 7, type = 'agent.text'): AgentEvent => ({ seq, jobId, ts: '2026-10-04T00:00:00Z', type, payload: {} })
 const job = (id: number, state: string, startedAt = '2026-10-04T10:00:00Z'): JobSummary => ({
   id, workItemId: 5600 + id, title: `job ${id}`, repo: 'sysmin', branch: null, state, phase: null, startedAt,
-  elapsedSeconds: 1, prUrl: null, waitingSince: null, planStatus: 'NotRequired', handoff: 'None', fixRounds: 0, lastError: null,
+  elapsedSeconds: 1, prUrl: null, waitingSince: null, planStatus: 'NotRequired', handoff: 'None', fixRounds: 0, lastError: null, completedAt: null,
 })
 function respond(routes: Record<string, unknown>) {
   vi.stubGlobal('fetch', vi.fn(async (req: Request) => {

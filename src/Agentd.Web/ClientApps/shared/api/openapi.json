@@ -210,6 +210,22 @@
             }
           },
           {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
             "name": "page",
             "in": "query",
             "schema": {
@@ -837,6 +853,7 @@
         "required": [
           "items",
           "total",
+          "totalCapped",
           "page",
           "pageSize"
         ],
@@ -852,6 +869,9 @@
             "type": "integer",
             "format": "int64"
           },
+          "totalCapped": {
+            "type": "boolean"
+          },
           "page": {
             "type": "integer",
             "format": "int32"
@@ -860,7 +880,8 @@
             "type": "integer",
             "format": "int32"
           }
-        }
+        },
+        "description": "A history page; \u0060totalCapped\u0060 means \u0022more than \u0060total\u0060\u0022 (shown as 10,000\u002B)."
       },
       "HttpValidationProblemDetails": {
         "type": "object",
@@ -993,7 +1014,8 @@
           "planStatus",
           "handoff",
           "fixRounds",
-          "lastError"
+          "lastError",
+          "completedAt"
         ],
         "type": "object",
         "properties": {
@@ -1062,6 +1084,13 @@
               "null",
               "string"
             ]
+          },
+          "completedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
           }
         },
         "description": "A job row (dashboard, history). State and statuses are strings for the UI."

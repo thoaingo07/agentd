@@ -24,7 +24,8 @@ public sealed record JobSummary(
     PlanStatus PlanStatus,
     HandoffStatus Handoff,
     int FixRounds,
-    string? LastError);
+    string? LastError,
+    DateTimeOffset? CompletedAt = null);
 
 /// <summary>A job's detail page: the summary plus its threads, plan estimate and live activity.</summary>
 public sealed record JobDetail(
@@ -48,7 +49,13 @@ public sealed record Dashboard(IReadOnlyDictionary<JobState, int> CountsByState,
 
 public sealed record EventPage(IReadOnlyList<AgentEventDto> Events, long? OldestSeq, long? NewestSeq, bool HasMore);
 
-public sealed record HistoryPage(IReadOnlyList<JobSummary> Items, long Total, int Page, int PageSize);
+/// <summary>A page of history; <paramref name="TotalCapped"/> means there are more than <paramref name="Total"/> matches.</summary>
+/// <param name="Items">The page, newest first.</param>
+/// <param name="Total">Matches, at most <see cref="SearchHistoryHandler.CountCap"/>.</param>
+/// <param name="TotalCapped">The real count is higher.</param>
+/// <param name="Page">1-based.</param>
+/// <param name="PageSize">Items per page.</param>
+public sealed record HistoryPage(IReadOnlyList<JobSummary> Items, long Total, bool TotalCapped, int Page, int PageSize);
 
 public sealed record GetDashboard;
 
@@ -60,7 +67,8 @@ public sealed record GetJobEvents(JobId JobId, long? After, long? Before, int Li
 /// <summary>One event of a job in full (the live stream trims big payloads).</summary>
 public sealed record GetJobEventDetail(JobId JobId, long Seq);
 
-public sealed record SearchHistory(IReadOnlyCollection<JobState>? States, string? Repository, string? Text, int Page, int PageSize);
+/// <summary>History: <c>Text</c> is a title substring, or <c>WI-1234</c> for exactly that work item (plain digits match either).</summary>
+public sealed record SearchHistory(IReadOnlyCollection<JobState>? States, string? Repository, string? Text, int Page, int PageSize, DateTimeOffset? From = null, DateTimeOffset? To = null);
 
 internal static class JobViews
 {
@@ -70,7 +78,8 @@ internal static class JobViews
     public static JobSummary Summary(Job job, JobActivity activity, DateTimeOffset now) => new(
         job.Id.Value, job.WorkItemId.Value, job.Title, job.Repository.Value, job.Branch?.Value, job.State,
         activity.Get(job.Id).Phase, job.CreatedAt, (job.State.IsTerminal() ? job.UpdatedAt : now) - job.CreatedAt,
-        job.PullRequest?.Value.ToString(), job.WaitingSince, job.PlanStatus, job.Handoff, job.FixRounds, job.LastError);
+        job.PullRequest?.Value.ToString(), job.WaitingSince, job.PlanStatus, job.Handoff, job.FixRounds, job.LastError,
+        job.State.IsTerminal() ? job.UpdatedAt : null);
 }
 
 /// <summary>Active jobs (those waiting for a human first) and job counts by state.</summary>
@@ -133,15 +142,40 @@ public sealed class GetJobEventDetailHandler(IEventReader events) : IQueryHandle
     }
 }
 
-public sealed class SearchHistoryHandler(IJobSearch search, JobActivity activity, IClock clock) : IQueryHandler<SearchHistory, HistoryPage>
+public sealed partial class SearchHistoryHandler(IJobSearch search, JobActivity activity, IClock clock) : IQueryHandler<SearchHistory, HistoryPage>
 {
+    /// <summary>Counting stops here; the UI shows "10,000+".</summary>
+    public const int CountCap = 10_000;
+
     public async Task<HistoryPage> Handle(SearchHistory query, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(query);
         var repository = string.IsNullOrWhiteSpace(query.Repository) ? (RepositoryName?)null : RepositoryName.From(query.Repository);
-        var text = string.IsNullOrWhiteSpace(query.Text) ? null : query.Text.Trim();
-        var (found, total) = await search.SearchAsync(query.States, repository, text, (query.Page - 1) * query.PageSize, query.PageSize, cancellationToken).ConfigureAwait(false);
+        var (title, workItem) = ParseText(query.Text);
+        var filter = new JobSearchFilter(query.States, repository, title, workItem, query.From, query.To);
+        var (found, total) = await search.SearchAsync(filter, (query.Page - 1) * query.PageSize, query.PageSize, CountCap, cancellationToken).ConfigureAwait(false);
         var now = clock.UtcNow;
-        return new HistoryPage(found.Select(j => JobViews.Summary(j, activity, now)).ToList(), total, query.Page, query.PageSize);
+        return new HistoryPage(found.Select(j => JobViews.Summary(j, activity, now)).ToList(), Math.Min(total, CountCap), total > CountCap, query.Page, query.PageSize);
     }
+
+    /// <summary>"WI-1234" → that work item only; "1234" → the title or the work item; anything else → the title.</summary>
+    internal static (string? Title, WorkItemId? WorkItem) ParseText(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return (null, null);
+        }
+
+        var trimmed = text.Trim();
+        var match = WorkItemPattern().Match(trimmed);
+        if (!match.Success || !int.TryParse(match.Groups["id"].Value, System.Globalization.CultureInfo.InvariantCulture, out var id) || id <= 0)
+        {
+            return (trimmed, null);
+        }
+
+        return (match.Groups["prefix"].Success ? null : trimmed, WorkItemId.From(id));
+    }
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"^(?<prefix>WI-?)?(?<id>\d{1,9})$", System.Text.RegularExpressions.RegexOptions.IgnoreCase)]
+    private static partial System.Text.RegularExpressions.Regex WorkItemPattern();
 }

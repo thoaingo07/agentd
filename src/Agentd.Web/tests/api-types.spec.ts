@@ -21,7 +21,7 @@ const dashboard: Dashboard = {
       planStatus: 'Pending',
       handoff: 'None',
       fixRounds: 0,
-      lastError: null,
+      lastError: null, completedAt: null,
     },
   ],
   latestSeq: 42,
