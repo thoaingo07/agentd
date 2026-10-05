@@ -117,5 +117,24 @@ Requested on 2026-10-03. Decisions:
 - **Checked live** with CLI 2.1.289 and these exact arguments (`--model sonnet --effort low`):
   exit 0, the requested model, **no MCP servers**, and a valid `work-items` block.
 
-**PR 1b (next):** `!idea`, the brainstorm thread, turns and drafts in chat, `!model` / `!effort`.
+**PR 1b: the chat flow**
+- **`!idea [--repo r] [--model m] [--effort e] <text>`** in the channel.
+  - It opens a thread named "💡 Idea: <first words>" with an opening message, stores the idea, and
+    starts the first turn.
+  - With one registered repository it's implied. With several, `--repo` is required (the open
+    question is settled as "ask").
+- **Every message in the thread resumes the same session** (`IdeaService`, a singleton).
+  - One turn at a time per idea: messages that arrive during a turn are answered together next,
+    with a "still thinking" note.
+  - At most 2 ideas think at once, separately from the jobs' `MaxConcurrent`, so a running job
+    doesn't block brainstorming.
+- **Replies go straight to the thread** through the provider, not the job outbox (an idea has no
+  job). The thread name comes from a new `ConversationSpec.Name`.
+- **Drafts:** a valid `work-items` block marks the idea Proposed and is shown as stories with their
+  tasks. A broken block is sent back to the agent to fix.
+- **`!model <name>` / `!effort <level>`** in the idea's thread apply from the next reply; with no
+  argument they show the current values.
+- **Finished ideas** (closed, discarded, created) refuse new messages and point to `!idea`.
+- **The usage limit or a failed turn** is reported in the thread; send the message again later.
+- **Not done yet:** heartbeat and instant status replies for ideas.
 **PR 2:** create the work items in Azure DevOps, "and start", discard, close-out.

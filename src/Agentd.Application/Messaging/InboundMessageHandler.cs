@@ -45,7 +45,9 @@ public sealed partial class InboundMessageHandler(
     Domain.Common.IClock clock,
     ILogger<InboundMessageHandler> logger,
     IOptionsMonitor<MessagingOptions>? messaging = null,
-    ICommandHandler<Permissions.PermissionAnswer, bool>? permissions = null) : IInboundMessageSink
+    ICommandHandler<Permissions.PermissionAnswer, bool>? permissions = null,
+    Ideas.IdeaService? ideas = null,
+    Ideas.IIdeaStore? ideaStore = null) : IInboundMessageSink
 {
     /// <summary>The role a stranger gets on a provider that allows everyone (enforced from Phase 5).</summary>
     public const string GuestRole = "Operator";
@@ -87,6 +89,13 @@ public sealed partial class InboundMessageHandler(
 
         if (conversation is null)
         {
+            // Not a job's thread: maybe an idea's brainstorm thread.
+            if (ideas is not null && ideaStore is not null && !string.IsNullOrWhiteSpace(message.Text)
+                && await ideaStore.FindByThreadAsync(message.Provider, message.ExternalConversationId, ct).ConfigureAwait(false) is { } idea)
+            {
+                return new InboundOutcome(await ideas.HandleMessageAsync(idea, user.Name, message.Text, ct).ConfigureAwait(false) ? "idea" : "idea_closed");
+            }
+
             return new InboundOutcome("ignored_no_job");
         }
 

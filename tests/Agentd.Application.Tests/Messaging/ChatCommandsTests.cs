@@ -112,7 +112,7 @@ public sealed class ChatCommandsTests
         Assert.AreEqual("command:help", (await Run("help", null)).Code);
 
         var help = _chat.SentText.Single();
-        foreach (var command in new[] { "status", "logs", "cancel", "retry", "handoff", "list", "run <work item id>", "idea <text>", "help" })
+        foreach (var command in new[] { "status", "logs", "cancel", "retry", "handoff", "list", "run <work item id>", "idea [--model m] [--effort e] <text>", "help" })
         {
             StringAssert.Contains(help, $"`{command}`");
         }
@@ -160,8 +160,7 @@ public sealed class ChatCommandsTests
     {
         Assert.AreEqual("command:idea", (await Run("idea", null, "dark", "mode", "for", "the", "portal")).Code);
 
-        StringAssert.Contains(_chat.SentText.Single(), "Brainstorming is coming soon");
-        StringAssert.Contains(ChatCommands.Help, "coming soon");
+        StringAssert.Contains(_chat.SentText.Single(), "Brainstorming is coming soon", "without the idea service (tests, or not configured)");
     }
 
     internal static ChatCommands Commands(TestContext t, FakeOutbox outbox, ITranscriptReader transcripts, IMessagingProvider? chat = null)
