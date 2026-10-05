@@ -9,6 +9,7 @@ const model = defineModel<string[]>({ required: true })
   <ToggleGroup
     :value="model"
     multiple
+    role="toolbar"
     :aria-label="label"
     class="join"
     @value-change="(v: string[]) => (model = v)"

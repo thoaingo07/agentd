@@ -87,3 +87,84 @@ jobs:
 
       - name: Vite manifest produced (ViteHelper reads it)
         run: test -f wwwroot/manifest.json
+
+  # Browser suite (T3.12): the built app on the real Host in the E2E environment (scheduler off, /__test seeding),
+  # in Chromium and Firefox: zero CSP violations, antiforgery, HttpOnly cookies, live-stream reconnect, axe.
+  e2e:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: e2e-only
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      DOTNET_NOLOGO: "1"
+      ConnectionStrings__agentd: Host=127.0.0.1;Port=5432;Username=postgres;Password=e2e-only;Database=postgres
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: src/Agentd.Web/package-lock.json
+
+      # The web first: the Host's static web assets manifest lists what's in wwwroot at build time.
+      - name: Build the web
+        working-directory: src/Agentd.Web
+        run: npm ci && npm run build
+
+      - name: Build the Host and the migrator
+        run: |
+          dotnet build src/Agentd.Host -c Release
+          dotnet build src/Agentd.Migrator -c Release
+
+      - name: Migrate
+        run: dotnet run --project src/Agentd.Migrator -c Release --no-build
+
+      - name: Start the Host (E2E environment)
+        env:
+          ASPNETCORE_ENVIRONMENT: E2E
+          AGENTD_Web__Urls: http://127.0.0.1:7797
+          AGENTD_Scheduler__Enabled: "false"
+        run: |
+          export AGENTD_HOME="$RUNNER_TEMP/agentd-home"
+          nohup src/Agentd.Host/bin/Release/net10.0/agentd daemon run > "$RUNNER_TEMP/host.log" 2>&1 &
+          for i in $(seq 1 60); do curl -sf http://127.0.0.1:7797/health/live && exit 0; sleep 1; done
+          cat "$RUNNER_TEMP/host.log"; exit 1
+
+      - name: Playwright version
+        id: pw
+        working-directory: src/Agentd.Web
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+
+      - name: Install browsers
+        working-directory: src/Agentd.Web
+        run: npx playwright install --with-deps chromium firefox
+
+      - name: Playwright
+        working-directory: src/Agentd.Web
+        run: npm run test:e2e
+
+      - name: Upload traces and screenshots
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-results
+          path: |
+            src/Agentd.Web/test-results
+            src/Agentd.Web/playwright-report
+            ${{ runner.temp }}/host.log

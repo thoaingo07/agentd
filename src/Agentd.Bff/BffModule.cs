@@ -4,6 +4,7 @@ using Agentd.Bff.Http;
 using Agentd.Bff.Hubs;
 using Agentd.Bff.OpenApi;
 using Agentd.Bff.Security;
+using Agentd.Bff.Testing;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
@@ -39,6 +40,7 @@ public static class BffModule
         services.AddHttpClient(CloudflareAccessKeys.HttpClientName);
         services.TryAddSingleton(TimeProvider.System);
         services.AddSingleton<CloudflareAccessKeys>();
+        services.AddSingleton<Testing.CspReportLog>();
         services.AddAuthorization();
         services.AddOptions<BffAuthOptions>().BindConfiguration(BffAuthOptions.Section).ValidateOnStart();
         services.AddSingleton<IValidateOptions<BffAuthOptions>, BffAuthOptionsValidator>();
@@ -96,6 +98,7 @@ public static class BffModule
             endpoints.MapOpenApi("/openapi/{documentName}.json");
         }
 
+        endpoints.MapTestSeeding(endpoints.ServiceProvider.GetRequiredService<IHostEnvironment>());   // E2E environment only
         endpoints.MapCspReport();   // outside the groups: anonymous, no antiforgery (browsers send it)
         var api = endpoints.MapGroup("/api").RequireAuthorization().AddEndpointFilter<AntiforgeryFilter>();
         endpoints.MapGroup("/bff").RequireAuthorization().AddEndpointFilter<AntiforgeryFilter>().MapSession();

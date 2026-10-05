@@ -106,6 +106,7 @@ defineExpose({ resume, onScroll, earlier, unseen })
           v-for="row in rows"
           :key="row.key"
           :row="row"
+          :data-seq="row.key"
         />
         <p
           v-if="!rows.length"

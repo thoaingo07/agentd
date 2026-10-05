@@ -13,7 +13,7 @@ const emit = defineEmits<{ answer: [requestId: number, choice: PermissionChoice]
     v-for="r in requests"
     :key="r.id"
     role="alert"
-    class="alert alert-warning alert-soft grid gap-2"
+    class="alert grid gap-2 border-warning bg-warning/10 text-base-content"
     data-testid="permission-request"
   >
     <div class="grid min-w-0 gap-1">
