@@ -25,7 +25,8 @@ public sealed record JobSummary(
     HandoffStatus Handoff,
     int FixRounds,
     string? LastError,
-    DateTimeOffset? CompletedAt = null);
+    DateTimeOffset? CompletedAt = null,
+    int PendingPermissions = 0);
 
 /// <summary>A job's detail page: the summary plus its threads, plan estimate and live activity.</summary>
 public sealed record JobDetail(
@@ -37,7 +38,8 @@ public sealed record JobDetail(
     string? LastActivity,
     DateTimeOffset? LastActivityAt,
     UsageSnapshot? Usage,
-    IReadOnlyList<ConversationLink> Conversations);
+    IReadOnlyList<ConversationLink> Conversations,
+    IReadOnlyList<Permissions.PermissionRequest>? Permissions = null);
 
 public sealed record ConversationLink(string Provider, Uri? Link, bool Open);
 
@@ -75,29 +77,31 @@ internal static class JobViews
     public static readonly JobState[] Active =
         [JobState.WaitingForHuman, JobState.Running, JobState.Preparing, JobState.Queued, JobState.Publishing, JobState.InReview, JobState.Paused];
 
-    public static JobSummary Summary(Job job, JobActivity activity, DateTimeOffset now) => new(
+    public static JobSummary Summary(Job job, JobActivity activity, DateTimeOffset now, int pendingPermissions = 0) => new(
         job.Id.Value, job.WorkItemId.Value, job.Title, job.Repository.Value, job.Branch?.Value, job.State,
         activity.Get(job.Id).Phase, job.CreatedAt, (job.State.IsTerminal() ? job.UpdatedAt : now) - job.CreatedAt,
         job.PullRequest?.Value.ToString(), job.WaitingSince, job.PlanStatus, job.Handoff, job.FixRounds, job.LastError,
-        job.State.IsTerminal() ? job.UpdatedAt : null);
+        job.State.IsTerminal() ? job.UpdatedAt : null, pendingPermissions);
 }
 
 /// <summary>Active jobs (those waiting for a human first) and job counts by state.</summary>
-public sealed class GetDashboardHandler(IJobRepository jobs, IEventReader events, JobActivity activity, IClock clock) : IQueryHandler<GetDashboard, Dashboard>
+public sealed class GetDashboardHandler(IJobRepository jobs, IEventReader events, JobActivity activity, IClock clock, Permissions.IPermissionStore? permissions = null)
+    : IQueryHandler<GetDashboard, Dashboard>
 {
     public async Task<Dashboard> Handle(GetDashboard query, CancellationToken cancellationToken)
     {
         // Read the position first: events committed while the jobs are listed are replayed, never skipped.
         var latest = await events.LatestSeqAsync(cancellationToken).ConfigureAwait(false);
         var active = await jobs.ListByStateAsync(JobViews.Active, cancellationToken).ConfigureAwait(false);
+        var asking = permissions is null ? new Dictionary<JobId, int>() : await permissions.PendingCountsAsync(cancellationToken).ConfigureAwait(false);
         var now = clock.UtcNow;
         var ordered = active.OrderBy(j => Array.IndexOf(JobViews.Active, j.State)).ThenBy(j => j.CreatedAt)
-            .Select(j => JobViews.Summary(j, activity, now)).ToList();
+            .Select(j => JobViews.Summary(j, activity, now, asking.GetValueOrDefault(j.Id))).ToList();
         return new Dashboard(active.GroupBy(j => j.State).ToDictionary(g => g.Key, g => g.Count()), ordered, latest);
     }
 }
 
-public sealed class GetJobHandler(IJobRepository jobs, IConversationStore conversations, JobActivity activity, IClock clock)
+public sealed class GetJobHandler(IJobRepository jobs, IConversationStore conversations, JobActivity activity, IClock clock, Permissions.IPermissionStore? permissions = null)
     : IQueryHandler<GetJob, JobDetail?>
 {
     public async Task<JobDetail?> Handle(GetJob query, CancellationToken cancellationToken)
@@ -110,10 +114,11 @@ public sealed class GetJobHandler(IJobRepository jobs, IConversationStore conver
 
         var live = activity.Get(job.Id);
         var threads = await conversations.ListByJobAsync(job.Id, cancellationToken).ConfigureAwait(false);
+        var asking = permissions is null ? [] : await permissions.ListPendingAsync(job.Id, cancellationToken).ConfigureAwait(false);
         return new JobDetail(
-            JobViews.Summary(job, activity, clock.UtcNow), job.Attempt, job.ResumeCount, job.PendingMessages.Count, job.Estimate,
+            JobViews.Summary(job, activity, clock.UtcNow, asking.Count), job.Attempt, job.ResumeCount, job.PendingMessages.Count, job.Estimate,
             live.LastActivity, live.LastActivityAt, live.Usage,
-            threads.Select(c => new ConversationLink(c.Provider.Value, c.Link, c.IsOpen)).ToList());
+            threads.Select(c => new ConversationLink(c.Provider.Value, c.Link, c.IsOpen)).ToList(), asking);
     }
 }
 

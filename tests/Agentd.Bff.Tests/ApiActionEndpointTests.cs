@@ -2,6 +2,7 @@ using System.Net;
 using System.Text.Json;
 using Agentd.Application.Abstractions;
 using Agentd.Application.Jobs;
+using Agentd.Application.Permissions;
 using Agentd.Application.Ports;
 using Agentd.Application.Queries;
 using Agentd.Domain.Common;
@@ -38,6 +39,39 @@ public sealed class ApiActionEndpointTests
 
         Assert.AreEqual((HttpStatusCode.NoContent, HttpStatusCode.NoContent), (paused.StatusCode, resumed.StatusCode));
         CollectionAssert.AreEqual(new object[] { new PauseJob(new JobId(7), "local"), new ResumeJob(new JobId(7), "local") }, _commands);
+    }
+
+    [TestMethod]
+    public async Task A_permission_request_is_answered_once_with_a_known_choice()
+    {
+        await using var app = await StartAsync();
+
+        using var allowed = await PostAsync(app, "/api/jobs/7/permissions/3", new { choice = "repo" });
+        using var late = await PostAsync(app, "/api/jobs/7/permissions/4", new { choice = "deny" });
+        using var unknown = await PostAsync(app, "/api/jobs/7/permissions/3", new { choice = "1" });
+
+        Assert.AreEqual(HttpStatusCode.NoContent, allowed.StatusCode);
+        Assert.AreEqual(new PermissionAnswer(new JobId(7), "repo", "local", 3), _commands[0]);
+        Assert.AreEqual(HttpStatusCode.Conflict, late.StatusCode);
+        Assert.AreEqual("already_decided", (await ProblemAsync(late)).GetProperty("code").GetString());
+        Assert.AreEqual(HttpStatusCode.BadRequest, unknown.StatusCode);
+        Assert.HasCount(2, _commands, "an unknown choice never reaches the handler");
+    }
+
+    [TestMethod]
+    public async Task Remembered_approvals_are_listed_and_an_admin_revokes_them()
+    {
+        await using var app = await StartAsync();
+        using var client = app.GetTestClient();
+
+        var rules = JsonDocument.Parse(await client.GetStringAsync(new Uri("/api/permissions/rules", UriKind.Relative))).RootElement;
+        using var revoked = await (await new AntiforgeryClient(app).InitAsync()).SendAsync(HttpMethod.Delete, "/api/permissions/rules/5");
+        using var gone = await (await new AntiforgeryClient(app).InitAsync()).SendAsync(HttpMethod.Delete, "/api/permissions/rules/6");
+
+        CollectionAssert.AreEqual(new[] { "id", "repo", "jobId", "ruleKey", "createdBy", "createdAt" }, rules[0].EnumerateObject().Select(p => p.Name).ToArray(), "the TS contract");
+        Assert.AreEqual(JsonValueKind.Null, rules[0].GetProperty("jobId").ValueKind, "a repository-wide rule");
+        Assert.AreEqual((HttpStatusCode.NoContent, HttpStatusCode.NotFound), (revoked.StatusCode, gone.StatusCode));
+        Assert.AreEqual(new RevokePermissionRule(5, "local"), _commands[0]);
     }
 
     [TestMethod]
@@ -125,6 +159,10 @@ public sealed class ApiActionEndpointTests
             c.JobId.Value == 7 ? DeveloperMessageOutcome.Resumed : DeveloperMessageOutcome.NotAccepted));
         builder.Services.AddSingleton<ICommandHandler<ClaimWorkItem, JobId>>(Handler<ClaimWorkItem, JobId>(c =>
             c.WorkItemId.Value == 1 ? DomainError.Conflict("Work item 1 already has active job 3.") : new JobId(42)));
+        builder.Services.AddSingleton<ICommandHandler<PermissionAnswer, bool>>(Handler<PermissionAnswer, bool>(c => c.RequestId == 3));
+        builder.Services.AddSingleton<ICommandHandler<RevokePermissionRule, Unit>>(Handler<RevokePermissionRule, Unit>(c =>
+            c.RuleId == 5 ? Unit.Value : DomainError.NotFound($"Permission rule {c.RuleId}")));
+        builder.Services.AddSingleton<IQueryHandler<GetPermissionRules, IReadOnlyList<PermissionRule>>>(new Rules());
         builder.Services.AddSingleton<IQueryHandler<GetJobDiff, Result<BranchDiff>>>(new Diffs());
         var app = builder.Build();
         app.UseAuthentication();
@@ -151,6 +189,12 @@ public sealed class ApiActionEndpointTests
             seen.Add(command);
             return Task.FromResult(answer(command));
         }
+    }
+
+    private sealed class Rules : IQueryHandler<GetPermissionRules, IReadOnlyList<PermissionRule>>
+    {
+        public Task<IReadOnlyList<PermissionRule>> Handle(GetPermissionRules query, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<PermissionRule>>([new PermissionRule(5, "sysmin", null, "Bash(npm install:*)", "tngo", DateTimeOffset.UnixEpoch)]);
     }
 
     private sealed class Diffs : IQueryHandler<GetJobDiff, Result<BranchDiff>>

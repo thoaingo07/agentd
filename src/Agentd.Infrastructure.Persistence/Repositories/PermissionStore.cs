@@ -40,6 +40,40 @@ public sealed class PermissionStore(NpgsqlDataSource dataSource) : IPermissionSt
         return keys;
     }
 
+    public async Task<IReadOnlyDictionary<JobId, int>> PendingCountsAsync(CancellationToken cancellationToken)
+    {
+        await using var cmd = dataSource.CreateCommand("SELECT job_id, pending FROM agentd.permission_request_pending_counts()");
+        await using var r = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        var counts = new Dictionary<JobId, int>();
+        while (await r.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            counts[new JobId(r.GetInt64(0))] = r.GetInt32(1);
+        }
+
+        return counts;
+    }
+
+    public async Task<IReadOnlyList<PermissionRule>> ListRulesAsync(CancellationToken cancellationToken)
+    {
+        await using var cmd = dataSource.CreateCommand("SELECT id, repo, job_id, rule_key, created_by, created_at FROM agentd.permission_rule_list()");
+        await using var r = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        var rules = new List<PermissionRule>();
+        while (await r.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            rules.Add(new PermissionRule(r.GetInt64(0), r.GetString(1), r.IsDBNull(2) ? null : new JobId(r.GetInt64(2)), r.GetString(3), r.GetString(4),
+                r.GetFieldValue<DateTimeOffset>(5)));
+        }
+
+        return rules;
+    }
+
+    public async Task<bool> DeleteRuleAsync(long id, string by, CancellationToken cancellationToken)
+    {
+        await using var cmd = dataSource.CreateCommand("SELECT agentd.permission_rule_delete($1, $2)");
+        cmd.Parameters.AddRange(new[] { P(id, NpgsqlDbType.Bigint), P(by, NpgsqlDbType.Text) });
+        return (bool)(await cmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false))!;
+    }
+
     private async Task<IReadOnlyList<PermissionRequest>> ReadAsync(string sql, CancellationToken ct, params NpgsqlParameter[] parameters)
     {
         await using var cmd = dataSource.CreateCommand(sql);

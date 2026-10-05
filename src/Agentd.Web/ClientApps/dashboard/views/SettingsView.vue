@@ -1,14 +1,20 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useConfigStore } from '../stores/config'
 import { useConnectionStore } from '../stores/connection'
+import { usePermissionsStore } from '../stores/permissions'
 import { useSessionStore } from '../stores/session'
 import ThemeToggle from '../components/ThemeToggle.vue'
 
 const config = useConfigStore()
 const connection = useConnectionStore()
 const session = useSessionStore()
-onMounted(() => void config.load().catch(() => {}))
+const permissions = usePermissionsStore()
+const isAdmin = computed(() => session.user?.roles.includes('Admin') ?? false)
+onMounted(() => {
+  void config.load().catch(() => {})
+  void permissions.load().catch(() => {})
+})
 </script>
 
 <template>
@@ -79,6 +85,44 @@ onMounted(() => void config.load().catch(() => {}))
       <p class="text-xs text-muted">
         Change these in <code class="font-mono">~/.agentd/config/agentd.json</code>.
       </p>
+    </div>
+    <div class="grid gap-2 text-sm">
+      <h2 class="text-base font-semibold">
+        Remembered permissions
+      </h2>
+      <p class="text-xs text-muted">
+        Tool calls people allowed "for this job" or "always in this repo". Revoking one makes the agent ask again{{ isAdmin ? '' : ' (Admins revoke)' }}.
+      </p>
+      <p
+        v-if="permissions.rules.length === 0"
+        class="text-muted"
+      >
+        None yet.
+      </p>
+      <ul
+        v-else
+        class="divide-y divide-base-300 rounded-box border border-base-300"
+      >
+        <li
+          v-for="r in permissions.rules"
+          :key="r.id"
+          class="flex flex-wrap items-center gap-2 px-3 py-2"
+          data-testid="permission-rule"
+        >
+          <code class="font-mono text-[13px]">{{ r.ruleKey }}</code>
+          <span class="badge badge-ghost badge-sm">{{ r.jobId == null ? `always in ${r.repo}` : `job #${r.jobId}` }}</span>
+          <span class="text-xs text-muted">by {{ r.createdBy }}, {{ new Date(r.createdAt).toLocaleString() }}</span>
+          <button
+            v-if="isAdmin"
+            type="button"
+            class="btn btn-ghost btn-xs ml-auto text-error"
+            :disabled="permissions.revoking.has(r.id)"
+            @click="permissions.revoke(r.id)"
+          >
+            Revoke
+          </button>
+        </li>
+      </ul>
     </div>
   </section>
 </template>

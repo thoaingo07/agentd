@@ -7,6 +7,7 @@ import { duration, percent } from '../../shared/utils/format'
 import DiffView from '../components/session/DiffView.vue'
 import EventList from '../components/session/EventList.vue'
 import MessageComposer from '../components/session/MessageComposer.vue'
+import PermissionBanner from '../components/session/PermissionBanner.vue'
 import { useConfigStore } from '../stores/config'
 import { useEventsStore } from '../stores/events'
 import { useJobsStore } from '../stores/jobs'
@@ -222,6 +223,14 @@ onBeforeUnmount(() => {
           </AgButton>
         </div>
       </header>
+
+      <PermissionBanner
+        v-if="detail?.permissions.length"
+        :requests="detail.permissions"
+        :repo="job.repo"
+        :busy="jobs.pending.has(id)"
+        @answer="(requestId, choice) => jobs.answerPermission(id, requestId, choice)"
+      />
 
       <AgTabs
         v-model="tab"

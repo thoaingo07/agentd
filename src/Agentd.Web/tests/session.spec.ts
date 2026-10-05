@@ -9,6 +9,7 @@ import { toRows, toolSummary } from '../ClientApps/dashboard/components/session/
 import EventList from '../ClientApps/dashboard/components/session/EventList.vue'
 import ToolCallCard from '../ClientApps/dashboard/components/session/ToolCallCard.vue'
 import MessageComposer from '../ClientApps/dashboard/components/session/MessageComposer.vue'
+import PermissionBanner from '../ClientApps/dashboard/components/session/PermissionBanner.vue'
 
 const ev = (seq: number, type: string, payload: object = {}): AgentEvent => ({ seq, jobId: 7, ts: '2026-10-04T10:00:00Z', type, payload })
 const md = (text: string) => mount(defineComponent({ render: () => h('div', renderMarkdown(text)) }))
@@ -155,5 +156,19 @@ describe('MessageComposer', () => {
 
     await w.setProps({ state: 'Done' })
     expect(w.get('textarea').attributes('disabled')).toBeDefined()
+  })
+})
+
+describe('PermissionBanner', () => {
+  it('shows the command as text and answers with the chat\'s four choices', async () => {
+    const summary = '<img src=x onerror=alert(1)> && npm install'
+    const w = mount(PermissionBanner, { props: { repo: 'sysmin', requests: [{ id: 3, tool: 'Bash', summary, ruleKeys: ['Bash(npm install:*)'], requestedAt: '2026-10-05T10:00:00Z' }] } })
+
+    expect(w.find('pre').text()).toBe(summary)
+    expect(w.find('img').exists()).toBe(false)
+    const buttons = w.findAll('button')
+    expect(buttons.map((b) => b.text())).toEqual(['Allow once', 'Allow for this job', 'Always allow in sysmin', 'Deny'])
+    for (const b of buttons) await b.trigger('click')
+    expect(w.emitted('answer')).toEqual([[3, 'once'], [3, 'job'], [3, 'repo'], [3, 'deny']])
   })
 })

@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, reactive } from 'vue'
 import { ApiError, get, send } from '../../shared/api/http'
-import type { AgentEvent, Dashboard, JobDetail, JobState, JobSummary } from '../../shared/api/types'
+import type { AgentEvent, Dashboard, JobDetail, JobState, JobSummary, PermissionChoice } from '../../shared/api/types'
 import { useUiStore } from './ui'
 
 const finalStates: JobState[] = ['Done', 'Failed', 'Cancelled']
@@ -80,10 +80,23 @@ export const useJobsStore = defineStore('jobs', () => {
     }
   }
 
+  /** Answers one permission request. 409: someone answered first (chat or another tab); the refresh shows theirs. */
+  async function answerPermission(id: number, requestId: number, choice: PermissionChoice): Promise<void> {
+    pending.add(id)
+    try {
+      await send('POST', `/api/jobs/${id}/permissions/${requestId}`, { choice })
+    } catch (err) {
+      useUiStore().toast(err instanceof ApiError ? err.message : `Couldn't answer request ${requestId}.`, err instanceof ApiError && err.status === 409 ? 'info' : 'error')
+    } finally {
+      pending.delete(id)
+      await refresh(id).catch(() => {})
+    }
+  }
+
   const cancel = (id: number) => act(id, 'cancel', 'Cancelled')
   const retry = (id: number) => act(id, 'retry', 'Queued')
   const pause = (id: number) => act(id, 'pause', 'Paused')
   const resume = (id: number) => act(id, 'resume', 'Queued')
 
-  return { byId, details, pending, active, waitingCount, stats, load, refresh, apply, cancel, retry, pause, resume }
+  return { byId, details, pending, active, waitingCount, stats, load, refresh, apply, cancel, retry, pause, resume, answerPermission }
 })

@@ -22,13 +22,14 @@ public sealed record JobSummaryVm(
     string Handoff,
     int FixRounds,
     string? LastError,
-    DateTimeOffset? CompletedAt)
+    DateTimeOffset? CompletedAt,
+    int PendingPermissions)
 {
     public static JobSummaryVm From(JobSummary s)
     {
         ArgumentNullException.ThrowIfNull(s);
         return new(s.Id, s.WorkItemId, s.Title, s.Repository, s.Branch, s.State.ToString(), s.Phase, s.StartedAt, (long)s.Elapsed.TotalSeconds,
-            s.PullRequestUrl, s.WaitingSince, s.PlanStatus.ToString(), s.Handoff.ToString(), s.FixRounds, s.LastError, s.CompletedAt);
+            s.PullRequestUrl, s.WaitingSince, s.PlanStatus.ToString(), s.Handoff.ToString(), s.FixRounds, s.LastError, s.CompletedAt, s.PendingPermissions);
     }
 }
 
@@ -45,6 +46,12 @@ public sealed record EstimateVm(int Minutes, int UsagePercent, double? UsageAtPl
 
 public sealed record UsageVm(double? FiveHour, double? Weekly, DateTimeOffset? ResetsAt);
 
+/// <summary>A tool call outside the agent's allowlist, waiting for a person (<c>ruleKeys</c>: what "allow for this job / always" remembers).</summary>
+public sealed record PermissionRequestVm(long Id, string Tool, string Summary, IReadOnlyList<string> RuleKeys, DateTimeOffset RequestedAt);
+
+/// <summary>A remembered approval; <c>jobId</c> null means every job of the repository.</summary>
+public sealed record PermissionRuleVm(long Id, string Repo, long? JobId, string RuleKey, string CreatedBy, DateTimeOffset CreatedAt);
+
 public sealed record ConversationVm(string Provider, Uri? Link, bool Open);
 
 public sealed record JobDetailVm(
@@ -56,7 +63,8 @@ public sealed record JobDetailVm(
     string? LastActivity,
     DateTimeOffset? LastActivityAt,
     UsageVm? Usage,
-    IReadOnlyList<ConversationVm> Conversations)
+    IReadOnlyList<ConversationVm> Conversations,
+    IReadOnlyList<PermissionRequestVm> Permissions)
 {
     public static JobDetailVm From(JobDetail d)
     {
@@ -66,7 +74,8 @@ public sealed record JobDetailVm(
             d.Estimate is { } e ? new EstimateVm(e.Minutes, e.UsagePercent, e.UsageAtPlan, e.SubmittedAt, e.ApprovedAt) : null,
             d.LastActivity, d.LastActivityAt,
             d.Usage is { } u ? new UsageVm(u.FiveHour, u.Weekly, u.ResetsAt) : null,
-            d.Conversations.Select(c => new ConversationVm(c.Provider, c.Link, c.Open)).ToList());
+            d.Conversations.Select(c => new ConversationVm(c.Provider, c.Link, c.Open)).ToList(),
+            (d.Permissions ?? []).Select(p => new PermissionRequestVm(p.Id, p.ToolName, p.Summary, p.RuleKeys, p.RequestedAt)).ToList());
     }
 }
 

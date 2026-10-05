@@ -14,6 +14,10 @@ export type Diff = Schemas['DiffVm']
 export type Estimate = Schemas['EstimateVm']
 export type Usage = Schemas['UsageVm']
 export type Conversation = Schemas['ConversationVm']
+export type PermissionRequest = Schemas['PermissionRequestVm']
+export type PermissionRule = Schemas['PermissionRuleVm']
+/** The Web UI's answers, the same as the chat's 1–4. */
+export type PermissionChoice = 'once' | 'job' | 'repo' | 'deny'
 export type MessageRequest = Schemas['MessageRequest']
 export type MessageAccepted = Schemas['MessageAcceptedVm']
 export type RunAccepted = Schemas['RunAcceptedVm']

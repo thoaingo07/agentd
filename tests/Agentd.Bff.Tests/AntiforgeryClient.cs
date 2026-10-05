@@ -23,9 +23,12 @@ internal sealed class AntiforgeryClient(WebApplication app)
         return this;
     }
 
-    public async Task<HttpResponseMessage> PostAsync(string url, object? body = null, string? token = null, string? cookie = null)
+    public Task<HttpResponseMessage> PostAsync(string url, object? body = null, string? token = null, string? cookie = null) =>
+        SendAsync(HttpMethod.Post, url, body, token, cookie);
+
+    public async Task<HttpResponseMessage> SendAsync(HttpMethod method, string url, object? body = null, string? token = null, string? cookie = null)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Post, new Uri(url, UriKind.Relative))
+        using var request = new HttpRequestMessage(method, new Uri(url, UriKind.Relative))
         {
             Content = body is null ? null : JsonContent.Create(body),
         };

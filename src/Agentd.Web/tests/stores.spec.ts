@@ -5,6 +5,7 @@ import type { AgentEvent, JobSummary } from '../ClientApps/shared/api/types'
 import { useConnectionStore } from '../ClientApps/dashboard/stores/connection'
 import { maxRendered, useEventsStore } from '../ClientApps/dashboard/stores/events'
 import { refreshDelayMs, useJobsStore } from '../ClientApps/dashboard/stores/jobs'
+import { usePermissionsStore } from '../ClientApps/dashboard/stores/permissions'
 import { useUiStore } from '../ClientApps/dashboard/stores/ui'
 
 /** A fake hub: records subscriptions, lets the test push events and drop/restore the connection. */
@@ -29,7 +30,7 @@ class FakeHub implements EventConnection {
 const ev = (seq: number, jobId = 7, type = 'agent.text'): AgentEvent => ({ seq, jobId, ts: '2026-10-04T00:00:00Z', type, payload: {} })
 const job = (id: number, state: string, startedAt = '2026-10-04T10:00:00Z'): JobSummary => ({
   id, workItemId: 5600 + id, title: `job ${id}`, repo: 'sysmin', branch: null, state, phase: null, startedAt,
-  elapsedSeconds: 1, prUrl: null, waitingSince: null, planStatus: 'NotRequired', handoff: 'None', fixRounds: 0, lastError: null, completedAt: null,
+  elapsedSeconds: 1, prUrl: null, waitingSince: null, planStatus: 'NotRequired', handoff: 'None', fixRounds: 0, lastError: null, completedAt: null, pendingPermissions: 0,
 })
 function respond(routes: Record<string, unknown>) {
   vi.stubGlobal('fetch', vi.fn(async (req: Request) => {
@@ -119,7 +120,7 @@ describe('jobs store', () => {
 
   it('re-reads a job once for a burst of its events', async () => {
     vi.useFakeTimers()
-    respond({ '/api/jobs/7': { job: job(7, 'Running'), attempt: 1, resumeCount: 0, pendingMessages: 0, estimate: null, lastActivity: null, lastActivityAt: null, usage: null, conversations: [] } })
+    respond({ '/api/jobs/7': { job: job(7, 'Running'), attempt: 1, resumeCount: 0, pendingMessages: 0, estimate: null, lastActivity: null, lastActivityAt: null, usage: null, conversations: [], permissions: [] } })
     const jobs = useJobsStore()
 
     for (const seq of [1, 2, 3]) jobs.apply(ev(seq, 7, 'JobStarted'))
@@ -146,5 +147,55 @@ describe('jobs store', () => {
     expect(jobs.byId.get(7)?.state).toBe('Running')
     expect(jobs.pending.has(7)).toBe(false)
     expect(useUiStore().toasts.at(-1)).toMatchObject({ kind: 'error', message: 'Cannot cancel from state Done.' })
+  })
+})
+
+describe('permissions', () => {
+  const detail = (permissions: unknown[]) => ({ job: job(7, 'Running'), attempt: 1, resumeCount: 0, pendingMessages: 0, estimate: null, lastActivity: null, lastActivityAt: null, usage: null, conversations: [], permissions })
+  const request = { id: 3, tool: 'Bash', summary: 'npm install', ruleKeys: ['Bash(npm install:*)'], requestedAt: '2026-10-05T10:00:00Z' }
+
+  it('answering posts the choice, then re-reads the job', async () => {
+    respond({ '/bff/antiforgery': { token: 't' }, '/api/jobs/7/permissions/3': new Response(null, { status: 204 }), '/api/jobs/7': detail([]) })
+    const jobs = useJobsStore()
+
+    await jobs.answerPermission(7, 3, 'job')
+
+    const post = vi.mocked(fetch).mock.calls.map(([r]) => r as Request).find((r) => r.method === 'POST')!
+    expect(new URL(post.url).pathname).toBe('/api/jobs/7/permissions/3')
+    expect(await post.json()).toEqual({ choice: 'job' })
+    expect(jobs.details.get(7)?.permissions).toEqual([])
+    expect(jobs.pending.has(7)).toBe(false)
+  })
+
+  it('an answer that lost the race is an info toast, and the refresh shows the open requests', async () => {
+    respond({
+      '/bff/antiforgery': { token: 't' },
+      '/api/jobs/7/permissions/3': new Response(JSON.stringify({ code: 'already_decided', detail: 'Permission request 3 was already answered or has expired.' }), { status: 409 }),
+      '/api/jobs/7': detail([{ ...request, id: 4 }]),
+    })
+    const jobs = useJobsStore()
+
+    await jobs.answerPermission(7, 3, 'once')
+
+    expect(useUiStore().toasts.at(-1)).toMatchObject({ kind: 'info', message: 'Permission request 3 was already answered or has expired.' })
+    expect(jobs.details.get(7)?.permissions.map((p) => p.id)).toEqual([4])
+  })
+
+  it('revoking a rule removes it, also when it was already gone', async () => {
+    const rule = (id: number) => ({ id, repo: 'sysmin', jobId: null, ruleKey: `Bash(r${id}:*)`, createdBy: 'tngo', createdAt: '2026-10-05T10:00:00Z' })
+    respond({
+      '/bff/antiforgery': { token: 't' },
+      '/api/permissions/rules/1': new Response(null, { status: 204 }),
+      '/api/permissions/rules/2': new Response(JSON.stringify({ code: 'not_found' }), { status: 404 }),
+      '/api/permissions/rules': [rule(1), rule(2), rule(3)],
+    })
+    const permissions = usePermissionsStore()
+    await permissions.load()
+
+    await permissions.revoke(1)
+    await permissions.revoke(2)
+
+    expect(permissions.rules.map((r) => r.id)).toEqual([3])
+    expect(useUiStore().toasts).toEqual([])
   })
 })
