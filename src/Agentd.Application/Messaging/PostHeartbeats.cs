@@ -77,6 +77,22 @@ public sealed class PostHeartbeatsHandler(
                 $"⚠️ **Usage at {JobActivity.Percent(utilization)} of the {window} window**{resets}."), ct).ConfigureAwait(false);
         }
 
+        // The machine running out of disk or memory makes builds, clones and agents fail: say so in each running job's thread, once.
+        if (activity.Machine is { } machine)
+        {
+            if (activity.ResourceWarningChanged(job.Id, "disk", machine.LowDisk) && machine.LowDisk)
+            {
+                await outbox.TryEnqueueAsync(job.Id, new OutboundMessage(MessageKind.Info,
+                    $"⚠️ **Low disk:** {JobActivity.Bytes(machine.DiskFree)} free of {JobActivity.Bytes(machine.DiskTotal)}. Builds and clones may fail; unused checkouts are removed hourly."), ct).ConfigureAwait(false);
+            }
+
+            if (activity.ResourceWarningChanged(job.Id, "memory", machine.LowMemory) && machine.LowMemory)
+            {
+                await outbox.TryEnqueueAsync(job.Id, new OutboundMessage(MessageKind.Info,
+                    $"⚠️ **Low memory:** {JobActivity.Bytes(machine.MemoryAvailable)} available of {JobActivity.Bytes(machine.MemoryTotal)}. Builds may be killed; consider fewer concurrent jobs."), ct).ConfigureAwait(false);
+            }
+        }
+
         var last = activity.Get(job.Id).LastActivityAt;
         var stuck = job.State == JobState.Running && last is { } seen && now - seen >= options.Value.StuckAfter;
         if (activity.StuckChanged(job.Id, stuck))

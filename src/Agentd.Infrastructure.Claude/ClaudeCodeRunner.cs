@@ -24,6 +24,24 @@ public sealed partial class ClaudeCodeRunner(
 
     public bool IsRunning(JobId jobId) => _running.ContainsKey(jobId.Value);
 
+    public IReadOnlyDictionary<long, int> ProcessIds()
+    {
+        var ids = new Dictionary<long, int>();
+        foreach (var (job, run) in _running)
+        {
+            try
+            {
+                ids[job] = run.Process.Id;
+            }
+            catch (InvalidOperationException)
+            {
+                // Not started or already gone.
+            }
+        }
+
+        return ids;
+    }
+
     public void Cancel(JobId jobId)
     {
         if (_running.TryGetValue(jobId.Value, out var run))

@@ -133,6 +133,29 @@ public sealed class HeartbeatTests
     }
 
     [TestMethod]
+    public async Task Resources_show_in_the_status_and_low_disk_or_memory_is_posted_once()
+    {
+        var request = await _t.RunningJobAsync();
+        _activity.RecordResources(request.JobId, new JobResources(180, 2L << 30, 450L << 20, _t.Clock.UtcNow));
+        _activity.RecordMachine(new MachineResources(35, 16L << 30, 1L << 30, 500L << 30, 3L << 30, _t.Clock.UtcNow));
+
+        await Beat();
+        await Beat();
+
+        StringAssert.Contains(JobActivity.Describe(_t.Jobs.Get(request.JobId), _activity.Get(request.JobId), _t.Clock.UtcNow), "CPU 180% · RAM 2 GB · disk 450 MB");
+        var warnings = _t.Outbox.Enqueued.Select(e => e.Message.Message.Markdown).Where(m => m.StartsWith("⚠️ **Low", StringComparison.Ordinal)).ToList();
+        CollectionAssert.AreEqual(new[]
+        {
+            "⚠️ **Low disk:** 3 GB free of 500 GB. Builds and clones may fail; unused checkouts are removed hourly.",
+            "⚠️ **Low memory:** 1 GB available of 16 GB. Builds may be killed; consider fewer concurrent jobs.",
+        }, warnings, "once each, not every heartbeat");
+        Assert.AreEqual("CPU 35% · RAM 1 GB free of 16 GB · disk 3 GB free of 500 GB", _activity.Machine!.Describe());
+
+        _t.Clock.UtcNow = _t.Clock.UtcNow.AddMinutes(2);
+        Assert.DoesNotContain("CPU 180%", JobActivity.Describe(_t.Jobs.Get(request.JobId), _activity.Get(request.JobId), _t.Clock.UtcNow), "a stale sample isn't shown");
+    }
+
+    [TestMethod]
     public async Task When_a_job_ends_its_last_heartbeat_is_removed()
     {
         var request = await _t.RunningJobAsync();

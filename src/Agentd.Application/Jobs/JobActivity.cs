@@ -15,8 +15,31 @@ public sealed record UsageSnapshot(double? FiveHour, double? Weekly, DateTimeOff
 /// <param name="Usage">The subscription usage, as last reported.</param>
 /// <param name="Running">A tool call is still in flight (started, no result yet): <paramref name="LastActivity"/> is still running.</param>
 /// <param name="Output">Where the running command's output is being written, when the CLI says (live tail).</param>
+/// <param name="Resources">The agent's CPU, memory and worktree size, as last sampled.</param>
 public sealed record ActivitySnapshot(
-    string? Phase, string? LastActivity, DateTimeOffset? LastActivityAt, UsageSnapshot? Usage, bool Running = false, CommandOutput? Output = null);
+    string? Phase, string? LastActivity, DateTimeOffset? LastActivityAt, UsageSnapshot? Usage, bool Running = false, CommandOutput? Output = null,
+    JobResources? Resources = null);
+
+/// <summary>One job's resource use: its agent's whole process tree (claude and everything it started) and its worktree.</summary>
+public sealed record JobResources(double CpuPercent, long MemoryBytes, long? WorktreeBytes, DateTimeOffset At)
+{
+    /// <summary>"CPU 180% · RAM 2.1 GB · disk 450 MB" (CPU is percent of one core).</summary>
+    public string Describe() =>
+        $"CPU {CpuPercent.ToString("0", CultureInfo.InvariantCulture)}% · RAM {JobActivity.Bytes(MemoryBytes)}" + (WorktreeBytes is { } d ? $" · disk {JobActivity.Bytes(d)}" : string.Empty);
+}
+
+/// <summary>The machine agentd runs on: CPU busy share, memory, and the disk holding agentd's home.</summary>
+public sealed record MachineResources(double CpuPercent, long MemoryTotal, long MemoryAvailable, long DiskTotal, long DiskFree, DateTimeOffset At)
+{
+    /// <summary>Under 10% of memory available.</summary>
+    public bool LowMemory => MemoryTotal > 0 && MemoryAvailable < MemoryTotal / 10;
+
+    /// <summary>Under 5 GB or 5% free.</summary>
+    public bool LowDisk => DiskTotal > 0 && (DiskFree < 5L * 1024 * 1024 * 1024 || DiskFree < DiskTotal / 20);
+
+    public string Describe() => string.Create(CultureInfo.InvariantCulture,
+        $"CPU {CpuPercent:0}% · RAM {JobActivity.Bytes(MemoryAvailable)} free of {JobActivity.Bytes(MemoryTotal)} · disk {JobActivity.Bytes(DiskFree)} free of {JobActivity.Bytes(DiskTotal)}");
+}
 
 /// <summary>A running command's output file, as Claude Code writes it: <c>&lt;tmp&gt;/claude-&lt;uid&gt;/&lt;project&gt;/&lt;session&gt;/tasks/&lt;task&gt;.output</c>.</summary>
 public sealed record CommandOutput(string Session, string TaskId)
@@ -69,6 +92,31 @@ public sealed class JobActivity : Ports.IAgentActivitySink
     private readonly ConcurrentDictionary<long, ActivitySnapshot> _jobs = new();
     private readonly ConcurrentDictionary<(long Job, string Window), double> _warned = new();
     private readonly ConcurrentDictionary<long, bool> _stuck = new();
+    private readonly ConcurrentDictionary<(long Job, string What), bool> _resourceWarnings = new();
+
+    /// <summary>The machine's latest sample (null until the first one, or off Linux).</summary>
+    public MachineResources? Machine { get; private set; }
+
+    public void RecordMachine(MachineResources machine) => Machine = machine;
+
+    public void RecordResources(JobId job, JobResources resources) =>
+        _jobs.AddOrUpdate(job.Value, _ => new(null, null, null, null, Resources: resources), (_, s) => s with { Resources = resources });
+
+    /// <summary>Records whether a resource warning (e.g. "disk") applies to the job; true when that changed, so it's posted once.</summary>
+    public bool ResourceWarningChanged(JobId job, string what, bool on)
+    {
+        var before = _resourceWarnings.GetValueOrDefault((job.Value, what));
+        _resourceWarnings[(job.Value, what)] = on;
+        return before != on;
+    }
+
+    /// <summary>1536 → "2 KB", 2.1e9 → "2 GB" (binary units, short).</summary>
+    public static string Bytes(long bytes) => bytes switch
+    {
+        >= 1L << 30 => string.Create(CultureInfo.InvariantCulture, $"{bytes / (double)(1L << 30):0.#} GB"),
+        >= 1L << 20 => string.Create(CultureInfo.InvariantCulture, $"{bytes / (double)(1L << 20):0} MB"),
+        _ => string.Create(CultureInfo.InvariantCulture, $"{Math.Max(0, bytes) / 1024} KB"),
+    };
 
     void Ports.IAgentActivitySink.ToolStep(JobId jobId, string description, DateTimeOffset at) => RecordActivity(jobId, description, at, running: true);
 
@@ -126,6 +174,11 @@ public sealed class JobActivity : Ports.IAgentActivitySink
     {
         _jobs.TryRemove(job.Value, out _);
         _stuck.TryRemove(job.Value, out _);
+        foreach (var key in _resourceWarnings.Keys.Where(k => k.Job == job.Value))
+        {
+            _resourceWarnings.TryRemove(key, out _);
+        }
+
         foreach (var key in _warned.Keys.Where(k => k.Job == job.Value))
         {
             _warned.TryRemove(key, out _);
@@ -154,6 +207,11 @@ public sealed class JobActivity : Ports.IAgentActivitySink
         if (activity.Phase is { } phase)
         {
             parts.Insert(1, phase);
+        }
+
+        if (job.State is JobState.Running && activity.Resources is { } resources && now - resources.At < TimeSpan.FromMinutes(1))
+        {
+            parts.Add(resources.Describe());
         }
 
         parts.Add($"{Ago(now - job.CreatedAt)} elapsed");
