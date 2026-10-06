@@ -66,6 +66,9 @@ public interface IIdeaStore
 
     /// <summary>Newest first: one idea (<paramref name="id"/>), those that created <paramref name="workItem"/>, or all.</summary>
     Task<IReadOnlyList<IdeaSummary>> ListSummariesAsync(long? id, int? workItem, int limit, CancellationToken cancellationToken);
+
+    /// <summary>The thread ids of a provider's ideas that aren't closed: the chat poller reads them like job threads.</summary>
+    Task<IReadOnlyList<string>> ListOpenThreadsAsync(ProviderKey provider, CancellationToken cancellationToken);
 }
 
 /// <summary>One brainstorm turn: a read-only agent session in the idea's checkout, on the idea's model and effort.</summary>

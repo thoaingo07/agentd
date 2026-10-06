@@ -72,6 +72,20 @@ public sealed class IdeaStore(NpgsqlDataSource dataSource) : IIdeaStore
         return rows;
     }
 
+    public async Task<IReadOnlyList<string>> ListOpenThreadsAsync(ProviderKey provider, CancellationToken cancellationToken)
+    {
+        await using var cmd = dataSource.CreateCommand("SELECT * FROM agentd.idea_list_open_threads($1)");
+        cmd.Parameters.Add(T(provider.Value));
+        await using var r = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        var threads = new List<string>();
+        while (await r.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            threads.Add(r.GetString(0));
+        }
+
+        return threads;
+    }
+
     private async Task<IReadOnlyList<Idea>> ReadAsync(string sql, CancellationToken ct, params NpgsqlParameter[] parameters)
     {
         await using var cmd = dataSource.CreateCommand(sql);
