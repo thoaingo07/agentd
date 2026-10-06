@@ -81,9 +81,13 @@ public sealed class PostHeartbeatsHandler(
         var stuck = job.State == JobState.Running && last is { } seen && now - seen >= options.Value.StuckAfter;
         if (activity.StuckChanged(job.Id, stuck))
         {
-            var message = stuck
-                ? $"⚠️ **No activity for {JobActivity.Ago(now - last!.Value)}** (last: {activity.Get(job.Id).LastActivity})."
-                : "✅ **Active again.**";
+            var snapshot = activity.Get(job.Id);
+            var message = !stuck ? "✅ **Active again.**"
+                : snapshot.Running
+                    // One long command, not a silent agent: say what runs, that messages wait for it, and how to stop it.
+                    ? $"⚠️ **The agent has been running {snapshot.LastActivity} for {JobActivity.Ago(now - last!.Value)}.** It reads your messages when this ends; " +
+                      "`!pause` stops it." + (snapshot.Output?.Tail() is { Length: > 0 } tail ? $"\n```\n{tail.Replace("```", "ʼʼʼ", StringComparison.Ordinal)}\n```" : string.Empty)
+                    : $"⚠️ **No activity for {JobActivity.Ago(now - last!.Value)}** (last: {snapshot.LastActivity}).";
             await outbox.TryEnqueueAsync(job.Id, new OutboundMessage(MessageKind.Info, message), ct).ConfigureAwait(false);
         }
     }

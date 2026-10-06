@@ -44,7 +44,9 @@ public sealed partial class ChatCommands(
     ICommandHandler<PauseJob, Unit>? pause = null,
     ICommandHandler<ResumeJob, Unit>? resume = null,
     Reviews.ReviewService? reviews = null,
-    Reviews.IReviewStore? reviewStore = null)
+    Reviews.IReviewStore? reviewStore = null,
+    JobActivity? activity = null,
+    Domain.Common.IClock? clock = null)
 {
     /// <summary>Commands typed in a job's thread are recorded, so the work item conversation shows both directions.</summary>
     public const string CommandEventType = "chat.command";
@@ -394,6 +396,11 @@ public sealed partial class ChatCommands(
         else if (job.LastError is { } error)
         {
             sb.Append(CultureInfo.InvariantCulture, $"\n\nLast error: {error}");
+        }
+
+        if (activity is not null && job.State is Domain.Jobs.JobState.Running or Domain.Jobs.JobState.WaitingForHuman)
+        {
+            sb.Append("\n\nNow: ").Append(JobActivity.DescribeWithOutput(job, activity.Get(job.Id), clock?.UtcNow ?? DateTimeOffset.UtcNow));
         }
 
         if (job.PendingMessages.Count > 0)

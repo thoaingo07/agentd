@@ -31,6 +31,7 @@ public sealed class ChatCommandsTests
         Assert.AreEqual(new InboundOutcome("command:status", conversation.JobId), outcome);
         var reply = _outbox.Enqueued.Single().Message;
         StringAssert.Contains(reply.Message.Markdown, "State: **Running**");
+        StringAssert.Contains(reply.Message.Markdown, "Now: 🟢 running", "what the agent is doing right now");
         CollectionAssert.AreEqual(new[] { s_discord }, reply.Options!.OnlyProviders!.ToArray());
     }
 
@@ -210,7 +211,7 @@ public sealed class ChatCommandsTests
         var registry = new MessagingProviderRegistry(chat is null ? [] : [chat], Microsoft.Extensions.Options.Options.Create(options));
         return new ChatCommands(t.Jobs, new GetJobStatusHandler(t.Jobs, t.Clock), t.Cancel(), new RetryJobHandler(t.Jobs), t.Claim(), t.StartHandoff(),
             t.Conversations, transcripts, outbox, registry, NullLogger<ChatCommands>.Instance, t.Events, repositories: t.Registry, addRepository: add,
-            pause: new PauseJobHandler(t.Jobs, t.Runner), resume: new ResumeJobHandler(t.Jobs));
+            pause: new PauseJobHandler(t.Jobs, t.Runner), resume: new ResumeJobHandler(t.Jobs), activity: t.Activity, clock: t.Clock);
     }
 
     private MessagingProviderRegistry Registry() =>

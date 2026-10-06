@@ -171,7 +171,8 @@ public sealed class ClaudeCodeRunnerTests
 
         var env = SafeEnvironment.Build(current, new ClaudeOptions { ConfigDir = "/opt/agentd/claude/max-1", OAuthToken = "oauth" });
 
-        CollectionAssert.AreEquivalent(new[] { "PATH", "HOME", "CLAUDE_CONFIG_DIR", "CLAUDE_CODE_OAUTH_TOKEN", "MCP_TOOL_TIMEOUT" }, env.Keys.ToList());
+        CollectionAssert.AreEquivalent(new[] { "PATH", "HOME", "CLAUDE_CONFIG_DIR", "CLAUDE_CODE_OAUTH_TOKEN", "MCP_TOOL_TIMEOUT", "BASH_MAX_TIMEOUT_MS" }, env.Keys.ToList());
+        Assert.AreEqual("600000", env["BASH_MAX_TIMEOUT_MS"], "a hung command ends after 10 minutes (Claude:CommandTimeout)");
         Assert.AreEqual("900000", env["MCP_TOOL_TIMEOUT"], "15 minutes: longer than the permission timeout");
         Assert.AreEqual("/opt/agentd/claude/max-1", env["CLAUDE_CONFIG_DIR"]);
     }

@@ -83,7 +83,7 @@ public sealed partial class ClaudeCodeRunner(
                 foreach (var agentEvent in StreamJsonParser.Parse(line))
                 {
                     tracker.Observe(agentEvent);
-                    ReportActivity(request.JobId, agentEvent);
+                    ReportActivity(request.JobId, request.Session.Value.ToString(), agentEvent);
                     await events.AppendAsync(request.JobId, agentEvent.LogType, StreamJsonParser.ToPayloadJson(agentEvent), CancellationToken.None).ConfigureAwait(false);
                 }
             }
@@ -155,12 +155,18 @@ public sealed partial class ClaudeCodeRunner(
         return path;
     }
 
-    private void ReportActivity(JobId jobId, AgentEvent agentEvent)
+    private void ReportActivity(JobId jobId, string session, AgentEvent agentEvent)
     {
         switch (agentEvent)
         {
             case AgentEvent.ToolCall call:
                 activity.ToolStep(jobId, ActivityText.Describe(call.Name, call.InputJson), DateTimeOffset.UtcNow);
+                break;
+            case AgentEvent.ToolResult:
+                activity.ToolFinished(jobId);
+                break;
+            case AgentEvent.TaskStarted task:
+                activity.CommandStarted(jobId, task.SessionId ?? session, task.TaskId);
                 break;
             case AgentEvent.RateLimit limit:
                 activity.Usage(jobId, limit.Utilization.GetValueOrDefault("five_hour", double.NaN) is var f && !double.IsNaN(f) ? f : null,

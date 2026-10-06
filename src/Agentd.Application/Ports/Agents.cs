@@ -43,6 +43,12 @@ public interface IAgentActivitySink
 {
     void ToolStep(JobId jobId, string description, DateTimeOffset at);
 
+    /// <summary>The tool call's result arrived: nothing is running anymore.</summary>
+    void ToolFinished(JobId jobId);
+
+    /// <summary>A long-running command started; its output can be followed (<see cref="Jobs.CommandOutput"/>).</summary>
+    void CommandStarted(JobId jobId, string session, string taskId);
+
     /// <summary>Utilization (0–1) of the 5-hour and weekly windows, when reported.</summary>
     void Usage(JobId jobId, double? fiveHour, double? weekly, DateTimeOffset? resetsAt);
 }
