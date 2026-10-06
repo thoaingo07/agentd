@@ -36,6 +36,19 @@ public interface IAgentRunner
     bool IsRunning(JobId jobId);
 
     void Cancel(JobId jobId);
+
+    /// <summary>The agent process of each running job (the root of its process tree), for resource sampling.</summary>
+    IReadOnlyDictionary<long, int> ProcessIds() => new Dictionary<long, int>();
+}
+
+/// <summary>Reads CPU, memory and disk use from the operating system (Linux <c>/proc</c>; elsewhere it returns nothing).</summary>
+public interface IResourceSampler
+{
+    /// <summary>CPU (percent of one core, since the previous call) and resident memory of each process tree, by job id.</summary>
+    IReadOnlyDictionary<long, (double CpuPercent, long MemoryBytes)> SampleTrees(IReadOnlyDictionary<long, int> roots);
+
+    /// <summary>The machine: CPU busy percent since the previous call, memory, and the disk holding <paramref name="diskPath"/>.</summary>
+    Jobs.MachineResources? SampleMachine(string diskPath);
 }
 
 /// <summary>What the runner reports while an agent works (fed into <c>JobActivity</c>).</summary>

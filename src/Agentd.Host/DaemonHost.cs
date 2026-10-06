@@ -42,6 +42,8 @@ internal static class DaemonHost
         builder.Services.AddHostedService<MessagingDispatcherWorker>();
         builder.Services.AddHostedService<HeartbeatWorker>();
         builder.Services.AddHostedService<WorktreeSweepWorker>();
+        builder.Services.AddSingleton<Application.Ports.IResourceSampler, ProcResourceSampler>(_ => new ProcResourceSampler());
+        builder.Services.AddHostedService<ResourceSamplerWorker>();
         builder.Services.AddEventStreaming();
         builder.Services.AddHostedService<ReviewMonitorWorker>();
         builder.Services.AddSingleton<MessagingProviderHealthCheck>();   // one instance keeps the 30 s cache

@@ -142,3 +142,19 @@ When the agent needs a command outside its allowlist, the CLI calls `mcp__agentd
 - **Command time limit:** `Claude:CommandTimeout` (10 min, the CLI's own default made explicit and configurable) is passed
   as `BASH_MAX_TIMEOUT_MS`, so a hung command fails with a timeout.
 
+## Resource use per job (agentd, 2026-10-06)
+
+- **What's measured:** every 5 s, `ResourceSamplerWorker` reads Linux `/proc`, with no external tools:
+  - **each running job:** CPU (percent of one core, from utime+stime deltas, USER_HZ = 100) and resident memory, summed
+    over the agent's **whole process tree** (claude plus everything it started: `dotnet test`, `npm`, `helm`…);
+  - **the job's worktree size:** every minute;
+  - **the machine:** CPU busy (`/proc/stat`), memory (`MemTotal`, `MemAvailable`), and the disk holding the worktrees.
+- **Where it shows:** the heartbeat and status lines add "CPU 180% · RAM 2.1 GB · disk 450 MB" (only while the sample is
+  under a minute old). `!status` adds a "Machine:" line.
+- **Warnings:** each running job's thread gets "⚠️ **Low disk**" (under 5 GB or 5% free) and "⚠️ **Low memory**" (under
+  10% available) once, when they start to apply.
+- **Limits:**
+  - Work run **inside Docker** happens in the Docker daemon, so it shows in the machine numbers, not the job's.
+  - Off Linux, nothing is sampled.
+  - The Web UI shows these in a follow-up PR.
+

@@ -403,6 +403,11 @@ public sealed partial class ChatCommands(
             sb.Append("\n\nNow: ").Append(JobActivity.DescribeWithOutput(job, activity.Get(job.Id), clock?.UtcNow ?? DateTimeOffset.UtcNow));
         }
 
+        if (activity?.Machine is { } machine)
+        {
+            sb.Append("\n\nMachine: ").Append(machine.Describe());
+        }
+
         if (job.PendingMessages.Count > 0)
         {
             sb.Append(CultureInfo.InvariantCulture, $"\n\n{job.PendingMessages.Count} message(s) queued for the agent's next turn.");
