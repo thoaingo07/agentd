@@ -77,4 +77,24 @@ public sealed class ConfigHomeTests
     [DataRow("http://localhost:5123", "http://localhost:5123/mcp")]
     public void Mcp_url_points_at_the_hosts_own_endpoint(string address, string expected) =>
         Assert.AreEqual(expected, McpUrlFromServer.For(address));
+
+    [TestMethod]
+    public void The_embedded_appsettings_give_the_defaults_without_a_file()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "agentd-home-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var config = new ConfigurationManager();   // no appsettings.json, like the single-file agentd
+
+            config.AddConfigHome(ConfigHome.Resolve(name => name == ConfigHome.Variable ? root : null).EnsureCreated(), []);
+
+            Assert.AreEqual("http://127.0.0.1:7780", config["Agentd:Web:Urls"], "loopback by default");
+            Assert.AreEqual("Warning", config["Logging:LogLevel:Microsoft.AspNetCore"]);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
 }
+

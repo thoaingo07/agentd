@@ -29,4 +29,23 @@ so a server needs nothing but the binary (and PostgreSQL).
 - `db migrate` from the published binary applies every migration.
 
 ## Done when
-- [ ] One file per platform; the CI smoke test passes on linux-x64.
+- [x] One file per platform; the CI smoke test passes on linux-x64.
+
+## As built (2026-10-05)
+- **`build/publish.sh [rid…]`** builds the web, then runs `dotnet publish -r <rid> --self-contained` with
+  `PublishSingleFile`, `IncludeNativeLibrariesForSelfExtract`, `EnableCompressionInSingleFile` and `DebugType=embedded`.
+  It keeps **only the executable** in `artifacts/<rid>/`. `VERSION=x.y.z` sets what `agentd --version` prints.
+  linux-x64 is about 55 MB.
+- **Web assets:** `Agentd.Web` embeds `wwwroot/**` (logical names `wwwroot/…`, added in a target so a fresh Vite build
+  is picked up). `EmbeddedWebAssets` serves them under `/_content/Agentd.Web/`, as a **fallback after the files on
+  disk**, so development and `dotnet run` are unchanged. The Vite manifest is read through the same provider.
+- **Defaults:** the Host embeds its `appsettings.json` (`agentd.appsettings.json`), added just above the config home
+  defaults. A file on disk still overrides it, and `appsettings*.json` aren't published.
+- **Not published next to the binary:** XML docs, and the web project's `package*.json` / `tsconfig.json`.
+- **Globalization:** already invariant (`Directory.Build.props`), so no ICU is needed on the server.
+- **Migrations:** already embedded in the Migrator assembly; `agentd db migrate` from the lone binary applies all of
+  them.
+- **CI:** the `e2e` job now publishes linux-x64, copies only `agentd` into an empty folder, runs `agentd db migrate`
+  and `agentd daemon run` from there, and runs the Playwright suite against it. That's the smoke test, and more.
+- **Trimming stays off** (reflection: MVC, FluentMigrator, System.Text.Json). Revisit only if size matters.
+

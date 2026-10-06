@@ -2,7 +2,15 @@
   <PropertyGroup>
     <UserSecretsId>agentd-host</UserSecretsId>
     <AssemblyName>agentd</AssemblyName>
+    <!-- Single-file publish (build/publish.sh, T1b.6): only the agentd executable ships. -->
+    <PublishDocumentationFile>false</PublishDocumentationFile>
+    <PublishReferencesDocumentationFiles>false</PublishReferencesDocumentationFiles>
   </PropertyGroup>
+  <ItemGroup>
+    <!-- The defaults travel inside the binary (AgentdConfiguration adds them below everything else). -->
+    <EmbeddedResource Include="appsettings.json" LogicalName="agentd.appsettings.json" />
+    <Content Update="appsettings*.json" CopyToPublishDirectory="Never" />
+  </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Agentd.Bff\Agentd.Bff.csproj" />
     <ProjectReference Include="..\Agentd.Web\Agentd.Web.csproj" />

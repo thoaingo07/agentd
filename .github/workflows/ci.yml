@@ -88,7 +88,7 @@ jobs:
       - name: Vite manifest produced (ViteHelper reads it)
         run: test -f wwwroot/manifest.json
 
-  # Browser suite (T3.12): the built app on the real Host in the E2E environment (scheduler off, /__test seeding),
+  # Browser suite (T3.12) on the published single-file agentd in the E2E environment (scheduler off, /__test seeding),
   # in Chromium and Firefox: zero CSP violations, antiforgery, HttpOnly cookies, live-stream reconnect, axe.
   e2e:
     runs-on: ubuntu-latest
@@ -117,27 +117,26 @@ jobs:
           cache: npm
           cache-dependency-path: src/Agentd.Web/package-lock.json
 
-      # The web first: the Host's static web assets manifest lists what's in wwwroot at build time.
-      - name: Build the web
-        working-directory: src/Agentd.Web
-        run: npm ci && npm run build
+      # The single-file agentd (T1b.6), alone in an empty folder: the suite proves the UI, its defaults and the
+      # migrations all come from inside the binary.
+      - name: Publish agentd (linux-x64, single file)
+        run: build/publish.sh linux-x64
 
-      - name: Build the Host and the migrator
+      - name: Migrate (from the binary)
         run: |
-          dotnet build src/Agentd.Host -c Release
-          dotnet build src/Agentd.Migrator -c Release
+          mkdir -p "$RUNNER_TEMP/agentd" && cp artifacts/linux-x64/agentd "$RUNNER_TEMP/agentd/"
+          cd "$RUNNER_TEMP" && AGENTD_HOME="$RUNNER_TEMP/agentd-home" ./agentd/agentd db migrate
 
-      - name: Migrate
-        run: dotnet run --project src/Agentd.Migrator -c Release --no-build
-
-      - name: Start the Host (E2E environment)
+      - name: Start agentd (E2E environment)
         env:
           ASPNETCORE_ENVIRONMENT: E2E
           AGENTD_Web__Urls: http://127.0.0.1:7797
           AGENTD_Scheduler__Enabled: "false"
         run: |
+          cd "$RUNNER_TEMP"
           export AGENTD_HOME="$RUNNER_TEMP/agentd-home"
-          nohup src/Agentd.Host/bin/Release/net10.0/agentd daemon run > "$RUNNER_TEMP/host.log" 2>&1 &
+          ./agentd/agentd --version
+          nohup ./agentd/agentd daemon run > "$RUNNER_TEMP/host.log" 2>&1 &
           for i in $(seq 1 60); do curl -sf http://127.0.0.1:7797/health/live && exit 0; sleep 1; done
           cat "$RUNNER_TEMP/host.log"; exit 1
 
