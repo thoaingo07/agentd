@@ -20,7 +20,7 @@ public sealed class AgentdCliTests : IDisposable
     {
         Assert.AreEqual(0, await Run("--help"));
 
-        foreach (var verb in new[] { "daemon", "status", "run", "repo", "db", "doctor", "secrets" })
+        foreach (var verb in new[] { "daemon", "status", "run", "repo", "db", "doctor", "secrets", "update", "version" })
         {
             Assert.Contains($"  {verb}", _out.ToString(), $"help lists '{verb}'");
         }
