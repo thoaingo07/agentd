@@ -13,7 +13,7 @@ started, from what Phases 1–3 delivered.
 |---|---|---|---|
 | 1 | [T1b.2](02-encrypted-secrets.md) | Encrypted secret store (`secrets set/list/remove`, Data Protection, config source, never passed to agents) | ☑ |
 | 2 | [T1b.6](06-single-file-publish.md) | Self-contained single-file publish (web assets + migrations inside) for linux-x64/arm64, osx-arm64, win-x64 | ☑ |
-| 3 | [T1b.5](05-systemd-service.md) | systemd user service: `daemon install/uninstall/start/stop/status/logs` | ☐ |
+| 3 | [T1b.5](05-systemd-service.md) | systemd user service: `daemon install/uninstall/start/stop/status/logs` | ☑ |
 | 4 | [T1b.7](07-release-workflow-update.md) | Release workflow (GitHub Releases, checksums, `install.sh`) and `agentd update` with channels | ☐ |
 | 5 | [T1b.8](08-docker-image-compose.md) | Docker image (multi-arch, GHCR) + `compose.yaml` with PostgreSQL + "extend with toolchains" guide | ☐ |
 | 6 | [T1b.4](04-doctor-full.md) | Full `agentd doctor` incl. `--repo` toolchain and Claude profile checks (and verify headless Claude auth) | ☐ |
