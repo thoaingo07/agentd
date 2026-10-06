@@ -85,8 +85,19 @@ prefixed with agentd's marker, so agentd's own comment handling skips them. The 
    - `pr_reviews` and `pr_review_messages` with their routines, and `IReviewStore`. Events carry ids and status only;
    - `ReviewFindings` (parse, validate, render);
    - the reviewer instructions (`ThreadTurnKind.Review` on the read-only thread agent).
-2. **The chat flow:** `!review`, `ReviewService` (turns, follow-ups, choices, posting, close-out), the poller reading
-   review threads, `!help`.
+2. **The chat flow** (built 2026-10-06):
+   - **`!review <PR url | !id | id> [instructions…] [--repo r] [--focus f] [--model m] [--effort e]`:** the first word is
+     the PR, and **anything else is instructions for the reviewer** (requested 2026-10-06). A PR URL names its
+     repository; a bare id uses `--repo` or the only registered repository. Completed or abandoned PRs are refused.
+   - **The 🔍 thread:** every message resumes the same review session. Each turn checks the PR head. After new pushes it
+     moves the checkout and tells the agent.
+   - **Choices on the findings:** **1** / `post` (all), `post 1,3`, `drop 2` (renumbered), **2** / `keep`, **3** /
+     `discard`. Any other text is a question for the agent, which sends a revised block when its findings change.
+   - **Posting:** one PR thread per finding at file:line, then a summary thread. It reports how many were posted, or
+     where it stopped. No vote. Then the close-out question.
+   - **`!model` / `!effort`** in a review thread apply from the next reply.
+   - **Wiring:** the Discord poller reads review threads, and inbound messages route to `ReviewService`. `!help` lists
+     `review`.
 3. **Later:** reviews in the Web UI; then the rest of Phase 7 (reviewer catalog, dashboard, auto triggers).
 
 ---

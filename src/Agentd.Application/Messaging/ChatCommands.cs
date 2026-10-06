@@ -42,7 +42,9 @@ public sealed partial class ChatCommands(
     ICommandHandler<Repositories.AddRepository, Domain.Repositories.Repository>? addRepository = null,
     ICommandHandler<Repositories.RemoveRepository, Unit>? removeRepository = null,
     ICommandHandler<PauseJob, Unit>? pause = null,
-    ICommandHandler<ResumeJob, Unit>? resume = null)
+    ICommandHandler<ResumeJob, Unit>? resume = null,
+    Reviews.ReviewService? reviews = null,
+    Reviews.IReviewStore? reviewStore = null)
 {
     /// <summary>Commands typed in a job's thread are recorded, so the work item conversation shows both directions.</summary>
     public const string CommandEventType = "chat.command";
@@ -51,7 +53,7 @@ public sealed partial class ChatCommands(
 
     /// <summary>The command list alone (the reply to an unknown command).</summary>
     public static readonly string Commands =
-        "In a job's thread: `status`, `logs`, `pause`, `resume`, `cancel`, `retry`, `handoff`, `approve`, `deny`. Anywhere: `list`, `run <work item id>`, `idea <text>`, `repo`, `help`. In an idea's thread: `model`, `effort`.";
+        "In a job's thread: `status`, `logs`, `pause`, `resume`, `cancel`, `retry`, `handoff`, `approve`, `deny`. Anywhere: `list`, `run <id>`, `idea <text>`, `review <PR>`, `repo`, `help`. In idea/review threads: `model`, `effort`.";
 
     /// <summary>The reply to <c>idea</c> until brainstorming (Phase 2d) is built.</summary>
     public const string IdeaComingSoon =
@@ -73,28 +75,28 @@ public sealed partial class ChatCommands(
         "Anywhere:",
         "• `list`: active jobs",
         "• `run <work item id>`: start a work item now, even without the tag",
-        "• `idea [--model m] [--effort e] <text>`: brainstorm into work items",
+        "• `idea <text>`: brainstorm into work items",
+        "• `review <PR> [instructions]`: review a PR; you pick what's posted",
         "• `repo list|add <url>|remove <name>`: repositories (Admins change them)",
         "• `help`: this message",
         "",
         "**Talking to the agent** (in a job's thread)",
-        "• Any other message goes to the agent. While it's working you get the current status right away, and it reads your message at its next step.",
+        "• Any other message goes to the agent: you get the status right away, and it reads your message at its next step.",
         "• Ask \"what's the progress?\" anytime.",
         "• Answer a question with its number (`1`, `2`, …) or in your own words.",
-        "• 🔐 Permission requests: `1` once, `2` this job, `3` always (repo), `4` deny. No answer in 10 min = deny.",
+        "• 🔐 Permissions: `1` once, `2` this job, `3` always (repo), `4` deny (no answer in 10 min = deny).",
         "",
         "**The job cycle** (one thread per work item)",
         "1. I pick up work items tagged `ai-workflow`, or the one you `run`.",
-        "2. Clarify, then **plan**, with a time and usage estimate. Reply `1` or `approve`, or say what to change. The `ai-auto` tag skips the approval.",
+        "2. Clarify, then **plan** with an estimate. Reply `1` to approve or say what to change (`ai-auto` skips this).",
         "3. Implement and verify, then open a **pull request**.",
         "4. **Review loop:** I fix PR comments, or your messages here, until the PR is ready to complete.",
-        "5. After the merge, **hand-off:** I propose the knowledge and learnings to sync into the repo. Agree, ask for changes, or decline.",
+        "5. After the merge, **hand-off:** I propose knowledge to sync into the repo; then I only answer questions.",
         "6. **Close-out:** I ask whether to delete this thread (`1` delete, `2` keep).",
         "",
         "**Along the way**",
-        "• A heartbeat every minute while I work",
-        "• A warning at 80% of the 5-hour or weekly usage window",
-        "• Reminders while I'm waiting for you",
+        "• A heartbeat every minute, usage warnings at 80%, reminders while I wait for you",
+        "• `model` / `effort`: change the model in an idea or review thread",
         "• Everything is also on the web dashboard.");
 
     public async Task<InboundOutcome> ExecuteAsync(InboundMessage message, AgentdUser user, Conversation? conversation, CancellationToken ct)
@@ -168,6 +170,13 @@ public sealed partial class ChatCommands(
             case "idea":
                 reply = await StartIdeaAsync(message, user, command.Args, ct).ConfigureAwait(false);
                 break;
+            case "review":
+                reply = reviews is null
+                    ? new(MessageKind.Info, "PR reviews aren't enabled.")
+                    : await reviews.StartAsync(message.Provider, user.Name, command.Args, ct).ConfigureAwait(false) is var startedReview && startedReview.IsSuccess
+                        ? new(MessageKind.Info, startedReview.Value)
+                        : new(MessageKind.Info, startedReview.Error.Message);
+                break;
             case "repo":
                 reply = await RepoAsync(command.Args, user, ct).ConfigureAwait(false);
                 break;
@@ -180,7 +189,7 @@ public sealed partial class ChatCommands(
         }
 
         await ReplyAsync(message, job, reply, ct).ConfigureAwait(false);
-        return new InboundOutcome($"command:{(name is "list" or "run" or "status" or "cancel" or "retry" or "logs" or "handoff" or "approve" or "deny" or "idea" or "model" or "effort" or "repo" or "pause" or "resume" or "help" ? name : "unknown")}", job);
+        return new InboundOutcome($"command:{(name is "list" or "run" or "status" or "cancel" or "retry" or "logs" or "handoff" or "approve" or "deny" or "idea" or "review" or "model" or "effort" or "repo" or "pause" or "resume" or "help" ? name : "unknown")}", job);
     }
 
     /// <summary><c>approve [request] [once|job|always]</c> or <c>deny [request]</c>; null when it was decided (announced in the thread).</summary>
@@ -219,10 +228,18 @@ public sealed partial class ChatCommands(
     /// <summary><c>model &lt;name&gt;</c> / <c>effort &lt;level&gt;</c> in an idea's thread.</summary>
     private async Task<OutboundMessage> IdeaSettingsAsync(InboundMessage message, string name, IReadOnlyList<string> args, CancellationToken ct)
     {
+        if (reviews is not null && reviewStore is not null
+            && await reviewStore.FindByThreadAsync(message.Provider, message.ExternalConversationId, ct).ConfigureAwait(false) is { } review)
+        {
+            return new(MessageKind.Info, args.Count == 0
+                ? $"Model **{review.Model ?? "default"}**, effort **{review.Effort ?? "default"}**. Change with `model <fable|opus|sonnet|full name>` or `effort <{string.Join("|", Ideas.BrainstormSettings.Efforts)}>`."
+                : await reviews.ChangeSettingsAsync(review, name == "model" ? args[0] : null, name == "effort" ? args[0] : null, ct).ConfigureAwait(false));
+        }
+
         if (ideas is null || ideaStore is null
             || await ideaStore.FindByThreadAsync(message.Provider, message.ExternalConversationId, ct).ConfigureAwait(false) is not { } idea)
         {
-            return new(MessageKind.Info, $"`{name}` works in an idea's thread (start one with `idea <text>`).");
+            return new(MessageKind.Info, $"`{name}` works in an idea's or review's thread (start one with `idea <text>` or `review <PR>`).");
         }
 
         if (args.Count == 0)

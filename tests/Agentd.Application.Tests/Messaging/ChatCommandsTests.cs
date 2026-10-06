@@ -128,7 +128,7 @@ public sealed class ChatCommandsTests
         Assert.AreEqual("command:help", (await Run("help", null)).Code);
 
         var help = _chat.SentText.Single();
-        foreach (var command in new[] { "status", "logs", "cancel", "retry", "handoff", "list", "run <work item id>", "idea [--model m] [--effort e] <text>", "repo list|add <url>|remove <name>", "help" })
+        foreach (var command in new[] { "status", "logs", "cancel", "retry", "handoff", "list", "run <work item id>", "idea <text>", "review <PR> [instructions]", "repo list|add <url>|remove <name>", "help" })
         {
             StringAssert.Contains(help, $"`{command}`");
         }
