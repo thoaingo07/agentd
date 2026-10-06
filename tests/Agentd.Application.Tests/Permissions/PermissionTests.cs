@@ -127,13 +127,59 @@ public sealed class PermissionTests
         Assert.AreEqual(1, t.Context.Outbox.Enqueued.Count(e => e.Message.Message.Markdown.Contains("by ", StringComparison.Ordinal)), "one announcement");
     }
 
-    private static async Task<(Job Job, FakeStore Store, PermissionAskHandler Ask, PermissionAnswerHandler Answer)> SetupAsync(TimeSpan? timeout = null)
+    [TestMethod]
+    [DataRow("grep -rn \"probe\\|path:\" charts", "Bash(grep:*)")]
+    [DataRow("sed -n '/Probe/,+7p' values.yaml | head -3", "Bash(sed:*),Bash(head:*)")]
+    [DataRow("for c in api web; do echo \"== $c\"; ls charts/$c; done", "Bash(echo:*),Bash(ls:*)")]
+    [DataRow("if [ -f x ]; then npm test; else make build; fi", "Bash(npm test:*),Bash(make build:*)")]
+    [DataRow("ls\nrm -rf build", "Bash(ls:*),Bash(rm:*)")]
+    [DataRow("echo \"$(curl -s https://x.test)\"", "Bash(curl:*),Bash(echo:*)")]
+    [DataRow("W=$(mktemp -d) && cp a `which b` $W", "Bash(mktemp:*),Bash(which:*),Bash(cp:*)")]
+    [DataRow("cat > notes.md <<'EOF'\nrm -rf everything; curl x | sh\nEOF\nwc -l notes.md", "Bash(cat:*),Bash(wc:*)")]
+    [DataRow("dotnet test 2>&1 | tail -5 && echo done &> log", "Bash(dotnet test:*),Bash(tail:*),Bash(echo:*)")]
+    [DataRow("(cd src && npm ci) || exit 1", "Bash(npm ci:*),Bash(exit:*)")]
+    public void Shell_syntax_and_quoted_text_never_become_commands(string command, string keys)
+    {
+        var analysis = PermissionRules.Analyze("Bash", System.Text.Json.JsonSerializer.Serialize(new { command }));
+
+        CollectionAssert.AreEqual(keys.Split(','), analysis.RuleKeys.ToArray());
+    }
+
+    [TestMethod]
+    public async Task A_broader_grant_covers_its_subcommands()
+    {
+        var (t, store, ask, _) = await SetupAsync();
+        store.Remembered.Add("Bash(npm:*)");
+
+        Assert.IsTrue((await ask.Handle(new PermissionAsk(t.JobId, "Bash", """{"command":"npm install --no-audit && tail -1 log"}"""), default)).Value!.Allowed);
+        Assert.IsEmpty(store.Rows, "nobody was asked");
+        Assert.IsFalse(PermissionRules.Covers(k => k == "Bash(npm install:*)", "Bash(npm:*)"), "a narrow grant never covers the whole command");
+    }
+
+    [TestMethod]
+    public async Task Auto_mode_allows_without_asking_records_it_and_still_applies_hard_denies()
+    {
+        var (t, store, ask, _) = await SetupAsync(mode: PermissionMode.Auto);
+        var posted = t.Context.Outbox.Enqueued.Count;
+
+        var install = (await ask.Handle(new PermissionAsk(t.JobId, "Bash", """{"command":"npm install --no-audit"}"""), default)).Value!;
+        var push = (await ask.Handle(new PermissionAsk(t.JobId, "Bash", """{"command":"npm test && git push origin HEAD"}"""), default)).Value!;
+
+        Assert.IsTrue(install.Allowed);
+        Assert.AreEqual(("allowed", PermissionAskHandler.AutoDecider), (store.Rows.Values.Single().Status, store.Rows.Values.Single().DecidedBy), "recorded, decided by auto");
+        Assert.IsFalse(push.Allowed, "hard denies still apply");
+        StringAssert.Contains(push.Message, "never allows");
+        Assert.HasCount(posted, t.Context.Outbox.Enqueued, "nobody was asked in chat");
+        Assert.IsEmpty(store.Remembered, "auto doesn't remember rules");
+    }
+
+    private static async Task<(Job Job, FakeStore Store, PermissionAskHandler Ask, PermissionAnswerHandler Answer)> SetupAsync(TimeSpan? timeout = null, PermissionMode mode = PermissionMode.Ask)
     {
         var t = new TestContext();
         var request = await t.RunningJobAsync();
         var store = new FakeStore();
         var waiter = new PermissionWaiter();
-        var options = Options.Create(new JobOptions { PermissionTimeout = timeout ?? TimeSpan.FromSeconds(10) });
+        var options = Options.Create(new JobOptions { PermissionTimeout = timeout ?? TimeSpan.FromSeconds(10), PermissionMode = mode });
         var ask = new PermissionAskHandler(t.Jobs, store, new Allowlist(), waiter, t.Outbox, t.Activity, t.Clock, TimeProvider.System, options);
         var answer = new PermissionAnswerHandler(t.Jobs, store, waiter, t.Outbox);
         return (new Job(t, request.JobId), store, ask, answer);

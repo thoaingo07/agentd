@@ -10,8 +10,8 @@ namespace Agentd.Application.Permissions;
 public sealed record PermissionAnalysis(string Summary, IReadOnlyList<string> RuleKeys, string? HardDeny);
 
 /// <summary>
-/// Turns a tool call into rule keys and applies the hard denies. A shell command is split into its parts
-/// (<c>&amp;&amp;</c>, <c>||</c>, <c>;</c>, <c>|</c>); each part's key is its command and subcommand
+/// Turns a tool call into rule keys and applies the hard denies. A shell command is split into the simple commands it
+/// runs (<see cref="ShellCommand"/>: quote-aware, including <c>$( … )</c>); each one's key is its command and subcommand
 /// (<c>npm install</c>, <c>git fetch</c>), so approving one command approves that kind of command.
 /// </summary>
 public static partial class PermissionRules
@@ -25,8 +25,24 @@ public static partial class PermissionRules
         (AgentdHome(), "agentd's own files and secrets"),
     ];
 
-    /// <summary>Commands that only change the shell's state; Claude Code doesn't ask about them.</summary>
-    private static readonly HashSet<string> s_neutral = new(StringComparer.Ordinal) { "cd", "pushd", "popd", "true", "export" };
+    /// <summary>Commands that only change the shell's state or test something; Claude Code doesn't ask about them.</summary>
+    private static readonly HashSet<string> s_neutral = new(StringComparer.Ordinal) { "cd", "pushd", "popd", "true", "false", ":", "export", "test", "[", "[[" };
+
+    /// <summary>Words that start a command without being one: <c>then npm test</c> runs <c>npm test</c>.</summary>
+    private static readonly HashSet<string> s_prefixes = new(StringComparer.Ordinal) { "do", "then", "else", "elif", "if", "while", "until", "!", "time", "{", "nohup", "exec" };
+
+    /// <summary>
+    /// Tools whose second word picks what they do (<c>git push</c> vs <c>git log</c>), so it's part of the key. For any
+    /// other command the rest is data (<c>echo hello</c>, <c>which node</c>) and the key is the command alone.
+    /// </summary>
+    private static readonly HashSet<string> s_withSubcommands = new(StringComparer.Ordinal)
+    {
+        "git", "npm", "npx", "yarn", "pnpm", "dotnet", "docker", "kubectl", "helm", "az", "gh", "cargo", "go", "pip", "pip3",
+        "terraform", "systemctl", "apt", "apt-get", "brew", "make", "mvn", "gradle", "ng",
+    };
+
+    /// <summary>Lines of shell syntax that run nothing themselves (a loop header's commands come from its $( … ) parts).</summary>
+    private static readonly HashSet<string> s_syntax = new(StringComparer.Ordinal) { "for", "case", "select", "in", "done", "fi", "esac", "}", "function" };
 
     public static PermissionAnalysis Analyze(string toolName, string inputJson)
     {
@@ -37,7 +53,7 @@ public static partial class PermissionRules
             case "Bash":
                 var command = Text(input, "command") ?? string.Empty;
                 var deny = s_hardDenies.FirstOrDefault(d => d.Pattern.IsMatch(command)).Reason;
-                var keys = SplitCommand(command).Select(CommandKey).OfType<string>().Distinct(StringComparer.Ordinal).Select(k => $"Bash({k}:*)").ToList();
+                var keys = ShellCommand.Split(command).Select(CommandKey).OfType<string>().Distinct(StringComparer.Ordinal).Select(k => $"Bash({k}:*)").ToList();
                 return new PermissionAnalysis(command.Trim(), keys, deny);
             case "WebFetch":
                 var url = Text(input, "url") ?? string.Empty;
@@ -50,21 +66,40 @@ public static partial class PermissionRules
         }
     }
 
-    /// <summary>The parts of a shell command (quotes are not parsed: a quoted separator splits too, which only asks more, never less).</summary>
-    internal static IEnumerable<string> SplitCommand(string command) =>
-        Separators().Split(command).Select(p => p.Trim()).Where(p => p.Length > 0);
-
-    /// <summary>"npm install --no-audit" → "npm install"; "python3 x.py" → "python3"; "FOO=1 make" → "make"; "cd x" → null.</summary>
+    /// <summary>
+    /// "npm install --no-audit" → "npm install"; "python3 x.py" → "python3"; "FOO=1 make" → "make"; "then npm test" → "npm test";
+    /// "cd x", "for f in *.txt", "done" → null.
+    /// </summary>
     internal static string? CommandKey(string part)
     {
-        var words = part.Split(' ', StringSplitOptions.RemoveEmptyEntries).SkipWhile(w => EnvAssignment().IsMatch(w)).ToList();
-        if (words.Count == 0 || s_neutral.Contains(words[0]))
+        var words = part.Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries).ToList();
+        while (words.Count > 0 && (s_prefixes.Contains(words[0]) || EnvAssignment().IsMatch(words[0])))
+        {
+            words.RemoveAt(0);
+        }
+
+        if (words.Count == 0 || s_neutral.Contains(words[0]) || s_syntax.Contains(words[0]))
         {
             return null;
         }
 
         var second = words.Count > 1 ? words[1] : null;
-        return second is not null && SubCommand().IsMatch(second) ? $"{words[0]} {second}" : words[0];
+        return second is not null && s_withSubcommands.Contains(words[0]) && SubCommand().IsMatch(second) ? $"{words[0]} {second}" : words[0];
+    }
+
+    /// <summary>Whether <paramref name="granted"/> covers <paramref name="key"/>: the key itself, or its command's broader key
+    /// (<c>Bash(npm:*)</c> covers <c>Bash(npm install:*)</c>), as Claude Code's prefix rules do.</summary>
+    public static bool Covers(Func<string, bool> granted, string key)
+    {
+        ArgumentNullException.ThrowIfNull(granted);
+        ArgumentNullException.ThrowIfNull(key);
+        if (granted(key))
+        {
+            return true;
+        }
+
+        var match = BashKey().Match(key);
+        return match.Success && match.Groups["sub"].Success && granted($"Bash({match.Groups["cmd"].Value}:*)");
     }
 
     private static JsonElement Parse(string json)
@@ -82,8 +117,8 @@ public static partial class PermissionRules
     private static string? Text(JsonElement e, string name) =>
         e.ValueKind == JsonValueKind.Object && e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
 
-    [GeneratedRegex(@"\s*(?:&&|\|\||;|\|)\s*")]
-    private static partial Regex Separators();
+    [GeneratedRegex(@"^Bash\((?<cmd>[^ :]+)(?<sub> [^:]+)?:\*\)$")]
+    private static partial Regex BashKey();
 
     [GeneratedRegex(@"^[A-Za-z_][A-Za-z0-9_]*=")]
     private static partial Regex EnvAssignment();

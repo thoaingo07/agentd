@@ -96,9 +96,23 @@ When the agent needs a command outside its allowlist, the CLI calls `mcp__agentd
 
 1. **Hard denies**, which no one can approve: `git push` (agentd pushes), `sudo`, piping a download into a
    shell, `rm -rf /` or `~`, and anything touching `~/.agentd` (agentd's own files and secrets).
-2. **Allows** without asking when every part of the command is allowlisted or remembered. A shell command's
-   parts are split on `&&`, `||`, `;` and `|`; each part's key is its command and subcommand, e.g.
-   `Bash(npm install:*)`.
+2. **Allows** without asking when every part of the command is allowlisted or remembered.
+   - **Splitting:** a shell command is split into the simple commands it runs, the way a shell reads it
+     (`ShellCommand`, fixed 2026-10-06). Separators (`;`, `&&`, `||`, `|`, `&`, newlines, parentheses) count only
+     outside quotes. Commands inside `$( … )` and backticks are checked too, even inside double quotes. Here-document
+     bodies are data. Loop and `if` syntax (`for … in`, `do`, `then`, `done`, `fi`) isn't a command.
+   - **Keys:** each part's key is its command, e.g. `Bash(sed:*)`. Only tools whose second word picks an action (git,
+     npm, dotnet, docker, kubectl, helm, az, gh, make, …) add it: `Bash(npm install:*)`.
+   - **Coverage:** a broader grant covers the narrower keys, so `Bash(npm:*)` covers `npm install`.
+   - **Default allowlist:** besides git/read tools, it now has common text tools (`echo`, `printf`, `sed`, `sort`,
+     `uniq`, `cut`, `tr`, `diff`, `jq`, `pwd`, `basename`, `dirname`, `stat`).
+   - Before the fix, quoted patterns and loops became keys like `Bash(probe\:*)` or `Bash(do for:*)`. Those never
+     matched again, so the same approval was asked over and over. Migration `202610130001` removes them.
+   - **Auto mode** (`Agentd:Jobs:PermissionMode = Auto`): everything that isn't hard-denied is allowed without asking,
+     and still recorded as a request decided by `auto` (Web UI timeline). The agent can then run any command as
+     agentd's Unix user, so use a dedicated unprivileged user (deployment.md §7A). The CLI's own
+     `--permission-mode auto` was tested (2.1.290) and escalates loops, `rm`, `npm --version`, `curl` and `git init`,
+     so it doesn't reduce the questions much. `bypassPermissions` would skip agentd's hard denies.
 3. **Otherwise asks** in the job's thread: **1** allow once · **2** allow for this job · **3** always allow
    in this repository · **4** deny. People answer with the number, a word (`allow`, `always`, `deny`, …),
    or `!approve [job|always]` / `!deny`. The **Web UI** asks too: a banner on the session page with the

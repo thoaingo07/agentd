@@ -28,6 +28,9 @@ public sealed class ClaudeOptions
         "Bash(ls:*)", "Bash(cat:*)", "Bash(head:*)", "Bash(tail:*)", "Bash(wc:*)", "Bash(grep:*)", "Bash(find:*)", "Bash(which:*)",
         "Bash(dotnet build:*)", "Bash(dotnet test:*)", "Bash(dotnet restore:*)", "Bash(dotnet format:*)",
         "Bash(npm ci:*)", "Bash(npm test:*)", "Bash(npm run:*)", "Bash(helm lint:*)", "Bash(helm template:*)",
+        // Text tools agents use constantly while implementing (edits in the worktree are allowed anyway).
+        "Bash(echo:*)", "Bash(printf:*)", "Bash(sed:*)", "Bash(sort:*)", "Bash(uniq:*)", "Bash(cut:*)", "Bash(tr:*)", "Bash(diff:*)",
+        "Bash(jq:*)", "Bash(pwd:*)", "Bash(basename:*)", "Bash(dirname:*)", "Bash(stat:*)",
         "mcp__agentd",
     ];
 
