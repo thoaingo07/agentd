@@ -76,4 +76,21 @@ public sealed class IdeaStoreTests
 
         CollectionAssert.AreEqual(new[] { "idea.message", "idea.message", "idea.updated" }, seen);
     }
+
+    [TestMethod]
+    public async Task Open_idea_threads_are_listed_per_provider_without_closed_ideas()
+    {
+        await using var db = await Database.CreateMigratedAsync("ideas_open_threads");
+        var store = new IdeaStore(db);
+        var discord = ProviderKey.From("discord");
+        await store.InsertAsync("sysmin", "Open", "tngo", discord, "t-open", null, default);
+        var proposed = await store.InsertAsync("sysmin", "Proposed", "tngo", discord, "t-proposed", null, default);
+        var closed = await store.InsertAsync("sysmin", "Closed", "tngo", discord, "t-closed", null, default);
+        await store.InsertAsync("sysmin", "Elsewhere", "tngo", ProviderKey.From("telegram"), "t-telegram", null, default);
+        await store.SaveAsync((await store.GetAsync(proposed, default))! with { Status = IdeaStatus.Proposed }, default);
+        await store.SaveAsync((await store.GetAsync(closed, default))! with { Status = IdeaStatus.Closed }, default);
+
+        CollectionAssert.AreEqual(new[] { "t-open", "t-proposed" }, (await store.ListOpenThreadsAsync(discord, default)).ToArray());
+    }
 }
+

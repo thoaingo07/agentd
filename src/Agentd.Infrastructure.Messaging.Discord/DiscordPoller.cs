@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Globalization;
 using System.Text.Json.Nodes;
+using Agentd.Application.Ideas;
 using Agentd.Application.Messaging;
 using Agentd.Application.Ports;
 using Microsoft.Extensions.DependencyInjection;
@@ -12,7 +13,7 @@ namespace Agentd.Infrastructure.Messaging.Discord;
 
 /// <summary>
 /// Receives Discord messages without the Gateway: every <see cref="DiscordOptions.PollInterval"/> it
-/// reads new messages in each open job thread (replies and commands) and in the parent channel
+/// reads new messages in each open job thread and idea thread (replies and commands) and in the parent channel
 /// (commands only), and hands them to <see cref="IInboundMessageSink"/>. At startup each thread's
 /// recent messages are replayed so replies sent while agentd was down are picked up; inbound dedupe
 /// makes the replay safe. The parent channel starts from its newest message, so old commands never run.
@@ -57,7 +58,7 @@ public sealed partial class DiscordPoller(
         }
     }
 
-    /// <summary>One pass over the parent channel and every open job thread.</summary>
+    /// <summary>One pass over the parent channel, every open job thread and every open idea thread.</summary>
     internal async Task PollOnceAsync(CancellationToken ct)
     {
         var o = options.Value;
@@ -73,17 +74,21 @@ public sealed partial class DiscordPoller(
         {
             var sink = scope.ServiceProvider.GetRequiredService<IInboundMessageSink>();
             await PollChannelAsync(o.ChannelId, commandsOnly: true, sink, ct).ConfigureAwait(false);
-            var threads = await scope.ServiceProvider.GetRequiredService<IConversationStore>().ListOpenAsync(provider.Key, ct).ConfigureAwait(false);
-            foreach (var thread in threads)
+            var jobThreads = await scope.ServiceProvider.GetRequiredService<IConversationStore>().ListOpenAsync(provider.Key, ct).ConfigureAwait(false);
+            // Idea threads live in the ideas table, not conversations (an idea has no job yet).
+            var ideaThreads = scope.ServiceProvider.GetService<IIdeaStore>() is { } ideas
+                ? await ideas.ListOpenThreadsAsync(provider.Key, ct).ConfigureAwait(false)
+                : [];
+            foreach (var thread in jobThreads.Select(c => c.ExternalConversationId).Concat(ideaThreads).Distinct(StringComparer.Ordinal))
             {
                 try
                 {
-                    await PollChannelAsync(thread.ExternalConversationId, commandsOnly: false, sink, ct).ConfigureAwait(false);
+                    await PollChannelAsync(thread, commandsOnly: false, sink, ct).ConfigureAwait(false);
                 }
                 catch (MessagingDeliveryException ex)
                 {
                     // A deleted thread or a lost permission must not stop the other threads.
-                    LogThreadFailed(logger, thread.ExternalConversationId, ex.Message);
+                    LogThreadFailed(logger, thread, ex.Message);
                 }
             }
         }
