@@ -49,3 +49,6 @@ public sealed class Ideas : SqlMigration;
 
 [Migration(2026_10_12_0001, "Paused job state")]
 public sealed class Paused : SqlMigration;
+
+[Migration(2026_10_13_0001, "Remove permission rules made from quoted text and loop syntax; expire requests of finished jobs")]
+public sealed class PermissionRuleCleanup : SqlMigration;

@@ -98,8 +98,8 @@ public sealed record PermissionDecision(bool Allowed, string Message);
 public sealed record PermissionAsk(JobId JobId, string ToolName, string InputJson);
 
 /// <summary>
-/// Hard denies first; then remembered approvals (this job, this repository); otherwise ask in the job's chat
-/// thread (and the Web UI) and wait. No answer within <see cref="JobOptions.PermissionTimeout"/> is a deny, so
+/// Hard denies first; then remembered approvals (this job, this repository); then, in <see cref="PermissionMode.Auto"/>,
+/// allow without asking; otherwise ask in the job's chat thread (and the Web UI) and wait. No answer within <see cref="JobOptions.PermissionTimeout"/> is a deny, so
 /// a job never hangs on a question nobody sees.
 /// </summary>
 public sealed class PermissionAskHandler(
@@ -115,6 +115,9 @@ public sealed class PermissionAskHandler(
 {
     public static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(5);
 
+    /// <summary>Who "decided" a request in <see cref="PermissionMode.Auto"/>.</summary>
+    public const string AutoDecider = "auto";
+
     public async Task<Result<PermissionDecision>> Handle(PermissionAsk command, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
@@ -129,11 +132,21 @@ public sealed class PermissionAskHandler(
             return new PermissionDecision(false, $"agentd never allows this ({reason}). Find another way, or ask the developer with ask_developer.");
         }
 
-        var needed = analysis.RuleKeys.Where(k => !allowlist.IsAllowed(k)).ToList();
-        var remembered = await store.RuleKeysAsync(job.Repository, job.Id, cancellationToken).ConfigureAwait(false);
-        if (needed.All(remembered.Contains) && needed.Count > 0)
+        var needed = analysis.RuleKeys.Where(k => !PermissionRules.Covers(allowlist.IsAllowed, k)).ToList();
+        var remembered = (await store.RuleKeysAsync(job.Repository, job.Id, cancellationToken).ConfigureAwait(false)).ToHashSet(StringComparer.Ordinal);
+        if (needed.All(k => PermissionRules.Covers(remembered.Contains, k)) && needed.Count > 0)
         {
             return new PermissionDecision(true, "Allowed by a remembered approval.");
+        }
+
+        if (options.Value.PermissionMode == PermissionMode.Auto)
+        {
+            // Still a request and a decision in the database (permission.requested / .decided events), so the
+            // Web UI timeline shows what the agent was allowed to do.
+            var allowed = await store.InsertAsync(job.Id, command.ToolName, analysis.Summary, analysis.RuleKeys, cancellationToken).ConfigureAwait(false);
+            await store.DecideAsync(allowed, "allowed", "once", AutoDecider, job.Repository, cancellationToken).ConfigureAwait(false);
+            activity.RecordActivity(job.Id, $"✅ auto-allowed: {Short(analysis.Summary)}", clock.UtcNow);
+            return new PermissionDecision(true, "Allowed (agentd runs in auto permission mode).");
         }
 
         var timeout = options.Value.PermissionTimeout;

@@ -53,4 +53,23 @@ public sealed class JobOptions
 
     /// <summary>How long the agent waits for someone to answer a permission request; then it's denied.</summary>
     public TimeSpan PermissionTimeout { get; set; } = TimeSpan.FromMinutes(10);
+
+    /// <summary>
+    /// <see cref="PermissionMode.Ask"/> (default): tool calls outside the allowlist are asked in chat.
+    /// <see cref="PermissionMode.Auto"/>: they're allowed without asking (still recorded), except the hard denies.
+    /// </summary>
+    public PermissionMode PermissionMode { get; set; } = PermissionMode.Ask;
+}
+
+/// <summary>How agentd answers an agent's tool calls outside its allowlist.</summary>
+public enum PermissionMode
+{
+    /// <summary>Ask a person in the job's thread (and the Web UI).</summary>
+    Ask,
+
+    /// <summary>
+    /// Allow everything except the hard denies, and record it. The agent can then run any command as agentd's Unix user,
+    /// so use it on a dedicated, unprivileged user (docs/architect/deployment.md §7A).
+    /// </summary>
+    Auto,
 }
