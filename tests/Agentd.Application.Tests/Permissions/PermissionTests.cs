@@ -112,6 +112,21 @@ public sealed class PermissionTests
     }
 
     [TestMethod]
+    public async Task After_the_answer_the_status_shows_the_command_running_not_waiting_for_permission()
+    {
+        var (t, store, ask, answer) = await SetupAsync();
+        var asking = Task.Run(() => ask.Handle(new PermissionAsk(t.JobId, "Bash", """{"command":"npm install"}"""), default));
+        await store.WaitForPendingAsync();
+        StringAssert.StartsWith(t.Context.Activity.Get(t.JobId).LastActivity, "⏳ waiting for permission");
+
+        await answer.Handle(new PermissionAnswer(t.JobId, "1", "tngo"), default);
+        await asking;
+
+        var now = t.Context.Activity.Get(t.JobId);
+        Assert.AreEqual(("🔧 npm install", true), (now.LastActivity, now.Running));
+    }
+
+    [TestMethod]
     public async Task The_first_answer_wins()
     {
         var (t, store, ask, answer) = await SetupAsync();
@@ -181,7 +196,7 @@ public sealed class PermissionTests
         var waiter = new PermissionWaiter();
         var options = Options.Create(new JobOptions { PermissionTimeout = timeout ?? TimeSpan.FromSeconds(10), PermissionMode = mode });
         var ask = new PermissionAskHandler(t.Jobs, store, new Allowlist(), waiter, t.Outbox, t.Activity, t.Clock, TimeProvider.System, options);
-        var answer = new PermissionAnswerHandler(t.Jobs, store, waiter, t.Outbox);
+        var answer = new PermissionAnswerHandler(t.Jobs, store, waiter, t.Outbox, t.Activity, t.Clock);
         return (new Job(t, request.JobId), store, ask, answer);
     }
 

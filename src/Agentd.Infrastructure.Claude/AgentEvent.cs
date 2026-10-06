@@ -41,6 +41,15 @@ public abstract record AgentEvent
         public override string LogType => "agent.result";
     }
 
+    /// <summary>
+    /// A command the CLI tracks as a task (<c>system/task_started</c>): its output is written live to a file named after the
+    /// task (see <c>CommandOutput</c>). Seen with Claude Code 2.1.290; agentd uses it best effort.
+    /// </summary>
+    public sealed record TaskStarted(string TaskId, string? ToolUseId, string? SessionId) : AgentEvent
+    {
+        public override string LogType => "agent.task_started";
+    }
+
     /// <summary>A recognized line agentd doesn't interpret (e.g. system notifications).</summary>
     public sealed record Other(string Type, string? Subtype) : AgentEvent
     {

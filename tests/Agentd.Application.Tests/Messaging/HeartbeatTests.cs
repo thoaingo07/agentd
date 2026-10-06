@@ -88,6 +88,51 @@ public sealed class HeartbeatTests
     }
 
     [TestMethod]
+    public async Task A_long_running_command_is_named_with_its_latest_output_instead_of_no_activity()
+    {
+        var temp = Directory.CreateTempSubdirectory("agentd-tail-").FullName;
+        try
+        {
+            var request = await _t.RunningJobAsync();
+            var tasks = Directory.CreateDirectory(Path.Combine(temp, "claude-1000", "-wt-sysmin-wi-1234", "sess-1", "tasks")).FullName;
+            await File.WriteAllTextAsync(Path.Combine(tasks, "task-9.output"), "#15 190.7 restore\n#15 191.0 error NU1301: 401 (Unauthorized)\n");
+            Ports.IAgentActivitySink sink = _activity;
+            sink.ToolStep(request.JobId, "🔧 task docker-build", _t.Clock.UtcNow);
+            sink.CommandStarted(request.JobId, "sess-1", "task-9");
+            _t.Clock.UtcNow = _t.Clock.UtcNow.AddMinutes(6);
+
+            var snapshot = _activity.Get(request.JobId);
+            var status = JobActivity.DescribeWithOutput(_t.Jobs.Get(request.JobId), snapshot, _t.Clock.UtcNow, temp);
+
+            StringAssert.Contains(status, "🔧 task docker-build (running for 6 min)");
+            StringAssert.Contains(status, "error NU1301: 401 (Unauthorized)", "the live tail of the command's output");
+            Assert.AreEqual("#15 191.0 error NU1301: 401 (Unauthorized)", snapshot.Output!.Tail(lines: 1, tempRoot: temp));
+
+            sink.ToolFinished(request.JobId);
+            Assert.AreEqual((false, (CommandOutput?)null), (_activity.Get(request.JobId).Running, _activity.Get(request.JobId).Output));
+            StringAssert.Contains(JobActivity.Describe(_t.Jobs.Get(request.JobId), _activity.Get(request.JobId), _t.Clock.UtcNow), "(6 min ago)", "finished: back to \"ago\"");
+        }
+        finally
+        {
+            Directory.Delete(temp, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public async Task A_stuck_command_warning_says_what_runs_and_how_to_stop_it()
+    {
+        var request = await _t.RunningJobAsync();
+        Ports.IAgentActivitySink sink = _activity;
+        sink.ToolStep(request.JobId, "🔧 task docker-build", _t.Clock.UtcNow);
+        _t.Clock.UtcNow = _t.Clock.UtcNow.AddMinutes(6);
+
+        await Beat();
+
+        var warning = _t.Outbox.Enqueued.Select(e => e.Message.Message.Markdown).Single(m => m.StartsWith("⚠️", StringComparison.Ordinal));
+        Assert.AreEqual("⚠️ **The agent has been running 🔧 task docker-build for 6 min.** It reads your messages when this ends; `!pause` stops it.", warning);
+    }
+
+    [TestMethod]
     public async Task When_a_job_ends_its_last_heartbeat_is_removed()
     {
         var request = await _t.RunningJobAsync();

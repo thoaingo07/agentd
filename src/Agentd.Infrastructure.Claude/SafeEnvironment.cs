@@ -26,6 +26,9 @@ public static class SafeEnvironment
         }
 
         // Subscription auth only (no API key): a dedicated login dir and/or a long-lived token.
+        // A hung command ends with a timeout instead of blocking the job (it would otherwise read no messages until it ends).
+        env["BASH_MAX_TIMEOUT_MS"] = ((long)options.CommandTimeout.TotalMilliseconds).ToString(System.Globalization.CultureInfo.InvariantCulture);
+
         if (!string.IsNullOrWhiteSpace(options.ConfigDir))
         {
             env["CLAUDE_CONFIG_DIR"] = Paths.Expand(options.ConfigDir);

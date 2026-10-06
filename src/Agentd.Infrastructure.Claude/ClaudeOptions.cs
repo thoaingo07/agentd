@@ -61,6 +61,12 @@ public sealed class ClaudeOptions
     /// <summary>Per-job transcripts: {TranscriptRoot}/wi-{id}/transcript.jsonl</summary>
     public string TranscriptRoot { get; set; } = "~/.agentd/logs";
 
+    /// <summary>
+    /// The longest a single shell command may run (Claude Code's <c>BASH_MAX_TIMEOUT_MS</c>): a hung build or test fails
+    /// with a timeout instead of blocking the job. Agents can ask for less, never more.
+    /// </summary>
+    public TimeSpan CommandTimeout { get; set; } = TimeSpan.FromMinutes(10);
+
     /// <summary>Optional dedicated subscription login (CLAUDE_CONFIG_DIR). Empty = the user's ~/.claude login.</summary>
     public string? ConfigDir { get; set; }
 

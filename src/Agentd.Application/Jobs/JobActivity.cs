@@ -9,7 +9,52 @@ namespace Agentd.Application.Jobs;
 public sealed record UsageSnapshot(double? FiveHour, double? Weekly, DateTimeOffset? ResetsAt);
 
 /// <summary>What a running job is doing right now (in memory; rebuilt as the agent works).</summary>
-public sealed record ActivitySnapshot(string? Phase, string? LastActivity, DateTimeOffset? LastActivityAt, UsageSnapshot? Usage);
+/// <param name="Phase">The agent's phase (<c>set_phase</c>).</param>
+/// <param name="LastActivity">Its latest step, e.g. "🔧 dotnet test".</param>
+/// <param name="LastActivityAt">When that step started.</param>
+/// <param name="Usage">The subscription usage, as last reported.</param>
+/// <param name="Running">A tool call is still in flight (started, no result yet): <paramref name="LastActivity"/> is still running.</param>
+/// <param name="Output">Where the running command's output is being written, when the CLI says (live tail).</param>
+public sealed record ActivitySnapshot(
+    string? Phase, string? LastActivity, DateTimeOffset? LastActivityAt, UsageSnapshot? Usage, bool Running = false, CommandOutput? Output = null);
+
+/// <summary>A running command's output file, as Claude Code writes it: <c>&lt;tmp&gt;/claude-&lt;uid&gt;/&lt;project&gt;/&lt;session&gt;/tasks/&lt;task&gt;.output</c>.</summary>
+public sealed record CommandOutput(string Session, string TaskId)
+{
+    public const int TailBytes = 4096;
+
+    /// <summary>The last <paramref name="lines"/> lines written so far, or null when the file isn't there (undocumented CLI behavior: best effort).</summary>
+    public string? Tail(int lines = 15, string? tempRoot = null)
+    {
+        try
+        {
+            var root = tempRoot ?? Path.GetTempPath();
+            var file = Directory.EnumerateDirectories(root, "claude-*")
+                .SelectMany(Directory.EnumerateDirectories)
+                .Select(project => Path.Combine(project, Session, "tasks", TaskId + ".output"))
+                .FirstOrDefault(File.Exists);
+            if (file is null)
+            {
+                return null;
+            }
+
+            using var stream = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            stream.Seek(Math.Max(0, stream.Length - TailBytes), SeekOrigin.Begin);
+            using var reader = new StreamReader(stream);
+            var text = reader.ReadToEnd().ReplaceLineEndings("\n").TrimEnd('\n');
+            var last = text.Split('\n').TakeLast(lines);
+            return string.Join('\n', last);
+        }
+        catch (IOException)
+        {
+            return null;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+}
 
 /// <summary>
 /// Live job activity for status replies and the heartbeat: the agent's phase (<c>set_phase</c>),
@@ -25,7 +70,13 @@ public sealed class JobActivity : Ports.IAgentActivitySink
     private readonly ConcurrentDictionary<(long Job, string Window), double> _warned = new();
     private readonly ConcurrentDictionary<long, bool> _stuck = new();
 
-    void Ports.IAgentActivitySink.ToolStep(JobId jobId, string description, DateTimeOffset at) => RecordActivity(jobId, description, at);
+    void Ports.IAgentActivitySink.ToolStep(JobId jobId, string description, DateTimeOffset at) => RecordActivity(jobId, description, at, running: true);
+
+    void Ports.IAgentActivitySink.ToolFinished(JobId jobId) =>
+        _jobs.AddOrUpdate(jobId.Value, _ => new(null, null, null, null), (_, s) => s with { Running = false, Output = null });
+
+    void Ports.IAgentActivitySink.CommandStarted(JobId jobId, string session, string taskId) =>
+        _jobs.AddOrUpdate(jobId.Value, _ => new(null, null, null, null, true, new(session, taskId)), (_, s) => s with { Output = new(session, taskId) });
 
     void Ports.IAgentActivitySink.Usage(JobId jobId, double? fiveHour, double? weekly, DateTimeOffset? resetsAt) =>
         RecordUsage(jobId, new UsageSnapshot(fiveHour, weekly, resetsAt));
@@ -34,8 +85,13 @@ public sealed class JobActivity : Ports.IAgentActivitySink
 
     public void SetPhase(JobId job, string phase) => _jobs.AddOrUpdate(job.Value, _ => new(phase, null, null, null), (_, s) => s with { Phase = phase });
 
-    public void RecordActivity(JobId job, string description, DateTimeOffset at) =>
-        _jobs.AddOrUpdate(job.Value, _ => new(null, description, at, null), (_, s) => s with { LastActivity = description, LastActivityAt = at });
+    /// <param name="job">The job.</param>
+    /// <param name="description">What it does, e.g. "🔧 dotnet test".</param>
+    /// <param name="at">When it started.</param>
+    /// <param name="running">It's a step still in progress (a tool call, a permitted command) rather than a finished event.</param>
+    public void RecordActivity(JobId job, string description, DateTimeOffset at, bool running = false) =>
+        _jobs.AddOrUpdate(job.Value, _ => new(null, description, at, null, running),
+            (_, s) => s with { LastActivity = description, LastActivityAt = at, Running = running, Output = running ? s.Output : null });
 
     public void RecordUsage(JobId job, UsageSnapshot usage) =>
         _jobs.AddOrUpdate(job.Value, _ => new(null, null, null, usage), (_, s) => s with { Usage = usage });
@@ -91,7 +147,7 @@ public sealed class JobActivity : Ports.IAgentActivitySink
             parts.Add($"🟢 {job.State.ToString().ToLowerInvariant()}");
             if (activity.LastActivity is { } last && activity.LastActivityAt is { } at)
             {
-                parts.Add($"{last} ({Ago(now - at)} ago)");
+                parts.Add(activity.Running ? $"{last} (running for {Ago(now - at)})" : $"{last} ({Ago(now - at)} ago)");
             }
         }
 
@@ -107,6 +163,15 @@ public sealed class JobActivity : Ports.IAgentActivitySink
         }
 
         return string.Join(" · ", parts);
+    }
+
+    /// <summary>The status line, plus the running command's latest output when there is some (status replies, the stuck warning).</summary>
+    public static string DescribeWithOutput(Job job, ActivitySnapshot activity, DateTimeOffset now, string? tempRoot = null)
+    {
+        var line = Describe(job, activity, now);
+        return activity is { Running: true, Output: { } output } && output.Tail(tempRoot: tempRoot) is { Length: > 0 } tail
+            ? $"{line}\n```\n{tail.Replace("```", "ʼʼʼ", StringComparison.Ordinal)}\n```"
+            : line;
     }
 
     /// <summary>0.62 → "62%"; unknown → "?".</summary>

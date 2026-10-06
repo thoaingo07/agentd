@@ -145,7 +145,7 @@ public sealed class PermissionAskHandler(
             // Web UI timeline shows what the agent was allowed to do.
             var allowed = await store.InsertAsync(job.Id, command.ToolName, analysis.Summary, analysis.RuleKeys, cancellationToken).ConfigureAwait(false);
             await store.DecideAsync(allowed, "allowed", "once", AutoDecider, job.Repository, cancellationToken).ConfigureAwait(false);
-            activity.RecordActivity(job.Id, $"✅ auto-allowed: {Short(analysis.Summary)}", clock.UtcNow);
+            activity.RecordActivity(job.Id, $"🔧 {Short(analysis.Summary)} (auto-allowed)", clock.UtcNow, running: true);
             return new PermissionDecision(true, "Allowed (agentd runs in auto permission mode).");
         }
 
@@ -161,6 +161,7 @@ public sealed class PermissionAskHandler(
                 ?? await store.GetAsync(id, cancellationToken).ConfigureAwait(false);
             if (decided is { Status: "expired" })
             {
+                activity.RecordActivity(job.Id, $"⛔ denied (no answer): {Short(analysis.Summary)}", clock.UtcNow);
                 await outbox.TryEnqueueAsync(job.Id, new OutboundMessage(MessageKind.Info,
                     $"⌛ No answer within {Minutes(timeout)}: **denied** `{Short(analysis.Summary)}`. The agent carries on without it."), cancellationToken).ConfigureAwait(false);
             }
@@ -193,7 +194,8 @@ public sealed class PermissionAskHandler(
 public sealed record PermissionAnswer(JobId JobId, string Answer, string By, long? RequestId = null);
 
 /// <summary>Returns false when there is no open request or the text isn't an answer (then it's an ordinary message).</summary>
-public sealed class PermissionAnswerHandler(IJobRepository jobs, IPermissionStore store, PermissionWaiter waiter, IOutbox outbox)
+public sealed class PermissionAnswerHandler(
+    IJobRepository jobs, IPermissionStore store, PermissionWaiter waiter, IOutbox outbox, JobActivity? activity = null, IClock? clock = null)
     : ICommandHandler<PermissionAnswer, bool>
 {
     public const string LabelOnce = "Allow once";
@@ -231,6 +233,9 @@ public sealed class PermissionAnswerHandler(IJobRepository jobs, IPermissionStor
             _ => "✅ **Allowed once**",
         };
         await outbox.TryEnqueueAsync(job.Id, new OutboundMessage(MessageKind.Info, $"{what} by {command.By}: `{PermissionAskHandler.Short(request.Summary)}`"), cancellationToken).ConfigureAwait(false);
+        // The status must follow: allowed means the command runs now (not "waiting for permission" anymore).
+        activity?.RecordActivity(job.Id, status == "denied" ? $"⛔ denied: {PermissionAskHandler.Short(request.Summary)}" : $"🔧 {PermissionAskHandler.Short(request.Summary)}",
+            clock?.UtcNow ?? DateTimeOffset.UtcNow, running: status != "denied");
         return true;
     }
 

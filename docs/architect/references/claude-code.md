@@ -124,3 +124,21 @@ When the agent needs a command outside its allowlist, the CLI calls `mcp__agentd
    the agent is asked again. Every request, decision and revoke is an event (`permission.requested`,
    `permission.decided`, `permission.revoked`).
 5. No answer within `Agentd:Jobs:PermissionTimeout` (10 min) is a deny. The agent is told why and carries on.
+
+## What a busy agent is doing (agentd, 2026-10-06)
+
+- **Running vs finished:** a tool call marks the job's activity as *running* until its result arrives. The status, the
+  heartbeat and `!status` say "🔧 dotnet test (running for 6 min)" instead of "(6 min ago)".
+- **Permission decisions update it:** allowed (by a person or in auto mode) → "🔧 <command>", running. Denied or expired
+  → "⛔ denied …". It never stays on "⏳ waiting for permission" after the answer.
+- **Live output:** Claude Code 2.1.290 emits `system/task_started` (`task_id`, `tool_use_id`, `session_id`) for a
+  command it tracks. It writes the output as it goes to `<tmp>/claude-<uid>/<encoded cwd>/<session>/tasks/<task_id>.output`.
+  - agentd follows that file (`CommandOutput.Tail`: the last 15 lines, at most 4 KB, read with shared access) for the
+    instant status reply, `!status` and the stuck warning.
+  - This is undocumented CLI behavior: if the file isn't there, the line is shown without output.
+- **Stuck warning:** while one command runs more than `Jobs:StuckAfter` (5 min), the thread gets "⚠️ The agent has been
+  running <command> for N min. It reads your messages when this ends; `!pause` stops it." plus the tail. Otherwise it's
+  "No activity" as before.
+- **Command time limit:** `Claude:CommandTimeout` (10 min, the CLI's own default made explicit and configurable) is passed
+  as `BASH_MAX_TIMEOUT_MS`, so a hung command fails with a timeout.
+

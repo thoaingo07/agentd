@@ -120,4 +120,14 @@ public sealed class StreamJsonParserTests
         StringAssert.Contains(json, "\"name\":\"Bash\"");
         StringAssert.Contains(json, "\"inputJson\":\"{}\"");
     }
+
+    [TestMethod]
+    public void A_task_started_line_names_the_task_whose_output_is_written_live()
+    {
+        var events = StreamJsonParser.Parse("""{"type":"system","subtype":"task_started","task_id":"bhvzzrmt0","tool_use_id":"toolu_1","description":"Run the build","is_backgrounded":false,"task_type":"local_bash","session_id":"c00b3d6c"}""");
+
+        Assert.AreEqual(new AgentEvent.TaskStarted("bhvzzrmt0", "toolu_1", "c00b3d6c"), events.Single());
+        Assert.AreEqual("agent.task_started", events[0].LogType);
+    }
 }
+

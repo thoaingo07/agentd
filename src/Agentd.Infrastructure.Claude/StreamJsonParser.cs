@@ -28,6 +28,8 @@ public static class StreamJsonParser
             return type switch
             {
                 "system" when subtype == "init" => [new AgentEvent.SessionStarted(Str(root, "session_id") ?? string.Empty, Str(root, "model"), Str(root, "cwd"))],
+                "system" when subtype == "task_started" && Str(root, "task_id") is { Length: > 0 } task =>
+                    [new AgentEvent.TaskStarted(task, Str(root, "tool_use_id"), Str(root, "session_id"))],
                 "assistant" => ContentBlocks(root, assistant: true),
                 "user" => ContentBlocks(root, assistant: false),
                 "rate_limit_event" => [ParseRateLimit(root)],
