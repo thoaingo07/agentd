@@ -91,6 +91,7 @@ public sealed class ReviewServiceTests
         Assert.IsEmpty(h.PullRequests.Threads);
         await h.Service.HandleMessageAsync(h.Store.Rows[1], "tngo", "2", default);   // the close-out: keep (archive)
         Assert.AreEqual(ReviewStatus.Closed, h.Store.Rows[1].Status);
+        StringAssert.EndsWith(h.Worktrees.Removed.Single(), "/review-1", "the checkout goes with the thread; the conversation stays");
         Assert.IsFalse(await h.Service.HandleMessageAsync(h.Store.Rows[1], "tngo", "one more thing", default));
     }
 

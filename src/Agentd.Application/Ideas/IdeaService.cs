@@ -327,6 +327,7 @@ public sealed partial class IdeaService(
     private async Task CloseOutAsync(Idea idea, bool delete, string author, CancellationToken ct)
     {
         await ideas.SaveAsync(idea with { Status = IdeaStatus.Closed }, ct).ConfigureAwait(false);
+        await RemoveCheckoutAsync(idea.Repository, idea.Worktree, ct).ConfigureAwait(false);
         var provider = providers.Resolve(idea.Provider);
         var thread = new ConversationRef(idea.Provider, idea.ThreadId, idea.SpaceId);
         try
@@ -350,6 +351,24 @@ public sealed partial class IdeaService(
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             LogPostFailed(logger, ex, idea.Id);
+        }
+    }
+
+    /// <summary>The read-only checkout isn't needed once the thread is closed (the conversation stays in the database).</summary>
+    private async Task RemoveCheckoutAsync(string repository, string? worktree, CancellationToken ct)
+    {
+        if (worktree is null || await repositories.GetAsync(RepositoryName.From(repository), ct).ConfigureAwait(false) is not { } repo)
+        {
+            return;
+        }
+
+        try
+        {
+            await worktrees.RemoveAsync(repo, new WorktreePath(worktree), ct).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            LogRemoveFailed(logger, ex, worktree);   // the hourly sweep retries
         }
     }
 
@@ -405,4 +424,7 @@ public sealed partial class IdeaService(
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Idea {IdeaId}: posting to the thread failed")]
     private static partial void LogPostFailed(ILogger logger, Exception exception, long ideaId);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Removing the checkout {Worktree} failed; the sweep retries")]
+    private static partial void LogRemoveFailed(ILogger logger, Exception exception, string worktree);
 }

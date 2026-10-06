@@ -81,6 +81,7 @@ public static class DependencyInjection
         services.AddScoped<ICommandHandler<AnswerCloseOut, bool>, AnswerCloseOutHandler>();
         services.AddSingleton<HeartbeatState>();
         services.AddScoped<ICommandHandler<PostHeartbeats, int>, PostHeartbeatsHandler>();
+        services.AddScoped<ICommandHandler<SweepWorktrees, int>, SweepWorktreesHandler>();
         services.AddScoped<ICommandHandler<CheckWaitingJobs, int>, CheckWaitingJobsHandler>();
         services.AddScoped<ChatCommands>();
         services.AddScoped<ICommandHandler<RepairConversations, int>, RepairConversationsHandler>();

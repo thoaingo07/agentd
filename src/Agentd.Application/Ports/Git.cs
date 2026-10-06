@@ -32,6 +32,9 @@ public interface IWorktreeManager
 
     Task PruneAsync(Repository repository, CancellationToken cancellationToken);
 
+    /// <summary>The checkout folders under <c>worktrees/&lt;repo&gt;/</c> (jobs' <c>wi-*</c>, ideas' <c>idea-*</c>, reviews' <c>review-*</c>).</summary>
+    Task<IReadOnlyList<WorktreeFolder>> ListFoldersAsync(Repository repository, CancellationToken cancellationToken);
+
     /// <summary>
     /// A detached, read-only-by-convention checkout of the latest base branch at <c>worktrees/&lt;repo&gt;/&lt;name&gt;</c>
     /// (e.g. an idea's). An existing checkout at that path is reused.
@@ -51,6 +54,9 @@ public interface IWorktreeManager
     /// </summary>
     Task<BranchDiff?> DiffAsync(Repository repository, BranchName branch, WorktreePath? worktree, int maxBytes, CancellationToken cancellationToken);
 }
+
+/// <summary>A checkout folder: its name (e.g. <c>wi-5617</c>) and full path.</summary>
+public sealed record WorktreeFolder(string Name, string Path);
 
 /// <summary>A branch's changes against its base, as a unified diff (null when truncated).</summary>
 public sealed record BranchDiff(string BaseRef, string HeadRef, IReadOnlyList<string> Files, string? UnifiedDiff, bool Truncated);

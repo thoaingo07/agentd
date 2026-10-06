@@ -101,6 +101,16 @@ public sealed partial class GitWorktreeManager(GitCli git, IOptions<GitOptions> 
         }, cancellationToken).ConfigureAwait(false);
     }
 
+    public Task<IReadOnlyList<WorktreeFolder>> ListFoldersAsync(Repository repository, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(repository);
+        var root = Path.Combine(GitOptions.Expand(options.Value.WorktreeRoot), Safe(repository.Name.Value));
+        IReadOnlyList<WorktreeFolder> folders = Directory.Exists(root)
+            ? [.. Directory.GetDirectories(root).Order(StringComparer.Ordinal).Select(d => new WorktreeFolder(Path.GetFileName(d), d))]
+            : [];
+        return Task.FromResult(folders);
+    }
+
     public async Task PruneAsync(Repository repository, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(repository);
