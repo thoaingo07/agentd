@@ -76,6 +76,8 @@ public sealed partial class GitWorktreeManager(GitCli git, IOptions<GitOptions> 
     public async Task<bool> HasCommitsAheadAsync(Repository repository, WorktreePath worktree, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(repository);
+        // Fresh base first: after a merge, the work is in origin/<base>, so a stale copy would make it look new.
+        await git.RunAsync(worktree.Value, ["fetch", "origin", repository.BaseBranch], cancellationToken, throwOnError: false).ConfigureAwait(false);
         var count = await git.RunAsync(worktree.Value, ["rev-list", "--count", $"origin/{repository.BaseBranch}..HEAD"], cancellationToken).ConfigureAwait(false);
         return int.Parse(count.StandardOutput, CultureInfo.InvariantCulture) > 0;
     }

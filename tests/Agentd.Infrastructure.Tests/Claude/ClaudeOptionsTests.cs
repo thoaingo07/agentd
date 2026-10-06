@@ -62,6 +62,18 @@ public sealed class ClaudeOptionsTests
     }
 
     [TestMethod]
+    public void Follow_up_turns_after_a_merge_are_talk_only()
+    {
+        var turn = new Agentd.Application.Ideas.BrainstormTurn(7, "/wt", Guid.NewGuid(), true, "q", Kind: Agentd.Application.Ideas.ThreadTurnKind.FollowUp);
+        var args = ClaudeBrainstormAgent.Args(turn, new ClaudeOptions()).ToList();
+
+        Assert.AreEqual(ClaudeBrainstormAgent.FollowUpRules, args[args.IndexOf("--append-system-prompt") + 1]);
+        StringAssert.Contains(ClaudeBrainstormAgent.FollowUpRules, "!run <work item id>");
+        Assert.AreEqual("Edit,Write,MultiEdit,NotebookEdit", args[args.IndexOf("--disallowedTools") + 1]);
+        CollectionAssert.DoesNotContain(args, "--mcp-config", "no agentd job tools: no finish, no publish");
+    }
+
+    [TestMethod]
     public void Configured_tools_are_added_to_the_defaults()
     {
         var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>

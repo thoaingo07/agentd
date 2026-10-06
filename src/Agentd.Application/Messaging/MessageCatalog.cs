@@ -51,6 +51,17 @@ public static class MessageCatalog
 
     public static OutboundMessage Pushed(string branch) => new(MessageKind.Info, $"📤 **Pushed** `{branch}`.");
 
+    /// <summary>The agent finished again, but the job's PR was already merged: nothing is published and no new PR is opened.</summary>
+    public static OutboundMessage MergedBeforePublish(Uri pr, string branch) => new(MessageKind.Result,
+        $"✅ **The PR was already merged** ({pr}), so I didn't push or open another one. Anything committed after the merge stays on " +
+        $"`{branch}` only.\n\nThis thread stays open: ask me about the work and I'll answer (no more code changes here). For new changes, " +
+        "use `!run <work item id>` or create a work item.");
+
+    /// <summary>The job's PR was abandoned while the agent worked: no new PR; the developer decides what's next.</summary>
+    public static OutboundMessage AbandonedBeforePublish(Uri pr) => new(MessageKind.Info,
+        $"⚠️ **The PR was abandoned** ({pr}), so I didn't open a new one and stopped this job. If you want the changes after all, " +
+        "use `!retry` (or `!run <work item id>` for a fresh start).");
+
     public static OutboundMessage Question(string question, IReadOnlyList<MessageOption>? options) =>
         new(MessageKind.Question, $"**Question from the agent**\n\n{question}", options);
 

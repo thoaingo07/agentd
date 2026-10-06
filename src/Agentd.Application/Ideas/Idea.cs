@@ -83,6 +83,9 @@ public enum ThreadTurnKind
 {
     Brainstorm,
     Review,
+
+    /// <summary>A finished job's session, resumed read-only to answer questions after its PR is merged (talk only).</summary>
+    FollowUp,
 }
 
 /// <summary>The model and effort people may pick for an idea (passed to the CLI's <c>--model</c> / <c>--effort</c>).</summary>

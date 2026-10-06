@@ -49,6 +49,19 @@ public sealed class PublishPullRequestHandler(
 
         try
         {
+            // The job's PR may have been merged or abandoned while the agent was still working (a fix round, a question):
+            // never open a second PR for the same work item. Merged ends the job; abandoned cancels it and says why.
+            if (job.PullRequest is { } previous && ReviewPullRequestsHandler.PullRequestId(previous.Value) is { } previousId)
+            {
+                switch (await pullRequests.GetStatusAsync(repository, previousId, cancellationToken).ConfigureAwait(false))
+                {
+                    case PullRequestStatus.Completed:
+                        return await EndWithoutPublishAsync(job, job.MergedBeforePublish(), MessageCatalog.MergedBeforePublish(previous.Value, branch.Value), cancellationToken).ConfigureAwait(false);
+                    case PullRequestStatus.Abandoned:
+                        return await EndWithoutPublishAsync(job, job.Cancel("PR abandoned"), MessageCatalog.AbandonedBeforePublish(previous.Value), cancellationToken).ConfigureAwait(false);
+                }
+            }
+
             if (!await worktrees.HasCommitsAheadAsync(repository, worktree, cancellationToken).ConfigureAwait(false))
             {
                 await workItems.AddCommentAsync(job.WorkItemId.Value, "agentd: the agent finished without committing any changes, so no pull request was opened.", cancellationToken).ConfigureAwait(false);
@@ -135,6 +148,23 @@ public sealed class PublishPullRequestHandler(
         {
             await workItems.AddCommentAsync(job.WorkItemId.Value, $"agentd opened pull request !{pr.Id}: {url}", ct).ConfigureAwait(false);
         }
+    }
+
+    private async Task<Result<PullRequestRef>> EndWithoutPublishAsync(Job job, Result ended, OutboundMessage message, CancellationToken ct)
+    {
+        if (!ended.IsSuccess)
+        {
+            return ended.Error;
+        }
+
+        var saved = await jobs.SaveAsync(job, ct).ConfigureAwait(false);
+        if (!saved.IsSuccess)
+        {
+            return saved.Error;
+        }
+
+        await outbox.TryEnqueueAsync(job.Id, message, ct).ConfigureAwait(false);
+        return new DomainError("not_published", message.Markdown);
     }
 
     private async Task<Result<PullRequestRef>> FailAsync(Job job, string reason, CancellationToken ct)

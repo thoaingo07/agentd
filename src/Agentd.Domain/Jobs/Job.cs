@@ -272,6 +272,26 @@ public sealed class Job : AggregateRoot<JobId>
     }
 
     /// <summary>
+    /// The job's PR turned out to be merged already when the agent finished again (e.g. a fix round that was running
+    /// while someone merged): nothing is published, and the job ends as Done.
+    /// </summary>
+    public Result MergedBeforePublish()
+    {
+        if (Require("record the merge", JobState.Publishing) is { } error)
+        {
+            return error;
+        }
+
+        if (PullRequest is null)
+        {
+            return DomainError.InvalidTransition(State, "record the merge of a job without a pull request");
+        }
+
+        Transition(JobState.Done, new PullRequestMerged(PullRequest.Value, Now));
+        return Result.Ok;
+    }
+
+    /// <summary>
     /// The PR was merged: hand off the knowledge and learnings. The job runs again (same session) on
     /// <paramref name="knowledgeBranch"/> in <paramref name="worktree"/>, read-only until the developer agrees.
     /// </summary>

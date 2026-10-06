@@ -26,6 +26,14 @@ public sealed class ClaudeBrainstormAgent(IOptions<ClaudeOptions> options) : IBr
         "type is \"User Story\" or \"Task\"; estimate is story points for stories and hours for tasks; parent is the index of the task's story " +
         "in the list. At most 10 items. When the developer asks for changes, send the whole revised block.";
 
+    /// <summary>Instructions for a finished job's follow-up turn (<see cref="ThreadTurnKind.FollowUp"/>): talk only.</summary>
+    public const string FollowUpRules =
+        "The pull request for this work item is merged and the job is finished. You're answering the developer in the job's chat " +
+        "thread, read-only: you may read and search the code (the checkout now holds the base branch, with your merged work), but never " +
+        "edit, build, commit, push or open anything, and agentd's job tools are gone. Answer questions about what you did and why, " +
+        "briefly (under ~250 words). If they ask for changes, say what you would change and where, and tell them to start a new run " +
+        "with `!run <work item id>` or create a work item: no code changes happen in this thread anymore.";
+
     /// <summary>Instructions for a PR review turn (<see cref="ThreadTurnKind.Review"/>).</summary>
     public const string ReviewRules =
         "You are agentd's code reviewer in a chat thread. Your working directory is a read-only, detached checkout of the pull request's " +
@@ -53,7 +61,7 @@ public sealed class ClaudeBrainstormAgent(IOptions<ClaudeOptions> options) : IBr
             turn.Resume ? "--resume" : "--session-id", turn.Session.ToString(),
             "--output-format", "stream-json", "--verbose",
             "--max-turns", MaxTurns.ToString(CultureInfo.InvariantCulture),
-            "--append-system-prompt", turn.Kind == ThreadTurnKind.Review ? ReviewRules : Rules,
+            "--append-system-prompt", turn.Kind switch { ThreadTurnKind.Review => ReviewRules, ThreadTurnKind.FollowUp => FollowUpRules, _ => Rules },
             "--strict-mcp-config",
             "--allowedTools", string.Join(",", o.ReadOnlyTools.Where(t => !t.StartsWith("mcp__", StringComparison.Ordinal))),
             "--disallowedTools", "Edit,Write,MultiEdit,NotebookEdit",
@@ -75,7 +83,7 @@ public sealed class ClaudeBrainstormAgent(IOptions<ClaudeOptions> options) : IBr
     {
         ArgumentNullException.ThrowIfNull(turn);
         var o = options.Value;
-        var dir = Path.Combine(Paths.Expand(o.TranscriptRoot), $"{(turn.Kind == ThreadTurnKind.Review ? "review" : "idea")}-{turn.IdeaId}");
+        var dir = Path.Combine(Paths.Expand(o.TranscriptRoot), $"{turn.Kind switch { ThreadTurnKind.Review => "review", ThreadTurnKind.FollowUp => "followup", _ => "idea" }}-{turn.IdeaId}");
         Directory.CreateDirectory(dir);
         var psi = new ProcessStartInfo(o.Binary)
         {
