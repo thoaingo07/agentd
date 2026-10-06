@@ -284,6 +284,16 @@ toolchains become per repo and agents are isolated from each other. This is plan
 - **Updates:** `agentd update` downloads the new release, verifies its checksum, runs
   `db migrate`, and restarts the service. In-flight jobs resume from their checkpoints.
 - **Backups:** `pg_dump` + `~/.agentd/{config,keys,ssh}`. The repos and worktrees can be recreated.
+- **Worktree cleanup** (2026-10-06). Branches are never deleted.
+  - **Done or cancelled jobs:** the worktree goes as before.
+  - **Idea and review checkouts:** removed when their thread is closed.
+  - **An hourly sweep** (`SweepWorktrees`) removes what nothing uses:
+    - `wi-<id>`: 3 days after a failure (`Jobs:RetainFailedWorktrees`, so `!retry` can resume first), and 1 day after
+      done (`Jobs:RetainFinishedWorktrees`, for talk-only follow-ups).
+    - `idea-<id>`: once the idea is no longer being brainstormed or proposed.
+    - `review-<id>`: once the review is closed or discarded.
+    - Folders it doesn't recognise are left alone, then `git worktree prune` runs.
+  - **`agentd doctor`** shows the number of checkouts, their size and the free disk; a warning below 5 GB or 5%.
 - **Logs:** `agentd daemon logs` (journald), per-job transcripts in `~/.agentd/logs`, and an optional
   OpenTelemetry exporter.
 

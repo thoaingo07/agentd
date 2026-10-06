@@ -282,6 +282,11 @@ internal sealed class FakeWorktrees : IWorktreeManager
 
     public List<(string Name, string Commit)> CheckedOutCommits { get; } = [];
 
+    public List<string> Folders { get; } = [];
+
+    public Task<IReadOnlyList<WorktreeFolder>> ListFoldersAsync(Repository repository, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<WorktreeFolder>>([.. Folders.Select(f => new WorktreeFolder(f, $"/home/agentd/.agentd/worktrees/{repository.Name}/{f}"))]);
+
     public Task<string> CheckoutCommitAsync(Repository repository, string name, string commit, CancellationToken cancellationToken)
     {
         CheckedOutCommits.Add((name, commit));

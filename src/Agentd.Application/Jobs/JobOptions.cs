@@ -59,6 +59,15 @@ public sealed class JobOptions
     /// <see cref="PermissionMode.Auto"/>: they're allowed without asking (still recorded), except the hard denies.
     /// </summary>
     public PermissionMode PermissionMode { get; set; } = PermissionMode.Ask;
+
+    /// <summary>A failed job's worktree is kept this long, so <c>!retry</c> resumes the session; then the sweep removes it (the branch stays).</summary>
+    public TimeSpan RetainFailedWorktrees { get; set; } = TimeSpan.FromDays(3);
+
+    /// <summary>A done job's worktree (or its follow-up checkout) is kept this long for talk-only questions after the merge.</summary>
+    public TimeSpan RetainFinishedWorktrees { get; set; } = TimeSpan.FromDays(1);
+
+    /// <summary>How often unused checkouts are removed (<see cref="SweepWorktrees"/>).</summary>
+    public TimeSpan WorktreeSweepInterval { get; set; } = TimeSpan.FromHours(1);
 }
 
 /// <summary>How agentd answers an agent's tool calls outside its allowlist.</summary>

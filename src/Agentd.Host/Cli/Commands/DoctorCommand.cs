@@ -49,7 +49,54 @@ internal static class DoctorCommand
         async ct => [await AzureDevOpsAsync(services, ct).ConfigureAwait(false)],
         ct => RepositoriesAsync(services, ct),
         ct => ClaudeAsync(services, ct),
+        ct => Task.FromResult<IReadOnlyList<DoctorResult>>([Worktrees(services)]),
     ];
+
+    /// <summary>Checkouts and their disk use, and the free space where they live (low disk stops builds and clones).</summary>
+    internal static DoctorResult Worktrees(IServiceProvider services)
+    {
+        const string Check = "Worktrees";
+        var root = Infrastructure.Git.GitOptions.Expand(services.GetRequiredService<IOptions<Infrastructure.Git.GitOptions>>().Value.WorktreeRoot);
+        var folders = Directory.Exists(root) ? Directory.GetDirectories(root).SelectMany(Directory.GetDirectories).ToList() : [];
+        long bytes = 0;
+        foreach (var file in folders.SelectMany(f => SafeFiles(f)))
+        {
+            try
+            {
+                bytes += new FileInfo(file).Length;
+            }
+            catch (IOException)
+            {
+            }
+        }
+
+        var drive = new DriveInfo(Path.GetPathRoot(Path.GetFullPath(Directory.Exists(root) ? root : AppContext.BaseDirectory))!);
+        var free = drive.AvailableFreeSpace;
+        var low = free < 5L * 1024 * 1024 * 1024 || free < drive.TotalSize / 20;
+        var detail = $"{folders.Count} checkout(s), {Size(bytes)}; {Size(free)} free of {Size(drive.TotalSize)} on {drive.Name}";
+        return low
+            ? new(Check, false, detail, "free disk space: unused checkouts are removed hourly; old failed jobs after Jobs:RetainFailedWorktrees")
+            : new(Check, true, detail);
+    }
+
+    private static IEnumerable<string> SafeFiles(string folder)
+    {
+        try
+        {
+            return Directory.EnumerateFiles(folder, "*", new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true, AttributesToSkip = FileAttributes.ReparsePoint });
+        }
+        catch (IOException)
+        {
+            return [];
+        }
+    }
+
+    private static string Size(long bytes) => bytes switch
+    {
+        >= 1L << 30 => string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{bytes / (double)(1L << 30):0.#} GB"),
+        >= 1L << 20 => string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{bytes / (double)(1L << 20):0} MB"),
+        _ => string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{bytes / 1024} KB"),
+    };
 
     private static async Task<DoctorResult> PostgresAsync(IServiceProvider services, CancellationToken ct)
     {

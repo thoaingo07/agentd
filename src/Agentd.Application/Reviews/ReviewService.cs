@@ -423,6 +423,7 @@ public sealed partial class ReviewService(
     private async Task CloseOutAsync(Review review, bool delete, string author, CancellationToken ct)
     {
         await reviews.SaveAsync(review with { Status = ReviewStatus.Closed }, ct).ConfigureAwait(false);
+        await RemoveCheckoutAsync(review.Repository, review.Worktree, ct).ConfigureAwait(false);
         var provider = providers.Resolve(review.Provider);
         var thread = new ConversationRef(review.Provider, review.ThreadId, review.SpaceId);
         try
@@ -445,6 +446,24 @@ public sealed partial class ReviewService(
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             LogPostFailed(logger, ex, review.Id);
+        }
+    }
+
+    /// <summary>The read-only checkout isn't needed once the thread is closed (the conversation stays in the database).</summary>
+    private async Task RemoveCheckoutAsync(string repository, string? worktree, CancellationToken ct)
+    {
+        if (worktree is null || await repositories.GetAsync(RepositoryName.From(repository), ct).ConfigureAwait(false) is not { } repo)
+        {
+            return;
+        }
+
+        try
+        {
+            await worktrees.RemoveAsync(repo, new WorktreePath(worktree), ct).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            LogRemoveFailed(logger, ex, worktree);   // the hourly sweep retries
         }
     }
 
@@ -527,6 +546,9 @@ public sealed partial class ReviewService(
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Review {ReviewId}: posting to the thread failed")]
     private static partial void LogPostFailed(ILogger logger, Exception exception, long reviewId);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Removing the checkout {Worktree} failed; the sweep retries")]
+    private static partial void LogRemoveFailed(ILogger logger, Exception exception, string worktree);
 }
 
 public enum ReviewChoiceKind

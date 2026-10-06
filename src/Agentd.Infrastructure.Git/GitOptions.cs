@@ -26,7 +26,7 @@ public sealed class GitOptions
 
     public TimeSpan CommandTimeout { get; set; } = TimeSpan.FromMinutes(5);
 
-    internal static string Expand(string path) =>
+    public static string Expand(string path) =>
         path.StartsWith('~')
             ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), path.TrimStart('~').TrimStart('/', '\\'))
             : path;
