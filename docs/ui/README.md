@@ -253,6 +253,15 @@ after the chat thread is deleted, because the history lives in agentd's database
 - **Remembered permissions** (`GET /api/permissions/rules`): "for this job" and "always in this repo"
   approvals. Admins revoke them.
 
+### 4.5a Resource use (2026-10-06)
+
+- **Header (lg+):** "CPU 35% · RAM 6 GB free · disk 120 GB free". When disk or memory is low it gets ⚠️ and bold text,
+  not just colour.
+- **Session header:** "CPU 180% · RAM 2.1 GB · disk 450 MB" for the job's agent process tree and worktree.
+- **Dashboard table:** a CPU / RAM column (xl+).
+- **Data:** `GET /api/resources`, polled every 10 s by the `resources` store while a component `watch()`es it. Samples come
+  from the daemon's `/proc` sampler (Linux), and stale ones (over a minute old) aren't returned.
+
 ### 4.6 Ideas (`/ideas`, `/ideas/:id`)
 
 - **Read-only.** Ideas start and continue in chat (`!idea`); the page reads `GET /api/ideas` and

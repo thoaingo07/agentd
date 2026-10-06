@@ -212,6 +212,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/resources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetResources"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/jobs/{id}/permissions/{requestId}": {
         parameters: {
             query?: never;
@@ -530,6 +546,19 @@ export interface components {
             conversations: components["schemas"]["ConversationVm"][];
             permissions: components["schemas"]["PermissionRequestVm"][];
         };
+        /** @description A running job's agent process tree (CPU is percent of one core) and its worktree size. */
+        JobResourcesVm: {
+            /** Format: int64 */
+            jobId: number;
+            /** Format: double */
+            cpuPercent: number;
+            /** Format: int64 */
+            memoryBytes: number;
+            /** Format: int64 */
+            worktreeBytes: null | number;
+            /** Format: date-time */
+            at: string;
+        };
         /** @description A job row (dashboard, history). State and statuses are strings for the UI. */
         JobSummaryVm: {
             /** Format: int64 */
@@ -559,6 +588,23 @@ export interface components {
             pendingPermissions: number;
         };
         JsonElement: unknown;
+        /** @description The machine agentd runs on (null fields: not sampled, e.g. off Linux). */
+        MachineVm: {
+            /** Format: double */
+            cpuPercent: number;
+            /** Format: int64 */
+            memoryTotal: number;
+            /** Format: int64 */
+            memoryAvailable: number;
+            /** Format: int64 */
+            diskTotal: number;
+            /** Format: int64 */
+            diskFree: number;
+            lowMemory: boolean;
+            lowDisk: boolean;
+            /** Format: date-time */
+            at: string;
+        };
         MessageAcceptedVm: {
             outcome: string;
         };
@@ -608,6 +654,10 @@ export interface components {
             organization: string;
             project: string;
             baseBranch: string;
+        };
+        ResourcesVm: {
+            machine: null | components["schemas"]["MachineVm"];
+            jobs: components["schemas"]["JobResourcesVm"][];
         };
         RunAcceptedVm: {
             /** Format: int64 */
@@ -1118,6 +1168,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ConfigVm"];
+                };
+            };
+        };
+    };
+    GetResources: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourcesVm"];
                 };
             };
         };

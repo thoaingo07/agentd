@@ -1,12 +1,17 @@
 <script setup lang="ts">
+import { onBeforeUnmount } from 'vue'
 import { AgToastHost } from '../../shared/components/ui'
+import { bytes } from '../../shared/utils/format'
 import { useJobsStore } from '../stores/jobs'
+import { useResourcesStore } from '../stores/resources'
 import { useUiStore } from '../stores/ui'
 import ConnectionIndicator from './ConnectionIndicator.vue'
 import ThemeToggle from './ThemeToggle.vue'
 
 const jobs = useJobsStore()
 const ui = useUiStore()
+const resources = useResourcesStore()
+onBeforeUnmount(resources.watch())
 const links = [
   { to: '/', label: 'Dashboard' },
   { to: '/history', label: 'History' },
@@ -69,6 +74,15 @@ const links = [
         >
           {{ jobs.waitingCount }} waiting
         </RouterLink>
+        <span
+          v-if="resources.machine"
+          class="hidden items-center gap-2 text-xs tabular-nums lg:flex"
+          :class="resources.machine.lowDisk || resources.machine.lowMemory ? 'font-semibold text-base-content' : 'text-muted'"
+          data-testid="machine"
+          :title="`Machine: CPU ${resources.machine.cpuPercent}% · RAM ${bytes(resources.machine.memoryAvailable)} free of ${bytes(resources.machine.memoryTotal)} · disk ${bytes(resources.machine.diskFree)} free of ${bytes(resources.machine.diskTotal)}`"
+        >
+          <template v-if="resources.machine.lowDisk || resources.machine.lowMemory">⚠️ </template>CPU {{ resources.machine.cpuPercent }}% · RAM {{ bytes(resources.machine.memoryAvailable) }} free · disk {{ bytes(resources.machine.diskFree) }} free
+        </span>
         <ConnectionIndicator />
         <ThemeToggle class="hidden sm:inline-flex" />
       </div>
