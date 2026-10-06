@@ -27,13 +27,20 @@ public enum DeveloperMessageOutcome
 
     /// <summary>The PR was in review: the message started a fix round, like a review comment.</summary>
     FixRound,
+
+    /// <summary>The PR is already merged: no fix round (and no new PR); the message gets a talk-only answer.</summary>
+    Merged,
 }
 
 /// <summary>
 /// Delivers a developer message to a job. The first reply to a waiting job resumes it; a reply that
 /// loses the race (version conflict) is reloaded and queued for the next turn instead.
 /// </summary>
-public sealed class SubmitDeveloperMessageHandler(IJobRepository jobs, ICommandHandler<RequestCloseOut, Unit>? closeOut = null)
+public sealed class SubmitDeveloperMessageHandler(
+    IJobRepository jobs,
+    ICommandHandler<RequestCloseOut, Unit>? closeOut = null,
+    IPullRequestService? pullRequests = null,
+    IRepositoryRegistry? repositories = null)
     : ICommandHandler<SubmitDeveloperMessage, DeveloperMessageOutcome>
 {
     private const int MaxAttempts = 5;
@@ -47,6 +54,12 @@ public sealed class SubmitDeveloperMessageHandler(IJobRepository jobs, ICommandH
             if (job is null)
             {
                 return DomainError.NotFound($"Job {command.JobId}");
+            }
+
+            if (job.State == JobState.InReview && await IsMergedAsync(job, cancellationToken).ConfigureAwait(false))
+            {
+                // Merged between two review polls: a fix round would publish a second PR. The review loop ends the job.
+                return DeveloperMessageOutcome.Merged;
             }
 
             if (job.State == JobState.InReview)
@@ -121,6 +134,25 @@ public sealed class SubmitDeveloperMessageHandler(IJobRepository jobs, ICommandH
             {
                 return saved.Error;
             }
+        }
+    }
+
+    private async Task<bool> IsMergedAsync(Job job, CancellationToken ct)
+    {
+        if (pullRequests is null || repositories is null || job.PullRequest is not { } url
+            || ReviewPullRequestsHandler.PullRequestId(url.Value) is not { } id
+            || await repositories.GetAsync(job.Repository, ct).ConfigureAwait(false) is not { } repository)
+        {
+            return false;
+        }
+
+        try
+        {
+            return await pullRequests.GetStatusAsync(repository, id, ct).ConfigureAwait(false) == PullRequestStatus.Completed;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return false;   // can't tell (ADO unreachable): treat it as review feedback, as before
         }
     }
 }

@@ -47,7 +47,8 @@ public sealed partial class InboundMessageHandler(
     IOptionsMonitor<MessagingOptions>? messaging = null,
     ICommandHandler<Permissions.PermissionAnswer, bool>? permissions = null,
     Ideas.IdeaService? ideas = null,
-    Ideas.IIdeaStore? ideaStore = null) : IInboundMessageSink
+    Ideas.IIdeaStore? ideaStore = null,
+    Jobs.JobFollowUps? followUps = null) : IInboundMessageSink
 {
     /// <summary>The role a stranger gets on a provider that allows everyone (enforced from Phase 5).</summary>
     public const string GuestRole = "Operator";
@@ -121,6 +122,15 @@ public sealed partial class InboundMessageHandler(
         if (!result.IsSuccess)
         {
             return new InboundOutcome($"rejected:{result.Error.Code}", conversation.JobId);
+        }
+
+        if (result.Value is DeveloperMessageOutcome.Merged or DeveloperMessageOutcome.NotAccepted
+            && followUps is not null && await jobs.GetAsync(conversation.JobId, ct).ConfigureAwait(false) is { } finished
+            && Jobs.JobFollowUps.Accepts(finished) && (result.Value == DeveloperMessageOutcome.Merged || finished.State == JobState.Done))
+        {
+            // After the merge: talk only (no fix round, no new PR). The job's session answers read-only.
+            followUps.Ask(finished, user.Name, message.Text);
+            return new InboundOutcome("follow_up", conversation.JobId);
         }
 
         if (result.Value == DeveloperMessageOutcome.NotAccepted)

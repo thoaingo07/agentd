@@ -157,6 +157,28 @@ While the PR is in review, a message in the job's thread starts a **fix round**,
 take messages right now". In other states that can't take messages (queued, publishing, failed,
 cancelled, done), the reply now says why and what to do instead (`!retry`, `!run <id>`).
 
+### After the merge: no second PR, talk only (fixed 2026-10-06)
+
+**What went wrong (WI-5617):** PR 3944 was merged while the job was mid-fix-round, waiting on a question. The review loop
+only checks *in-review* jobs, so it didn't see the merge. The next reply resumed the agent, it called `finish`, and
+publishing found "no active PR for the branch", so it **opened PR 3945, then 3946**. The "anything new?" check also
+compared against a stale `origin/develop`.
+
+**Now:**
+- **Publishing checks the job's own PR first.**
+  - **Merged:** no push and no new PR. The job ends as Done (`MergedBeforePublish`), and the thread says so.
+  - **Abandoned:** no new PR. The job is cancelled, and the thread suggests `!retry` or `!run`.
+- **"Anything new?" fetches the base branch first,** so already-merged work never looks new.
+- **A chat message during review checks for a merge first.** If the PR is merged, no fix round starts; the review loop
+  ends the job on its next pass.
+- **Talk only after the merge** (decided 2026-10-06): a message in a finished job's thread resumes **the job's own
+  Claude session read-only** (`JobFollowUps`, `ThreadTurnKind.FollowUp`). If the worktree was removed, a detached
+  checkout of the base branch is put back at the same path.
+  - The agent answers about the work it did, with no edits, commits, pushes or PRs and no agentd job tools.
+  - For changes it points to `!run <id>` or a new work item.
+- **Agents ask instead of guessing:** if the repository or PR isn't in the state they expect (already merged or closed,
+  branch gone, nothing left to do, contradictory messages), they call `ask_developer` and say what they see.
+
 ### Pause and resume (added 2026-10-05)
 
 - **`!pause`** (or **Pause** on the session page, `POST /api/jobs/{id}/pause`) works on a queued,

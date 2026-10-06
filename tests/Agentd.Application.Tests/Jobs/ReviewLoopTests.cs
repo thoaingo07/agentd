@@ -118,6 +118,53 @@ public sealed class ReviewLoopTests
     public void The_pr_id_comes_from_its_url(string url, int id) =>
         Assert.AreEqual(id, ReviewPullRequestsHandler.PullRequestId(new Uri(url)));
 
+    [TestMethod]
+    public async Task A_pr_merged_during_a_fix_round_ends_the_job_without_opening_a_second_pr()
+    {
+        var job = await InReviewAsync();
+        _t.PullRequests.Comments.Add(Comment(thread: 10, id: 1, "One more thing"));
+        await Review();
+        await new ResumeJobTurnHandler(_t.Jobs, _t.Outbox).Handle(new ResumeJobTurn([]), default);   // the agent gets the comment
+        _t.PullRequests.Status = PullRequestStatus.Completed;   // merged while the agent works on the round
+
+        var finished = await _t.Finish().Handle(new FinishWork(job, "T", "D", "S"), default);
+
+        Assert.AreEqual("not_published", finished.Error!.Code);
+        Assert.HasCount(1, _t.PullRequests.Created, "only the first PR, never a second one for the same work item");
+        Assert.AreEqual(JobState.Done, _t.Jobs.Get(job).State);
+        StringAssert.Contains(_t.Outbox.Enqueued[^1].Message.Message.Markdown, "The PR was already merged");
+    }
+
+    [TestMethod]
+    public async Task A_pr_abandoned_during_a_fix_round_cancels_the_job_and_says_so()
+    {
+        var job = await InReviewAsync();
+        _t.PullRequests.Comments.Add(Comment(thread: 10, id: 1, "One more thing"));
+        await Review();
+        await new ResumeJobTurnHandler(_t.Jobs, _t.Outbox).Handle(new ResumeJobTurn([]), default);
+        _t.PullRequests.Status = PullRequestStatus.Abandoned;
+
+        await _t.Finish().Handle(new FinishWork(job, "T", "D", "S"), default);
+
+        Assert.HasCount(1, _t.PullRequests.Created);
+        Assert.AreEqual(JobState.Cancelled, _t.Jobs.Get(job).State);
+        StringAssert.Contains(_t.Outbox.Enqueued[^1].Message.Message.Markdown, "The PR was abandoned");
+    }
+
+    [TestMethod]
+    public async Task A_chat_message_after_the_merge_starts_no_fix_round()
+    {
+        var job = await InReviewAsync();
+        _t.PullRequests.Status = PullRequestStatus.Completed;   // merged between two review polls
+        var submit = new SubmitDeveloperMessageHandler(_t.Jobs, null, _t.PullRequests, _t.Registry);
+
+        Assert.AreEqual(DeveloperMessageOutcome.Merged, (await submit.Handle(new SubmitDeveloperMessage(job, "merged", "tngo"), default)).Value);
+        Assert.AreEqual((JobState.InReview, 0), (_t.Jobs.Get(job).State, _t.Jobs.Get(job).FixRounds), "the review loop ends it; nothing runs");
+
+        _t.PullRequests.Status = PullRequestStatus.Active;
+        Assert.AreEqual(DeveloperMessageOutcome.FixRound, (await submit.Handle(new SubmitDeveloperMessage(job, "rename it", "tngo"), default)).Value, "an open PR still takes feedback");
+    }
+
     private async Task<Domain.Jobs.ValueObjects.JobId> InReviewAsync()
     {
         var request = await _t.RunningJobAsync();
