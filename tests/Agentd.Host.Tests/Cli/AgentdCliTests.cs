@@ -36,6 +36,8 @@ public sealed class AgentdCliTests : IDisposable
     [DataRow("db", "migrate")]
     [DataRow("doctor")]
     [DataRow("daemon", "run")]
+    [DataRow("daemon", "install")]
+    [DataRow("daemon", "logs")]
     [DataRow("secrets", "set")]
     [DataRow("secrets", "list")]
     [DataRow("secrets", "remove")]

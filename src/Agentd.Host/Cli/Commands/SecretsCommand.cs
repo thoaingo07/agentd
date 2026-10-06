@@ -42,7 +42,7 @@ internal static class SecretsCommand
             }
 
             new SecretStore(context.Home).Set(name, value, Environment.UserName);
-            await context.Out.WriteLineAsync($"Stored {name} (encrypted). Restart the daemon to use it.").ConfigureAwait(false);
+            await context.Out.WriteLineAsync($"Stored {name} (encrypted). Restart the daemon to use it (agentd daemon restart).").ConfigureAwait(false);
             return ExitCodes.Ok;
         });
         command.TreatUnmatchedTokensAsErrors = false;

@@ -6,13 +6,21 @@ namespace Agentd.Host.Cli;
 /// <param name="services">Builds the services on first use.</param>
 /// <param name="home">The config home (default: <c>AGENTD_HOME</c> or <c>~/.agentd</c>).</param>
 /// <param name="readSecret">Reads a secret value after a prompt (default: piped stdin, or the terminal without echo).</param>
+/// <param name="run">Runs programs such as <c>systemctl</c> (default: the real process runner).</param>
+/// <param name="environment">Reads environment variables (default: the process's).</param>
 internal sealed class CliContext(
     TextWriter output,
     TextWriter error,
     Func<IServiceProvider> services,
     Func<ConfigHome>? home = null,
-    Func<string, string?>? readSecret = null) : IAsyncDisposable
+    Func<string, string?>? readSecret = null,
+    RunProcess? run = null,
+    Func<string, string?>? environment = null) : IAsyncDisposable
 {
+    public RunProcess Run { get; } = run ?? SystemdUnit.Run;
+
+    public Func<string, string?> Environment { get; } = environment ?? System.Environment.GetEnvironmentVariable;
+
     private IServiceProvider? _services;
     private ConfigHome? _home;
 

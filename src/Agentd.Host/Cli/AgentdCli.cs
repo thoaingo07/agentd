@@ -20,7 +20,9 @@ internal static class AgentdCli
         Daemon daemon,
         CancellationToken cancellationToken,
         Func<ConfigHome>? home = null,
-        Func<string, string?>? readSecret = null)
+        Func<string, string?>? readSecret = null,
+        RunProcess? run = null,
+        Func<string, string?>? environment = null)
     {
         ArgumentNullException.ThrowIfNull(args);
         ArgumentNullException.ThrowIfNull(daemon);
@@ -29,7 +31,7 @@ internal static class AgentdCli
             return await daemon(args, cancellationToken).ConfigureAwait(false);
         }
 
-        var context = new CliContext(output, error, services, home, readSecret);
+        var context = new CliContext(output, error, services, home, readSecret, run, environment);
         await using (context.ConfigureAwait(false))
         {
             var parse = Build(context, daemon).Parse(args);
@@ -76,7 +78,7 @@ internal static class AgentdCli
     public static RootCommand Build(CliContext context, Daemon daemon)
     {
         var root = new RootCommand("agentd: runs coding agents for Azure DevOps work items. With no arguments, runs the daemon.");
-        root.Subcommands.Add(DaemonCommand.Create(daemon));
+        root.Subcommands.Add(DaemonCommand.Create(context, daemon));
         root.Subcommands.Add(StatusCommand.Create(context));
         root.Subcommands.Add(RunCommand.Create(context));
         root.Subcommands.Add(RepoCommand.Create(context));
