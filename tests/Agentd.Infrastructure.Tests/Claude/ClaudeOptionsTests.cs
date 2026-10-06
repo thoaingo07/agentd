@@ -49,6 +49,19 @@ public sealed class ClaudeOptionsTests
     }
 
     [TestMethod]
+    public void Review_turns_get_the_reviewer_instructions_and_stay_read_only()
+    {
+        var turn = new Agentd.Application.Ideas.BrainstormTurn(7, "/wt", Guid.NewGuid(), true, "review PR 12", "sonnet", null, Agentd.Application.Ideas.ThreadTurnKind.Review);
+        var args = ClaudeBrainstormAgent.Args(turn, new ClaudeOptions()).ToList();
+
+        Assert.AreEqual(ClaudeBrainstormAgent.ReviewRules, args[args.IndexOf("--append-system-prompt") + 1]);
+        StringAssert.Contains(ClaudeBrainstormAgent.ReviewRules, "```review-findings");
+        Assert.AreEqual("Edit,Write,MultiEdit,NotebookEdit", args[args.IndexOf("--disallowedTools") + 1]);
+        Assert.AreEqual(("--resume", "sonnet"), (args[args.IndexOf("--resume")], args[args.IndexOf("--model") + 1]));
+        CollectionAssert.DoesNotContain(args, "--effort", "no effort given: the CLI default");
+    }
+
+    [TestMethod]
     public void Configured_tools_are_added_to_the_defaults()
     {
         var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>

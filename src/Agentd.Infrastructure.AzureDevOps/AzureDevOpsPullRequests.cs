@@ -96,6 +96,65 @@ public sealed class AzureDevOpsPullRequests(HttpClient http) : IPullRequestServi
         await SendAsync(http, HttpMethod.Post, $"{Base(repository)}/pullrequests/{pullRequestId}/threads/{threadId}/comments?api-version={ApiVersion}", body, "application/json", cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task<PullRequestDetails?> GetAsync(Repository repository, int pullRequestId, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(repository);
+        JsonNode? pr;
+        try
+        {
+            pr = await AdoHttp.GetAsync(http, $"{Base(repository)}/pullrequests/{pullRequestId}?api-version={ApiVersion}", cancellationToken).ConfigureAwait(false);
+        }
+        catch (AdoException ex) when (ex.StatusCode == 404)
+        {
+            return null;
+        }
+
+        if (pr is null)
+        {
+            return null;
+        }
+
+        static string Branch(JsonNode? name) => (name?.GetValue<string>() ?? string.Empty).Replace("refs/heads/", string.Empty, StringComparison.Ordinal);
+        return new PullRequestDetails(
+            pullRequestId,
+            pr["title"]?.GetValue<string>() ?? $"PR {pullRequestId}",
+            pr["description"]?.GetValue<string>(),
+            pr["createdBy"]?["displayName"]?.GetValue<string>() ?? "someone",
+            Branch(pr["sourceRefName"]),
+            Branch(pr["targetRefName"]),
+            pr["lastMergeSourceCommit"]?["commitId"]?.GetValue<string>() ?? throw new AdoException($"Pull request {pullRequestId} has no source commit."),
+            pr["status"]?.GetValue<string>() switch { "completed" => PullRequestStatus.Completed, "abandoned" => PullRequestStatus.Abandoned, _ => PullRequestStatus.Active },
+            pr["isDraft"]?.GetValue<bool>() ?? false,
+            Ref(repository, pullRequestId).Url);
+    }
+
+    public async Task<int> CreateThreadAsync(Repository repository, int pullRequestId, string text, string? filePath, int? line, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(repository);
+        ArgumentNullException.ThrowIfNull(text);
+        var body = new JsonObject
+        {
+            ["comments"] = new JsonArray(new JsonObject { ["parentCommentId"] = 0, ["content"] = $"{PullRequestComment.AgentdMarker} {text}", ["commentType"] = 1 }),
+            ["status"] = 1,   // active
+        };
+        if (!string.IsNullOrWhiteSpace(filePath))
+        {
+            // ADO paths start with '/'; the line is on the PR's new (right) side.
+            var context = new JsonObject { ["filePath"] = "/" + filePath.TrimStart('/') };
+            if (line is > 0 and var at)
+            {
+                context["rightFileStart"] = new JsonObject { ["line"] = at, ["offset"] = 1 };
+                context["rightFileEnd"] = new JsonObject { ["line"] = at, ["offset"] = 1 };
+            }
+
+            body["threadContext"] = context;
+        }
+
+        var created = await SendAsync(http, HttpMethod.Post, $"{Base(repository)}/pullrequests/{pullRequestId}/threads?api-version={ApiVersion}", body, "application/json", cancellationToken).ConfigureAwait(false)
+            ?? throw new AdoException("Creating the thread returned no body.");
+        return created["id"]!.GetValue<int>();
+    }
+
     private static string Base(Repository r) =>
         $"{Esc(r.AzureDevOps.Organization)}/{Esc(r.AzureDevOps.Project)}/_apis/git/repositories/{Esc(r.AzureDevOps.Name)}";
 

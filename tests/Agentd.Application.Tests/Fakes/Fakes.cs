@@ -280,6 +280,14 @@ internal sealed class FakeWorktrees : IWorktreeManager
         return Task.FromResult($"/home/agentd/.agentd/worktrees/{repository.Name}/{name}");
     }
 
+    public List<(string Name, string Commit)> CheckedOutCommits { get; } = [];
+
+    public Task<string> CheckoutCommitAsync(Repository repository, string name, string commit, CancellationToken cancellationToken)
+    {
+        CheckedOutCommits.Add((name, commit));
+        return Task.FromResult($"/home/agentd/.agentd/worktrees/{repository.Name}/{name}");
+    }
+
     public Task<BranchDiff?> DiffAsync(Repository repository, BranchName branch, WorktreePath? worktree, int maxBytes, CancellationToken cancellationToken)
     {
         Diffed.Add((branch.Value, worktree?.Value, maxBytes));
@@ -316,6 +324,19 @@ internal sealed class FakePullRequests : IPullRequestService
     {
         Replies.Add((pullRequestId, threadId, text));
         return Task.CompletedTask;
+    }
+
+    public Dictionary<int, PullRequestDetails> Details { get; } = [];
+
+    public List<(int PullRequestId, string Text, string? File, int? Line)> Threads { get; } = [];
+
+    public Task<PullRequestDetails?> GetAsync(Repository repository, int pullRequestId, CancellationToken cancellationToken) =>
+        Task.FromResult(Details.TryGetValue(pullRequestId, out var pr) ? pr : null);
+
+    public Task<int> CreateThreadAsync(Repository repository, int pullRequestId, string text, string? filePath, int? line, CancellationToken cancellationToken)
+    {
+        Threads.Add((pullRequestId, text, filePath, line));
+        return Task.FromResult(100 + Threads.Count);
     }
 }
 

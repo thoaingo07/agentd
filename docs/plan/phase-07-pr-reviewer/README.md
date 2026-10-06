@@ -54,6 +54,43 @@ Design refs: [pr-reviewer-and-monitor.md §1, §3, §6](../../architect/pr-revie
 
 ---
 
+## Phase 7a — `!review` in chat (requested 2026-10-06, built before the rest of Phase 7)
+
+A smaller first step that Phase 7 builds on: review **any open PR of a registered repository** from chat, talk the
+findings through, and post only what the developer chooses.
+
+**Decisions (2026-10-06):**
+- **Thread first:** findings stay in the Discord thread until someone chooses. **1** post all to the PR · **2** keep in
+  chat only · **3** discard, or `post 1,3` / `drop 2`.
+- **Any PR in a registered repo**, by anyone in the channel. agentd only posts comments and **never votes or approves**.
+- **Keep talking before posting:** follow-ups ("why is #3 a problem?", "#2 is intended") go to the same session. When
+  something changes, the agent sends a revised findings list.
+- **Model and effort:** `!review <pr> --model opus --effort high`, and `!model` / `!effort` in the thread, like ideas.
+
+**Flow:** `!review <PR url or id> [--repo r] [--focus security,tests] [--model m] [--effort e]` → a 🔍 thread
+"Review: PR !123 <title>" → a **read-only detached checkout of the PR head**, with the same read-only tools and no MCP as
+brainstorms → the agent ends with a fenced `review-findings` block (`{summary, findings: [{severity, file, line, title,
+detail, suggestion}]}`). Severities are blocker, major, minor and nit, with at most 30 findings. agentd shows the
+findings numbered and asks for a choice.
+
+**Posting:** one PR thread per finding, at its file and line on the PR's side (or PR-wide), plus a summary thread. Each is
+prefixed with agentd's marker, so agentd's own comment handling skips them. The thread ids are stored.
+
+**Delivery:**
+1. **Foundations** (this PR):
+   - `IPullRequestService.GetAsync` (title, author, branches, head commit, draft) and `CreateThreadAsync` (file and
+     line anchored);
+   - `IWorktreeManager.CheckoutCommitAsync`: fetch, then a detached checkout at the PR head. A later run moves the
+     checkout to the new head, and only real commit ids reach git;
+   - `pr_reviews` and `pr_review_messages` with their routines, and `IReviewStore`. Events carry ids and status only;
+   - `ReviewFindings` (parse, validate, render);
+   - the reviewer instructions (`ThreadTurnKind.Review` on the read-only thread agent).
+2. **The chat flow:** `!review`, `ReviewService` (turns, follow-ups, choices, posting, close-out), the poller reading
+   review threads, `!help`.
+3. **Later:** reviews in the Web UI; then the rest of Phase 7 (reviewer catalog, dashboard, auto triggers).
+
+---
+
 ## Tasks
 
 Task index: [tasks/README.md](tasks/README.md) (the detail files are written when this phase starts).

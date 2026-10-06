@@ -26,6 +26,23 @@ public sealed class ClaudeBrainstormAgent(IOptions<ClaudeOptions> options) : IBr
         "type is \"User Story\" or \"Task\"; estimate is story points for stories and hours for tasks; parent is the index of the task's story " +
         "in the list. At most 10 items. When the developer asks for changes, send the whole revised block.";
 
+    /// <summary>Instructions for a PR review turn (<see cref="ThreadTurnKind.Review"/>).</summary>
+    public const string ReviewRules =
+        "You are agentd's code reviewer in a chat thread. Your working directory is a read-only, detached checkout of the pull request's " +
+        "head; the prompt names its source and target branches. Find what the PR changes with git (git diff origin/<target>...HEAD, " +
+        "git log origin/<target>..HEAD, git show) and read the surrounding code so every finding is grounded in real files. Never edit, " +
+        "build, commit or push. Look for correctness bugs, missing or weak tests, security problems, error handling, performance traps " +
+        "and inconsistencies with the repository's own patterns (its AGENTS.md / CLAUDE.md if present); when the developer names a focus, " +
+        "start there. Skip style nitpicks a formatter would catch. Prefer a few well-argued findings over many shallow ones. " +
+        "When you have findings (and again whenever they change), end your message with a fenced block:\n" +
+        "```review-findings\n{\"summary\":\"what the PR does and your overall verdict in 2-4 sentences\",\"findings\":[{\"severity\":\"major\"," +
+        "\"file\":\"src/Foo/Bar.cs\",\"line\":42,\"title\":\"short statement of the problem\",\"detail\":\"why it matters\"," +
+        "\"suggestion\":\"what to change\"}]}\n```\n" +
+        "severity is blocker, major, minor or nit; file is relative to the repository root and line is on the PR's side (omit both for a " +
+        "PR-wide finding). At most 30 findings, worst first. An empty findings list is fine when the PR is good. Outside the block keep " +
+        "replies short (under ~250 words). In follow-ups, answer the developer's questions and, if they change your mind or ask for " +
+        "changes, send the whole revised block. Never claim you approved or posted anything: agentd posts only when the developer chooses.";
+
     public static IReadOnlyList<string> Args(BrainstormTurn turn, ClaudeOptions o)
     {
         ArgumentNullException.ThrowIfNull(turn);
@@ -36,7 +53,7 @@ public sealed class ClaudeBrainstormAgent(IOptions<ClaudeOptions> options) : IBr
             turn.Resume ? "--resume" : "--session-id", turn.Session.ToString(),
             "--output-format", "stream-json", "--verbose",
             "--max-turns", MaxTurns.ToString(CultureInfo.InvariantCulture),
-            "--append-system-prompt", Rules,
+            "--append-system-prompt", turn.Kind == ThreadTurnKind.Review ? ReviewRules : Rules,
             "--strict-mcp-config",
             "--allowedTools", string.Join(",", o.ReadOnlyTools.Where(t => !t.StartsWith("mcp__", StringComparison.Ordinal))),
             "--disallowedTools", "Edit,Write,MultiEdit,NotebookEdit",
@@ -58,7 +75,7 @@ public sealed class ClaudeBrainstormAgent(IOptions<ClaudeOptions> options) : IBr
     {
         ArgumentNullException.ThrowIfNull(turn);
         var o = options.Value;
-        var dir = Path.Combine(Paths.Expand(o.TranscriptRoot), $"idea-{turn.IdeaId}");
+        var dir = Path.Combine(Paths.Expand(o.TranscriptRoot), $"{(turn.Kind == ThreadTurnKind.Review ? "review" : "idea")}-{turn.IdeaId}");
         Directory.CreateDirectory(dir);
         var psi = new ProcessStartInfo(o.Binary)
         {

@@ -71,8 +71,19 @@ public interface IIdeaStore
     Task<IReadOnlyList<string>> ListOpenThreadsAsync(ProviderKey provider, CancellationToken cancellationToken);
 }
 
-/// <summary>One brainstorm turn: a read-only agent session in the idea's checkout, on the idea's model and effort.</summary>
-public sealed record BrainstormTurn(long IdeaId, string Worktree, Guid Session, bool Resume, string Prompt, string? Model = null, string? Effort = null);
+/// <summary>
+/// One read-only agent turn in a chat thread's checkout, on its model and effort: an idea's brainstorm, or a PR review
+/// (<paramref name="Kind"/>; <paramref name="IdeaId"/> is then the review's id).
+/// </summary>
+public sealed record BrainstormTurn(
+    long IdeaId, string Worktree, Guid Session, bool Resume, string Prompt, string? Model = null, string? Effort = null, ThreadTurnKind Kind = ThreadTurnKind.Brainstorm);
+
+/// <summary>What a read-only thread turn is for: it picks the agent's instructions and where its transcript goes.</summary>
+public enum ThreadTurnKind
+{
+    Brainstorm,
+    Review,
+}
 
 /// <summary>The model and effort people may pick for an idea (passed to the CLI's <c>--model</c> / <c>--effort</c>).</summary>
 public static partial class BrainstormSettings
