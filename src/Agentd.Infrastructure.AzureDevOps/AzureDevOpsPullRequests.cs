@@ -125,7 +125,24 @@ public sealed class AzureDevOpsPullRequests(HttpClient http) : IPullRequestServi
             pr["lastMergeSourceCommit"]?["commitId"]?.GetValue<string>() ?? throw new AdoException($"Pull request {pullRequestId} has no source commit."),
             pr["status"]?.GetValue<string>() switch { "completed" => PullRequestStatus.Completed, "abandoned" => PullRequestStatus.Abandoned, _ => PullRequestStatus.Active },
             pr["isDraft"]?.GetValue<bool>() ?? false,
-            Ref(repository, pullRequestId).Url);
+            Ref(repository, pullRequestId).Url,
+            await LinkedWorkItemsAsync(repository, pullRequestId, cancellationToken).ConfigureAwait(false));
+    }
+
+    /// <summary>The PR's linked work items; best effort (a review works without them).</summary>
+    private async Task<IReadOnlyList<int>> LinkedWorkItemsAsync(Repository repository, int pullRequestId, CancellationToken ct)
+    {
+        try
+        {
+            var linked = await AdoHttp.GetAsync(http, $"{Base(repository)}/pullrequests/{pullRequestId}/workitems?api-version={ApiVersion}", ct).ConfigureAwait(false);
+            return [.. linked?["value"]?.AsArray().OfType<JsonNode>()
+                .Select(w => int.TryParse(w["id"]?.ToString(), NumberStyles.None, CultureInfo.InvariantCulture, out var id) ? id : 0)
+                .Where(id => id > 0) ?? []];
+        }
+        catch (AdoException)
+        {
+            return [];
+        }
     }
 
     public async Task<int> CreateThreadAsync(Repository repository, int pullRequestId, string text, string? filePath, int? line, CancellationToken cancellationToken)

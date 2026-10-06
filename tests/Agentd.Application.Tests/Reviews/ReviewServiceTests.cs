@@ -41,6 +41,10 @@ public sealed class ReviewServiceTests
         StringAssert.Contains(turn.Prompt, "Instructions from tngo: check the helm probes");
         StringAssert.Contains(turn.Prompt, "Focus on: security");
         StringAssert.Contains(turn.Prompt, "origin/develop");
+        StringAssert.Contains(turn.Prompt, "WI-5617 \"Azure Pipelines: deploy to AKS\"");
+        StringAssert.Contains(turn.Prompt, "- prod deploys on main", "the acceptance criteria, to check the PR against");
+        StringAssert.Contains(turn.Prompt, "Kelvin Pham on charts/api/values.yaml:14: Why is the probe timeout 1s?", "open threads, so they aren't repeated");
+        Assert.DoesNotContain("Typo fixed", turn.Prompt, "resolved threads are left out");
         Assert.AreEqual(("review-1", "abc1234"), h.Worktrees.CheckedOutCommits.Single(), "a checkout of the PR head");
         Assert.AreEqual(ReviewStatus.Reviewed, h.Store.Rows[1].Status);
         StringAssert.Contains(h.Chat.SentText.Last(), "**1.** 🟠 major **Readiness probe path is wrong**");
@@ -134,8 +138,12 @@ public sealed class ReviewServiceTests
             var options = Microsoft.Extensions.Options.Options.Create(new MessagingOptions());
             options.Value.Providers["discord"] = new MessagingProviderSettings { Enabled = true };
             PullRequests.Details[3944] = new PullRequestDetails(3944, "Deploy to AKS", "Pipelines for test and prod.", "Dev One", "ai/5617-deploy", "develop", "abc1234",
-                PullRequestStatus.Active, false, new Uri("https://dev.azure.com/ermsystem/Portal/_git/sysmin/pullrequest/3944"));
-            Service = new ReviewService(Store, Registry, PullRequests, Worktrees, Agent, new MessagingProviderRegistry([Chat], options), NullLogger<ReviewService>.Instance);
+                PullRequestStatus.Active, false, new Uri("https://dev.azure.com/ermsystem/Portal/_git/sysmin/pullrequest/3944"), [5617]);
+            WorkItems.Items[5617] = new WorkItemDetails(5617, 3, "Azure Pipelines: deploy to AKS", "Active", @"Portal\sysmin", [], "Deploy all services.",
+                "- test deploys on merge to develop\n- prod deploys on main", null, [], null);
+            PullRequests.Comments.Add(new PullRequestComment(10, 1, "Kelvin Pham", "Why is the probe timeout 1s?", "/charts/api/values.yaml", 14, "active", DateTimeOffset.UnixEpoch));
+            PullRequests.Comments.Add(new PullRequestComment(11, 2, "Kelvin Pham", "Typo fixed", null, null, "fixed", DateTimeOffset.UnixEpoch));
+            Service = new ReviewService(Store, Registry, PullRequests, Worktrees, Agent, new MessagingProviderRegistry([Chat], options), NullLogger<ReviewService>.Instance, WorkItems);
         }
 
         public FakeChat Chat { get; } = new("discord");
@@ -145,6 +153,8 @@ public sealed class ReviewServiceTests
         public FakeWorktrees Worktrees { get; } = new();
 
         public FakePullRequests PullRequests { get; } = new();
+
+        public FakeWorkItems WorkItems { get; } = new();
 
         public Agent Agent { get; } = new();
 

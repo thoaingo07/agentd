@@ -68,9 +68,10 @@ public sealed record PullRequestRef(int Id, Uri Url);
 /// <param name="Status">Active, completed or abandoned.</param>
 /// <param name="IsDraft">A draft PR.</param>
 /// <param name="Url">The PR in the browser.</param>
+/// <param name="WorkItems">The work items linked to the PR (none when unknown).</param>
 public sealed record PullRequestDetails(
     int Id, string Title, string? Description, string Author, string SourceBranch, string TargetBranch, string SourceCommit,
-    PullRequestStatus Status, bool IsDraft, Uri Url);
+    PullRequestStatus Status, bool IsDraft, Uri Url, IReadOnlyList<int>? WorkItems = null);
 
 public enum PullRequestStatus
 {
