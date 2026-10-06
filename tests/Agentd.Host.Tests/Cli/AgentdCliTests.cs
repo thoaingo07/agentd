@@ -20,7 +20,7 @@ public sealed class AgentdCliTests : IDisposable
     {
         Assert.AreEqual(0, await Run("--help"));
 
-        foreach (var verb in new[] { "daemon", "status", "run", "repo", "db", "doctor" })
+        foreach (var verb in new[] { "daemon", "status", "run", "repo", "db", "doctor", "secrets" })
         {
             Assert.Contains($"  {verb}", _out.ToString(), $"help lists '{verb}'");
         }
@@ -36,6 +36,9 @@ public sealed class AgentdCliTests : IDisposable
     [DataRow("db", "migrate")]
     [DataRow("doctor")]
     [DataRow("daemon", "run")]
+    [DataRow("secrets", "set")]
+    [DataRow("secrets", "list")]
+    [DataRow("secrets", "remove")]
     public async Task Every_verb_has_help(params string[] verb)
     {
         Assert.AreEqual(0, await Run([.. verb, "--help"]));

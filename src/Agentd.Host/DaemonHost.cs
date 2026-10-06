@@ -25,7 +25,7 @@ internal static class DaemonHost
         builder.AddServiceDefaults();
         var home = builder.AddAgentdCore(args);
         // Cookies (antiforgery now, SSO later) stay valid across restarts and upgrades.
-        builder.Services.AddDataProtection().SetApplicationName("agentd").PersistKeysToFileSystem(new DirectoryInfo(home.Keys));
+        builder.Services.AddDataProtection().SetApplicationName(ConfigHome.ApplicationName).PersistKeysToFileSystem(new DirectoryInfo(home.Keys));
         HostUrls.ApplyDefault(builder);
         builder.Services.AddWebHosting(builder.Configuration);
         builder.Services.AddSingleton<IPostConfigureOptions<ClaudeOptions>, McpUrlFromServer>();
