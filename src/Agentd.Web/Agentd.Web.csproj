@@ -27,7 +27,7 @@
   <Target Name="EmbedWebAssets" BeforeTargets="PrepareForBuild" AfterTargets="BuildClientApps">
     <ItemGroup>
       <_WebAsset Include="wwwroot/**" />
-      <EmbeddedResource Include="@(_WebAsset)" WithCulture="false"
+      <EmbeddedResource Include="@(_WebAsset)" WithCulture="false" Condition="'@(_WebAsset)' != ''"
                         LogicalName="wwwroot/$([MSBuild]::MakeRelative('$(MSBuildProjectDirectory)/wwwroot/', '%(_WebAsset.FullPath)').Replace('\', '/'))" />
     </ItemGroup>
   </Target>
