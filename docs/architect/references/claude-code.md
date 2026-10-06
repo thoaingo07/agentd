@@ -156,5 +156,9 @@ When the agent needs a command outside its allowlist, the CLI calls `mcp__agentd
 - **Limits:**
   - Work run **inside Docker** happens in the Docker daemon, so it shows in the machine numbers, not the job's.
   - Off Linux, nothing is sampled.
-  - The Web UI shows these in a follow-up PR.
+  - **Web UI** (2026-10-06): `GET /api/resources` returns the machine plus each running job's latest sample (under a minute
+    old). The `resources` store polls it every 10 s, and only while something shows it.
+    - The **header** shows the machine (⚠️ and bold when disk or memory is low, not just colour).
+    - The **session page** shows the job's CPU, RAM and worktree size.
+    - The **dashboard** has a CPU/RAM column (xl screens).
 

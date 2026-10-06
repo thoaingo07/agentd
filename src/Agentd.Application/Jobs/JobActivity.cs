@@ -99,6 +99,10 @@ public sealed class JobActivity : Ports.IAgentActivitySink
 
     public void RecordMachine(MachineResources machine) => Machine = machine;
 
+    /// <summary>Every job's latest resource sample younger than <paramref name="maxAge"/> (the Web UI polls it).</summary>
+    public IReadOnlyDictionary<long, JobResources> Resources(DateTimeOffset now, TimeSpan maxAge) =>
+        _jobs.Where(kv => kv.Value.Resources is { } r && now - r.At < maxAge).ToDictionary(kv => kv.Key, kv => kv.Value.Resources!);
+
     public void RecordResources(JobId job, JobResources resources) =>
         _jobs.AddOrUpdate(job.Value, _ => new(null, null, null, null, Resources: resources), (_, s) => s with { Resources = resources });
 

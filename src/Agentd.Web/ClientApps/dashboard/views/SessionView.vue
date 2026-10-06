@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ApiError, get } from '../../shared/api/http'
 import type { AgentEvent, Diff, JobState } from '../../shared/api/types'
 import { AgButton, AgModal, AgStateBadge, AgTabs } from '../../shared/components/ui'
-import { duration, percent } from '../../shared/utils/format'
+import { bytes, duration, percent } from '../../shared/utils/format'
 import DiffView from '../components/session/DiffView.vue'
 import EventList from '../components/session/EventList.vue'
 import MessageComposer from '../components/session/MessageComposer.vue'
@@ -11,11 +11,15 @@ import PermissionBanner from '../components/session/PermissionBanner.vue'
 import { useConfigStore } from '../stores/config'
 import { useEventsStore } from '../stores/events'
 import { useJobsStore } from '../stores/jobs'
+import { useResourcesStore } from '../stores/resources'
 
 const props = defineProps<{ id: number }>()
 const jobs = useJobsStore()
 const events = useEventsStore()
 const config = useConfigStore()
+const resources = useResourcesStore()
+onBeforeUnmount(resources.watch())
+const used = computed(() => resources.byJob.get(props.id))
 const tab = ref('transcript')
 const tabs = [
   { value: 'transcript', label: 'Transcript', keepMounted: true },
@@ -157,6 +161,11 @@ onBeforeUnmount(() => {
             session {{ sessionId.slice(0, 8) }}
           </button>
           <span v-if="detail?.usage">usage 5h {{ percent(detail.usage.fiveHour) }} · week {{ percent(detail.usage.weekly) }}</span>
+          <span
+            v-if="used"
+            class="tabular-nums"
+            data-testid="job-resources"
+          >CPU {{ used.cpuPercent }}% · RAM {{ bytes(used.memoryBytes) }}<template v-if="used.worktreeBytes != null"> · disk {{ bytes(used.worktreeBytes) }}</template></span>
         </p>
         <div class="flex flex-wrap items-center gap-2">
           <a

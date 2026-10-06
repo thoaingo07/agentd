@@ -4,13 +4,16 @@ import { onBeforeUnmount, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { AgStateBadge } from '../../shared/components/ui'
 import type { JobState, JobSummary } from '../../shared/api/types'
+import { bytes } from '../../shared/utils/format'
 import { useConfigStore } from '../stores/config'
+import { useResourcesStore } from '../stores/resources'
 
 /** `live: false` (History): no change flash; a Completed column instead of a ticking elapsed time. */
 const props = withDefaults(defineProps<{ jobs: JobSummary[]; pending?: Set<number>; live?: boolean }>(), { pending: undefined, live: true })
 const emit = defineEmits<{ cancel: [job: JobSummary]; retry: [job: JobSummary] }>()
 const router = useRouter()
 const config = useConfigStore()
+const resources = useResourcesStore()
 
 /** Rows whose state/phase/PR just changed, highlighted for ~600 ms. */
 const flashing = ref(new Set<number>())
@@ -79,6 +82,11 @@ function onKey(e: KeyboardEvent): void {
             class="hidden sm:table-cell"
           >
             Completed
+          </th><th
+            v-if="live"
+            class="hidden text-right xl:table-cell"
+          >
+            CPU / RAM
           </th><th class="text-right">
             {{ live ? 'Elapsed' : 'Took' }}
           </th><th><span class="sr-only">Actions</span></th>
@@ -127,6 +135,17 @@ function onKey(e: KeyboardEvent): void {
             class="hidden whitespace-nowrap text-muted sm:table-cell"
           >
             {{ job.completedAt ? new Date(job.completedAt).toLocaleString() : '—' }}
+          </td>
+          <td
+            v-if="live"
+            class="hidden whitespace-nowrap text-right tabular-nums text-muted xl:table-cell"
+          >
+            <template v-if="resources.byJob.get(job.id)">
+              {{ resources.byJob.get(job.id)!.cpuPercent }}% · {{ bytes(resources.byJob.get(job.id)!.memoryBytes) }}
+            </template>
+            <template v-else>
+              —
+            </template>
           </td>
           <td class="text-right tabular-nums">
             {{ elapsed(job) }}

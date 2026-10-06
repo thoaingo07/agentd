@@ -641,6 +641,26 @@
         }
       }
     },
+    "/api/resources": {
+      "get": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "GetResources",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResourcesVm"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/jobs/{id}/permissions/{requestId}": {
       "post": {
         "tags": [
@@ -1634,6 +1654,42 @@
           }
         }
       },
+      "JobResourcesVm": {
+        "required": [
+          "jobId",
+          "cpuPercent",
+          "memoryBytes",
+          "worktreeBytes",
+          "at"
+        ],
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "cpuPercent": {
+            "type": "number",
+            "format": "double"
+          },
+          "memoryBytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "worktreeBytes": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int64"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "A running job\u0027s agent process tree (CPU is percent of one core) and its worktree size."
+      },
       "JobSummaryVm": {
         "required": [
           "id",
@@ -1737,6 +1793,52 @@
         "description": "A job row (dashboard, history). State and statuses are strings for the UI."
       },
       "JsonElement": {},
+      "MachineVm": {
+        "required": [
+          "cpuPercent",
+          "memoryTotal",
+          "memoryAvailable",
+          "diskTotal",
+          "diskFree",
+          "lowMemory",
+          "lowDisk",
+          "at"
+        ],
+        "type": "object",
+        "properties": {
+          "cpuPercent": {
+            "type": "number",
+            "format": "double"
+          },
+          "memoryTotal": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "memoryAvailable": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "diskTotal": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "diskFree": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "lowMemory": {
+            "type": "boolean"
+          },
+          "lowDisk": {
+            "type": "boolean"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "The machine agentd runs on (null fields: not sampled, e.g. off Linux)."
+      },
       "MessageAcceptedVm": {
         "required": [
           "outcome"
@@ -1913,6 +2015,31 @@
           },
           "baseBranch": {
             "type": "string"
+          }
+        }
+      },
+      "ResourcesVm": {
+        "required": [
+          "machine",
+          "jobs"
+        ],
+        "type": "object",
+        "properties": {
+          "machine": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MachineVm"
+              }
+            ]
+          },
+          "jobs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/JobResourcesVm"
+            }
           }
         }
       },

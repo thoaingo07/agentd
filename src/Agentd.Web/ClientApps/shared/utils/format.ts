@@ -22,3 +22,12 @@ export function humanize(type: string): string {
 export function percent(fraction: number | null | undefined): string {
   return fraction == null ? '—' : `${Math.round(fraction * 100)}%`
 }
+
+/** 1536 → "2 KB", 2.1e9 → "2 GB" (binary units, short; matches the chat's wording). */
+export function bytes(n: number | null | undefined): string {
+  if (n == null) return '—'
+  if (n >= 2 ** 30) return `${(n / 2 ** 30).toFixed(1).replace(/\.0$/, '')} GB`
+  if (n >= 2 ** 20) return `${Math.round(n / 2 ** 20)} MB`
+  return `${Math.floor(Math.max(0, n) / 1024)} KB`
+}
+
