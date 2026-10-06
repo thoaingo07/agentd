@@ -79,7 +79,10 @@ public sealed partial class DiscordPoller(
             var ideaThreads = scope.ServiceProvider.GetService<IIdeaStore>() is { } ideas
                 ? await ideas.ListOpenThreadsAsync(provider.Key, ct).ConfigureAwait(false)
                 : [];
-            foreach (var thread in jobThreads.Select(c => c.ExternalConversationId).Concat(ideaThreads).Distinct(StringComparer.Ordinal))
+            var reviewThreads = scope.ServiceProvider.GetService<Application.Reviews.IReviewStore>() is { } reviews
+                ? await reviews.ListOpenThreadsAsync(provider.Key, ct).ConfigureAwait(false)
+                : [];
+            foreach (var thread in jobThreads.Select(c => c.ExternalConversationId).Concat(ideaThreads).Concat(reviewThreads).Distinct(StringComparer.Ordinal))
             {
                 try
                 {

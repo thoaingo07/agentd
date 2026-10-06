@@ -43,6 +43,7 @@ public static class DependencyInjection
         services.AddSingleton<Permissions.PermissionWaiter>();
         services.AddSingleton<Ideas.IdeaService>();
         services.AddSingleton<Jobs.JobFollowUps>();
+        services.AddSingleton<Reviews.ReviewService>();
         services.AddScoped<ICommandHandler<Permissions.PermissionAsk, Permissions.PermissionDecision>, Permissions.PermissionAskHandler>();
         services.AddScoped<ICommandHandler<Permissions.PermissionAnswer, bool>, Permissions.PermissionAnswerHandler>();
         services.AddScoped<IQueryHandler<Permissions.GetPermissionRules, IReadOnlyList<Permissions.PermissionRule>>, Permissions.GetPermissionRulesHandler>();
