@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
@@ -48,6 +49,13 @@ public static class WebHosting
             app.MapWhen(
                 ctx => ctx.Request.Path.StartsWithSegments(basePath, StringComparison.Ordinal),
                 branch => branch.UseSpa(spa => spa.UseProxyToSpaDevelopmentServer(devServer)));
+        }
+
+        // The files on disk first (development, dotnet run); the copy embedded in this assembly after (single-file agentd).
+        var embedded = new EmbeddedWebAssets(typeof(WebHosting).Assembly);
+        if (embedded.HasAssets)
+        {
+            app.Environment.WebRootFileProvider = new CompositeFileProvider(app.Environment.WebRootFileProvider, embedded);
         }
 
         app.UseStaticFiles();

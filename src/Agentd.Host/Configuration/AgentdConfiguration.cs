@@ -9,6 +9,9 @@ internal static class AgentdConfiguration
 {
     public const string EnvironmentPrefix = "AGENTD_";
 
+    /// <summary>The embedded copy of the Host's appsettings.json.</summary>
+    public const string EmbeddedDefaults = "agentd.appsettings.json";
+
     /// <summary>
     /// Layers the config home on top of the host's configuration (lowest → highest): home defaults,
     /// appsettings (development only), <c>config/agentd.json</c>, the encrypted <c>config/secrets.json</c>,
@@ -18,6 +21,12 @@ internal static class AgentdConfiguration
     public static void AddConfigHome(this IConfigurationManager configuration, ConfigHome home, string[] args)
     {
         configuration.Sources.Insert(0, new MemoryConfigurationSource { InitialData = home.Defaults() });
+        // appsettings.json is embedded too, so the single-file agentd has its defaults with no file next to it;
+        // a file on disk (development) still overrides it.
+        if (typeof(AgentdConfiguration).Assembly.GetManifestResourceStream(EmbeddedDefaults) is { } defaults)
+        {
+            configuration.Sources.Insert(1, new JsonStreamConfigurationSource { Stream = defaults });
+        }
 
         var json = new JsonConfigurationSource
         {

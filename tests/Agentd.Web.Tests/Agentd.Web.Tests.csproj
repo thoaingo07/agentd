@@ -5,4 +5,8 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- Stands in for the Vite build that Agentd.Web embeds (EmbeddedWebAssets). -->
+    <EmbeddedResource Include="Fixtures/app.js" LogicalName="wwwroot/assets/app.js" />
+  </ItemGroup>
 </Project>

@@ -7,7 +7,7 @@
   <PropertyGroup>
     <AddRazorSupportForMvc>true</AddRazorSupportForMvc>
     <!-- Keep MSBuild away from the JS toolchain and sources. -->
-    <DefaultItemExcludes>$(DefaultItemExcludes);node_modules/**;ClientApps/**;tests/**;public/**</DefaultItemExcludes>
+    <DefaultItemExcludes>$(DefaultItemExcludes);node_modules/**;ClientApps/**;tests/**;e2e/**;public/**;test-results/**;playwright-report/**</DefaultItemExcludes>
   </PropertyGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
@@ -18,6 +18,19 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Agentd.Web.Tests" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- The JS toolchain's files aren't app content: never copied to the output or published next to agentd. -->
+    <Content Update="package.json;package-lock.json;tsconfig.json" CopyToOutputDirectory="Never" CopyToPublishDirectory="Never" />
+  </ItemGroup>
+  <!-- The Vite build inside the assembly too (EmbeddedWebAssets), so the single-file agentd serves the UI by itself (T1b.6).
+       Evaluated in a target, so a wwwroot built by BuildClientApps (or just before) is picked up. -->
+  <Target Name="EmbedWebAssets" BeforeTargets="PrepareForBuild" AfterTargets="BuildClientApps">
+    <ItemGroup>
+      <_WebAsset Include="wwwroot/**" />
+      <EmbeddedResource Include="@(_WebAsset)" WithCulture="false"
+                        LogicalName="wwwroot/$([MSBuild]::MakeRelative('$(MSBuildProjectDirectory)/wwwroot/', '%(_WebAsset.FullPath)').Replace('\', '/'))" />
+    </ItemGroup>
+  </Target>
   <!-- Opt-in (CI / publish): build the Vue apps first so wwwroot/ is part of the static web assets. -->
   <Target Name="BuildClientApps" BeforeTargets="BeforeBuild" Condition="'$(BuildWeb)' == 'true'">
     <Exec WorkingDirectory="$(MSBuildProjectDirectory)" Command="npm ci &amp;&amp; npm run build" />

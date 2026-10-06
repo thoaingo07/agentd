@@ -310,5 +310,5 @@ Claude resolves a session by its working directory, so resuming needs the same m
 | Config | `~/.agentd` config home + `AGENTD_` env prefix + the encrypted `secrets.json` source |
 | Repositories | a `repositories` table + `IRepositoryRegistry` (DB-backed, config-seeded); bare clones in `Infrastructure.Git` |
 | Migrator | usable **in-process** by `agentd db migrate` (the Host references it). It still ships as its own console app for Aspire and CI. |
-| Web assets | included in the single-file publish (static web assets) |
+| Web assets | embedded in `Agentd.Web.dll` (`EmbeddedWebAssets`, a fallback after the files on disk), so the single-file `agentd` serves the UI by itself (T1b.6) |
 | Release pipeline | a GitHub Actions workflow publishes self-contained builds (linux-x64/arm64, osx-arm64, win-x64) + checksums + `install.sh`, and a multi-arch Docker image to GHCR |
