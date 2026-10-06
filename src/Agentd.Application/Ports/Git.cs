@@ -39,6 +39,12 @@ public interface IWorktreeManager
     Task<string> CheckoutDetachedAsync(Repository repository, string name, CancellationToken cancellationToken);
 
     /// <summary>
+    /// A detached checkout of <paramref name="commit"/> (after a fetch) at <c>worktrees/&lt;repo&gt;/&lt;name&gt;</c>, e.g. a PR's
+    /// head for a review. An existing checkout at that path is moved to the commit (a re-review after new pushes).
+    /// </summary>
+    Task<string> CheckoutCommitAsync(Repository repository, string name, string commit, CancellationToken cancellationToken);
+
+    /// <summary>
     /// What <paramref name="branch"/> changes against the base branch: the live worktree (including uncommitted
     /// edits) while it exists, otherwise the branch in the managed clone. Null when the branch doesn't exist.
     /// Over <paramref name="maxBytes"/> the diff text is left out and only the file list is returned.
@@ -50,6 +56,21 @@ public interface IWorktreeManager
 public sealed record BranchDiff(string BaseRef, string HeadRef, IReadOnlyList<string> Files, string? UnifiedDiff, bool Truncated);
 
 public sealed record PullRequestRef(int Id, Uri Url);
+
+/// <summary>What a review needs to know about a pull request.</summary>
+/// <param name="Id">The PR number.</param>
+/// <param name="Title">The PR title.</param>
+/// <param name="Description">The PR description (Markdown), if any.</param>
+/// <param name="Author">The creator's display name.</param>
+/// <param name="SourceBranch">e.g. <c>feature/x</c> (without <c>refs/heads/</c>).</param>
+/// <param name="TargetBranch">e.g. <c>develop</c>.</param>
+/// <param name="SourceCommit">The PR head that's reviewed.</param>
+/// <param name="Status">Active, completed or abandoned.</param>
+/// <param name="IsDraft">A draft PR.</param>
+/// <param name="Url">The PR in the browser.</param>
+public sealed record PullRequestDetails(
+    int Id, string Title, string? Description, string Author, string SourceBranch, string TargetBranch, string SourceCommit,
+    PullRequestStatus Status, bool IsDraft, Uri Url);
 
 public enum PullRequestStatus
 {
@@ -98,4 +119,14 @@ public interface IPullRequestService
 
     /// <summary>Replies in a thread; the text is prefixed with <see cref="PullRequestComment.AgentdMarker"/>.</summary>
     Task ReplyAsync(Repository repository, int pullRequestId, int threadId, string text, CancellationToken cancellationToken);
+
+    /// <summary>The PR, or null when it doesn't exist.</summary>
+    Task<PullRequestDetails?> GetAsync(Repository repository, int pullRequestId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Opens a new comment thread, anchored to <paramref name="filePath"/> at <paramref name="line"/> when given (on the PR's
+    /// new side), otherwise on the PR itself; the text is prefixed with <see cref="PullRequestComment.AgentdMarker"/>.
+    /// Returns the thread id.
+    /// </summary>
+    Task<int> CreateThreadAsync(Repository repository, int pullRequestId, string text, string? filePath, int? line, CancellationToken cancellationToken);
 }

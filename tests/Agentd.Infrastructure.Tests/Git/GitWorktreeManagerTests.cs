@@ -183,4 +183,30 @@ public sealed class GitWorktreeManagerTests
         Assert.AreEqual("HEAD", GitSandbox.Run(path, "rev-parse", "--abbrev-ref", "HEAD"), "detached: no branch to commit to");
         Assert.AreEqual(GitSandbox.Run(box.RemotePath, "rev-parse", "develop"), GitSandbox.Run(path, "rev-parse", "HEAD"));
     }
+
+    [TestMethod]
+    public async Task A_commit_is_checked_out_detached_and_moved_when_the_pr_gets_new_commits()
+    {
+        using var box = new GitSandbox();
+        var seed = Path.Combine(box.Root, "seed");
+        GitSandbox.Run(seed, "checkout", "-b", "feature/x");
+        File.WriteAllText(Path.Combine(seed, "a.txt"), "one\n");
+        GitSandbox.Run(seed, "add", ".");
+        GitSandbox.Run(seed, "-c", "user.name=dev", "-c", "user.email=dev@x", "commit", "-m", "one");
+        GitSandbox.Run(seed, "push", "origin", "feature/x");
+        var first = GitSandbox.Run(seed, "rev-parse", "HEAD");
+
+        var path = await box.Manager.CheckoutCommitAsync(box.Repository, "review-3", first, default);
+        File.WriteAllText(Path.Combine(seed, "a.txt"), "two\n");
+        GitSandbox.Run(seed, "-c", "user.name=dev", "-c", "user.email=dev@x", "commit", "-am", "two");
+        GitSandbox.Run(seed, "push", "origin", "feature/x");
+        var second = GitSandbox.Run(seed, "rev-parse", "HEAD");
+        var again = await box.Manager.CheckoutCommitAsync(box.Repository, "review-3", second, default);
+
+        Assert.AreEqual(path, again);
+        Assert.AreEqual(("HEAD", second), (GitSandbox.Run(path, "rev-parse", "--abbrev-ref", "HEAD"), GitSandbox.Run(path, "rev-parse", "HEAD")), "detached at the new head");
+        Assert.AreEqual("two", File.ReadAllText(Path.Combine(path, "a.txt")).Trim());
+        await Assert.ThrowsExactlyAsync<ArgumentException>(() => box.Manager.CheckoutCommitAsync(box.Repository, "review-3", "--upload-pack=evil", default));
+    }
 }
+

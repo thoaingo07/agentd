@@ -60,4 +60,40 @@ public sealed class PullRequestReviewTests
         Assert.AreEqual("🤖 agentd: Addressed in 1a2b3c4.", body["content"]!.GetValue<string>());
         Assert.AreEqual(1, body["parentCommentId"]!.GetValue<int>());
     }
+
+    [TestMethod]
+    public async Task A_pr_is_read_with_its_branches_head_and_author_or_null_when_missing()
+    {
+        var ado = new FakeAdo()
+            .On(HttpMethod.Get, PrPath, HttpStatusCode.OK, """
+                { "pullRequestId": 3935, "title": "Health checks", "description": "Adds /health", "status": "active", "isDraft": true,
+                  "createdBy": { "displayName": "Dev One" }, "sourceRefName": "refs/heads/feature/health", "targetRefName": "refs/heads/develop",
+                  "lastMergeSourceCommit": { "commitId": "4c1e1a7b2d" } }
+                """)
+            .On(HttpMethod.Get, "/ermsystem/Portal/_apis/git/repositories/sysmin/pullrequests/9", HttpStatusCode.NotFound, "{}");
+        var prs = new AzureDevOpsPullRequests(ado.Client());
+
+        var pr = (await prs.GetAsync(s_repo, 3935, default))!;
+
+        Assert.AreEqual(("Health checks", "Dev One", "feature/health", "develop", "4c1e1a7b2d", true), (pr.Title, pr.Author, pr.SourceBranch, pr.TargetBranch, pr.SourceCommit, pr.IsDraft));
+        StringAssert.EndsWith(pr.Url.ToString(), "/ermsystem/Portal/_git/sysmin/pullrequest/3935");
+        Assert.IsNull(await prs.GetAsync(s_repo, 9, default));
+    }
+
+    [TestMethod]
+    public async Task A_new_thread_is_anchored_to_the_file_and_line_and_marked_as_agentds()
+    {
+        var ado = new FakeAdo().On(HttpMethod.Post, PrPath + "/threads", HttpStatusCode.OK, """{ "id": 77 }""");
+        var prs = new AzureDevOpsPullRequests(ado.Client());
+
+        Assert.AreEqual(77, await prs.CreateThreadAsync(s_repo, 3935, "Readiness never fails", "src/Api/Health.cs", 42, default));
+        await prs.CreateThreadAsync(s_repo, 3935, "Summary", null, null, default);
+
+        var anchored = JsonNode.Parse(ado.Requests[0].Body!)!;
+        Assert.AreEqual("🤖 agentd: Readiness never fails", anchored["comments"]![0]!["content"]!.GetValue<string>());
+        Assert.AreEqual("/src/Api/Health.cs", anchored["threadContext"]!["filePath"]!.GetValue<string>());
+        Assert.AreEqual(42, anchored["threadContext"]!["rightFileStart"]!["line"]!.GetValue<int>());
+        Assert.IsNull(JsonNode.Parse(ado.Requests[1].Body!)!["threadContext"], "a PR-wide comment");
+    }
 }
+

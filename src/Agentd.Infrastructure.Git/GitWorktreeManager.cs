@@ -11,7 +11,7 @@ namespace Agentd.Infrastructure.Git;
 /// One managed bare clone per repository and one worktree per job (branch <c>ai/&lt;id&gt;-&lt;slug&gt;</c> from
 /// <c>origin/&lt;base&gt;</c>). Operations on the same repository are serialized; different repositories run in parallel.
 /// </summary>
-public sealed class GitWorktreeManager(GitCli git, IOptions<GitOptions> options) : IWorktreeManager
+public sealed partial class GitWorktreeManager(GitCli git, IOptions<GitOptions> options) : IWorktreeManager
 {
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _locks = new(StringComparer.Ordinal);
 
@@ -179,6 +179,34 @@ public sealed class GitWorktreeManager(GitCli git, IOptions<GitOptions> options)
         }, cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task<string> CheckoutCommitAsync(Repository repository, string name, string commit, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(repository);
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        if (!CommitId().IsMatch(commit ?? string.Empty))
+        {
+            throw new ArgumentException($"'{commit}' isn't a commit id.", nameof(commit));
+        }
+
+        return await WithRepoLockAsync(repository, async () =>
+        {
+            var clone = await EnsureCloneCoreAsync(repository, cancellationToken).ConfigureAwait(false);
+            await git.RunAsync(clone, ["fetch", "--prune", "origin"], cancellationToken).ConfigureAwait(false);
+            var path = Path.Combine(GitOptions.Expand(options.Value.WorktreeRoot), Safe(repository.Name.Value), Safe(name));
+            if (Directory.Exists(path))
+            {
+                await git.RunAsync(path, ["checkout", "--detach", "--force", commit!], cancellationToken).ConfigureAwait(false);
+            }
+            else
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+                await git.RunAsync(clone, ["worktree", "add", "--detach", path, commit!], cancellationToken).ConfigureAwait(false);
+            }
+
+            return path;
+        }, cancellationToken).ConfigureAwait(false);
+    }
+
     /// <summary>Push arguments. There is deliberately no way to request a force push.</summary>
     internal static IReadOnlyList<string> BuildPushArgs(BranchName branch) => ["push", "--set-upstream", "origin", branch.Value];
 
@@ -229,4 +257,8 @@ public sealed class GitWorktreeManager(GitCli git, IOptions<GitOptions> options)
         var cleaned = new string(segment.Select(c => invalid.Contains(c) || c is '/' or '\\' ? '_' : c).ToArray()).Trim('.', ' ');
         return cleaned.Length == 0 ? "_" : cleaned;
     }
+
+    /// <summary>A full or abbreviated commit id: nothing else ever reaches git as a revision here.</summary>
+    [System.Text.RegularExpressions.GeneratedRegex("^[0-9a-f]{7,40}$")]
+    private static partial System.Text.RegularExpressions.Regex CommitId();
 }

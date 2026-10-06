@@ -52,3 +52,6 @@ public sealed class Paused : SqlMigration;
 
 [Migration(2026_10_13_0001, "Remove permission rules made from quoted text and loop syntax; expire requests of finished jobs")]
 public sealed class PermissionRuleCleanup : SqlMigration;
+
+[Migration(2026_10_14_0001, "PR reviews in chat and their conversation")]
+public sealed class PrReviews : SqlMigration;
