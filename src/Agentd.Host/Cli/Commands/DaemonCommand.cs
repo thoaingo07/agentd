@@ -46,7 +46,9 @@ internal static class DaemonCommand
             Directory.CreateDirectory(dir);
             var path = Path.Combine(dir, SystemdUnit.Name);
             var home = context.Environment(ConfigHome.Variable);
-            await File.WriteAllTextAsync(path, SystemdUnit.Render(SystemdUnit.ExecStart(Environment.ProcessPath!, System.Reflection.Assembly.GetEntryAssembly()?.Location), home), ct).ConfigureAwait(false);
+            // A development build runs as `dotnet agentd.dll`; the single-file agentd has no agentd.dll next to it.
+            var entry = Path.Combine(AppContext.BaseDirectory, "agentd.dll");
+            await File.WriteAllTextAsync(path, SystemdUnit.Render(SystemdUnit.ExecStart(Environment.ProcessPath!, File.Exists(entry) ? entry : null), home), ct).ConfigureAwait(false);
             foreach (var args in s_enable)
             {
                 var result = await context.Run("systemctl", args, interactive: false, ct).ConfigureAwait(false);
