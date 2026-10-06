@@ -98,6 +98,21 @@ prefixed with agentd's marker, so agentd's own comment handling skips them. The 
    - **`!model` / `!effort`** in a review thread apply from the next reply.
    - **Wiring:** the Discord poller reads review threads, and inbound messages route to `ReviewService`. `!help` lists
      `review`.
+   - **The reviewer prompt** (`ClaudeBrainstormAgent.ReviewRules`, revised 2026-10-06):
+     1. **Intent first:** check the change against the linked work items' acceptance criteria, flagging unmet criteria and
+        out-of-scope changes.
+     2. **Read the diff in context,** plus the repo's AGENTS.md, CLAUDE.md or CONTRIBUTING.md.
+     3. **Look for, in order:** correctness, security (including secrets in the diff), breaking changes (APIs, contracts,
+        configuration keys, migrations without a safe rollback), error handling, tests, performance, and consistency with
+        the repo.
+     4. **Verify before claiming,** and say in the finding what was checked.
+     5. **Skip** formatter-level style, generated files, lockfiles, vendored code, and anything already raised in the open
+        threads.
+
+     Severity definitions: blocker = must fix before merge; major = should fix in this PR; minor = worth fixing; nit =
+     optional. The agent replies in the developer's language.
+   - **Context in the first prompt:** the linked work items (up to 3) with their acceptance criteria and description,
+     read from `…/pullrequests/{id}/workitems`, and the open human comment threads (up to 20, resolved ones left out).
 3. **Later:** reviews in the Web UI; then the rest of Phase 7 (reviewer catalog, dashboard, auto triggers).
 
 ---

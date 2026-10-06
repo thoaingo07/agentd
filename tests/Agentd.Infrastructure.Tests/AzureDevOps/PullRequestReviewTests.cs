@@ -70,13 +70,15 @@ public sealed class PullRequestReviewTests
                   "createdBy": { "displayName": "Dev One" }, "sourceRefName": "refs/heads/feature/health", "targetRefName": "refs/heads/develop",
                   "lastMergeSourceCommit": { "commitId": "4c1e1a7b2d" } }
                 """)
-            .On(HttpMethod.Get, "/ermsystem/Portal/_apis/git/repositories/sysmin/pullrequests/9", HttpStatusCode.NotFound, "{}");
+            .On(HttpMethod.Get, "/ermsystem/Portal/_apis/git/repositories/sysmin/pullrequests/9", HttpStatusCode.NotFound, "{}")
+            .On(HttpMethod.Get, PrPath + "/workitems", HttpStatusCode.OK, """{ "value": [ { "id": "5617" }, { "id": "5618" } ] }""");
         var prs = new AzureDevOpsPullRequests(ado.Client());
 
         var pr = (await prs.GetAsync(s_repo, 3935, default))!;
 
         Assert.AreEqual(("Health checks", "Dev One", "feature/health", "develop", "4c1e1a7b2d", true), (pr.Title, pr.Author, pr.SourceBranch, pr.TargetBranch, pr.SourceCommit, pr.IsDraft));
         StringAssert.EndsWith(pr.Url.ToString(), "/ermsystem/Portal/_git/sysmin/pullrequest/3935");
+        CollectionAssert.AreEqual(new[] { 5617, 5618 }, pr.WorkItems!.ToArray(), "the linked work items");
         Assert.IsNull(await prs.GetAsync(s_repo, 9, default));
     }
 
