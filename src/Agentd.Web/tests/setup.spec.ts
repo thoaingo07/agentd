@@ -8,6 +8,7 @@ import SecretField from '../ClientApps/setup/components/SecretField.vue'
 import DatabaseStep from '../ClientApps/setup/steps/DatabaseStep.vue'
 import AzureDevOpsStep from '../ClientApps/setup/steps/AzureDevOpsStep.vue'
 import GitKeyStep from '../ClientApps/setup/steps/GitKeyStep.vue'
+import ClaudeStep from '../ClientApps/setup/steps/ClaudeStep.vue'
 import App from '../ClientApps/setup/App.vue'
 
 const unset = { set: false, updatedAt: null, updatedBy: null }
@@ -34,6 +35,10 @@ beforeEach(() => {
     'POST /api/setup/azure-devops/test': json({ ok: true, message: 'Signed in to myorg/Portal.', fix: null }),
     'GET /api/setup/git-key': json({ exists: false, publicKey: null, fingerprint: null, path: null }),
     'POST /api/setup/git-key': json({ exists: true, publicKey: 'ssh-ed25519 AAAAC3 agentd@vps', fingerprint: 'SHA256:abc', path: '/home/a/.agentd/ssh/id_ed25519' }),
+    'GET /api/setup/claude': json({ token: unset, server: { installed: true, version: '2.1.300 (Claude Code)', loggedIn: false, method: null, plan: null } }),
+    'PUT /api/setup/claude': json({ restartRequired: true }),
+    'DELETE /api/setup/claude/token': json({ restartRequired: true }),
+    'POST /api/setup/claude/test': json({ ok: true, message: 'Claude answered a test prompt in 2.1 s (the token).', fix: null }),
     'POST /api/setup/git-key/test': json({ ok: false, message: 'Permission denied (publickey).', fix: 'add the public key to Azure DevOps' }),
   }
   vi.stubGlobal('fetch', vi.fn(async (req: Request) => {
@@ -146,6 +151,27 @@ describe('steps', () => {
     expect(calls.find((c) => c.path === '/api/setup/git-key/test')?.body).toEqual({ url: 'git@ssh.dev.azure.com:v3/myorg/Portal/sysmin' })
     expect(step.text()).toContain('Permission denied (publickey).')
     expect(step.text()).toContain('Fix: add the public key to Azure DevOps')
+  })
+
+  it('claude: shows the server, tests and saves a token, then offers to remove it', async () => {
+    const step = mount(ClaudeStep, { global: { plugins: [router()] } })
+    await flushPromises()
+    expect(step.text()).toContain('2.1.300 (Claude Code)')
+    expect(step.text()).toContain('not logged in')
+
+    await step.get('input').setValue('sk-ant-oat01-SECRET-0123456789')
+    await step.findAll('button').find((b) => b.text() === 'Test')!.trigger('click')
+    await flushPromises()
+    expect(calls.find((c) => c.path === '/api/setup/claude/test')?.body).toEqual({ token: 'sk-ant-oat01-SECRET-0123456789' })
+    expect(step.text()).toContain('Claude answered a test prompt')
+
+    routes['GET /api/setup/claude'] = json({ token: set, server: { installed: true, version: '2.1.300 (Claude Code)', loggedIn: false, method: null, plan: null } })
+    await step.findAll('button').find((b) => b.text() === 'Save')!.trigger('click')
+    await flushPromises()
+    expect(step.text()).toContain('Token saved.')
+    expect(step.find('input').exists()).toBe(false)
+    expect(step.findAll('button').some((b) => b.text() === 'Remove the token')).toBe(true)
+    expect(JSON.stringify(useSetupStore().$state)).not.toContain('SECRET')
   })
 
   it('without a session the wizard explains how to get the link', async () => {

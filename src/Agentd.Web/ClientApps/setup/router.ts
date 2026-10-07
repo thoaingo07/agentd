@@ -2,12 +2,14 @@ import { createRouter, createWebHistory } from 'vue-router'
 import DatabaseStep from './steps/DatabaseStep.vue'
 import AzureDevOpsStep from './steps/AzureDevOpsStep.vue'
 import GitKeyStep from './steps/GitKeyStep.vue'
+import ClaudeStep from './steps/ClaudeStep.vue'
 
 /** The wizard's steps, in order (docs/architect/deployment.md §5a). Later steps join as their APIs land. */
 export const steps = [
   { path: '/database', name: 'database', title: 'Database', component: DatabaseStep },
   { path: '/azure-devops', name: 'azure-devops', title: 'Azure DevOps', component: AzureDevOpsStep },
   { path: '/git', name: 'git', title: 'Git access', component: GitKeyStep },
+  { path: '/claude', name: 'claude', title: 'Claude', component: ClaudeStep },
 ] as const
 
 export const router = createRouter({

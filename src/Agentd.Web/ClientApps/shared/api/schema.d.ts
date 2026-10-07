@@ -532,6 +532,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/setup/claude": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetSetupClaude"];
+        put: operations["SaveSetupClaudeToken"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/setup/claude/token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["RemoveSetupClaudeToken"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/setup/claude/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["TestSetupClaude"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -552,6 +600,23 @@ export interface components {
             project: null | string;
             auth: string;
             pat: components["schemas"]["SecretStatusVm"];
+        };
+        /** @description Claude Code on this server: installed, its version, and whether a subscription is logged in there. */
+        ClaudeLoginVm: {
+            installed: boolean;
+            version: null | string;
+            loggedIn: boolean;
+            method: null | string;
+            plan: null | string;
+        };
+        /** @description The Claude step: the stored `claude setup-token` token (status only) and the server's own login. */
+        ClaudeStepVm: {
+            token: components["schemas"]["SecretStatusVm"];
+            server: components["schemas"]["ClaudeLoginVm"];
+        };
+        /** @description A token from `claude setup-token`. On Test, empty means "the saved one, else the server's login". */
+        ClaudeTokenRequest: {
+            token: null | string;
         };
         /** @description Read-only settings. Explicit fields only: tokens, keys and secrets have no way in. */
         ConfigVm: {
@@ -1982,6 +2047,112 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StepCheckVm"];
+                };
+            };
+        };
+    };
+    GetSetupClaude: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClaudeStepVm"];
+                };
+            };
+        };
+    };
+    SaveSetupClaudeToken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": null | components["schemas"]["ClaudeTokenRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SaveResultVm"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    RemoveSetupClaudeToken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SaveResultVm"];
+                };
+            };
+        };
+    };
+    TestSetupClaude: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": null | components["schemas"]["ClaudeTokenRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StepCheckVm"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
         };

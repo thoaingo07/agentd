@@ -22,6 +22,9 @@ public sealed record GitKeyStep(bool Exists, string? PublicKey, string? Fingerpr
     public static GitKeyStep From(GitKeyInfo? key) => key is null ? new(false, null, null, null) : new(true, key.PublicKey, key.Fingerprint, key.Path);
 }
 
+/// <summary>The Claude step: a stored <c>claude setup-token</c> token, and the server's own Claude Code login.</summary>
+public sealed record ClaudeStep(SecretStatus Token, ClaudeLogin Server);
+
 /// <summary>A saved step. The daemon reads these settings at start, so they apply after a restart.</summary>
 public sealed record SaveResult(bool RestartRequired);
 
@@ -37,11 +40,13 @@ public sealed class SetupService(
     IDatabaseProbe database,
     IAzureDevOpsProbe azureDevOps,
     IGitKey gitKey,
+    IClaudeProbe claude,
     IOptions<JobOptions> jobs,
     TimeProvider time)
 {
     public const string ConnectionStringSecret = "ConnectionStrings:agentd";
     public const string PatSecret = "AzureDevOps:Pat";
+    public const string ClaudeTokenSecret = "Claude:OAuthToken";
     public const string PatAuth = "Pat";
     public const string AzCliAuth = "AzCli";
 
@@ -184,6 +189,38 @@ public sealed class SetupService(
 
         return gitKey.TestAsync(value, cancellationToken);
     }
+
+    public async Task<ClaudeStep> GetClaudeAsync(CancellationToken cancellationToken) =>
+        new(secrets.Status(ClaudeTokenSecret), await claude.StatusAsync(cancellationToken).ConfigureAwait(false));
+
+    /// <summary>Stores a <c>claude setup-token</c> token (agents get it as <c>CLAUDE_CODE_OAUTH_TOKEN</c>, nothing else).</summary>
+    public async Task<Result<SaveResult>> SaveClaudeTokenAsync(string token, string by, CancellationToken cancellationToken)
+    {
+        var value = token?.Trim();
+        if (string.IsNullOrEmpty(value) || value.Length < 20 || value.Any(char.IsWhiteSpace))
+        {
+            return DomainError.Validation("Paste the whole token that claude setup-token printed (one line, no spaces).");
+        }
+
+        secrets.Store(ClaudeTokenSecret, value, by);
+        await audit.RecordAsync([Change(ClaudeTokenSecret, "secret", "set", by)], cancellationToken).ConfigureAwait(false);
+        return new SaveResult(RestartRequired: true);
+    }
+
+    /// <summary>Forgets the token: agents then use the server's own login.</summary>
+    public async Task<SaveResult> RemoveClaudeTokenAsync(string by, CancellationToken cancellationToken)
+    {
+        if (secrets.Remove(ClaudeTokenSecret))
+        {
+            await audit.RecordAsync([Change(ClaudeTokenSecret, "secret", "removed", by)], cancellationToken).ConfigureAwait(false);
+        }
+
+        return new SaveResult(RestartRequired: true);
+    }
+
+    /// <summary>A test prompt with the given token, else the saved one, else the server's login. Nothing is saved.</summary>
+    public Task<StepCheck> TestClaudeAsync(string? token, CancellationToken cancellationToken) =>
+        claude.TestAsync(string.IsNullOrWhiteSpace(token) ? secrets.TryGet(ClaudeTokenSecret) : token.Trim(), cancellationToken);
 
     /// <summary>"https://dev.azure.com/myorg/", "https://myorg.visualstudio.com" or "myorg" → "myorg".</summary>
     public static string? OrganizationName(string? value)

@@ -16,6 +16,7 @@ public sealed class SetupServiceTests
     private readonly FakeDatabase _database = new();
     private readonly FakeAzureDevOps _azureDevOps = new();
     private readonly FakeGitKey _gitKey = new();
+    private readonly FakeClaude _claude = new();
 
     [TestMethod]
     public async Task Saving_the_database_stores_a_secret_and_audits_it_without_the_value()
@@ -189,7 +190,45 @@ public sealed class SetupServiceTests
         CollectionAssert.AreEqual(new[] { "git@ssh.dev.azure.com:v3/myorg/Portal/sysmin" }, _gitKey.Tested);
     }
 
-    private SetupService Service() => new(_config, _secrets, _audit, _database, _azureDevOps, _gitKey, Options.Create(new JobOptions()), TimeProvider.System);
+    [TestMethod]
+    public async Task The_claude_token_is_a_secret_and_tests_fall_back_to_the_saved_one_then_the_servers_login()
+    {
+        await Service().TestClaudeAsync(null, CancellationToken.None);
+        var saved = await Service().SaveClaudeTokenAsync(" sk-ant-oat01-0123456789abcdef ", "setup", CancellationToken.None);
+        await Service().TestClaudeAsync("", CancellationToken.None);
+        await Service().TestClaudeAsync("sk-ant-oat01-other-000000000000", CancellationToken.None);
+
+        Assert.IsTrue(saved.Value!.RestartRequired);
+        Assert.AreEqual("sk-ant-oat01-0123456789abcdef", _secrets.Values[SetupService.ClaudeTokenSecret]);
+        CollectionAssert.AreEqual(new[] { null, "sk-ant-oat01-0123456789abcdef", "sk-ant-oat01-other-000000000000" }, _claude.Tested);
+        Assert.IsTrue((await Service().GetClaudeAsync(CancellationToken.None)).Token.Set);
+    }
+
+    [TestMethod]
+    [DataRow("")]
+    [DataRow("short")]
+    [DataRow("sk-ant-oat01 with spaces in the middle")]
+    public async Task A_claude_token_must_be_one_whole_line(string token)
+    {
+        var result = await Service().SaveClaudeTokenAsync(token, "setup", CancellationToken.None);
+
+        Assert.AreEqual("validation", result.Error?.Code);
+        Assert.IsEmpty(_secrets.Values);
+    }
+
+    [TestMethod]
+    public async Task Removing_the_claude_token_is_audited_once()
+    {
+        _secrets.Values[SetupService.ClaudeTokenSecret] = "sk-ant-oat01-0123456789abcdef";
+
+        await Service().RemoveClaudeTokenAsync("setup", CancellationToken.None);
+        await Service().RemoveClaudeTokenAsync("setup", CancellationToken.None);
+
+        Assert.IsEmpty(_secrets.Values);
+        Assert.AreEqual("removed", _audit.Changes.Single().Action);
+    }
+
+    private SetupService Service() => new(_config, _secrets, _audit, _database, _azureDevOps, _gitKey, _claude, Options.Create(new JobOptions()), TimeProvider.System);
 
     private sealed class FakeConfig : IConfigWriter
     {
@@ -285,6 +324,19 @@ public sealed class SetupServiceTests
         {
             Tested.Add(url);
             return Task.FromResult(new StepCheck(true, "reached"));
+        }
+    }
+
+    private sealed class FakeClaude : IClaudeProbe
+    {
+        public List<string?> Tested { get; } = [];
+
+        public Task<ClaudeLogin> StatusAsync(CancellationToken cancellationToken) => Task.FromResult(new ClaudeLogin(true, "2.1.300", false, null, null));
+
+        public Task<StepCheck> TestAsync(string? token, CancellationToken cancellationToken)
+        {
+            Tested.Add(token);
+            return Task.FromResult(new StepCheck(true, "answered"));
         }
     }
 }
