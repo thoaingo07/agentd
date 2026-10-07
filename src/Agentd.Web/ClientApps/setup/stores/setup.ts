@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { ApiError, get, send } from '../../shared/api/http'
-import type { AzureDevOpsRequest, AzureDevOpsStep, DatabaseStep, GitKeyStep, SaveResult, SetupSession, StepCheck } from '../../shared/api/types'
+import type { AzureDevOpsRequest, AzureDevOpsStep, ClaudeStep, DatabaseStep, GitKeyStep, SaveResult, SetupSession, StepCheck } from '../../shared/api/types'
 
 /**
  * The wizard's state. Secrets are write-only: they're sent once and never kept here; the server answers with
@@ -14,6 +14,7 @@ export const useSetupStore = defineStore('setup', () => {
   const database = ref<DatabaseStep | null>(null)
   const azureDevOps = ref<AzureDevOpsStep | null>(null)
   const gitKey = ref<GitKeyStep | null>(null)
+  const claude = ref<ClaudeStep | null>(null)
   /** A saved step only applies after `agentd daemon restart`. */
   const restartRequired = ref(false)
 
@@ -82,9 +83,30 @@ export const useSetupStore = defineStore('setup', () => {
     return send<StepCheck>('POST', '/api/setup/git-key/test', { url })
   }
 
+  async function loadClaude(): Promise<void> {
+    claude.value = await get<ClaudeStep>('/api/setup/claude')
+  }
+
+  async function saveClaudeToken(token: string): Promise<SaveResult> {
+    const result = await send<SaveResult>('PUT', '/api/setup/claude', { token })
+    await loadClaude()
+    return saved(result)
+  }
+
+  async function removeClaudeToken(): Promise<SaveResult> {
+    const result = await send<SaveResult>('DELETE', '/api/setup/claude/token')
+    await loadClaude()
+    return saved(result)
+  }
+
+  /** A tiny real prompt with the given token, else the saved one, else the server's login. Nothing is saved. */
+  function testClaude(token?: string): Promise<StepCheck> {
+    return send<StepCheck>('POST', '/api/setup/claude/test', { token: token?.trim() || null })
+  }
+
   return {
-    session, expiresAt, database, azureDevOps, gitKey, restartRequired,
+    session, expiresAt, database, azureDevOps, gitKey, claude, restartRequired,
     loadSession, loadDatabase, saveDatabase, testDatabase, migrateDatabase, loadAzureDevOps, saveAzureDevOps, testAzureDevOps,
-    loadGitKey, generateGitKey, testGitAccess,
+    loadGitKey, generateGitKey, testGitAccess, loadClaude, saveClaudeToken, removeClaudeToken, testClaude,
   }
 })

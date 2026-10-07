@@ -55,6 +55,19 @@ public static class SetupEndpoints
             Check(await service.TestGitAccessAsync(body?.Url, ct).ConfigureAwait(false)))
             .WithName("TestSetupGitAccess").Accepts<GitTestRequest>("application/json").Produces<StepCheckVm>();
 
+        setup.MapGet("/claude", async ([FromServices] SetupService service, CancellationToken ct) =>
+                TypedResults.Ok(ClaudeStepVm.From(await service.GetClaudeAsync(ct).ConfigureAwait(false))))
+            .WithName("GetSetupClaude");
+        setup.MapPut("/claude", async (ClaudeTokenRequest? body, ClaimsPrincipal user, [FromServices] SetupService service, CancellationToken ct) =>
+            TooLong(body?.Token) ?? (await service.SaveClaudeTokenAsync(body?.Token ?? string.Empty, By(user), ct).ConfigureAwait(false)).ToHttpResult(Saved))
+            .WithName("SaveSetupClaudeToken").Accepts<ClaudeTokenRequest>("application/json").Produces<SaveResultVm>().ProducesProblem(StatusCodes.Status400BadRequest);
+        setup.MapDelete("/claude/token", async (ClaimsPrincipal user, [FromServices] SetupService service, CancellationToken ct) =>
+            Saved(await service.RemoveClaudeTokenAsync(By(user), ct).ConfigureAwait(false)))
+            .WithName("RemoveSetupClaudeToken").Produces<SaveResultVm>();
+        setup.MapPost("/claude/test", async (ClaudeTokenRequest? body, [FromServices] SetupService service, CancellationToken ct) =>
+            TooLong(body?.Token) ?? Check(await service.TestClaudeAsync(body?.Token, ct).ConfigureAwait(false)))
+            .WithName("TestSetupClaude").Accepts<ClaudeTokenRequest>("application/json").Produces<StepCheckVm>().ProducesProblem(StatusCodes.Status400BadRequest);
+
         return setup;
     }
 
@@ -63,6 +76,9 @@ public static class SetupEndpoints
 
     /// <summary><c>Auth</c> is <c>Pat</c> or <c>AzCli</c>. An empty <c>Pat</c> keeps the saved one.</summary>
     public sealed record AzureDevOpsRequest(string? Organization, string? Project, string? Auth, string? Pat);
+
+    /// <summary>A token from <c>claude setup-token</c>. On Test, empty means "the saved one, else the server's login".</summary>
+    public sealed record ClaudeTokenRequest(string? Token);
 
     /// <summary>A repository's clone URL (SSH for agentd's key).</summary>
     public sealed record GitTestRequest(string? Url);

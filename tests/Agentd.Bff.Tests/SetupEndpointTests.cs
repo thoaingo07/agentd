@@ -105,6 +105,29 @@ public sealed class SetupEndpointTests : IDisposable
         Assert.AreEqual(HttpStatusCode.OK, test.StatusCode);
     }
 
+    [TestMethod]
+    public async Task The_claude_token_goes_in_and_only_its_status_comes_out()
+    {
+        await using var app = await StartAsync();
+        var client = await SetupClient.SignInAsync(app);
+
+        using var save = await client.SendAsync(HttpMethod.Put, "/api/setup/claude", new { token = "sk-ant-oat01-SECRET-0123456789" });
+        using var get = await client.SendAsync(HttpMethod.Get, "/api/setup/claude");
+        using var test = await client.SendAsync(HttpMethod.Post, "/api/setup/claude/test", new { token = (string?)null });
+        using var remove = await client.SendAsync(HttpMethod.Delete, "/api/setup/claude/token");
+
+        foreach (var response in new[] { save, get, test, remove })
+        {
+            Assert.AreEqual(HttpStatusCode.OK, response.StatusCode, await response.Content.ReadAsStringAsync());
+            Assert.DoesNotContain("SECRET", await response.Content.ReadAsStringAsync());
+        }
+
+        var step = JsonDocument.Parse(await get.Content.ReadAsStringAsync()).RootElement;
+        Assert.IsTrue(step.GetProperty("token").GetProperty("set").GetBoolean());
+        Assert.AreEqual("2.1.300", step.GetProperty("server").GetProperty("version").GetString());
+        Assert.IsFalse(_secrets.ContainsKey(SetupService.ClaudeTokenSecret), "removed");
+    }
+
     public void Dispose() => _session.Dispose();
 
     private Task<WebApplication> StartAsync() => _session.StartAsync(services =>
@@ -115,6 +138,7 @@ public sealed class SetupEndpointTests : IDisposable
         services.AddSingleton<IDatabaseProbe, OkDatabase>();
         services.AddSingleton<IAzureDevOpsProbe, OkAzureDevOps>();
         services.AddSingleton<IGitKey, MemoryGitKey>();
+        services.AddSingleton<IClaudeProbe, OkClaude>();
         services.AddSingleton(Options.Create(new JobOptions()));
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<SetupService>();
@@ -205,5 +229,12 @@ public sealed class SetupEndpointTests : IDisposable
             Task.FromResult(_key = new GitKeyInfo("/k/id_ed25519", "ssh-ed25519 AAAA agentd@test", "SHA256:abc"));
 
         public Task<StepCheck> TestAsync(string url, CancellationToken cancellationToken) => Task.FromResult(new StepCheck(true, "reached"));
+    }
+
+    private sealed class OkClaude : IClaudeProbe
+    {
+        public Task<ClaudeLogin> StatusAsync(CancellationToken cancellationToken) => Task.FromResult(new ClaudeLogin(true, "2.1.300", true, "claude.ai", "max"));
+
+        public Task<StepCheck> TestAsync(string? token, CancellationToken cancellationToken) => Task.FromResult(new StepCheck(true, "answered"));
     }
 }

@@ -13,6 +13,7 @@ public static class DependencyInjection
         services.AddSingleton<Application.Permissions.IToolAllowlist, ClaudeToolAllowlist>();
         services.AddSingleton<Application.Ideas.IBrainstormAgent, ClaudeBrainstormAgent>();
         services.AddSingleton<Application.Messaging.ITranscriptReader, TranscriptReader>();
+        services.AddSingleton<Application.Setup.IClaudeProbe, ClaudeCliProbe>();
         return services;
     }
 }

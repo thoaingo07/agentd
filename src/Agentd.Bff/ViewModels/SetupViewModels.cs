@@ -33,3 +33,16 @@ public sealed record GitKeyStepVm(bool Exists, string? PublicKey, string? Finger
         return new(s.Exists, s.PublicKey, s.Fingerprint, s.Path);
     }
 }
+
+/// <summary>Claude Code on this server: installed, its version, and whether a subscription is logged in there.</summary>
+public sealed record ClaudeLoginVm(bool Installed, string? Version, bool LoggedIn, string? Method, string? Plan);
+
+/// <summary>The Claude step: the stored <c>claude setup-token</c> token (status only) and the server's own login.</summary>
+public sealed record ClaudeStepVm(SecretStatusVm Token, ClaudeLoginVm Server)
+{
+    public static ClaudeStepVm From(Application.Setup.ClaudeStep s)
+    {
+        ArgumentNullException.ThrowIfNull(s);
+        return new(SecretStatusVm.From(s.Token), new ClaudeLoginVm(s.Server.Installed, s.Server.Version, s.Server.LoggedIn, s.Server.Method, s.Server.Plan));
+    }
+}

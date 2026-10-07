@@ -1424,6 +1424,136 @@
           }
         }
       }
+    },
+    "/api/setup/claude": {
+      "get": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "GetSetupClaude",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClaudeStepVm"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "SaveSetupClaudeToken",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ClaudeTokenRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SaveResultVm"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/setup/claude/token": {
+      "delete": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "RemoveSetupClaudeToken",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SaveResultVm"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/setup/claude/test": {
+      "post": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "TestSetupClaude",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ClaudeTokenRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StepCheckVm"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1504,6 +1634,74 @@
           }
         },
         "description": "\u0060Auth\u0060 is \u0060Pat\u0060 or \u0060AzCli\u0060."
+      },
+      "ClaudeLoginVm": {
+        "required": [
+          "installed",
+          "version",
+          "loggedIn",
+          "method",
+          "plan"
+        ],
+        "type": "object",
+        "properties": {
+          "installed": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "loggedIn": {
+            "type": "boolean"
+          },
+          "method": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "plan": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "Claude Code on this server: installed, its version, and whether a subscription is logged in there."
+      },
+      "ClaudeStepVm": {
+        "required": [
+          "token",
+          "server"
+        ],
+        "type": "object",
+        "properties": {
+          "token": {
+            "$ref": "#/components/schemas/SecretStatusVm"
+          },
+          "server": {
+            "$ref": "#/components/schemas/ClaudeLoginVm"
+          }
+        },
+        "description": "The Claude step: the stored \u0060claude setup-token\u0060 token (status only) and the server\u0027s own login."
+      },
+      "ClaudeTokenRequest": {
+        "required": [
+          "token"
+        ],
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "A token from \u0060claude setup-token\u0060. On Test, empty means \u0022the saved one, else the server\u0027s login\u0022."
       },
       "ConfigVm": {
         "required": [

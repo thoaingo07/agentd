@@ -77,3 +77,18 @@ public interface IGitKey
     /// <summary><c>git ls-remote</c> against <paramref name="url"/> with agentd's key.</summary>
     Task<StepCheck> TestAsync(string url, CancellationToken cancellationToken);
 }
+
+/// <summary>Claude Code on this server: installed (and which version), and whether a subscription is logged in.</summary>
+public sealed record ClaudeLogin(bool Installed, string? Version, bool LoggedIn, string? Method, string? Plan);
+
+public interface IClaudeProbe
+{
+    /// <summary><c>claude --version</c> and <c>claude auth status</c> (the server's own login, not a token).</summary>
+    Task<ClaudeLogin> StatusAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// A tiny real prompt in exactly the environment agents get, with <paramref name="token"/> (a <c>claude setup-token</c>
+    /// token) or, when it's null, the server's own login.
+    /// </summary>
+    Task<StepCheck> TestAsync(string? token, CancellationToken cancellationToken);
+}
