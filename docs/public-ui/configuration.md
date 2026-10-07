@@ -1,0 +1,100 @@
+# Configuration
+
+agentd reads, from lowest to highest priority:
+1. its built-in defaults;
+2. **`~/.agentd/config/agentd.json`**;
+3. the **encrypted secrets** (`agentd secrets set`);
+4. **`AGENTD_*` environment variables**;
+5. command-line options.
+
+In `agentd.json` the keys are relative to `Agentd`. As environment variables they're prefixed `AGENTD_`, with `__`
+between levels: `AGENTD_Jobs__PermissionMode=Auto`.
+
+`AGENTD_HOME` moves the whole home folder (default `~/.agentd`). Restart the daemon after changing configuration or
+secrets (`agentd daemon restart`).
+
+## A complete example
+
+```json
+{
+  "AzureDevOps": { "Organization": "myorg", "Project": "MyProject", "Auth": "Pat" },
+  "Repositories": { "Items": [ { "Url": "git@ssh.dev.azure.com:v3/myorg/MyProject/my-repo", "MatchTag": "repo:my-repo" } ] },
+  "Scheduler": { "PollInterval": "00:01:00", "MaxConcurrent": 2 },
+  "Jobs": { "RequirePlanApproval": true, "PermissionMode": "Ask" },
+  "Messaging": { "Providers": { "Discord": { "Enabled": true, "GuildId": "<server id>", "ChannelId": "<channel id>" } } },
+  "Users": [ { "Name": "alice", "Roles": ["Admin"], "Identities": { "Discord": "<alice's user id>" } } ],
+  "Web": { "Urls": "http://127.0.0.1:7780" }
+}
+```
+
+**Never put secrets in this file.** Store them with `agentd secrets set` (see [Secrets](#secrets)).
+
+## Secrets
+
+```bash
+agentd secrets set AzureDevOps:Pat
+agentd secrets list
+```
+
+- **How they're kept:** encrypted in `~/.agentd/config/secrets.json` with keys in `~/.agentd/keys` (both readable only
+  by you). `list` shows names and dates, never values.
+- **Agents never see them.** The one exception is a Claude token, which the Claude process itself needs.
+
+| Secret | For |
+|---|---|
+| `AzureDevOps:Pat` | Azure DevOps with `"Auth": "Pat"` (scopes: Work Items read & write, Code read & write, Build read) |
+| `Claude:OAuthToken` | a token from `claude setup-token`, instead of logging in on the server |
+| `Messaging:Providers:Discord:BotToken` | the Discord bot |
+| `ConnectionStrings:agentd` | the PostgreSQL connection string (it holds the password) |
+
+In containers, environment variables work too (`ConnectionStrings__agentd`, `AGENTD_AzureDevOps__Pat`, …).
+
+## Settings you're most likely to change
+
+| Setting | Default | What it does |
+|---|---|---|
+| `Scheduler:PollInterval` | `00:01:00` | how often Azure DevOps is polled for tagged work items |
+| `Scheduler:MaxConcurrent` | `2` | jobs running at once |
+| `Scheduler:Enabled` | `true` | `false` stops polling and starting jobs (the UI and chat keep working) |
+| `Jobs:Tag` · `Jobs:ClaimTag` · `Jobs:AutoTag` | `ai-workflow` · `ai-in-progress` · `ai-auto` | the work item tags agentd uses |
+| `Jobs:RequirePlanApproval` | `true` | wait for your "approve" before implementing (`ai-auto` skips it per work item) |
+| `Jobs:ReviewLoop` · `Jobs:MaxFixRounds` | `true` · `5` | fix PR comments automatically, up to this many rounds |
+| `Jobs:Handoff` | `true` | propose knowledge for the repository after the merge |
+| `Jobs:PermissionMode` | `Ask` | `Ask` in chat for commands outside the allowlist, or `Auto`: allow them (see [Safety](safety.md)) |
+| `Jobs:PermissionTimeout` | `00:10:00` | no answer in this time is a deny |
+| `Jobs:WaitForHumanTimeout` | `3.00:00:00` | a question nobody answers fails the job after this |
+| `Jobs:StuckAfter` | `00:05:00` | quiet this long → a "no activity" warning in the thread |
+| `Jobs:RetainFailedWorktrees` · `Jobs:RetainFinishedWorktrees` | `3.00:00:00` · `1.00:00:00` | how long worktrees are kept after a failure / after the merge |
+| `Claude:CommandTimeout` | `00:10:00` | the longest one shell command may run |
+| `Claude:AllowedTools` | (git, read-only and build tools) | extra commands agents may run without asking, e.g. `"Bash(make:*)"` |
+| `Claude:Model` | (the CLI's default) | the model for jobs |
+| `Messaging:Providers:Discord:AllowEveryone` | `false` | accept messages from everyone who can post in the channel, not just `Users` |
+| `Web:Urls` | `http://127.0.0.1:7780` | where the web UI and API listen (always a loopback address, e.g. `127.0.0.1`) |
+
+## Web access
+
+agentd **only ever listens on loopback** (`127.0.0.1`). It refuses to start with any other address. By default
+(`Auth:Mode` `None`) there is no sign-in: whoever reaches the port is the local admin. Requests that came through a
+proxy are refused, so from another computer use an SSH tunnel ([Getting started, step 8](getting-started.md#8-reach-the-web-ui)).
+
+To publish it on the internet safely, use **Cloudflare Tunnel + Cloudflare Access**:
+1. **Tunnel:** `cloudflared tunnel create agentd`. Route `agentd.example.com` to `http://127.0.0.1:7780`, and **never
+   publish `/mcp`** (the agents' endpoint).
+2. **Access:** create a self-hosted application for `agentd.example.com`, with a policy for your email addresses.
+3. **agentd:** configure it to check Access's token on every request:
+
+```json
+"Auth": {
+  "Mode": "CloudflareAccess",
+  "CloudflareAccess": {
+    "TeamDomain": "<team>.cloudflareaccess.com",
+    "Audience": "<the application's AUD tag>",
+    "AllowedEmails": ["alice@example.com", "bob@example.com"],
+    "AdminEmails": ["alice@example.com"]
+  }
+},
+"Web": { "Urls": "http://127.0.0.1:7780", "PublicOrigin": "https://agentd.example.com" }
+```
+
+`AllowedEmails` (optional) narrows who Access lets in further; people in `AdminEmails` get the Admin role.
+`PublicOrigin` is the address people type in the browser, so live updates accept it.
