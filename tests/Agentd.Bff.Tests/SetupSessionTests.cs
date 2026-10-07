@@ -128,11 +128,11 @@ public sealed class SetupSessionTests : IDisposable
 
     public void Dispose() => Directory.Delete(_dir, recursive: true);
 
-    private static SetupToken Tokens(WebApplication app) => app.Services.GetRequiredService<SetupToken>();
+    internal static SetupToken Tokens(WebApplication app) => app.Services.GetRequiredService<SetupToken>();
 
-    private static HttpClient Client(WebApplication app) => app.GetTestServer().CreateClient();   // no redirects followed
+    internal static HttpClient Client(WebApplication app) => app.GetTestServer().CreateClient();   // no redirects followed
 
-    private static async Task<string> ExchangeAsync(WebApplication app, string token)
+    internal static async Task<string> ExchangeAsync(WebApplication app, string token)
     {
         using var response = await Client(app).GetAsync(new Uri($"/setup?token={token}", UriKind.Relative));
         Assert.AreEqual(HttpStatusCode.Redirect, response.StatusCode);
@@ -151,7 +151,7 @@ public sealed class SetupSessionTests : IDisposable
         return await Client(app).SendAsync(request);
     }
 
-    private async Task<WebApplication> StartAsync()
+    internal async Task<WebApplication> StartAsync(Action<IServiceCollection>? services = null)
     {
         var builder = WebApplication.CreateSlimBuilder();
         builder.WebHost.UseTestServer();
@@ -159,6 +159,7 @@ public sealed class SetupSessionTests : IDisposable
         builder.Services.AddSingleton<ILiveEvents>(new EventHub(NullLogger<EventHub>.Instance));
         builder.Services.AddSingleton<ISetupState>(_state);
         builder.Services.AddSingleton(new SetupToken(Path.Combine(_dir, "run", "setup-token")));
+        services?.Invoke(builder.Services);
         var app = builder.Build();
         app.UseAuthentication();
         app.UseAuthorization();

@@ -104,7 +104,7 @@ public static class BffModule
         endpoints.MapCspReport();   // outside the groups: anonymous, no antiforgery (browsers send it)
         var api = endpoints.MapGroup("/api").RequireAuthorization().AddEndpointFilter<AntiforgeryFilter>();
         endpoints.MapGroup("/bff").RequireAuthorization().AddEndpointFilter<AntiforgeryFilter>().MapSession();
-        endpoints.MapSetupSession();   // GET /setup (the one-time link) and /api/setup (the setup session only)
+        endpoints.MapSetupSession().MapSetupSteps();   // GET /setup (the one-time link) and /api/setup (the setup session only)
         api.MapJobReads();
         api.MapJobActions();
         api.MapConfig();

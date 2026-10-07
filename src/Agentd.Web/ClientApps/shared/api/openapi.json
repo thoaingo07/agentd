@@ -1100,6 +1100,136 @@
           }
         }
       }
+    },
+    "/api/setup/database": {
+      "get": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "GetSetupDatabase",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatabaseStepVm"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "SaveSetupDatabase",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/DatabaseRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SaveResultVm"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/setup/database/test": {
+      "post": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "TestSetupDatabase",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/DatabaseRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StepCheckVm"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/setup/database/migrate": {
+      "post": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "MigrateSetupDatabase",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StepCheckVm"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1275,6 +1405,32 @@
           "latestSeq": {
             "type": "integer",
             "format": "int64"
+          }
+        }
+      },
+      "DatabaseRequest": {
+        "required": [
+          "connectionString"
+        ],
+        "type": "object",
+        "properties": {
+          "connectionString": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "The PostgreSQL connection string (a secret). On Test, empty means \u0022the saved one\u0022."
+      },
+      "DatabaseStepVm": {
+        "required": [
+          "connectionString"
+        ],
+        "type": "object",
+        "properties": {
+          "connectionString": {
+            "$ref": "#/components/schemas/SecretStatusVm"
           }
         }
       },
@@ -2095,6 +2251,45 @@
           }
         }
       },
+      "SaveResultVm": {
+        "required": [
+          "restartRequired"
+        ],
+        "type": "object",
+        "properties": {
+          "restartRequired": {
+            "type": "boolean"
+          }
+        },
+        "description": "Saved. The daemon reads these settings at start, so they apply after a restart."
+      },
+      "SecretStatusVm": {
+        "required": [
+          "set",
+          "updatedAt",
+          "updatedBy"
+        ],
+        "type": "object",
+        "properties": {
+          "set": {
+            "type": "boolean"
+          },
+          "updatedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "updatedBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "A secret\u0027s status. Secrets are write-only: the value never leaves the server."
+      },
       "SetupSessionVm": {
         "required": [
           "expiresAt"
@@ -2110,6 +2305,29 @@
           }
         },
         "description": "The setup session (the one-time link\u0027s cookie): when it ends unless used again (it slides)."
+      },
+      "StepCheckVm": {
+        "required": [
+          "ok",
+          "message",
+          "fix"
+        ],
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "fix": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "A step\u0027s \u0022Test\u0022 result; string? StepCheckVm.Fix says what to do when it failed."
       },
       "UsageVm": {
         "required": [
