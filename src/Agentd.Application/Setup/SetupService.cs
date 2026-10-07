@@ -25,6 +25,20 @@ public sealed record GitKeyStep(bool Exists, string? PublicKey, string? Fingerpr
 /// <summary>The Claude step: a stored <c>claude setup-token</c> token, and the server's own Claude Code login.</summary>
 public sealed record ClaudeStep(SecretStatus Token, ClaudeLogin Server);
 
+/// <summary>A user in <c>Agentd:Users</c> with a Discord identity (agentd only answers people it knows).</summary>
+public sealed record ChatUser(string Name, string DiscordId);
+
+/// <summary>The chat step (Discord): the channel agentd works in, the bot token's status, and who it answers.</summary>
+public sealed record ChatStep(bool Enabled, string? GuildId, string? ChannelId, SecretStatus BotToken, IReadOnlyList<ChatUser> Users);
+
+/// <param name="Enabled">Off: agentd works without chat (the web UI only).</param>
+/// <param name="GuildId">The Discord server's ID.</param>
+/// <param name="ChannelId">The channel's ID.</param>
+/// <param name="BotToken">A new token; null keeps the saved one.</param>
+/// <param name="UserName">Your name in agentd (with <paramref name="UserDiscordId"/>: added as an Admin, or the ID added to that user).</param>
+/// <param name="UserDiscordId">Your Discord user ID.</param>
+public sealed record ChatInput(bool Enabled, string? GuildId, string? ChannelId, string? BotToken, string? UserName, string? UserDiscordId);
+
 /// <summary>A saved step. The daemon reads these settings at start, so they apply after a restart.</summary>
 public sealed record SaveResult(bool RestartRequired);
 
@@ -41,12 +55,15 @@ public sealed class SetupService(
     IAzureDevOpsProbe azureDevOps,
     IGitKey gitKey,
     IClaudeProbe claude,
+    IChatProbe chat,
     IOptions<JobOptions> jobs,
     TimeProvider time)
 {
     public const string ConnectionStringSecret = "ConnectionStrings:agentd";
     public const string PatSecret = "AzureDevOps:Pat";
     public const string ClaudeTokenSecret = "Claude:OAuthToken";
+    public const string DiscordTokenSecret = "Messaging:Providers:Discord:BotToken";
+    private const string Discord = "Messaging:Providers:Discord";
     public const string PatAuth = "Pat";
     public const string AzCliAuth = "AzCli";
 
@@ -221,6 +238,115 @@ public sealed class SetupService(
     /// <summary>A test prompt with the given token, else the saved one, else the server's login. Nothing is saved.</summary>
     public Task<StepCheck> TestClaudeAsync(string? token, CancellationToken cancellationToken) =>
         claude.TestAsync(string.IsNullOrWhiteSpace(token) ? secrets.TryGet(ClaudeTokenSecret) : token.Trim(), cancellationToken);
+
+    public ChatStep GetChat() => new(
+        string.Equals(config.Read($"{Discord}:Enabled"), "true", StringComparison.OrdinalIgnoreCase),
+        config.Read($"{Discord}:GuildId"),
+        config.Read($"{Discord}:ChannelId"),
+        secrets.Status(DiscordTokenSecret),
+        [.. Users().Where(u => u.DiscordId is not null).Select(u => new ChatUser(u.Name, u.DiscordId!))]);
+
+    public async Task<Result<SaveResult>> SaveChatAsync(ChatInput input, string by, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        if (!input.Enabled)
+        {
+            await config.SetAsync(new Dictionary<string, string?> { [$"{Discord}:Enabled"] = "false" }, cancellationToken).ConfigureAwait(false);
+            await audit.RecordAsync([Change($"{Discord}:Enabled", "config", "set", by)], cancellationToken).ConfigureAwait(false);
+            return new SaveResult(RestartRequired: true);
+        }
+
+        if (ValidateChat(input) is { } problem)
+        {
+            return DomainError.Validation(problem);
+        }
+
+        if (string.IsNullOrWhiteSpace(input.BotToken) && !secrets.Status(DiscordTokenSecret).Set)
+        {
+            return DomainError.Validation("Enter the bot token.");
+        }
+
+        var values = new Dictionary<string, string?>(StringComparer.Ordinal)
+        {
+            [$"{Discord}:Enabled"] = "true",
+            [$"{Discord}:GuildId"] = input.GuildId!.Trim(),
+            [$"{Discord}:ChannelId"] = input.ChannelId!.Trim(),
+        };
+        if (!string.IsNullOrWhiteSpace(input.UserDiscordId))
+        {
+            AddUser(values, input.UserName!.Trim(), input.UserDiscordId.Trim());
+        }
+
+        await config.SetAsync(values, cancellationToken).ConfigureAwait(false);
+        var changes = values.Keys.Select(k => Change(k, "config", "set", by)).ToList();
+        if (!string.IsNullOrWhiteSpace(input.BotToken))
+        {
+            secrets.Store(DiscordTokenSecret, input.BotToken.Trim(), by);
+            changes.Add(Change(DiscordTokenSecret, "secret", "set", by));
+        }
+
+        await audit.RecordAsync(changes, cancellationToken).ConfigureAwait(false);
+        return new SaveResult(RestartRequired: true);
+    }
+
+    /// <summary>Posts a test message with the given settings (an empty token: the saved one). Nothing is saved.</summary>
+    public async Task<StepCheck> TestChatAsync(ChatInput input, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        if (ValidateChat(input with { UserName = null, UserDiscordId = null }) is { } problem)
+        {
+            return new StepCheck(false, problem, "fill in the server and channel IDs");
+        }
+
+        var token = string.IsNullOrWhiteSpace(input.BotToken) ? secrets.TryGet(DiscordTokenSecret) : input.BotToken.Trim();
+        return token is null
+            ? new StepCheck(false, "No bot token given or saved.", "Discord Developer Portal → your application → Bot → Reset Token")
+            : await chat.TestAsync(new ChatConnection(token, input.GuildId!.Trim(), input.ChannelId!.Trim()), cancellationToken).ConfigureAwait(false);
+    }
+
+    private static string? ValidateChat(ChatInput input)
+    {
+        if (!IsSnowflake(input.GuildId) || !IsSnowflake(input.ChannelId))
+        {
+            return "The server and channel IDs are long numbers (Discord: Developer Mode, then right-click → Copy ID).";
+        }
+
+        if (!string.IsNullOrWhiteSpace(input.UserDiscordId) && (!IsSnowflake(input.UserDiscordId) || string.IsNullOrWhiteSpace(input.UserName)))
+        {
+            return "Your Discord user ID is a long number, and agentd needs a name for you.";
+        }
+
+        return null;
+    }
+
+    private static bool IsSnowflake(string? value) => value?.Trim() is { Length: >= 15 and <= 22 } v && v.All(char.IsAsciiDigit);
+
+    /// <summary>The users in agentd.json / the configuration, in order (<c>Users:0</c>, <c>Users:1</c>, …).</summary>
+    private List<(string Name, string? DiscordId)> Users()
+    {
+        var users = new List<(string, string?)>();
+        for (var i = 0; config.Read($"Users:{i}:Name") is { } name; i++)
+        {
+            users.Add((name, config.Read($"Users:{i}:Identities:Discord")));
+        }
+
+        return users;
+    }
+
+    /// <summary>Adds the Discord ID to the user with that name, or appends a new Admin.</summary>
+    private void AddUser(Dictionary<string, string?> values, string name, string discordId)
+    {
+        var users = Users();
+        var index = users.FindIndex(u => string.Equals(u.Name, name, StringComparison.OrdinalIgnoreCase));
+        if (index < 0)
+        {
+            index = users.Count;
+            values[$"Users:{index}:Name"] = name;
+            values[$"Users:{index}:Roles:0"] = "Admin";
+        }
+
+        values[$"Users:{index}:Identities:Discord"] = discordId;
+    }
 
     /// <summary>"https://dev.azure.com/myorg/", "https://myorg.visualstudio.com" or "myorg" → "myorg".</summary>
     public static string? OrganizationName(string? value)

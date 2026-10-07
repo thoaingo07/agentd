@@ -92,3 +92,12 @@ public interface IClaudeProbe
     /// </summary>
     Task<StepCheck> TestAsync(string? token, CancellationToken cancellationToken);
 }
+
+/// <summary>A Discord bot and the channel agentd works in.</summary>
+public sealed record ChatConnection(string BotToken, string GuildId, string ChannelId);
+
+public interface IChatProbe
+{
+    /// <summary>Checks the token and that the channel is in that server, then posts a short test message there.</summary>
+    Task<StepCheck> TestAsync(ChatConnection connection, CancellationToken cancellationToken);
+}

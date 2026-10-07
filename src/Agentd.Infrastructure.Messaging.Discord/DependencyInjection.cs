@@ -19,6 +19,7 @@ public static class DependencyInjection
                 http.BaseAddress = sp.GetRequiredService<IOptions<DiscordOptions>>().Value.ApiBaseUrl)
             .AddHttpMessageHandler<DiscordAuthHandler>();
         services.AddSingleton(sp => new DiscordRest(() => sp.GetRequiredService<IHttpClientFactory>().CreateClient(HttpClientName)));
+        services.AddSingleton<Application.Setup.IChatProbe, DiscordProbe>();
         services.AddSingleton<DiscordMessagingProvider>();
         services.AddSingleton<IMessagingProvider>(sp => sp.GetRequiredService<DiscordMessagingProvider>());
         services.AddHostedService<DiscordPoller>();

@@ -36,6 +36,8 @@ export type SaveResult = Schemas['SaveResultVm']
 export type AzureDevOpsRequest = Schemas['AzureDevOpsRequest']
 export type GitKeyStep = Schemas['GitKeyStepVm']
 export type ClaudeStep = Schemas['ClaudeStepVm']
+export type ChatStep = Schemas['ChatStepVm']
+export type ChatRequest = Schemas['ChatRequest']
 
 /** Every BFF error is ProblemDetails; agentd adds a machine-readable `code` (not_found, invalid_transition, …). */
 export type Problem = Schemas['ProblemDetails'] & { code?: string }

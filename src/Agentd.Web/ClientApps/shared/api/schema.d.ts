@@ -580,6 +580,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/setup/chat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetSetupChat"];
+        put: operations["SaveSetupChat"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/setup/chat/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["TestSetupChat"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -600,6 +632,27 @@ export interface components {
             project: null | string;
             auth: string;
             pat: components["schemas"]["SecretStatusVm"];
+        };
+        /** @description Discord settings. An empty `BotToken` keeps the saved one; `UserName` + `UserDiscordId` add you as a user. */
+        ChatRequest: {
+            enabled: boolean;
+            guildId: null | string;
+            channelId: null | string;
+            botToken: null | string;
+            userName: null | string;
+            userDiscordId: null | string;
+        };
+        /** @description The chat step (Discord): the server and channel IDs, the bot token's status, and who agentd answers there. */
+        ChatStepVm: {
+            enabled: boolean;
+            guildId: null | string;
+            channelId: null | string;
+            botToken: components["schemas"]["SecretStatusVm"];
+            users: components["schemas"]["ChatUserVm"][];
+        };
+        ChatUserVm: {
+            name: string;
+            discordId: string;
         };
         /** @description Claude Code on this server: installed, its version, and whether a subscription is logged in there. */
         ClaudeLoginVm: {
@@ -2134,6 +2187,92 @@ export interface operations {
         requestBody?: {
             content: {
                 "application/json": null | components["schemas"]["ClaudeTokenRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StepCheckVm"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetSetupChat: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatStepVm"];
+                };
+            };
+        };
+    };
+    SaveSetupChat: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": null | components["schemas"]["ChatRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SaveResultVm"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    TestSetupChat: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": null | components["schemas"]["ChatRequest"];
             };
         };
         responses: {

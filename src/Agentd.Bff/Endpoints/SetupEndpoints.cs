@@ -68,6 +68,15 @@ public static class SetupEndpoints
             TooLong(body?.Token) ?? Check(await service.TestClaudeAsync(body?.Token, ct).ConfigureAwait(false)))
             .WithName("TestSetupClaude").Accepts<ClaudeTokenRequest>("application/json").Produces<StepCheckVm>().ProducesProblem(StatusCodes.Status400BadRequest);
 
+        setup.MapGet("/chat", ([FromServices] SetupService service) => TypedResults.Ok(ChatStepVm.From(service.GetChat())))
+            .WithName("GetSetupChat");
+        setup.MapPut("/chat", async (ChatRequest? body, ClaimsPrincipal user, [FromServices] SetupService service, CancellationToken ct) =>
+            TooLong(body?.BotToken) ?? (await service.SaveChatAsync(Chat(body), By(user), ct).ConfigureAwait(false)).ToHttpResult(Saved))
+            .WithName("SaveSetupChat").Accepts<ChatRequest>("application/json").Produces<SaveResultVm>().ProducesProblem(StatusCodes.Status400BadRequest);
+        setup.MapPost("/chat/test", async (ChatRequest? body, [FromServices] SetupService service, CancellationToken ct) =>
+            TooLong(body?.BotToken) ?? Check(await service.TestChatAsync(Chat(body), ct).ConfigureAwait(false)))
+            .WithName("TestSetupChat").Accepts<ChatRequest>("application/json").Produces<StepCheckVm>().ProducesProblem(StatusCodes.Status400BadRequest);
+
         return setup;
     }
 
@@ -80,11 +89,17 @@ public static class SetupEndpoints
     /// <summary>A token from <c>claude setup-token</c>. On Test, empty means "the saved one, else the server's login".</summary>
     public sealed record ClaudeTokenRequest(string? Token);
 
+    /// <summary>Discord settings. An empty <c>BotToken</c> keeps the saved one; <c>UserName</c> + <c>UserDiscordId</c> add you as a user.</summary>
+    public sealed record ChatRequest(bool Enabled, string? GuildId, string? ChannelId, string? BotToken, string? UserName, string? UserDiscordId);
+
     /// <summary>A repository's clone URL (SSH for agentd's key).</summary>
     public sealed record GitTestRequest(string? Url);
 
     private static AzureDevOpsInput Input(AzureDevOpsRequest? body) =>
         new(body?.Organization ?? string.Empty, body?.Project ?? string.Empty, body?.Auth ?? SetupService.AzCliAuth, body?.Pat);
+
+    private static ChatInput Chat(ChatRequest? body) =>
+        new(body?.Enabled ?? false, body?.GuildId, body?.ChannelId, body?.BotToken, body?.UserName, body?.UserDiscordId);
 
     private static IResult? TooLong(string? secret) => secret is { Length: > MaxSecretLength }
         ? new Domain.Common.DomainError("validation", $"At most {MaxSecretLength} characters.").ToProblem()

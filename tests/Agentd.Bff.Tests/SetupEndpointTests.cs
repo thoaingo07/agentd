@@ -128,6 +128,28 @@ public sealed class SetupEndpointTests : IDisposable
         Assert.IsFalse(_secrets.ContainsKey(SetupService.ClaudeTokenSecret), "removed");
     }
 
+    [TestMethod]
+    public async Task The_bot_token_goes_in_and_only_its_status_comes_out()
+    {
+        await using var app = await StartAsync();
+        var client = await SetupClient.SignInAsync(app);
+        var body = new { enabled = true, guildId = "770517485715193877", channelId = "1555955347544608809", botToken = "bot-SECRET", userName = "tngo", userDiscordId = "710392908099878953" };
+
+        using var save = await client.SendAsync(HttpMethod.Put, "/api/setup/chat", body);
+        using var get = await client.SendAsync(HttpMethod.Get, "/api/setup/chat");
+        using var test = await client.SendAsync(HttpMethod.Post, "/api/setup/chat/test", body with { });
+
+        foreach (var response in new[] { save, get, test })
+        {
+            Assert.AreEqual(HttpStatusCode.OK, response.StatusCode, await response.Content.ReadAsStringAsync());
+            Assert.DoesNotContain("SECRET", await response.Content.ReadAsStringAsync());
+        }
+
+        var step = JsonDocument.Parse(await get.Content.ReadAsStringAsync()).RootElement;
+        Assert.IsTrue(step.GetProperty("botToken").GetProperty("set").GetBoolean());
+        Assert.AreEqual("710392908099878953", step.GetProperty("users")[0].GetProperty("discordId").GetString());
+    }
+
     public void Dispose() => _session.Dispose();
 
     private Task<WebApplication> StartAsync() => _session.StartAsync(services =>
@@ -139,6 +161,7 @@ public sealed class SetupEndpointTests : IDisposable
         services.AddSingleton<IAzureDevOpsProbe, OkAzureDevOps>();
         services.AddSingleton<IGitKey, MemoryGitKey>();
         services.AddSingleton<IClaudeProbe, OkClaude>();
+        services.AddSingleton<IChatProbe, OkChat>();
         services.AddSingleton(Options.Create(new JobOptions()));
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<SetupService>();
@@ -236,5 +259,10 @@ public sealed class SetupEndpointTests : IDisposable
         public Task<ClaudeLogin> StatusAsync(CancellationToken cancellationToken) => Task.FromResult(new ClaudeLogin(true, "2.1.300", true, "claude.ai", "max"));
 
         public Task<StepCheck> TestAsync(string? token, CancellationToken cancellationToken) => Task.FromResult(new StepCheck(true, "answered"));
+    }
+
+    private sealed class OkChat : IChatProbe
+    {
+        public Task<StepCheck> TestAsync(ChatConnection connection, CancellationToken cancellationToken) => Task.FromResult(new StepCheck(true, "posted"));
     }
 }
