@@ -18,6 +18,20 @@ Related: [Architecture](README.md) · [Data access](data-access.md) · [Model pr
 CLI command that talks to the daemon over a **Unix domain socket** (`~/.agentd/run/agentd.sock`).
 Where the daemon isn't needed, the CLI talks to PostgreSQL through the Application layer.
 
+How it's built (T1b.1):
+- **A separate, tiny Kestrel** inside the daemon (`ControlSocket`) listens only on the socket. Adding a Unix socket
+  to the main server would override `Web:Urls`, and this way `/control/*` can't exist on TCP at all. The TCP host also
+  reserves `/control` (404).
+- **Access control is the file system.** The socket is 0600 in the 0700 `run` folder, so there's no token.
+- **At start:** a stale socket (a crash) is replaced, and a live one (another daemon on the same home) is left alone.
+  A path over 100 bytes (the Unix limit) or a bind error is only a warning: the daemon runs without the socket.
+- **Endpoints:**
+  - `GET /control/health`;
+  - `GET /control/status?all=`: the database rows plus the live phase, last activity and resources;
+  - `POST /control/run/{id}?repo=`: claims the work item and wakes the scheduler at once.
+- **The CLI's `status` and `run` ask the daemon first.** Without it they say `(daemon not running; from the
+  database)` and use the Application queries. Windows uses the database (named pipes later).
+
 | Command | Does |
 |---|---|
 | `agentd daemon run` | runs the daemon in the foreground (what systemd and Docker execute) |
