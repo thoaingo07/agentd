@@ -171,3 +171,27 @@ jobs:
             src/Agentd.Web/test-results
             src/Agentd.Web/playwright-report
             ${{ runner.temp }}/host.log
+
+  # The image builds, and the tools agents need are inside (T1b.8). amd64 only; releases add arm64.
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          load: true
+          tags: agentd:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Smoke test
+        run: |
+          docker run --rm --entrypoint sh agentd:ci -c 'agentd version && claude --version && git --version && ssh -V && test "$(id -u)" = 10001'
+          # No database or config: doctor must run and report, not crash.
+          docker run --rm agentd:ci doctor | tee doctor.txt || true
+          grep -q "Claude Code CLI: " doctor.txt
+

@@ -25,3 +25,23 @@ PostgreSQL, so `docker compose up` gives the same setup flow.
 
 ## Done when
 - [ ] `docker compose up` → setup link in the logs → wizard → a job runs (manual).
+
+## As built (2026-10-06)
+- **`Dockerfile`:**
+  - the build stage runs on the builder's platform and cross-publishes for the target with `build/publish.sh`, so the
+    .NET build doesn't need emulation;
+  - the runtime is `node:24-trixie-slim` (Debian 13: git 2.47) plus `libssl3t64`, git, openssh, curl, `tini` and
+    `@anthropic-ai/claude-code` (`CLAUDE_CODE_VERSION`), with `az` optional (`INSTALL_AZ`);
+  - user `agentd` (10001); `~/.agentd` is created 0700 and owned by agentd *before* the `VOLUME`, so new volumes aren't
+    root's;
+  - `ENTRYPOINT tini -- agentd`, `CMD daemon run`.
+- **`compose.yaml`:**
+  - postgres 17, a one-shot `migrate`, and `agentd`, all with `network_mode: host` on 127.0.0.1;
+  - `POSTGRES_PASSWORD` is required in `.env`; `POSTGRES_PORT` and `AGENTD_VERSION` are optional;
+  - `stop_grace_period: 60s`.
+  - Why host networking: see deployment.md §7B.
+- **Release:** `image` job builds amd64 and arm64 with buildx and QEMU, and pushes `:<version>`, `:latest` (release) or
+  `:beta` (pre-release) to GHCR, with the GHA cache.
+- **CI:** a `docker` job builds amd64 and checks the tools, the uid, and that `doctor` reports without crashing.
+- Verified locally with `docker compose up` (see deployment.md §7B).
+
