@@ -1230,6 +1230,116 @@
           }
         }
       }
+    },
+    "/api/setup/azure-devops": {
+      "get": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "GetSetupAzureDevOps",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AzureDevOpsStepVm"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "SaveSetupAzureDevOps",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/AzureDevOpsRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SaveResultVm"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/setup/azure-devops/test": {
+      "post": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "TestSetupAzureDevOps",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/AzureDevOpsRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StepCheckVm"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1244,6 +1354,72 @@
             "type": "string"
           }
         }
+      },
+      "AzureDevOpsRequest": {
+        "required": [
+          "organization",
+          "project",
+          "auth",
+          "pat"
+        ],
+        "type": "object",
+        "properties": {
+          "organization": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "project": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "auth": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "pat": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "string? AzureDevOpsRequest.Auth is \u0060Pat\u0060 or \u0060AzCli\u0060. An empty string? AzureDevOpsRequest.Pat keeps the saved one."
+      },
+      "AzureDevOpsStepVm": {
+        "required": [
+          "organization",
+          "project",
+          "auth",
+          "pat"
+        ],
+        "type": "object",
+        "properties": {
+          "organization": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "project": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "auth": {
+            "type": "string"
+          },
+          "pat": {
+            "$ref": "#/components/schemas/SecretStatusVm"
+          }
+        },
+        "description": "string AzureDevOpsStepVm.Auth is \u0060Pat\u0060 or \u0060AzCli\u0060."
       },
       "ConfigVm": {
         "required": [

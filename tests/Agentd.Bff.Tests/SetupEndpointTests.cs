@@ -1,9 +1,11 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Agentd.Application.Jobs;
 using Agentd.Application.Setup;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace Agentd.Bff.Tests;
 
@@ -11,9 +13,11 @@ namespace Agentd.Bff.Tests;
 public sealed class SetupEndpointTests : IDisposable
 {
     private const string ConnectionString = "Host=db;Username=agentd;Password=pw-SECRET;Database=agentd";
+    private const string Pat = "pat-SECRET-123";
 
     private readonly SetupSessionTests _session = new();
     private readonly Dictionary<string, string> _secrets = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, string?> _config = new(StringComparer.OrdinalIgnoreCase);
 
     [TestMethod]
     public async Task Secrets_go_in_but_never_come_back_out()
@@ -22,11 +26,12 @@ public sealed class SetupEndpointTests : IDisposable
         var client = await SetupClient.SignInAsync(app);
 
         using var saveDb = await client.SendAsync(HttpMethod.Put, "/api/setup/database", new { connectionString = ConnectionString });
+        using var saveAdo = await client.SendAsync(HttpMethod.Put, "/api/setup/azure-devops", new { organization = "myorg", project = "Portal", auth = "Pat", pat = Pat });
         using var db = await client.SendAsync(HttpMethod.Get, "/api/setup/database");
-        using var test = await client.SendAsync(HttpMethod.Post, "/api/setup/database/test", new { connectionString = (string?)null });
-        using var migrate = await client.SendAsync(HttpMethod.Post, "/api/setup/database/migrate");
+        using var ado = await client.SendAsync(HttpMethod.Get, "/api/setup/azure-devops");
+        using var test = await client.SendAsync(HttpMethod.Post, "/api/setup/azure-devops/test", new { organization = "myorg", project = "Portal", auth = "Pat" });
 
-        foreach (var response in new[] { saveDb, db, test, migrate })
+        foreach (var response in new[] { saveDb, saveAdo, db, ado, test })
         {
             Assert.AreEqual(HttpStatusCode.OK, response.StatusCode, await response.Content.ReadAsStringAsync());
             var body = await response.Content.ReadAsStringAsync();
@@ -34,7 +39,10 @@ public sealed class SetupEndpointTests : IDisposable
         }
 
         Assert.AreEqual(ConnectionString, _secrets[SetupService.ConnectionStringSecret]);
-        Assert.IsTrue(JsonDocument.Parse(await db.Content.ReadAsStringAsync()).RootElement.GetProperty("connectionString").GetProperty("set").GetBoolean());
+        Assert.AreEqual(Pat, _secrets[SetupService.PatSecret]);
+        var step = JsonDocument.Parse(await ado.Content.ReadAsStringAsync()).RootElement;
+        Assert.IsTrue(step.GetProperty("pat").GetProperty("set").GetBoolean());
+        Assert.AreEqual("myorg", step.GetProperty("organization").GetString());
         Assert.IsTrue(JsonDocument.Parse(await saveDb.Content.ReadAsStringAsync()).RootElement.GetProperty("restartRequired").GetBoolean());
     }
 
@@ -70,11 +78,11 @@ public sealed class SetupEndpointTests : IDisposable
         await using var app = await StartAsync();
         var client = await SetupClient.SignInAsync(app);
 
-        using var empty = await client.SendAsync(HttpMethod.Put, "/api/setup/database", new { connectionString = " " });
+        using var badOrg = await client.SendAsync(HttpMethod.Put, "/api/setup/azure-devops", new { organization = "https://github.com/x", project = "Portal", auth = "AzCli" });
         using var tooLong = await client.SendAsync(HttpMethod.Put, "/api/setup/database", new { connectionString = new string('x', 5000) });
 
-        Assert.AreEqual(HttpStatusCode.BadRequest, empty.StatusCode);
-        Assert.Contains("connection string", await empty.Content.ReadAsStringAsync());
+        Assert.AreEqual(HttpStatusCode.BadRequest, badOrg.StatusCode);
+        Assert.Contains("organization", await badOrg.Content.ReadAsStringAsync());
         Assert.AreEqual(HttpStatusCode.BadRequest, tooLong.StatusCode);
     }
 
@@ -82,9 +90,12 @@ public sealed class SetupEndpointTests : IDisposable
 
     private Task<WebApplication> StartAsync() => _session.StartAsync(services =>
     {
+        services.AddSingleton<IConfigWriter>(new MemoryConfig(_config));
         services.AddSingleton<ISecrets>(new MemorySecrets(_secrets));
         services.AddSingleton<ISettingsAudit, NoAudit>();
         services.AddSingleton<IDatabaseProbe, OkDatabase>();
+        services.AddSingleton<IAzureDevOpsProbe, OkAzureDevOps>();
+        services.AddSingleton(Options.Create(new JobOptions()));
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<SetupService>();
     });
@@ -118,6 +129,21 @@ public sealed class SetupEndpointTests : IDisposable
         }
     }
 
+    private sealed class MemoryConfig(Dictionary<string, string?> values) : IConfigWriter
+    {
+        public string? Read(string key) => values.GetValueOrDefault(key);
+
+        public Task SetAsync(IReadOnlyDictionary<string, string?> changes, CancellationToken cancellationToken)
+        {
+            foreach (var (k, v) in changes)
+            {
+                values[k] = v;
+            }
+
+            return Task.CompletedTask;
+        }
+    }
+
     private sealed class MemorySecrets(Dictionary<string, string> values) : ISecrets
     {
         public SecretStatus Status(string key) => values.ContainsKey(key) ? new SecretStatus(true, DateTimeOffset.UnixEpoch, "setup") : SecretStatus.Missing;
@@ -141,5 +167,11 @@ public sealed class SetupEndpointTests : IDisposable
         public Task<StepCheck> TestAsync(string connectionString, CancellationToken cancellationToken) => Task.FromResult(new StepCheck(true, "connected"));
 
         public Task<StepCheck> MigrateAsync(string connectionString, CancellationToken cancellationToken) => Task.FromResult(new StepCheck(true, "migrated"));
+    }
+
+    private sealed class OkAzureDevOps : IAzureDevOpsProbe
+    {
+        public Task<StepCheck> TestAsync(AzureDevOpsConnection connection, JobOptions jobs, CancellationToken cancellationToken) =>
+            Task.FromResult(new StepCheck(true, $"signed in to {connection.Organization}"));
     }
 }

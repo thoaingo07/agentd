@@ -17,8 +17,15 @@ internal static class SetupLink
         return $"{address.TrimEnd('/')}{SetupSession.PagePath}?token={Uri.EscapeDataString(token)}";
     }
 
+    /// <summary>The SSH tunnel for the link's own port: <c>ssh -L 7796:127.0.0.1:7796 &lt;this server&gt;</c>.</summary>
+    public static string Tunnel(string link)
+    {
+        var port = new Uri(link).Port;
+        return $"ssh -L {port}:127.0.0.1:{port} <this server>";
+    }
+
     public static string Hint(string link) =>
-        $"Open {link} to set agentd up (from another computer: ssh -L 7780:127.0.0.1:7780 <this server>, then open it there), or run `agentd init`. " +
+        $"Open {link} to set agentd up (from another computer: {Tunnel(link)}, then open it there), or run `agentd init`. " +
         "The link works until setup is complete; `agentd setup-link` prints a new one.";
 }
 

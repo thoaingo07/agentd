@@ -94,6 +94,15 @@ public sealed class SetupTests : IDisposable
         Assert.AreEqual(expected, SetupLink.For(addresses, "abc"));
 
     [TestMethod]
+    [DataRow("http://127.0.0.1:7796/setup?token=abc", "ssh -L 7796:127.0.0.1:7796 <this server>")]
+    [DataRow("http://127.0.0.1/setup?token=abc", "ssh -L 80:127.0.0.1:80 <this server>")]
+    public void The_tunnel_hint_uses_the_links_own_port(string link, string expected)
+    {
+        Assert.AreEqual(expected, SetupLink.Tunnel(link));
+        Assert.Contains(expected, SetupLink.Hint(link));
+    }
+
+    [TestMethod]
     public async Task Setup_link_prints_a_new_working_link()
     {
         var old = new SetupToken(_home.SetupTokenFile).Issue();

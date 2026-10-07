@@ -16,6 +16,7 @@ public static class DependencyInjection
             ? new PatAuthProvider(sp.GetRequiredService<IOptions<AzureDevOpsOptions>>())
             : new AzCliAuthProvider());
         services.AddTransient<AdoAuthHandler>();
+        services.AddSingleton<Application.Setup.IAzureDevOpsProbe>(new AzureDevOpsProbe());
 
         // One named client for both typed clients: configuring the same name twice would stack the auth
         // handler twice (duplicate headers, which Azure DevOps then ignores).
