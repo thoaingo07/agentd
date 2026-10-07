@@ -86,6 +86,25 @@ public sealed class SetupEndpointTests : IDisposable
         Assert.AreEqual(HttpStatusCode.BadRequest, tooLong.StatusCode);
     }
 
+    [TestMethod]
+    public async Task The_git_key_is_generated_once_and_only_its_public_half_is_shown()
+    {
+        await using var app = await StartAsync();
+        var client = await SetupClient.SignInAsync(app);
+
+        using var before = await client.SendAsync(HttpMethod.Get, "/api/setup/git-key");
+        using var generate = await client.SendAsync(HttpMethod.Post, "/api/setup/git-key");
+        using var again = await client.SendAsync(HttpMethod.Post, "/api/setup/git-key");
+        using var test = await client.SendAsync(HttpMethod.Post, "/api/setup/git-key/test", new { url = "git@ssh.dev.azure.com:v3/o/p/r" });
+
+        Assert.IsFalse(JsonDocument.Parse(await before.Content.ReadAsStringAsync()).RootElement.GetProperty("exists").GetBoolean());
+        var key = JsonDocument.Parse(await generate.Content.ReadAsStringAsync()).RootElement;
+        Assert.AreEqual("ssh-ed25519 AAAA agentd@test", key.GetProperty("publicKey").GetString());
+        Assert.DoesNotContain("PRIVATE", await generate.Content.ReadAsStringAsync());
+        Assert.AreEqual(HttpStatusCode.Conflict, again.StatusCode);
+        Assert.AreEqual(HttpStatusCode.OK, test.StatusCode);
+    }
+
     public void Dispose() => _session.Dispose();
 
     private Task<WebApplication> StartAsync() => _session.StartAsync(services =>
@@ -95,6 +114,7 @@ public sealed class SetupEndpointTests : IDisposable
         services.AddSingleton<ISettingsAudit, NoAudit>();
         services.AddSingleton<IDatabaseProbe, OkDatabase>();
         services.AddSingleton<IAzureDevOpsProbe, OkAzureDevOps>();
+        services.AddSingleton<IGitKey, MemoryGitKey>();
         services.AddSingleton(Options.Create(new JobOptions()));
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<SetupService>();
@@ -173,5 +193,17 @@ public sealed class SetupEndpointTests : IDisposable
     {
         public Task<StepCheck> TestAsync(AzureDevOpsConnection connection, JobOptions jobs, CancellationToken cancellationToken) =>
             Task.FromResult(new StepCheck(true, $"signed in to {connection.Organization}"));
+    }
+
+    private sealed class MemoryGitKey : IGitKey
+    {
+        private GitKeyInfo? _key;
+
+        public GitKeyInfo? Read() => _key;
+
+        public Task<GitKeyInfo> GenerateAsync(string comment, CancellationToken cancellationToken) =>
+            Task.FromResult(_key = new GitKeyInfo("/k/id_ed25519", "ssh-ed25519 AAAA agentd@test", "SHA256:abc"));
+
+        public Task<StepCheck> TestAsync(string url, CancellationToken cancellationToken) => Task.FromResult(new StepCheck(true, "reached"));
     }
 }

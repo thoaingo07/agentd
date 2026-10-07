@@ -16,6 +16,12 @@ public sealed record AzureDevOpsStep(string? Organization, string? Project, stri
 /// <param name="Pat">A new token; null keeps the stored one.</param>
 public sealed record AzureDevOpsInput(string Organization, string Project, string Auth, string? Pat);
 
+/// <summary>The git step: agentd's public key, when it has one.</summary>
+public sealed record GitKeyStep(bool Exists, string? PublicKey, string? Fingerprint, string? Path)
+{
+    public static GitKeyStep From(GitKeyInfo? key) => key is null ? new(false, null, null, null) : new(true, key.PublicKey, key.Fingerprint, key.Path);
+}
+
 /// <summary>A saved step. The daemon reads these settings at start, so they apply after a restart.</summary>
 public sealed record SaveResult(bool RestartRequired);
 
@@ -30,6 +36,7 @@ public sealed class SetupService(
     ISettingsAudit audit,
     IDatabaseProbe database,
     IAzureDevOpsProbe azureDevOps,
+    IGitKey gitKey,
     IOptions<JobOptions> jobs,
     TimeProvider time)
 {
@@ -149,6 +156,33 @@ public sealed class SetupService(
         }
 
         return await azureDevOps.TestAsync(c, jobs.Value, cancellationToken).ConfigureAwait(false);
+    }
+
+    public GitKeyStep GetGitKey() => GitKeyStep.From(gitKey.Read());
+
+    /// <summary>Generates agentd's SSH key; an existing key is never replaced (repositories may already trust it).</summary>
+    public async Task<Result<GitKeyStep>> GenerateGitKeyAsync(string by, CancellationToken cancellationToken)
+    {
+        if (gitKey.Read() is { } existing)
+        {
+            return DomainError.Conflict($"agentd already has an SSH key ({existing.Path}). To replace it, delete it and its .pub on the server first.");
+        }
+
+        var key = await gitKey.GenerateAsync($"agentd@{Environment.MachineName}", cancellationToken).ConfigureAwait(false);
+        await audit.RecordAsync([Change("Git:SshKey", "key", "generated", by)], cancellationToken).ConfigureAwait(false);
+        return GitKeyStep.From(key);
+    }
+
+    /// <summary>Tests access to a repository (its SSH clone URL) with agentd's key, or the user's own when there's none.</summary>
+    public Task<StepCheck> TestGitAccessAsync(string? url, CancellationToken cancellationToken)
+    {
+        var value = url?.Trim();
+        if (string.IsNullOrEmpty(value) || value.StartsWith('-') || value.Any(char.IsWhiteSpace))
+        {
+            return Task.FromResult(new StepCheck(false, "Enter a repository's clone URL.", "e.g. git@ssh.dev.azure.com:v3/<org>/<project>/<repo>"));
+        }
+
+        return gitKey.TestAsync(value, cancellationToken);
     }
 
     /// <summary>"https://dev.azure.com/myorg/", "https://myorg.visualstudio.com" or "myorg" → "myorg".</summary>

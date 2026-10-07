@@ -23,3 +23,13 @@ public sealed record StepCheckVm(bool Ok, string Message, string? Fix);
 
 /// <summary>Saved. The daemon reads these settings at start, so they apply after a restart.</summary>
 public sealed record SaveResultVm(bool RestartRequired);
+
+/// <summary>agentd's SSH key for git: the public key to add in Azure DevOps or GitHub, and its fingerprint. Never the private key.</summary>
+public sealed record GitKeyStepVm(bool Exists, string? PublicKey, string? Fingerprint, string? Path)
+{
+    public static GitKeyStepVm From(Application.Setup.GitKeyStep s)
+    {
+        ArgumentNullException.ThrowIfNull(s);
+        return new(s.Exists, s.PublicKey, s.Fingerprint, s.Path);
+    }
+}

@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { ApiError, get, send } from '../../shared/api/http'
-import type { AzureDevOpsRequest, AzureDevOpsStep, DatabaseStep, SaveResult, SetupSession, StepCheck } from '../../shared/api/types'
+import type { AzureDevOpsRequest, AzureDevOpsStep, DatabaseStep, GitKeyStep, SaveResult, SetupSession, StepCheck } from '../../shared/api/types'
 
 /**
  * The wizard's state. Secrets are write-only: they're sent once and never kept here; the server answers with
@@ -13,6 +13,7 @@ export const useSetupStore = defineStore('setup', () => {
   const expiresAt = ref<string | null>(null)
   const database = ref<DatabaseStep | null>(null)
   const azureDevOps = ref<AzureDevOpsStep | null>(null)
+  const gitKey = ref<GitKeyStep | null>(null)
   /** A saved step only applies after `agentd daemon restart`. */
   const restartRequired = ref(false)
 
@@ -68,8 +69,22 @@ export const useSetupStore = defineStore('setup', () => {
     return send<StepCheck>('POST', '/api/setup/azure-devops/test', { ...input, pat: input.pat?.trim() || null })
   }
 
+  async function loadGitKey(): Promise<void> {
+    gitKey.value = await get<GitKeyStep>('/api/setup/git-key')
+  }
+
+  /** Creates agentd's SSH key (once; it's never replaced from here). Takes effect at once, no restart. */
+  async function generateGitKey(): Promise<void> {
+    gitKey.value = await send<GitKeyStep>('POST', '/api/setup/git-key')
+  }
+
+  function testGitAccess(url: string): Promise<StepCheck> {
+    return send<StepCheck>('POST', '/api/setup/git-key/test', { url })
+  }
+
   return {
-    session, expiresAt, database, azureDevOps, restartRequired,
+    session, expiresAt, database, azureDevOps, gitKey, restartRequired,
     loadSession, loadDatabase, saveDatabase, testDatabase, migrateDatabase, loadAzureDevOps, saveAzureDevOps, testAzureDevOps,
+    loadGitKey, generateGitKey, testGitAccess,
   }
 })
