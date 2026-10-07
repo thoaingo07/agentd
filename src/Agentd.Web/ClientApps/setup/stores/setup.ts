@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { ApiError, get, send } from '../../shared/api/http'
-import type { AzureDevOpsRequest, AzureDevOpsStep, ClaudeStep, DatabaseStep, GitKeyStep, SaveResult, SetupSession, StepCheck } from '../../shared/api/types'
+import type { AzureDevOpsRequest, AzureDevOpsStep, ChatRequest, ChatStep, ClaudeStep, DatabaseStep, GitKeyStep, SaveResult, SetupSession, StepCheck } from '../../shared/api/types'
 
 /**
  * The wizard's state. Secrets are write-only: they're sent once and never kept here; the server answers with
@@ -15,6 +15,7 @@ export const useSetupStore = defineStore('setup', () => {
   const azureDevOps = ref<AzureDevOpsStep | null>(null)
   const gitKey = ref<GitKeyStep | null>(null)
   const claude = ref<ClaudeStep | null>(null)
+  const chat = ref<ChatStep | null>(null)
   /** A saved step only applies after `agentd daemon restart`. */
   const restartRequired = ref(false)
 
@@ -104,9 +105,25 @@ export const useSetupStore = defineStore('setup', () => {
     return send<StepCheck>('POST', '/api/setup/claude/test', { token: token?.trim() || null })
   }
 
+  async function loadChat(): Promise<void> {
+    chat.value = await get<ChatStep>('/api/setup/chat')
+  }
+
+  async function saveChat(input: ChatRequest): Promise<SaveResult> {
+    const result = await send<SaveResult>('PUT', '/api/setup/chat', { ...input, botToken: input.botToken?.trim() || null })
+    await loadChat()
+    return saved(result)
+  }
+
+  /** Posts a test message in the channel (an empty token: the saved one). Nothing is saved. */
+  function testChat(input: ChatRequest): Promise<StepCheck> {
+    return send<StepCheck>('POST', '/api/setup/chat/test', { ...input, botToken: input.botToken?.trim() || null })
+  }
+
   return {
-    session, expiresAt, database, azureDevOps, gitKey, claude, restartRequired,
+    session, expiresAt, database, azureDevOps, gitKey, claude, chat, restartRequired,
     loadSession, loadDatabase, saveDatabase, testDatabase, migrateDatabase, loadAzureDevOps, saveAzureDevOps, testAzureDevOps,
     loadGitKey, generateGitKey, testGitAccess, loadClaude, saveClaudeToken, removeClaudeToken, testClaude,
+    loadChat, saveChat, testChat,
   }
 })

@@ -176,7 +176,7 @@ How it's built (T1b.10):
 
 `GET /setup?token=…` exchanges the link and redirects to `/setup/wizard`. Without a setup session the wizard says how
 to get a link (`agentd setup-link`). It fetches its antiforgery token from `/api/setup/antiforgery`, and each step
-calls only `/api/setup/*`. Built so far: Database, Azure DevOps, Git access, Claude.
+calls only `/api/setup/*`. Built so far: Database, Azure DevOps, Git access, Claude, Chat.
 
 | Step | Asks for | "Test" button |
 |---|---|---|
@@ -224,6 +224,7 @@ A save answers `{ restartRequired }`, because the daemon reads these settings at
 | Azure DevOps | `GET`/`PUT /api/setup/azure-devops`, `POST …/test` (the daemon's own WIQL query, through a one-off client that never follows redirects) | `AzureDevOps:Organization/Project/Auth` in `agentd.json` (the organization from a name or URL); secret `AzureDevOps:Pat` (kept when left empty) |
 | Git access | `GET`/`POST /api/setup/git-key` (generate an ed25519 key once; never replaced from the UI), `POST …/test` (`git ls-remote` with agentd's key) | `~/.agentd/ssh/id_ed25519` (0600); used by every git command as soon as it exists, no restart |
 | Claude | `GET`/`PUT /api/setup/claude` (the server's CLI version and `claude auth status`), `DELETE …/token`, `POST …/test` (a tiny Haiku prompt in the agents' own environment: the given token, else the saved one, else the server's login) | secret `Claude:OAuthToken` (from `claude setup-token`) |
+| Chat (Discord) | `GET`/`PUT /api/setup/chat`, `POST …/test` (checks the token and that the channel is in that server, then posts a test message) | `Messaging:Providers:Discord:Enabled/GuildId/ChannelId`; you in `Users` (a new Admin, or your Discord ID on the user with that name); secret `Messaging:Providers:Discord:BotToken` |
 
 ---
 

@@ -9,6 +9,7 @@ import DatabaseStep from '../ClientApps/setup/steps/DatabaseStep.vue'
 import AzureDevOpsStep from '../ClientApps/setup/steps/AzureDevOpsStep.vue'
 import GitKeyStep from '../ClientApps/setup/steps/GitKeyStep.vue'
 import ClaudeStep from '../ClientApps/setup/steps/ClaudeStep.vue'
+import ChatStep from '../ClientApps/setup/steps/ChatStep.vue'
 import App from '../ClientApps/setup/App.vue'
 
 const unset = { set: false, updatedAt: null, updatedBy: null }
@@ -39,6 +40,9 @@ beforeEach(() => {
     'PUT /api/setup/claude': json({ restartRequired: true }),
     'DELETE /api/setup/claude/token': json({ restartRequired: true }),
     'POST /api/setup/claude/test': json({ ok: true, message: 'Claude answered a test prompt in 2.1 s (the token).', fix: null }),
+    'GET /api/setup/chat': json({ enabled: false, guildId: null, channelId: null, botToken: unset, users: [] }),
+    'PUT /api/setup/chat': json({ restartRequired: true }),
+    'POST /api/setup/chat/test': json({ ok: true, message: 'agentd posted a test message in #agentd.', fix: null }),
     'POST /api/setup/git-key/test': json({ ok: false, message: 'Permission denied (publickey).', fix: 'add the public key to Azure DevOps' }),
   }
   vi.stubGlobal('fetch', vi.fn(async (req: Request) => {
@@ -172,6 +176,31 @@ describe('steps', () => {
     expect(step.find('input').exists()).toBe(false)
     expect(step.findAll('button').some((b) => b.text() === 'Remove the token')).toBe(true)
     expect(JSON.stringify(useSetupStore().$state)).not.toContain('SECRET')
+  })
+
+  it('chat: sends a test message and saves you as a user; off hides the Discord fields', async () => {
+    const step = mount(ChatStep, { global: { plugins: [router()] } })
+    await flushPromises()
+    const inputs = step.findAll('input:not([type="checkbox"])')
+    await inputs[0]!.setValue('bot-SECRET')
+    await inputs[1]!.setValue('770517485715193877')
+    await inputs[2]!.setValue('1555955347544608809')
+    await inputs[3]!.setValue('tngo')
+    await inputs[4]!.setValue('710392908099878953')
+
+    await step.findAll('button').find((b) => b.text() === 'Send a test message')!.trigger('click')
+    await flushPromises()
+    expect(step.text()).toContain('agentd posted a test message in #agentd.')
+    await step.findAll('button').find((b) => b.text() === 'Save')!.trigger('click')
+    await flushPromises()
+    expect(calls.find((c) => c.method === 'PUT' && c.path === '/api/setup/chat')?.body).toEqual({
+      enabled: true, guildId: '770517485715193877', channelId: '1555955347544608809', botToken: 'bot-SECRET', userName: 'tngo', userDiscordId: '710392908099878953',
+    })
+    expect(JSON.stringify(useSetupStore().$state)).not.toContain('SECRET')
+
+    await step.get('input[type="checkbox"]').setValue(false)
+    expect(step.text()).not.toContain('Bot token')
+    expect(step.findAll('button').some((b) => b.text() === 'Send a test message')).toBe(false)
   })
 
   it('without a session the wizard explains how to get the link', async () => {

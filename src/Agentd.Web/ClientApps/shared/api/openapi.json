@@ -1554,6 +1554,116 @@
           }
         }
       }
+    },
+    "/api/setup/chat": {
+      "get": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "GetSetupChat",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatStepVm"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "SaveSetupChat",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ChatRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SaveResultVm"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/setup/chat/test": {
+      "post": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "TestSetupChat",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ChatRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StepCheckVm"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1634,6 +1744,105 @@
           }
         },
         "description": "\u0060Auth\u0060 is \u0060Pat\u0060 or \u0060AzCli\u0060."
+      },
+      "ChatRequest": {
+        "required": [
+          "enabled",
+          "guildId",
+          "channelId",
+          "botToken",
+          "userName",
+          "userDiscordId"
+        ],
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "guildId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "channelId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "botToken": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "userName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "userDiscordId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "Discord settings. An empty \u0060BotToken\u0060 keeps the saved one; \u0060UserName\u0060 \u002B \u0060UserDiscordId\u0060 add you as a user."
+      },
+      "ChatStepVm": {
+        "required": [
+          "enabled",
+          "guildId",
+          "channelId",
+          "botToken",
+          "users"
+        ],
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "guildId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "channelId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "botToken": {
+            "$ref": "#/components/schemas/SecretStatusVm"
+          },
+          "users": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChatUserVm"
+            }
+          }
+        },
+        "description": "The chat step (Discord): the server and channel IDs, the bot token\u0027s status, and who agentd answers there."
+      },
+      "ChatUserVm": {
+        "required": [
+          "name",
+          "discordId"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "discordId": {
+            "type": "string"
+          }
+        }
       },
       "ClaudeLoginVm": {
         "required": [

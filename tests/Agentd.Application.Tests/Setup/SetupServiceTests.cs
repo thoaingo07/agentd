@@ -17,6 +17,7 @@ public sealed class SetupServiceTests
     private readonly FakeAzureDevOps _azureDevOps = new();
     private readonly FakeGitKey _gitKey = new();
     private readonly FakeClaude _claude = new();
+    private readonly FakeChat _chat = new();
 
     [TestMethod]
     public async Task Saving_the_database_stores_a_secret_and_audits_it_without_the_value()
@@ -228,7 +229,73 @@ public sealed class SetupServiceTests
         Assert.AreEqual("removed", _audit.Changes.Single().Action);
     }
 
-    private SetupService Service() => new(_config, _secrets, _audit, _database, _azureDevOps, _gitKey, _claude, Options.Create(new JobOptions()), TimeProvider.System);
+    private const string Guild = "770517485715193877";
+    private const string Channel = "1555955347544608809";
+    private const string Me = "710392908099878953";
+
+    [TestMethod]
+    public async Task Saving_chat_enables_discord_stores_the_token_and_adds_you_as_an_admin()
+    {
+        _config.Values["Users:0:Name"] = "alice";
+
+        var result = await Service().SaveChatAsync(new ChatInput(true, Guild, Channel, "bot-SECRET", "tngo", Me), "setup", CancellationToken.None);
+
+        Assert.IsTrue(result.IsSuccess, result.Error?.Message);
+        Assert.AreEqual("true", _config.Values["Messaging:Providers:Discord:Enabled"]);
+        Assert.AreEqual(Channel, _config.Values["Messaging:Providers:Discord:ChannelId"]);
+        Assert.AreEqual("bot-SECRET", _secrets.Values[SetupService.DiscordTokenSecret]);
+        Assert.IsFalse(_config.Values.ContainsValue("bot-SECRET"));
+        Assert.AreEqual(("tngo", "Admin", Me), (_config.Values["Users:1:Name"], _config.Values["Users:1:Roles:0"], _config.Values["Users:1:Identities:Discord"]));
+        CollectionAssert.AreEqual(new[] { new ChatUser("tngo", Me) }, Service().GetChat().Users.ToList());
+    }
+
+    [TestMethod]
+    public async Task An_existing_user_gets_the_discord_id()
+    {
+        _config.Values["Users:0:Name"] = "TNGO";
+        _secrets.Values[SetupService.DiscordTokenSecret] = "saved";
+
+        await Service().SaveChatAsync(new ChatInput(true, Guild, Channel, null, "tngo", Me), "setup", CancellationToken.None);
+
+        Assert.AreEqual(Me, _config.Values["Users:0:Identities:Discord"]);
+        Assert.IsFalse(_config.Values.ContainsKey("Users:1:Name"));
+        Assert.AreEqual("saved", _secrets.Values[SetupService.DiscordTokenSecret], "kept when left empty");
+    }
+
+    [TestMethod]
+    [DataRow("123", Channel, "bot", null, null)]
+    [DataRow(Guild, "general", "bot", null, null)]
+    [DataRow(Guild, Channel, null, null, null)]
+    [DataRow(Guild, Channel, "bot", null, Me)]
+    [DataRow(Guild, Channel, "bot", "tngo", "@tngo")]
+    public async Task Invalid_chat_settings_are_refused(string guild, string channel, string? token, string? name, string? id)
+    {
+        var result = await Service().SaveChatAsync(new ChatInput(true, guild, channel, token, name, id), "setup", CancellationToken.None);
+
+        Assert.AreEqual("validation", result.Error?.Code);
+        Assert.IsEmpty(_config.Values);
+    }
+
+    [TestMethod]
+    public async Task Turning_chat_off_only_disables_it()
+    {
+        var result = await Service().SaveChatAsync(new ChatInput(false, null, null, null, null, null), "setup", CancellationToken.None);
+
+        Assert.IsTrue(result.IsSuccess);
+        Assert.AreEqual("false", _config.Values.Single().Value);
+    }
+
+    [TestMethod]
+    public async Task Testing_chat_uses_the_saved_token_when_none_is_given()
+    {
+        _secrets.Values[SetupService.DiscordTokenSecret] = "saved";
+
+        await Service().TestChatAsync(new ChatInput(true, Guild, Channel, " ", null, null), CancellationToken.None);
+
+        Assert.AreEqual(new ChatConnection("saved", Guild, Channel), _chat.Tested.Single());
+    }
+
+    private SetupService Service() => new(_config, _secrets, _audit, _database, _azureDevOps, _gitKey, _claude, _chat, Options.Create(new JobOptions()), TimeProvider.System);
 
     private sealed class FakeConfig : IConfigWriter
     {
@@ -337,6 +404,17 @@ public sealed class SetupServiceTests
         {
             Tested.Add(token);
             return Task.FromResult(new StepCheck(true, "answered"));
+        }
+    }
+
+    private sealed class FakeChat : IChatProbe
+    {
+        public List<ChatConnection> Tested { get; } = [];
+
+        public Task<StepCheck> TestAsync(ChatConnection connection, CancellationToken cancellationToken)
+        {
+            Tested.Add(connection);
+            return Task.FromResult(new StepCheck(true, "posted"));
         }
     }
 }

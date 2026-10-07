@@ -46,3 +46,15 @@ public sealed record ClaudeStepVm(SecretStatusVm Token, ClaudeLoginVm Server)
         return new(SecretStatusVm.From(s.Token), new ClaudeLoginVm(s.Server.Installed, s.Server.Version, s.Server.LoggedIn, s.Server.Method, s.Server.Plan));
     }
 }
+
+public sealed record ChatUserVm(string Name, string DiscordId);
+
+/// <summary>The chat step (Discord): the server and channel IDs, the bot token's status, and who agentd answers there.</summary>
+public sealed record ChatStepVm(bool Enabled, string? GuildId, string? ChannelId, SecretStatusVm BotToken, IReadOnlyList<ChatUserVm> Users)
+{
+    public static ChatStepVm From(Application.Setup.ChatStep s)
+    {
+        ArgumentNullException.ThrowIfNull(s);
+        return new(s.Enabled, s.GuildId, s.ChannelId, SecretStatusVm.From(s.BotToken), [.. s.Users.Select(u => new ChatUserVm(u.Name, u.DiscordId))]);
+    }
+}
