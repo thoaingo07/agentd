@@ -77,7 +77,10 @@ Steps 2 to 6 below can also be done in a **setup wizard** in your browser. Each 
    link stops working.
 6. Run `agentd daemon restart`, then open the web UI (step 8).
 
-The sections below do the same from the command line.
+No browser at hand? `agentd init` asks the same questions in the terminal (and `agentd init --non-interactive` takes
+them from options and environment variables, for scripts).
+
+The sections below do the same by hand.
 
 ## 2. A database
 

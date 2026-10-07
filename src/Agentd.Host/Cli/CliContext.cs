@@ -8,6 +8,7 @@ namespace Agentd.Host.Cli;
 /// <param name="readSecret">Reads a secret value after a prompt (default: piped stdin, or the terminal without echo).</param>
 /// <param name="run">Runs programs such as <c>systemctl</c> (default: the real process runner).</param>
 /// <param name="environment">Reads environment variables (default: the process's).</param>
+/// <param name="readLine">Reads an answer after a prompt (default: the terminal; null at the end of input).</param>
 internal sealed class CliContext(
     TextWriter output,
     TextWriter error,
@@ -15,8 +16,15 @@ internal sealed class CliContext(
     Func<ConfigHome>? home = null,
     Func<string, string?>? readSecret = null,
     RunProcess? run = null,
-    Func<string, string?>? environment = null) : IAsyncDisposable
+    Func<string, string?>? environment = null,
+    Func<string, string?>? readLine = null) : IAsyncDisposable
 {
+    public Func<string, string?> ReadLine { get; } = readLine ?? (prompt =>
+    {
+        Console.Error.Write(prompt);
+        return Console.ReadLine();
+    });
+
     public RunProcess Run { get; } = run ?? SystemdUnit.Run;
 
     public Func<string, string?> Environment { get; } = environment ?? System.Environment.GetEnvironmentVariable;
