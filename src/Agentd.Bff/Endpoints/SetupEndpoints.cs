@@ -46,6 +46,15 @@ public static class SetupEndpoints
             TooLong(body?.Pat) ?? Check(await service.TestAzureDevOpsAsync(body is null ? null : Input(body), ct).ConfigureAwait(false)))
             .WithName("TestSetupAzureDevOps").Accepts<AzureDevOpsRequest>("application/json").Produces<StepCheckVm>().ProducesProblem(StatusCodes.Status400BadRequest);
 
+        setup.MapGet("/git-key", ([FromServices] SetupService service) => TypedResults.Ok(GitKeyStepVm.From(service.GetGitKey())))
+            .WithName("GetSetupGitKey");
+        setup.MapPost("/git-key", async (ClaimsPrincipal user, [FromServices] SetupService service, CancellationToken ct) =>
+            (await service.GenerateGitKeyAsync(By(user), ct).ConfigureAwait(false)).ToHttpResult(k => TypedResults.Ok(GitKeyStepVm.From(k))))
+            .WithName("GenerateSetupGitKey").Produces<GitKeyStepVm>().ProducesProblem(StatusCodes.Status409Conflict);
+        setup.MapPost("/git-key/test", async (GitTestRequest? body, [FromServices] SetupService service, CancellationToken ct) =>
+            Check(await service.TestGitAccessAsync(body?.Url, ct).ConfigureAwait(false)))
+            .WithName("TestSetupGitAccess").Accepts<GitTestRequest>("application/json").Produces<StepCheckVm>();
+
         return setup;
     }
 
@@ -54,6 +63,9 @@ public static class SetupEndpoints
 
     /// <summary><c>Auth</c> is <c>Pat</c> or <c>AzCli</c>. An empty <c>Pat</c> keeps the saved one.</summary>
     public sealed record AzureDevOpsRequest(string? Organization, string? Project, string? Auth, string? Pat);
+
+    /// <summary>A repository's clone URL (SSH for agentd's key).</summary>
+    public sealed record GitTestRequest(string? Url);
 
     private static AzureDevOpsInput Input(AzureDevOpsRequest? body) =>
         new(body?.Organization ?? string.Empty, body?.Project ?? string.Empty, body?.Auth ?? SetupService.AzCliAuth, body?.Pat);

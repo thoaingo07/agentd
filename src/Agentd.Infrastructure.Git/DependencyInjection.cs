@@ -12,6 +12,7 @@ public static class DependencyInjection
         services.AddSingleton<GitCli>();
         services.AddSingleton<IGitRemote, GitRemote>();
         services.AddSingleton<IWorktreeManager, GitWorktreeManager>();
+        services.AddSingleton<Application.Setup.IGitKey, SshGitKey>();
         return services;
     }
 }

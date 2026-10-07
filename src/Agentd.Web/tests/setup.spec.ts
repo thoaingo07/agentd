@@ -7,6 +7,7 @@ import { useSetupStore } from '../ClientApps/setup/stores/setup'
 import SecretField from '../ClientApps/setup/components/SecretField.vue'
 import DatabaseStep from '../ClientApps/setup/steps/DatabaseStep.vue'
 import AzureDevOpsStep from '../ClientApps/setup/steps/AzureDevOpsStep.vue'
+import GitKeyStep from '../ClientApps/setup/steps/GitKeyStep.vue'
 import App from '../ClientApps/setup/App.vue'
 
 const unset = { set: false, updatedAt: null, updatedBy: null }
@@ -31,6 +32,9 @@ beforeEach(() => {
     'GET /api/setup/azure-devops': json({ organization: 'myorg', project: 'Portal', auth: 'Pat', pat: set }),
     'PUT /api/setup/azure-devops': json({ restartRequired: true }),
     'POST /api/setup/azure-devops/test': json({ ok: true, message: 'Signed in to myorg/Portal.', fix: null }),
+    'GET /api/setup/git-key': json({ exists: false, publicKey: null, fingerprint: null, path: null }),
+    'POST /api/setup/git-key': json({ exists: true, publicKey: 'ssh-ed25519 AAAAC3 agentd@vps', fingerprint: 'SHA256:abc', path: '/home/a/.agentd/ssh/id_ed25519' }),
+    'POST /api/setup/git-key/test': json({ ok: false, message: 'Permission denied (publickey).', fix: 'add the public key to Azure DevOps' }),
   }
   vi.stubGlobal('fetch', vi.fn(async (req: Request) => {
     const path = new URL(req.url).pathname
@@ -124,6 +128,24 @@ describe('steps', () => {
     await flushPromises()
     expect(calls.find((c) => c.path === '/api/setup/azure-devops/test')?.body).toEqual({ organization: 'myorg', project: 'Portal', auth: 'AzCli', pat: null })
     expect(step.text()).toContain('Signed in to myorg/Portal.')
+  })
+
+  it('git: generates the key, shows the public half with a link to add it, and tests a clone URL', async () => {
+    const step = mount(GitKeyStep, { global: { plugins: [router()] } })
+    await flushPromises()
+
+    await step.findAll('button').find((b) => b.text().includes('Generate'))!.trigger('click')
+    await flushPromises()
+    expect((step.get('textarea').element as HTMLTextAreaElement).value).toBe('ssh-ed25519 AAAAC3 agentd@vps')
+    expect(step.text()).toContain('SHA256:abc')
+    expect(step.find('a[href="https://dev.azure.com/myorg/_usersSettings/keys"]').exists()).toBe(true)
+
+    await step.get('input').setValue('git@ssh.dev.azure.com:v3/myorg/Portal/sysmin')
+    await step.findAll('button').find((b) => b.text() === 'Test')!.trigger('click')
+    await flushPromises()
+    expect(calls.find((c) => c.path === '/api/setup/git-key/test')?.body).toEqual({ url: 'git@ssh.dev.azure.com:v3/myorg/Portal/sysmin' })
+    expect(step.text()).toContain('Permission denied (publickey).')
+    expect(step.text()).toContain('Fix: add the public key to Azure DevOps')
   })
 
   it('without a session the wizard explains how to get the link', async () => {

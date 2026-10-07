@@ -62,3 +62,18 @@ public interface IAzureDevOpsProbe
     /// <summary>The daemon's own WIQL query (work items tagged and waiting, per <paramref name="jobs"/>).</summary>
     Task<StepCheck> TestAsync(AzureDevOpsConnection connection, Jobs.JobOptions jobs, CancellationToken cancellationToken);
 }
+
+/// <summary>agentd's own SSH key for git: the public half and its SHA256 fingerprint (the private key never leaves the server).</summary>
+public sealed record GitKeyInfo(string Path, string PublicKey, string Fingerprint);
+
+public interface IGitKey
+{
+    /// <summary>The key, or null when agentd has none yet (git then uses the user's own ~/.ssh setup).</summary>
+    GitKeyInfo? Read();
+
+    /// <summary>Creates an ed25519 key without a passphrase (the daemon runs unattended). Never overwrites one.</summary>
+    Task<GitKeyInfo> GenerateAsync(string comment, CancellationToken cancellationToken);
+
+    /// <summary><c>git ls-remote</c> against <paramref name="url"/> with agentd's key.</summary>
+    Task<StepCheck> TestAsync(string url, CancellationToken cancellationToken);
+}

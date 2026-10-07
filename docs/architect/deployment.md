@@ -176,7 +176,7 @@ How it's built (T1b.10):
 
 `GET /setup?token=…` exchanges the link and redirects to `/setup/wizard`. Without a setup session the wizard says how
 to get a link (`agentd setup-link`). It fetches its antiforgery token from `/api/setup/antiforgery`, and each step
-calls only `/api/setup/*`. Built so far: Database, Azure DevOps.
+calls only `/api/setup/*`. Built so far: Database, Azure DevOps, Git access.
 
 | Step | Asks for | "Test" button |
 |---|---|---|
@@ -222,6 +222,7 @@ A save answers `{ restartRequired }`, because the daemon reads these settings at
 |---|---|---|
 | Database | `GET`/`PUT /api/setup/database`, `POST …/test` (connect, then the schema: missing, pending migrations or current), `POST …/migrate` | secret `ConnectionStrings:agentd` |
 | Azure DevOps | `GET`/`PUT /api/setup/azure-devops`, `POST …/test` (the daemon's own WIQL query, through a one-off client that never follows redirects) | `AzureDevOps:Organization/Project/Auth` in `agentd.json` (the organization from a name or URL); secret `AzureDevOps:Pat` (kept when left empty) |
+| Git access | `GET`/`POST /api/setup/git-key` (generate an ed25519 key once; never replaced from the UI), `POST …/test` (`git ls-remote` with agentd's key) | `~/.agentd/ssh/id_ed25519` (0600); used by every git command as soon as it exists, no restart |
 
 ---
 

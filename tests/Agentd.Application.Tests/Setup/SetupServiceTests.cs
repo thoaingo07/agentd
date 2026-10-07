@@ -15,6 +15,7 @@ public sealed class SetupServiceTests
     private readonly FakeAudit _audit = new();
     private readonly FakeDatabase _database = new();
     private readonly FakeAzureDevOps _azureDevOps = new();
+    private readonly FakeGitKey _gitKey = new();
 
     [TestMethod]
     public async Task Saving_the_database_stores_a_secret_and_audits_it_without_the_value()
@@ -152,7 +153,43 @@ public sealed class SetupServiceTests
     public void Organization_names_come_from_names_or_urls(string value, string? expected) =>
         Assert.AreEqual(expected, SetupService.OrganizationName(value));
 
-    private SetupService Service() => new(_config, _secrets, _audit, _database, _azureDevOps, Options.Create(new JobOptions()), TimeProvider.System);
+    [TestMethod]
+    public async Task Generating_the_git_key_is_audited_and_never_replaces_one()
+    {
+        var first = await Service().GenerateGitKeyAsync("setup", CancellationToken.None);
+        var second = await Service().GenerateGitKeyAsync("setup", CancellationToken.None);
+
+        Assert.IsTrue(first.IsSuccess);
+        Assert.AreEqual("ssh-ed25519 AAAA agentd@test", first.Value!.PublicKey);
+        Assert.AreEqual("conflict", second.Error?.Code);
+        Assert.AreEqual(1, _gitKey.Generated);
+        Assert.AreEqual(("Git:SshKey", "generated"), (_audit.Changes.Single().Key, _audit.Changes.Single().Action));
+        Assert.IsTrue(Service().GetGitKey().Exists);
+    }
+
+    [TestMethod]
+    [DataRow(null)]
+    [DataRow("  ")]
+    [DataRow("--upload-pack=evil")]
+    [DataRow("git@host:repo with space")]
+    public async Task Testing_git_access_needs_a_plain_url(string? url)
+    {
+        var check = await Service().TestGitAccessAsync(url, CancellationToken.None);
+
+        Assert.IsFalse(check.Ok);
+        Assert.IsEmpty(_gitKey.Tested);
+    }
+
+    [TestMethod]
+    public async Task Testing_git_access_passes_the_url_on()
+    {
+        var check = await Service().TestGitAccessAsync(" git@ssh.dev.azure.com:v3/myorg/Portal/sysmin ", CancellationToken.None);
+
+        Assert.IsTrue(check.Ok);
+        CollectionAssert.AreEqual(new[] { "git@ssh.dev.azure.com:v3/myorg/Portal/sysmin" }, _gitKey.Tested);
+    }
+
+    private SetupService Service() => new(_config, _secrets, _audit, _database, _azureDevOps, _gitKey, Options.Create(new JobOptions()), TimeProvider.System);
 
     private sealed class FakeConfig : IConfigWriter
     {
@@ -224,6 +261,30 @@ public sealed class SetupServiceTests
         {
             Tested.Add(connection);
             return Task.FromResult(new StepCheck(true, "signed in"));
+        }
+    }
+
+    private sealed class FakeGitKey : IGitKey
+    {
+        private GitKeyInfo? _key;
+
+        public int Generated { get; private set; }
+
+        public List<string> Tested { get; } = [];
+
+        public GitKeyInfo? Read() => _key;
+
+        public Task<GitKeyInfo> GenerateAsync(string comment, CancellationToken cancellationToken)
+        {
+            Generated++;
+            _key = new GitKeyInfo("/home/agentd/.agentd/ssh/id_ed25519", "ssh-ed25519 AAAA agentd@test", "SHA256:abc");
+            return Task.FromResult(_key);
+        }
+
+        public Task<StepCheck> TestAsync(string url, CancellationToken cancellationToken)
+        {
+            Tested.Add(url);
+            return Task.FromResult(new StepCheck(true, "reached"));
         }
     }
 }
