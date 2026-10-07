@@ -388,6 +388,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/setup/session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetSetupSession"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/setup/antiforgery": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetSetupAntiforgeryToken"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -662,6 +694,11 @@ export interface components {
         RunAcceptedVm: {
             /** Format: int64 */
             jobId: number;
+        };
+        /** @description The setup session (the one-time link's cookie): when it ends unless used again (it slides). */
+        SetupSessionVm: {
+            /** Format: date-time */
+            expiresAt: null | string;
         };
         UsageVm: {
             /** Format: double */
@@ -1479,6 +1516,46 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UserVm"];
+                };
+            };
+        };
+    };
+    GetSetupSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SetupSessionVm"];
+                };
+            };
+        };
+    };
+    GetSetupAntiforgeryToken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AntiforgeryTokenVm"];
                 };
             };
         };

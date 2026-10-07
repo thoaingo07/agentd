@@ -23,6 +23,12 @@ internal sealed class ConfigHome(string root)
 
     public string Logs => Path.Combine(Root, "logs");
 
+    /// <summary>Runtime files: the setup token's hash (later the control socket).</summary>
+    public string Run => Path.Combine(Root, "run");
+
+    /// <summary>The one-time setup link's token, hashed (docs/architect/deployment.md §5a).</summary>
+    public string SetupTokenFile => Path.Combine(Run, "setup-token");
+
     /// <summary>ASP.NET Core Data Protection keys (antiforgery cookies and the secret store), so they survive restarts.</summary>
     public string Keys => Path.Combine(Root, "keys");
 

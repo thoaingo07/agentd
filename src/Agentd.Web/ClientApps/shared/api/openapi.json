@@ -1060,6 +1060,46 @@
           }
         }
       }
+    },
+    "/api/setup/session": {
+      "get": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "GetSetupSession",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SetupSessionVm"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/setup/antiforgery": {
+      "get": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "GetSetupAntiforgeryToken",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AntiforgeryTokenVm"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2054,6 +2094,22 @@
             "format": "int64"
           }
         }
+      },
+      "SetupSessionVm": {
+        "required": [
+          "expiresAt"
+        ],
+        "type": "object",
+        "properties": {
+          "expiresAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        },
+        "description": "The setup session (the one-time link\u0027s cookie): when it ends unless used again (it slides)."
       },
       "UsageVm": {
         "required": [
