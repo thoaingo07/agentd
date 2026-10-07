@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { StepCheck } from '../../shared/api/types'
+import type { StepCheck } from '../../api/types'
 
 // A Test, Save or Migrate outcome: the server's message, and on failure its one-line fix.
 defineProps<{ check: StepCheck | null; error?: string | null }>()

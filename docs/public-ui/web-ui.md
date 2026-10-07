@@ -57,6 +57,10 @@ Brainstorming itself happens in chat.
 
 ## Settings
 
+- **Configuration** (Admins): the same pages as the setup wizard, to change settings after setup. Each has a
+  **Test** button, and secrets show only "set · updated … by …". Saved changes apply after `agentd daemon restart`.
+  - **Health**: every area checked with its saved settings (including a tiny Claude test prompt).
+  - **Database**, **Azure DevOps**, **Git access** (agentd's SSH key), **Claude**, **Chat**, **Repositories**.
 - the theme;
 - your session and the live connection;
 - the daemon's configuration (read-only: tag, poll interval, concurrency, plan approval, review loop, chat,

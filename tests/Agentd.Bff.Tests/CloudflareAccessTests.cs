@@ -32,6 +32,18 @@ public sealed class CloudflareAccessTests
     }
 
     [TestMethod]
+    public async Task Settings_are_for_admins_only()
+    {
+        await using var host = await CloudflareHost.StartAsync();
+        using var request = new HttpRequestMessage(HttpMethod.Get, new Uri("/api/settings/database", UriKind.Relative));
+        request.Headers.Add(CloudflareAccessAuthenticationHandler.HeaderName, host.Token("dev@example.com"));
+
+        using var response = await host.Client.SendAsync(request);
+
+        Assert.AreEqual(HttpStatusCode.Forbidden, response.StatusCode, "a signed-in User isn't an Admin");
+    }
+
+    [TestMethod]
     public async Task Admin_emails_get_the_admin_role()
     {
         await using var host = await CloudflareHost.StartAsync();

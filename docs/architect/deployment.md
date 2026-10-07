@@ -194,6 +194,11 @@ calls only `/api/setup/*`. Built: Database, Azure DevOps, Git access, Claude, Ch
 The same forms stay available under **Settings → Access, Azure DevOps, Git, Models, Chat,
 Repositories**, and **Health** shows the live `doctor` report.
 
+How it's built: `/api/settings/*` mounts the same step endpoints for **Admins** (the normal session with
+antiforgery; the setup cookie doesn't count) without Finish, and **Health** is `GET /api/settings/review`. The
+dashboard's `/settings/<area>` pages reuse the wizard's step components (`ClientApps/shared/setup`), with their store
+pointed at `/api/settings`. The mirror has the same shapes, so `openapi.json` documents the steps once, under `/api/setup`. Access waits for SSO (Phase 5); Models is Phase 6.
+
 ### How secrets are handled in the UI
 
 - Secret fields are **write-only**. The UI shows "set · updated 2026-09-29 by tngo" and never the
