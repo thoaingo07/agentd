@@ -4,6 +4,7 @@
 Claude Code agent per work item in its own git worktree (Design → Plan → Implement → Test → Review),
 talks to developers through Discord/Telegram, and opens a pull request when the work is done.
 
+- **User guide (install, configure, use): [`docs/public-ui`](docs/public-ui/README.md)**
 - Design: [`docs/architect`](docs/architect/README.md)
 - Implementation plan (phases & tasks): [`docs/plan`](docs/plan/README.md)
 - Conventions for contributors and AI agents: [`AGENTS.md`](AGENTS.md)
