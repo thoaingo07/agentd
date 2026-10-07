@@ -18,6 +18,23 @@ public sealed partial class SchemaMigrator(string connectionString, ILoggerFacto
 
     private readonly ILogger _logger = loggerFactory.CreateLogger<SchemaMigrator>();
 
+    /// <summary>Every versioned migration this build knows (from the <c>[Migration]</c> attributes).</summary>
+    public static IReadOnlyList<long> KnownVersions() =>
+        [.. typeof(SchemaMigrator).Assembly.GetTypes()
+            .Select(t => t.GetCustomAttributes(typeof(FluentMigrator.MigrationAttribute), inherit: false).OfType<FluentMigrator.MigrationAttribute>().FirstOrDefault())
+            .OfType<FluentMigrator.MigrationAttribute>()
+            .Select(m => m.Version)
+            .Order()];
+
+    /// <summary>The migrations this build has that the database hasn't applied yet (<c>agentd doctor</c>).</summary>
+    public async Task<IReadOnlyList<long>> PendingAsync(CancellationToken cancellationToken)
+    {
+        await using var connection = new NpgsqlConnection(connectionString);
+        await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+        var applied = (await ReadAppliedVersionsAsync(connection, cancellationToken).ConfigureAwait(false)).ToHashSet();
+        return [.. KnownVersions().Where(v => !applied.Contains(v))];
+    }
+
     public async Task<MigrationResult> MigrateAsync(CancellationToken cancellationToken)
     {
         // The session-level advisory lock is held on this dedicated connection for the whole run.

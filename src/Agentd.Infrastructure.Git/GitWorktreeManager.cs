@@ -101,6 +101,17 @@ public sealed partial class GitWorktreeManager(GitCli git, IOptions<GitOptions> 
         }, cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task<IReadOnlyList<string>> ListFilesAsync(Repository repository, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(repository);
+        return await WithRepoLockAsync(repository, async () =>
+        {
+            var clone = await EnsureCloneCoreAsync(repository, cancellationToken).ConfigureAwait(false);
+            var files = await git.RunAsync(clone, ["ls-tree", "-r", "--name-only", "origin/" + repository.BaseBranch], cancellationToken).ConfigureAwait(false);
+            return (IReadOnlyList<string>)[.. files.StandardOutput.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)];
+        }, cancellationToken).ConfigureAwait(false);
+    }
+
     public Task<IReadOnlyList<WorktreeFolder>> ListFoldersAsync(Repository repository, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(repository);

@@ -34,6 +34,21 @@ public sealed class SchemaMigratorTests
     }
 
     [TestMethod]
+    public async Task Pending_lists_every_known_migration_until_they_are_applied()
+    {
+        var cs = await PostgresFixture.CreateDatabaseAsync("fm_pending");
+        var migrator = new SchemaMigrator(cs, NullLoggerFactory.Instance);
+
+        var before = await migrator.PendingAsync(default);
+        await migrator.MigrateAsync(default);
+        var after = await migrator.PendingAsync(default);
+
+        CollectionAssert.AreEqual(SchemaMigrator.KnownVersions().ToArray(), before.ToArray(), "a new database lacks them all");
+        Assert.AreEqual(InitialSchema, SchemaMigrator.KnownVersions()[0]);
+        Assert.IsEmpty(after);
+    }
+
+    [TestMethod]
     public async Task Second_run_applies_no_migrations()
     {
         var cs = await PostgresFixture.CreateDatabaseAsync("fm_second_run");

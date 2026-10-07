@@ -16,7 +16,7 @@ started, from what Phases 1–3 delivered.
 | 3 | [T1b.5](05-systemd-service.md) | systemd user service: `daemon install/uninstall/start/stop/status/logs` | ☑ |
 | 4 | [T1b.7](07-release-workflow-update.md) | Release workflow (GitHub Releases, checksums, `install.sh`) and `agentd update` with channels | ☑ |
 | 5 | [T1b.8](08-docker-image-compose.md) | Docker image (multi-arch, GHCR) + `compose.yaml` with PostgreSQL + "extend with toolchains" guide | ☑ |
-| 6 | [T1b.4](04-doctor-full.md) | Full `agentd doctor` incl. `--repo` toolchain and Claude profile checks (and verify headless Claude auth) | ☐ |
+| 6 | [T1b.4](04-doctor-full.md) | Full `agentd doctor` incl. `--repo` toolchain and Claude profile checks (and verify headless Claude auth) | ☑ |
 | 7 | [T1b.1](01-daemon-cli-socket.md) | Daemon ↔ CLI over a Unix domain socket; `status`/`run` via the daemon when it's up | ☐ |
 | 8 | [T1b.10](10-setup-bootstrap.md) | Setup bootstrap: first-run loopback binding, one-time setup token → setup session, `agentd setup-link` | ☐ |
 | 9 | [T1b.11](11-setup-service-and-api.md) | `SetupService` use cases + BFF `/api/setup/*` and `/api/settings/*` (Admin, antiforgery, write-only secrets, audit) | ☐ |
