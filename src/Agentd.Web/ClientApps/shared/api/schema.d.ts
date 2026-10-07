@@ -644,6 +644,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/setup/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetSetupReview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/setup/finish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["FinishSetup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -790,6 +822,11 @@ export interface components {
             ts: string;
             type: string;
             payload: components["schemas"]["JsonElement"];
+        };
+        /** @description Setup is complete; the daemon uses the new settings after a restart. */
+        FinishVm: {
+            /** Format: date-time */
+            completedAt: string;
         };
         /** @description agentd's SSH key for git: the public key to add in Azure DevOps or GitHub, and its fingerprint. Never the private key. */
         GitKeyStepVm: {
@@ -1000,6 +1037,13 @@ export interface components {
         ResourcesVm: {
             machine: null | components["schemas"]["MachineVm"];
             jobs: components["schemas"]["JobResourcesVm"][];
+        };
+        /** @description One review line: a step, whether finishing needs it, and its check. */
+        ReviewItemVm: {
+            step: string;
+            title: string;
+            required: boolean;
+            check: components["schemas"]["StepCheckVm"];
         };
         RunAcceptedVm: {
             /** Format: int64 */
@@ -2426,6 +2470,55 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StepCheckVm"];
+                };
+            };
+        };
+    };
+    GetSetupReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewItemVm"][];
+                };
+            };
+        };
+    };
+    FinishSetup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FinishVm"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
         };

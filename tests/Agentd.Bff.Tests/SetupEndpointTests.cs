@@ -170,6 +170,28 @@ public sealed class SetupEndpointTests : IDisposable
         Assert.IsTrue(JsonDocument.Parse(await test.Content.ReadAsStringAsync()).RootElement.GetProperty("ok").GetBoolean());
     }
 
+    [TestMethod]
+    public async Task Finishing_ends_the_setup_session_and_the_link()
+    {
+        await using var app = await StartAsync();
+        var token = SetupSessionTests.Tokens(app).Issue();
+        var client = await SetupClient.SignInAsync(app, token);
+        using var db = await client.SendAsync(HttpMethod.Put, "/api/setup/database", new { connectionString = ConnectionString });
+        using var ado = await client.SendAsync(HttpMethod.Put, "/api/setup/azure-devops", new { organization = "myorg", project = "Portal", auth = "AzCli" });
+
+        using var review = await client.SendAsync(HttpMethod.Get, "/api/setup/review");
+        using var finish = await client.SendAsync(HttpMethod.Post, "/api/setup/finish");
+        using var after = await client.SendAsync(HttpMethod.Get, "/api/setup/session");
+        using var link = await SetupSessionTests.Client(app).GetAsync(new Uri($"/setup?token={token}", UriKind.Relative));
+
+        Assert.AreEqual(HttpStatusCode.OK, review.StatusCode);
+        Assert.AreEqual(HttpStatusCode.OK, finish.StatusCode, await finish.Content.ReadAsStringAsync());
+        Assert.IsTrue(_config.ContainsKey("Setup:CompletedAt"));
+        Assert.AreEqual(HttpStatusCode.Unauthorized, after.StatusCode, "the setup session is over");
+        Assert.AreEqual(HttpStatusCode.NotFound, link.StatusCode, "the link is dead");
+        Assert.IsFalse(SetupSessionTests.Tokens(app).Verify(token), "revoked");
+    }
+
     public void Dispose() => _session.Dispose();
 
     private Task<WebApplication> StartAsync() => _session.StartAsync(services =>
@@ -183,6 +205,8 @@ public sealed class SetupEndpointTests : IDisposable
         services.AddSingleton<IClaudeProbe, OkClaude>();
         services.AddSingleton<IChatProbe, OkChat>();
         services.AddSingleton<Agentd.Application.Ports.IGitRemote, DevelopRemote>();
+        services.AddSingleton<ISetupLink>(sp => sp.GetRequiredService<Setup.SetupToken>());
+        services.AddSingleton<ISetupState>(new ConfigSetupState(_config));   // complete once Setup:CompletedAt is written
         services.AddSingleton(Options.Create(new JobOptions()));
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<SetupService>();
@@ -191,9 +215,9 @@ public sealed class SetupEndpointTests : IDisposable
     /// <summary>What the wizard does: open the link, fetch the setup antiforgery token, send both cookies.</summary>
     private sealed class SetupClient(HttpClient http, string cookies, string token)
     {
-        public static async Task<SetupClient> SignInAsync(WebApplication app)
+        public static async Task<SetupClient> SignInAsync(WebApplication app, string? link = null)
         {
-            var session = await SetupSessionTests.ExchangeAsync(app, SetupSessionTests.Tokens(app).Issue());
+            var session = await SetupSessionTests.ExchangeAsync(app, link ?? SetupSessionTests.Tokens(app).Issue());
             var http = SetupSessionTests.Client(app);
             using var request = new HttpRequestMessage(HttpMethod.Get, new Uri("/api/setup/antiforgery", UriKind.Relative));
             request.Headers.Add("Cookie", session);
@@ -230,6 +254,11 @@ public sealed class SetupEndpointTests : IDisposable
 
             return Task.CompletedTask;
         }
+    }
+
+    private sealed class ConfigSetupState(Dictionary<string, string?> config) : ISetupState
+    {
+        public bool IsComplete => config.ContainsKey("Setup:CompletedAt");
     }
 
     private sealed class MemorySecrets(Dictionary<string, string> values) : ISecrets

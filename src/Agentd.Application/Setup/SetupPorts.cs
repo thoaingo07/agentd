@@ -101,3 +101,10 @@ public interface IChatProbe
     /// <summary>Checks the token and that the channel is in that server, then posts a short test message there.</summary>
     Task<StepCheck> TestAsync(ChatConnection connection, CancellationToken cancellationToken);
 }
+
+/// <summary>The one-time setup link (the token behind <c>/setup?token=…</c>).</summary>
+public interface ISetupLink
+{
+    /// <summary>Kills the link for good: setup is complete.</summary>
+    void Revoke();
+}

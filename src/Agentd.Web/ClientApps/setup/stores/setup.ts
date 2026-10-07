@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { ApiError, get, send } from '../../shared/api/http'
-import type { AzureDevOpsRequest, AzureDevOpsStep, ChatRequest, ChatStep, ClaudeStep, DatabaseStep, GitKeyStep, RepositoryEntry, RepositoryRequest, SaveResult, SetupSession, StepCheck } from '../../shared/api/types'
+import type { AzureDevOpsRequest, AzureDevOpsStep, ChatRequest, ChatStep, ClaudeStep, DatabaseStep, FinishResult, GitKeyStep, RepositoryEntry, RepositoryRequest, ReviewItem, SaveResult, SetupSession, StepCheck } from '../../shared/api/types'
 
 /**
  * The wizard's state. Secrets are write-only: they're sent once and never kept here; the server answers with
@@ -17,6 +17,8 @@ export const useSetupStore = defineStore('setup', () => {
   const claude = ref<ClaudeStep | null>(null)
   const chat = ref<ChatStep | null>(null)
   const repositories = ref<RepositoryEntry[] | null>(null)
+  const review = ref<ReviewItem[] | null>(null)
+  const completedAt = ref<string | null>(null)
   /** A saved step only applies after `agentd daemon restart`. */
   const restartRequired = ref(false)
 
@@ -137,10 +139,22 @@ export const useSetupStore = defineStore('setup', () => {
     return send<StepCheck>('POST', '/api/setup/repositories/test', { url })
   }
 
+  /** Every step's own check against the saved settings (it runs live tests, so it takes a few seconds). */
+  async function loadReview(): Promise<void> {
+    review.value = null
+    review.value = await get<ReviewItem[]>('/api/setup/review')
+  }
+
+  /** Marks setup complete and kills the setup link and this session. */
+  async function finish(): Promise<void> {
+    completedAt.value = (await send<FinishResult>('POST', '/api/setup/finish')).completedAt
+    restartRequired.value = true
+  }
+
   return {
-    session, expiresAt, database, azureDevOps, gitKey, claude, chat, repositories, restartRequired,
+    session, expiresAt, database, azureDevOps, gitKey, claude, chat, repositories, review, completedAt, restartRequired,
     loadSession, loadDatabase, saveDatabase, testDatabase, migrateDatabase, loadAzureDevOps, saveAzureDevOps, testAzureDevOps,
     loadGitKey, generateGitKey, testGitAccess, loadClaude, saveClaudeToken, removeClaudeToken, testClaude,
-    loadChat, saveChat, testChat, loadRepositories, addRepository, testRepository,
+    loadChat, saveChat, testChat, loadRepositories, addRepository, testRepository, loadReview, finish,
   }
 })
