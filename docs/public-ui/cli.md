@@ -32,6 +32,7 @@ for the operator. `agentd --help` and `agentd <command> --help` show every optio
 | `agentd secrets list` · `agentd secrets remove <name>` | names and dates only, never values |
 | `agentd update [--channel stable\|beta] [--check] [--to 0.2.0]` | move to a newer release: checksum-verified, the old binary kept as `agentd.previous`, then the database migrated and the service restarted |
 | `agentd version` | version, platform and commit |
+| `agentd setup-link` | before setup is complete: print a new one-time link to the setup page (the previous link stops working) |
 
 ## Exit codes
 

@@ -25,6 +25,8 @@ internal static class AgentdServices
         var home = ConfigHome.Resolve().EnsureCreated();
         builder.Configuration.AddConfigHome(home, args);
         builder.Services.AddSingleton(home);
+        builder.Services.AddSingleton<Application.Setup.ISetupState>(sp => new Configuration.SetupState(home, sp.GetRequiredService<IConfiguration>()));
+        builder.Services.AddSingleton(new Bff.Setup.SetupToken(home.SetupTokenFile));
 
         builder.Services.AddOptions<AgentdOptions>()
             .BindConfiguration(AgentdOptions.Section)

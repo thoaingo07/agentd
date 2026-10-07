@@ -26,11 +26,13 @@ internal static class DaemonHost
         var home = builder.AddAgentdCore(args);
         // Cookies (antiforgery now, SSO later) stay valid across restarts and upgrades.
         builder.Services.AddDataProtection().SetApplicationName(ConfigHome.ApplicationName).PersistKeysToFileSystem(new DirectoryInfo(home.Keys));
-        HostUrls.ApplyDefault(builder);
+        HostUrls.ApplyDefault(builder, home);   // loopback only until setup is complete
         builder.Services.AddWebHosting(builder.Configuration);
         builder.Services.AddSingleton<IPostConfigureOptions<ClaudeOptions>, McpUrlFromServer>();
         builder.Services.AddAgentdMcp();
         builder.Services.AddBff();
+
+        builder.Services.AddHostedService<SetupLinkAnnouncer>();   // not set up yet: logs the one-time setup link
 
         // Daemon loop. Recovery is registered first: hosted services start in order, so it completes before the workers run.
         builder.Services.AddHostedService<UserDirectorySeeder>();

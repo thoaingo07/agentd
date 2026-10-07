@@ -158,6 +158,20 @@ the **same Application use cases** (`SetupService`).
 3. Once setup completes, the setup session ends, the token is invalidated, and from then on **only
    an Admin** (SSO, or the local admin created in the wizard) can change settings.
 
+How it's built (T1b.10):
+- **"Set up"** means `Agentd:Setup:CompletedAt` is set, in `agentd.json` (read from disk, because the wizard writes it
+  while the daemon runs) or as `AGENTD_Setup__CompletedAt`. Until then, every `Web:Urls` entry is rewritten to
+  `127.0.0.1` (same scheme and port).
+- **The token** is 32 random bytes (base64url). Only its SHA-256 is kept, in `~/.agentd/run/setup-token` (0600), and
+  it's compared in constant time. Every daemon start issues a new one and logs the link once. `agentd setup-link`
+  issues a new one too, and the old link stops working. Neither works once setup is complete.
+- **The setup session** is the `agentd.setup` cookie: HttpOnly, SameSite=Strict, a browser-session cookie whose ticket
+  lasts 30 minutes, sliding. Its `Setup` policy opens **only `/api/setup/*`** (`GET /api/setup/session`,
+  `GET /api/setup/antiforgery`, then T1b.11's use cases). It isn't a sign-in for `/api`, `/bff` or the hub. It is
+  rejected as soon as setup is complete.
+- **Logs:** request logging (`Microsoft.AspNetCore.Hosting.Diagnostics`) stays at Warning, so the only log line
+  carrying the token is the announcement itself.
+
 ### Wizard steps (`ClientApps/setup`, a separate small SPA at `/setup`)
 
 | Step | Asks for | "Test" button |

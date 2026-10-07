@@ -4,6 +4,7 @@ using Agentd.Bff.Http;
 using Agentd.Bff.Hubs;
 using Agentd.Bff.OpenApi;
 using Agentd.Bff.Security;
+using Agentd.Bff.Setup;
 using Agentd.Bff.Testing;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication;
@@ -32,7 +33,8 @@ public static class BffModule
         services.ConfigureHttpJsonOptions(o => o.SerializerOptions.NumberHandling = JsonNumberHandling.Strict);
         services.AddAuthentication()
             .AddScheme<AuthenticationSchemeOptions, LocalUserAuthenticationHandler>(LocalUserAuthenticationHandler.SchemeName, _ => { })
-            .AddScheme<AuthenticationSchemeOptions, CloudflareAccessAuthenticationHandler>(CloudflareAccessAuthenticationHandler.SchemeName, _ => { });
+            .AddScheme<AuthenticationSchemeOptions, CloudflareAccessAuthenticationHandler>(CloudflareAccessAuthenticationHandler.SchemeName, _ => { })
+            .AddSetupSession();   // the one-time setup link's cookie: /api/setup only
         // Agentd:Auth:Mode picks the scheme; endpoints only say RequireAuthorization().
         services.AddOptions<AuthenticationOptions>().Configure<IOptions<BffAuthOptions>>((o, auth) =>
             o.DefaultScheme = auth.Value.Mode == AuthMode.CloudflareAccess ? CloudflareAccessAuthenticationHandler.SchemeName : LocalUserAuthenticationHandler.SchemeName);
@@ -41,7 +43,7 @@ public static class BffModule
         services.TryAddSingleton(TimeProvider.System);
         services.AddSingleton<CloudflareAccessKeys>();
         services.AddSingleton<Testing.CspReportLog>();
-        services.AddAuthorization();
+        services.AddAuthorizationBuilder().AddSetupPolicy();
         services.AddOptions<BffAuthOptions>().BindConfiguration(BffAuthOptions.Section).ValidateOnStart();
         services.AddSingleton<IValidateOptions<BffAuthOptions>, BffAuthOptionsValidator>();
         services.AddAntiforgery();
@@ -102,6 +104,7 @@ public static class BffModule
         endpoints.MapCspReport();   // outside the groups: anonymous, no antiforgery (browsers send it)
         var api = endpoints.MapGroup("/api").RequireAuthorization().AddEndpointFilter<AntiforgeryFilter>();
         endpoints.MapGroup("/bff").RequireAuthorization().AddEndpointFilter<AntiforgeryFilter>().MapSession();
+        endpoints.MapSetupSession();   // GET /setup (the one-time link) and /api/setup (the setup session only)
         api.MapJobReads();
         api.MapJobActions();
         api.MapConfig();
