@@ -21,6 +21,12 @@ internal sealed class AgentdHostFactory(
             "css": ["assets/dashboard-abc123.css"],
             "imports": ["_vendor-def456.js"]
           },
+          "ClientApps/setup/main.ts": {
+            "file": "assets/setup-0f1e2d.js",
+            "src": "ClientApps/setup/main.ts",
+            "isEntry": true,
+            "imports": ["_vendor-def456.js"]
+          },
           "_vendor-def456.js": {
             "file": "assets/vendor-def456.js",
             "css": ["assets/vendor-def456.css"]

@@ -15,7 +15,7 @@ public sealed record SecretStatusVm(bool Set, DateTimeOffset? UpdatedAt, string?
 
 public sealed record DatabaseStepVm(SecretStatusVm ConnectionString);
 
-/// <summary><see cref="Auth"/> is <c>Pat</c> or <c>AzCli</c>.</summary>
+/// <summary><c>Auth</c> is <c>Pat</c> or <c>AzCli</c>.</summary>
 public sealed record AzureDevOpsStepVm(string? Organization, string? Project, string Auth, SecretStatusVm Pat);
 
 /// <summary>A step's "Test" result; <see cref="Fix"/> says what to do when it failed.</summary>

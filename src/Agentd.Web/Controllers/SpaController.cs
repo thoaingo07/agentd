@@ -13,6 +13,10 @@ public sealed class SpaController(ViteHelper vite) : Controller
     [HttpGet]
     public IActionResult Dashboard() => Shell("dashboard");
 
+    /// <summary>The first-run setup wizard (<c>/setup/wizard/*</c>). Its API needs the setup session; the page itself is public.</summary>
+    [HttpGet]
+    public IActionResult Setup() => Shell("setup");
+
     private IActionResult Shell(string app)
     {
         try

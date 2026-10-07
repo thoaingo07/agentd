@@ -50,6 +50,13 @@ export function onUnauthorized(handler: () => void): void {
 }
 
 let xsrf: string | null = null
+let antiforgeryUrl = '/bff/antiforgery'
+
+/** Where the antiforgery token comes from: the setup wizard uses its session's endpoint (/api/setup/antiforgery). */
+export function setAntiforgeryUrl(url: string): void {
+  antiforgeryUrl = url
+  xsrf = null
+}
 
 /** Forget the antiforgery token (after login/logout, or a user change). */
 export function resetXsrf(): void {
@@ -58,7 +65,7 @@ export function resetXsrf(): void {
 
 async function ensureToken(force: boolean): Promise<string> {
   if (xsrf && !force) return xsrf
-  xsrf = (await request<{ token: string }>('GET', '/bff/antiforgery')).token
+  xsrf = (await request<{ token: string }>('GET', antiforgeryUrl)).token
   return xsrf
 }
 

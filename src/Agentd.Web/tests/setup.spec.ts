@@ -1,0 +1,137 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { flushPromises, mount } from '@vue/test-utils'
+import { createPinia, setActivePinia } from 'pinia'
+import { createMemoryHistory, createRouter } from 'vue-router'
+import { setAntiforgeryUrl } from '../ClientApps/shared/api/http'
+import { useSetupStore } from '../ClientApps/setup/stores/setup'
+import SecretField from '../ClientApps/setup/components/SecretField.vue'
+import DatabaseStep from '../ClientApps/setup/steps/DatabaseStep.vue'
+import AzureDevOpsStep from '../ClientApps/setup/steps/AzureDevOpsStep.vue'
+import App from '../ClientApps/setup/App.vue'
+
+const unset = { set: false, updatedAt: null, updatedBy: null }
+const set = { set: true, updatedAt: '2026-10-07T10:00:00Z', updatedBy: 'setup' }
+
+type Call = { method: string; path: string; body: unknown; xsrf: string | null }
+let calls: Call[]
+let routes: Record<string, () => Response>
+const json = (body: unknown, status = 200) => () => new Response(JSON.stringify(body), { status })
+
+beforeEach(() => {
+  setActivePinia(createPinia())
+  setAntiforgeryUrl('/api/setup/antiforgery')
+  calls = []
+  routes = {
+    'GET /api/setup/antiforgery': json({ token: 'setup-xsrf' }),
+    'GET /api/setup/session': json({ expiresAt: '2026-10-07T10:30:00Z' }),
+    'GET /api/setup/database': json({ connectionString: unset }),
+    'PUT /api/setup/database': json({ restartRequired: true }),
+    'POST /api/setup/database/test': json({ ok: false, message: 'password authentication failed', fix: 'check the password' }),
+    'POST /api/setup/database/migrate': json({ ok: true, message: 'Applied 17 migration(s).', fix: null }),
+    'GET /api/setup/azure-devops': json({ organization: 'myorg', project: 'Portal', auth: 'Pat', pat: set }),
+    'PUT /api/setup/azure-devops': json({ restartRequired: true }),
+    'POST /api/setup/azure-devops/test': json({ ok: true, message: 'Signed in to myorg/Portal.', fix: null }),
+  }
+  vi.stubGlobal('fetch', vi.fn(async (req: Request) => {
+    const path = new URL(req.url).pathname
+    const body = req.method === 'GET' ? undefined : await req.clone().text()
+    calls.push({ method: req.method, path, body: body ? JSON.parse(body) : undefined, xsrf: req.headers.get('X-XSRF-TOKEN') })
+    const route = routes[`${req.method} ${path}`]
+    return route ? route() : new Response(JSON.stringify({ title: 'Not found' }), { status: 404 })
+  }))
+})
+afterEach(() => vi.unstubAllGlobals())
+
+const router = () => createRouter({ history: createMemoryHistory(), routes: [{ path: '/:p(.*)*', component: { template: '<div />' } }] })
+
+describe('setup store', () => {
+  it('knows when there is no setup session', async () => {
+    routes['GET /api/setup/session'] = json({ title: 'Unauthorized' }, 401)
+    const setup = useSetupStore()
+
+    await setup.loadSession()
+
+    expect(setup.session).toBe('missing')
+  })
+
+  it('sends changes with the setup session antiforgery token and keeps no secret', async () => {
+    const setup = useSetupStore()
+
+    await setup.saveDatabase('Host=db;Password=pw-SECRET')
+
+    const put = calls.find((c) => c.method === 'PUT')!
+    expect(put).toMatchObject({ path: '/api/setup/database', body: { connectionString: 'Host=db;Password=pw-SECRET' }, xsrf: 'setup-xsrf' })
+    expect(calls.some((c) => c.path === '/bff/antiforgery')).toBe(false)
+    expect(setup.restartRequired).toBe(true)
+    expect(JSON.stringify(setup.$state)).not.toContain('SECRET')
+  })
+
+  it('tests the saved connection string when the field is empty', async () => {
+    await useSetupStore().testDatabase('  ')
+
+    expect(calls.find((c) => c.path === '/api/setup/database/test')?.body).toEqual({ connectionString: null })
+  })
+})
+
+describe('SecretField', () => {
+  it('shows only the status of a set secret until Replace', async () => {
+    const field = mount(SecretField, { props: { label: 'Token', status: set, modelValue: '' } })
+
+    expect(field.find('input').exists()).toBe(false)
+    expect(field.text()).toContain('Set')
+    expect(field.text()).toContain('by setup')
+    await field.get('button').trigger('click')
+    expect(field.find('input[type="password"]').exists()).toBe(true)
+  })
+
+  it('is a password input when nothing is set', () => {
+    const field = mount(SecretField, { props: { label: 'Token', status: unset, modelValue: '' } })
+
+    expect(field.get('input').attributes('type')).toBe('password')
+    expect(field.get('label').attributes('for')).toBe(field.get('input').attributes('id'))
+  })
+})
+
+describe('steps', () => {
+  it('database: Test shows the failure and its fix; Save clears the field', async () => {
+    const step = mount(DatabaseStep, { global: { plugins: [router()] } })
+    await flushPromises()
+
+    await step.findAll('button').find((b) => b.text() === 'Test')!.trigger('click')
+    await flushPromises()
+    expect(step.text()).toContain('password authentication failed')
+    expect(step.text()).toContain('Fix: check the password')
+
+    await step.get('input').setValue('Host=db;Password=pw-SECRET')
+    await step.findAll('button').find((b) => b.text() === 'Save')!.trigger('click')
+    await flushPromises()
+    expect(step.text()).toContain('Connection string saved.')
+    expect(calls.some((c) => c.method === 'PUT' && c.path === '/api/setup/database')).toBe(true)
+  })
+
+  it('azure devops: prefills the saved settings and hides the token for az login', async () => {
+    const step = mount(AzureDevOpsStep, { global: { plugins: [router()] } })
+    await flushPromises()
+
+    const [organization, project] = step.findAll('input:not([type="radio"])')
+    expect((organization!.element as HTMLInputElement).value).toBe('myorg')
+    expect((project!.element as HTMLInputElement).value).toBe('Portal')
+    expect(step.text()).toContain('Personal access token')
+
+    await step.get('input[value="AzCli"]').setValue(true)
+    expect(step.text()).not.toContain('Personal access token')
+    await step.findAll('button').find((b) => b.text() === 'Test')!.trigger('click')
+    await flushPromises()
+    expect(calls.find((c) => c.path === '/api/setup/azure-devops/test')?.body).toEqual({ organization: 'myorg', project: 'Portal', auth: 'AzCli', pat: null })
+    expect(step.text()).toContain('Signed in to myorg/Portal.')
+  })
+
+  it('without a session the wizard explains how to get the link', async () => {
+    routes['GET /api/setup/session'] = json({ title: 'Unauthorized' }, 401)
+    const app = mount(App, { global: { plugins: [router()] } })
+    await flushPromises()
+
+    expect(app.text()).toContain('agentd setup-link')
+    expect(app.find('nav').exists()).toBe(false)
+  })
+})

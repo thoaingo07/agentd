@@ -25,7 +25,7 @@ public sealed class SetupSessionTests : IDisposable
         using var response = await Client(app).GetAsync(new Uri($"/setup?token={token}", UriKind.Relative));
 
         Assert.AreEqual(HttpStatusCode.Redirect, response.StatusCode);
-        Assert.AreEqual("/setup", response.Headers.Location?.OriginalString);
+        Assert.AreEqual("/setup/wizard", response.Headers.Location?.OriginalString);
         var cookie = response.Headers.GetValues("Set-Cookie").Single(c => c.StartsWith(SetupSession.CookieName + "=", StringComparison.Ordinal)).ToLowerInvariant();
         Assert.Contains("httponly", cookie);
         Assert.Contains("samesite=strict", cookie);
@@ -116,14 +116,15 @@ public sealed class SetupSessionTests : IDisposable
     }
 
     [TestMethod]
-    public async Task The_page_without_a_token_says_how_to_get_one()
+    public async Task Without_a_token_the_page_goes_to_the_wizard_which_explains_the_link()
     {
         await using var app = await StartAsync();
 
         using var response = await Client(app).GetAsync(new Uri("/setup", UriKind.Relative));
 
-        Assert.AreEqual(HttpStatusCode.Unauthorized, response.StatusCode);
-        Assert.Contains("agentd setup-link", await response.Content.ReadAsStringAsync());
+        Assert.AreEqual(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.AreEqual("/setup/wizard", response.Headers.Location?.OriginalString);
+        Assert.IsFalse(response.Headers.TryGetValues("Set-Cookie", out var cookies) && cookies.Any(c => c.StartsWith(SetupSession.CookieName, StringComparison.Ordinal)));
     }
 
     public void Dispose() => Directory.Delete(_dir, recursive: true);

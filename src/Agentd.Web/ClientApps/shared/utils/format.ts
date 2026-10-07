@@ -12,6 +12,11 @@ export function clock(iso: string): string {
   return new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' })
 }
 
+/** 7 Oct 2026, 14:05 in the viewer's locale. */
+export function dateTime(iso: string): string {
+  return new Date(iso).toLocaleString(undefined, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
+
 /** "JobStarted" → "Job started", "phase.set" → "Phase set". */
 export function humanize(type: string): string {
   const words = type.replace(/[._]/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase()

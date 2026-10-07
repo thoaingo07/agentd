@@ -1,0 +1,18 @@
+import { createRouter, createWebHistory } from 'vue-router'
+import DatabaseStep from './steps/DatabaseStep.vue'
+import AzureDevOpsStep from './steps/AzureDevOpsStep.vue'
+
+/** The wizard's steps, in order (docs/architect/deployment.md §5a). Later steps join as their APIs land. */
+export const steps = [
+  { path: '/database', name: 'database', title: 'Database', component: DatabaseStep },
+  { path: '/azure-devops', name: 'azure-devops', title: 'Azure DevOps', component: AzureDevOpsStep },
+] as const
+
+export const router = createRouter({
+  history: createWebHistory('/setup/wizard/'),
+  routes: [
+    { path: '/', redirect: steps[0].path },
+    ...steps.map((s) => ({ path: s.path, name: s.name, component: s.component, meta: { title: s.title } })),
+    { path: '/:rest(.*)*', redirect: steps[0].path },
+  ],
+})
