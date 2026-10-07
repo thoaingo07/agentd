@@ -32,6 +32,9 @@ public interface IWorktreeManager
 
     Task PruneAsync(Repository repository, CancellationToken cancellationToken);
 
+    /// <summary>The paths of the files on the repository's base branch, from the managed clone (e.g. to see which toolchains it needs).</summary>
+    Task<IReadOnlyList<string>> ListFilesAsync(Repository repository, CancellationToken cancellationToken);
+
     /// <summary>The checkout folders under <c>worktrees/&lt;repo&gt;/</c> (jobs' <c>wi-*</c>, ideas' <c>idea-*</c>, reviews' <c>review-*</c>).</summary>
     Task<IReadOnlyList<WorktreeFolder>> ListFoldersAsync(Repository repository, CancellationToken cancellationToken);
 

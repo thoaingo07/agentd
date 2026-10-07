@@ -133,6 +133,12 @@ Repositories aren't local folders in config. agentd **clones and owns** them:
 
 Headless Claude Code authentication must be verified against the installed CLI version during
 Phase 1b (`agentd doctor` checks it).
+- **How it's checked (2026-10-06):** `doctor` sends a tiny real prompt (`--model haiku --max-turns 1 --tools ""`) in
+  exactly the environment agents get (`SafeEnvironment`: the profile's `CLAUDE_CODE_OAUTH_TOKEN` or its
+  `CLAUDE_CONFIG_DIR` login, no daemon secrets). A configured `claude setup-token` token is therefore proven to work,
+  not just present.
+- **Verified so far:** the logged-in path, a claude.ai Max login answering in about 2 s with CLI 2.1.292.
+- **Still to verify:** the token path, on the VPS demo once a token has been created there.
 
 ---
 
@@ -183,7 +189,8 @@ Repositories**, and **Health** shows the live `doctor` report.
 
 ## 6. `agentd doctor`
 
-Each check prints ✅/⚠️/❌ and a one-line fix:
+Each check prints ✅/⚠️/❌ and a one-line fix. Only ❌ fails the run (exit 5); ⚠️ is shown but passes. `--skip-live`
+skips the Claude test prompt.
 
 - the config and its schema are valid, and the secrets decrypt;
 - PostgreSQL is reachable and the schema is up to date (otherwise: `agentd db migrate`);

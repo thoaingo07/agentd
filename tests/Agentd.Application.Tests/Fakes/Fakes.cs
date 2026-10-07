@@ -284,6 +284,10 @@ internal sealed class FakeWorktrees : IWorktreeManager
 
     public List<string> Folders { get; } = [];
 
+    public List<string> Files { get; } = [];
+
+    public Task<IReadOnlyList<string>> ListFilesAsync(Repository repository, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<string>>([.. Files]);
+
     public Task<IReadOnlyList<WorktreeFolder>> ListFoldersAsync(Repository repository, CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<WorktreeFolder>>([.. Folders.Select(f => new WorktreeFolder(f, $"/home/agentd/.agentd/worktrees/{repository.Name}/{f}"))]);
 
