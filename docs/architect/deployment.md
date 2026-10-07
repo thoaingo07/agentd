@@ -204,6 +204,20 @@ Repositories**, and **Health** shows the live `doctor` report.
   rename, keys matched case-insensitively; comments don't survive a write), `ISecrets` (the encrypted store; values
   are read only server-side, to test a connection) and `ISettingsAudit`.
 
+### The setup API (T1b.11)
+
+`SetupService` (Application) holds the steps. The wizard (`/api/setup/*`, setup session only), Settings
+(`/api/settings/*`, Admin) and `agentd init` all call it. Each step has:
+- a GET with the current values (secrets as `{ set, updatedAt, updatedBy }`);
+- a PUT that saves them;
+- a POST `…/test` that tests the given values, or the saved ones when they're left out, **without saving them**.
+
+A save answers `{ restartRequired }`, because the daemon reads these settings at start.
+
+| Step | Endpoints | Writes |
+|---|---|---|
+| Database | `GET`/`PUT /api/setup/database`, `POST …/test` (connect, then the schema: missing, pending migrations or current), `POST …/migrate` | secret `ConnectionStrings:agentd` |
+
 ---
 
 ## 6. `agentd doctor`

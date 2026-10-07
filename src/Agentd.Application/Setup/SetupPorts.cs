@@ -36,3 +36,17 @@ public interface ISettingsAudit
 {
     Task RecordAsync(IReadOnlyList<SettingsChange> changes, CancellationToken cancellationToken);
 }
+
+/// <summary>A step's "Test" result, with a one-line fix when it failed.</summary>
+public sealed record StepCheck(bool Ok, string Message, string? Fix = null);
+
+public interface IDatabaseProbe
+{
+    /// <summary>Why <paramref name="connectionString"/> isn't a PostgreSQL connection string, or null.</summary>
+    string? Problem(string connectionString);
+
+    /// <summary>Connects, then reports the schema: missing, out of date, or current.</summary>
+    Task<StepCheck> TestAsync(string connectionString, CancellationToken cancellationToken);
+
+    Task<StepCheck> MigrateAsync(string connectionString, CancellationToken cancellationToken);
+}

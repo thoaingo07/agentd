@@ -30,6 +30,7 @@ internal static class AgentdServices
         builder.Services.AddSingleton<Application.Setup.IConfigWriter>(sp => new Configuration.AgentdJsonFile(home, sp.GetRequiredService<IConfiguration>()));
         builder.Services.AddSingleton<Application.Setup.ISecrets>(new Configuration.StoredSecrets(new Configuration.SecretStore(home)));
         builder.Services.AddSingleton<Application.Setup.ISettingsAudit, Configuration.FileSettingsAudit>();
+        builder.Services.AddSingleton<Application.Setup.IDatabaseProbe, Setup.NpgsqlDatabaseProbe>();
 
         builder.Services.AddOptions<AgentdOptions>()
             .BindConfiguration(AgentdOptions.Section)

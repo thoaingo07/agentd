@@ -420,6 +420,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/setup/database": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetSetupDatabase"];
+        put: operations["SaveSetupDatabase"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/setup/database/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["TestSetupDatabase"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/setup/database/migrate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["MigrateSetupDatabase"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -468,6 +516,13 @@ export interface components {
             activeJobs: components["schemas"]["JobSummaryVm"][];
             /** Format: int64 */
             latestSeq: number;
+        };
+        /** @description The PostgreSQL connection string (a secret). On Test, empty means "the saved one". */
+        DatabaseRequest: {
+            connectionString: null | string;
+        };
+        DatabaseStepVm: {
+            connectionString: components["schemas"]["SecretStatusVm"];
         };
         /** @description A job's changes; `unifiedDiff` is null when `truncated` (over 2 MB), leaving the file list. */
         DiffVm: {
@@ -695,10 +750,27 @@ export interface components {
             /** Format: int64 */
             jobId: number;
         };
+        /** @description Saved. The daemon reads these settings at start, so they apply after a restart. */
+        SaveResultVm: {
+            restartRequired: boolean;
+        };
+        /** @description A secret's status. Secrets are write-only: the value never leaves the server. */
+        SecretStatusVm: {
+            set: boolean;
+            /** Format: date-time */
+            updatedAt: null | string;
+            updatedBy: null | string;
+        };
         /** @description The setup session (the one-time link's cookie): when it ends unless used again (it slides). */
         SetupSessionVm: {
             /** Format: date-time */
             expiresAt: null | string;
+        };
+        /** @description A step's "Test" result; string? StepCheckVm.Fix says what to do when it failed. */
+        StepCheckVm: {
+            ok: boolean;
+            message: string;
+            fix: null | string;
         };
         UsageVm: {
             /** Format: double */
@@ -1556,6 +1628,112 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AntiforgeryTokenVm"];
+                };
+            };
+        };
+    };
+    GetSetupDatabase: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatabaseStepVm"];
+                };
+            };
+        };
+    };
+    SaveSetupDatabase: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": null | components["schemas"]["DatabaseRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SaveResultVm"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    TestSetupDatabase: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": null | components["schemas"]["DatabaseRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StepCheckVm"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    MigrateSetupDatabase: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StepCheckVm"];
                 };
             };
         };
