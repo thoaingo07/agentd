@@ -197,7 +197,12 @@ Repositories**, and **Health** shows the live `doctor` report.
 - Values travel only over the same-origin BFF (`POST /api/settings/*`, with antiforgery and the Admin
   policy). They are stored **encrypted** (`secrets.json`), never logged, never sent back to the
   browser, and **never put into agent environments**, except the one credential a model profile needs.
-- Every change is audited (`settings.changed` event: who, what key, when; never the value).
+- Every change is audited (`settings.changed`: who, what key, when; never the value). It's a JSON line in
+  `~/.agentd/logs/settings-audit.jsonl` (0600) plus a log line, not a database event, because setup runs before the
+  database exists.
+- The setup use cases write through ports (T1b.11): `IConfigWriter` (`agentd.json`: merged under a lock, atomic 0600
+  rename, keys matched case-insensitively; comments don't survive a write), `ISecrets` (the encrypted store; values
+  are read only server-side, to test a connection) and `ISettingsAudit`.
 
 ---
 
