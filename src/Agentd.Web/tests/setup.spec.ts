@@ -11,6 +11,7 @@ import GitKeyStep from '../ClientApps/setup/steps/GitKeyStep.vue'
 import ClaudeStep from '../ClientApps/setup/steps/ClaudeStep.vue'
 import ChatStep from '../ClientApps/setup/steps/ChatStep.vue'
 import RepositoriesStep from '../ClientApps/setup/steps/RepositoriesStep.vue'
+import ReviewStep from '../ClientApps/setup/steps/ReviewStep.vue'
 import App from '../ClientApps/setup/App.vue'
 
 const unset = { set: false, updatedAt: null, updatedBy: null }
@@ -47,6 +48,12 @@ beforeEach(() => {
     'GET /api/setup/repositories': json([]),
     'POST /api/setup/repositories': json({ url: 'git@ssh.dev.azure.com:v3/myorg/Portal/sysmin', name: 'sysmin', baseBranch: 'develop', matchTag: 'repo:sysmin', matchAreaPaths: [] }),
     'POST /api/setup/repositories/test': json({ ok: true, message: 'Reached myorg/Portal/sysmin; its default branch is develop.', fix: null }),
+    'GET /api/setup/review': json([
+      { step: 'database', title: 'Database', required: true, check: { ok: true, message: 'Connected.', fix: null } },
+      { step: 'claude', title: 'Claude', required: true, check: { ok: false, message: 'The test prompt failed.', fix: 'log in on the server' } },
+      { step: 'chat', title: 'Chat', required: false, check: { ok: false, message: 'Bot token missing.', fix: 'finish the Chat step' } },
+    ]),
+    'POST /api/setup/finish': json({ completedAt: '2026-10-07T12:00:00Z' }),
     'POST /api/setup/git-key/test': json({ ok: false, message: 'Permission denied (publickey).', fix: 'add the public key to Azure DevOps' }),
   }
   vi.stubGlobal('fetch', vi.fn(async (req: Request) => {
@@ -226,6 +233,26 @@ describe('steps', () => {
     expect(step.text()).toContain('Added sysmin (base branch develop)')
     expect(step.get('ul').text()).toContain('repo:sysmin')
     expect(useSetupStore().restartRequired).toBe(true)
+  })
+
+  it('review: a failing required check blocks Finish; once it passes, Finish says to restart', async () => {
+    const step = mount(ReviewStep, { global: { plugins: [router()] } })
+    await flushPromises()
+    expect(step.findAll('li')).toHaveLength(3)
+    expect(step.text()).toContain('Fix: log in on the server')
+    expect(step.find('[aria-label="failed, required"]').exists()).toBe(true)
+    expect(step.find('[aria-label="warning"]').exists()).toBe(true)
+    const finish = () => step.findAll('button').find((b) => b.text() === 'Finish setup')!
+    expect(finish().attributes('disabled')).toBeDefined()
+
+    routes['GET /api/setup/review'] = json([{ step: 'database', title: 'Database', required: true, check: { ok: true, message: 'Connected.', fix: null } }])
+    await step.findAll('button').find((b) => b.text() === 'Check again')!.trigger('click')
+    await flushPromises()
+    expect(finish().attributes('disabled')).toBeUndefined()
+    await finish().trigger('click')
+    await flushPromises()
+    expect(step.text()).toContain('agentd is set up.')
+    expect(step.text()).toContain('agentd daemon restart')
   })
 
   it('without a session the wizard explains how to get the link', async () => {

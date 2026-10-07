@@ -63,6 +63,22 @@ In Docker, run the CLI commands below through the container, e.g. `docker compos
 dotnet run --project src/Agentd.AppHost      # .NET Aspire: PostgreSQL, migrations, the web dev server and agentd
 ```
 
+## Set up in the browser (the easy way)
+
+Steps 2 to 6 below can also be done in a **setup wizard** in your browser. Each step has a **Test** button.
+
+1. Start the daemon (`agentd daemon install && agentd daemon start`).
+2. Until setup is finished, it logs a one-time link: `agentd daemon logs` shows
+   `Open http://127.0.0.1:7780/setup?token=…`. `agentd setup-link` prints a new one.
+3. On your laptop, open an SSH tunnel to the server (`ssh -L 7780:127.0.0.1:7780 <server>`), then open the link.
+4. Go through **Database → Azure DevOps → Git access → Claude → Chat (optional) → Repositories → Review & finish**.
+   Secrets you enter are stored encrypted and never shown again.
+5. **Finish setup** checks everything again. It needs the database, Azure DevOps and Claude to pass. After that the
+   link stops working.
+6. Run `agentd daemon restart`, then open the web UI (step 8).
+
+The sections below do the same from the command line.
+
 ## 2. A database
 
 With Docker Compose this is done for you. Otherwise run PostgreSQL 17 (a container is easiest), store its connection

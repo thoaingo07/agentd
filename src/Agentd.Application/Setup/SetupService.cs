@@ -51,6 +51,12 @@ public sealed record RepositoryEntry(string Url, string? Name, string? BaseBranc
 /// <param name="MatchAreaPaths">Work items under these area paths go to this repository.</param>
 public sealed record RepositoryInput(string Url, string? Name, string? BaseBranch, string? MatchTag, IReadOnlyList<string>? MatchAreaPaths);
 
+/// <summary>One line of the review: a step, whether it's required to finish, and its check.</summary>
+public sealed record ReviewItem(string Step, string Title, bool Required, StepCheck Check);
+
+/// <summary>Setup is finished: the daemon must restart to use the new settings.</summary>
+public sealed record FinishResult(DateTimeOffset CompletedAt);
+
 /// <summary>A saved step. The daemon reads these settings at start, so they apply after a restart.</summary>
 public sealed record SaveResult(bool RestartRequired);
 
@@ -69,6 +75,7 @@ public sealed class SetupService(
     IClaudeProbe claude,
     IChatProbe chat,
     IGitRemote remote,
+    ISetupLink link,
     IOptions<JobOptions> jobs,
     TimeProvider time)
 {
@@ -409,6 +416,62 @@ public sealed class SetupService(
         {
             return new StepCheck(false, ex.Message, "check the Git access step: agentd's key must be added where the repository lives");
         }
+    }
+
+    /// <summary>
+    /// Every step's own Test against the saved settings (not the running daemon's, which a restart replaces). Chat is
+    /// only checked for completeness: a test message on every review would be noise.
+    /// </summary>
+    public async Task<IReadOnlyList<ReviewItem>> ReviewAsync(CancellationToken cancellationToken)
+    {
+        var items = new List<ReviewItem>
+        {
+            new("database", "Database", true, await TestDatabaseAsync(null, cancellationToken).ConfigureAwait(false)),
+            new("azure-devops", "Azure DevOps", true, await TestAzureDevOpsAsync(null, cancellationToken).ConfigureAwait(false)),
+            new("git", "Git access", false, gitKey.Read() is { } key
+                ? new StepCheck(true, $"agentd's SSH key {key.Fingerprint}.")
+                : new StepCheck(false, "agentd has no SSH key: git uses the SSH setup of the user it runs as.", "generate one in the Git access step, unless that setup already works")),
+            new("claude", "Claude", true, await TestClaudeAsync(null, cancellationToken).ConfigureAwait(false)),
+        };
+
+        var chat = GetChat();
+        items.Add(new("chat", "Chat", false, !chat.Enabled
+            ? new StepCheck(true, "Off: everything happens in the web UI.")
+            : chat.BotToken.Set && chat.Users.Count > 0
+                ? new StepCheck(true, $"Discord, answering {string.Join(", ", chat.Users.Select(u => u.Name))}.")
+                : new StepCheck(false, "Discord is on, but the bot token or a user with a Discord ID is missing.", "finish the Chat step")));
+
+        var repositories = GetRepositories();
+        if (repositories.Count == 0)
+        {
+            items.Add(new("repositories", "Repositories", false, new StepCheck(false, "No repositories yet.", "add one in the Repositories step, or later with agentd repo add")));
+        }
+
+        foreach (var repository in repositories)
+        {
+            items.Add(new("repositories", repository.Name ?? repository.Url, false, await TestRepositoryAsync(repository.Url, cancellationToken).ConfigureAwait(false)));
+        }
+
+        return items;
+    }
+
+    /// <summary>
+    /// Finishes setup when every required check passes: <c>Setup:CompletedAt</c> goes into agentd.json and the
+    /// one-time link is revoked, which also ends the setup session. Settings stay editable by an Admin.
+    /// </summary>
+    public async Task<Result<FinishResult>> FinishAsync(string by, CancellationToken cancellationToken)
+    {
+        var failing = (await ReviewAsync(cancellationToken).ConfigureAwait(false)).Where(i => i.Required && !i.Check.Ok).Select(i => i.Title).ToList();
+        if (failing.Count > 0)
+        {
+            return DomainError.Validation($"Not finished yet: {string.Join(", ", failing)} must pass first.");
+        }
+
+        var at = time.GetUtcNow();
+        await config.SetAsync(new Dictionary<string, string?> { ["Setup:CompletedAt"] = at.ToString("O", System.Globalization.CultureInfo.InvariantCulture) }, cancellationToken).ConfigureAwait(false);
+        link.Revoke();
+        await audit.RecordAsync([Change("Setup:CompletedAt", "config", "set", by)], cancellationToken).ConfigureAwait(false);
+        return new FinishResult(at);
     }
 
     private static string? ValidateChat(ChatInput input)

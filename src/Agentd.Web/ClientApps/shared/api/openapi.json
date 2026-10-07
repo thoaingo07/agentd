@@ -1777,6 +1777,59 @@
           }
         }
       }
+    },
+    "/api/setup/review": {
+      "get": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "GetSetupReview",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ReviewItemVm"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/setup/finish": {
+      "post": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "FinishSetup",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FinishVm"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2353,6 +2406,19 @@
           }
         },
         "description": "One event; the payload is JSON passed through (it was redacted when stored)."
+      },
+      "FinishVm": {
+        "required": [
+          "completedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "completedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "Setup is complete; the daemon uses the new settings after a restart."
       },
       "GitKeyStepVm": {
         "required": [
@@ -3152,6 +3218,30 @@
             }
           }
         }
+      },
+      "ReviewItemVm": {
+        "required": [
+          "step",
+          "title",
+          "required",
+          "check"
+        ],
+        "type": "object",
+        "properties": {
+          "step": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "check": {
+            "$ref": "#/components/schemas/StepCheckVm"
+          }
+        },
+        "description": "One review line: a step, whether finishing needs it, and its check."
       },
       "RunAcceptedVm": {
         "required": [

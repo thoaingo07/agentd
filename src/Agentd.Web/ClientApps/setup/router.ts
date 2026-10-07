@@ -5,8 +5,9 @@ import GitKeyStep from './steps/GitKeyStep.vue'
 import ClaudeStep from './steps/ClaudeStep.vue'
 import ChatStep from './steps/ChatStep.vue'
 import RepositoriesStep from './steps/RepositoriesStep.vue'
+import ReviewStep from './steps/ReviewStep.vue'
 
-/** The wizard's steps, in order (docs/architect/deployment.md §5a). Later steps join as their APIs land. */
+/** The wizard's steps, in order (docs/architect/deployment.md §5a). */
 export const steps = [
   { path: '/database', name: 'database', title: 'Database', component: DatabaseStep },
   { path: '/azure-devops', name: 'azure-devops', title: 'Azure DevOps', component: AzureDevOpsStep },
@@ -14,6 +15,7 @@ export const steps = [
   { path: '/claude', name: 'claude', title: 'Claude', component: ClaudeStep },
   { path: '/chat', name: 'chat', title: 'Chat (optional)', component: ChatStep },
   { path: '/repositories', name: 'repositories', title: 'Repositories', component: RepositoriesStep },
+  { path: '/review', name: 'review', title: 'Review & finish', component: ReviewStep },
 ] as const
 
 export const router = createRouter({

@@ -89,6 +89,13 @@ public static class SetupEndpoints
             Check(await service.TestRepositoryAsync(body?.Url, ct).ConfigureAwait(false)))
             .WithName("TestSetupRepository").Accepts<GitTestRequest>("application/json").Produces<StepCheckVm>();
 
+        setup.MapGet("/review", async ([FromServices] SetupService service, CancellationToken ct) =>
+                TypedResults.Ok((await service.ReviewAsync(ct).ConfigureAwait(false)).Select(ReviewItemVm.From).ToList()))
+            .WithName("GetSetupReview");
+        setup.MapPost("/finish", async (ClaimsPrincipal user, [FromServices] SetupService service, CancellationToken ct) =>
+            (await service.FinishAsync(By(user), ct).ConfigureAwait(false)).ToHttpResult(f => TypedResults.Ok(new FinishVm(f.CompletedAt))))
+            .WithName("FinishSetup").Produces<FinishVm>().ProducesProblem(StatusCodes.Status400BadRequest);
+
         return setup;
     }
 

@@ -19,6 +19,7 @@ public sealed class SetupServiceTests
     private readonly FakeClaude _claude = new();
     private readonly FakeChat _chat = new();
     private readonly FakeRemote _remote = new();
+    private readonly FakeLink _link = new();
 
     [TestMethod]
     public async Task Saving_the_database_stores_a_secret_and_audits_it_without_the_value()
@@ -355,7 +356,55 @@ public sealed class SetupServiceTests
         Assert.Contains("Git access", failed.Fix!);
     }
 
-    private SetupService Service() => new(_config, _secrets, _audit, _database, _azureDevOps, _gitKey, _claude, _chat, _remote, Options.Create(new JobOptions()), TimeProvider.System);
+    [TestMethod]
+    public async Task Finishing_needs_the_database_azure_devops_and_claude()
+    {
+        var early = await Service().FinishAsync("setup", CancellationToken.None);
+
+        Assert.AreEqual("validation", early.Error?.Code);
+        Assert.Contains("Database, Azure DevOps", early.Error!.Message);
+        Assert.IsFalse(_link.Revoked);
+        Assert.IsFalse(_config.Values.ContainsKey("Setup:CompletedAt"));
+    }
+
+    [TestMethod]
+    public async Task Finishing_records_completion_and_revokes_the_link()
+    {
+        Ready();
+
+        var review = await Service().ReviewAsync(CancellationToken.None);
+        var result = await Service().FinishAsync("setup", CancellationToken.None);
+
+        Assert.IsTrue(review.Where(i => i.Required).All(i => i.Check.Ok));
+        CollectionAssert.AreEqual(new[] { "database", "azure-devops", "git", "claude", "chat", "repositories" }, review.Select(i => i.Step).ToList());
+        Assert.IsTrue(result.IsSuccess, result.Error?.Message);
+        Assert.AreEqual(result.Value!.CompletedAt.ToString("O", System.Globalization.CultureInfo.InvariantCulture), _config.Values["Setup:CompletedAt"]);
+        Assert.IsTrue(_link.Revoked);
+        Assert.AreEqual("Setup:CompletedAt", _audit.Changes.Last().Key);
+    }
+
+    [TestMethod]
+    public async Task Optional_steps_warn_but_dont_block()
+    {
+        Ready();
+        _config.Values["Messaging:Providers:Discord:Enabled"] = "true";   // on, but no token or user
+
+        var review = await Service().ReviewAsync(CancellationToken.None);
+        var result = await Service().FinishAsync("setup", CancellationToken.None);
+
+        Assert.IsFalse(review.Single(i => i.Step == "chat").Check.Ok);
+        Assert.IsFalse(review.Single(i => i.Step == "repositories").Check.Ok);
+        Assert.IsTrue(result.IsSuccess);
+    }
+
+    private void Ready()
+    {
+        _secrets.Values[SetupService.ConnectionStringSecret] = ConnectionString;
+        _config.Values["AzureDevOps:Organization"] = "myorg";
+        _config.Values["AzureDevOps:Project"] = "Portal";
+    }
+
+    private SetupService Service() => new(_config, _secrets, _audit, _database, _azureDevOps, _gitKey, _claude, _chat, _remote, _link, Options.Create(new JobOptions()), TimeProvider.System);
 
     private sealed class FakeConfig : IConfigWriter
     {
@@ -489,5 +538,12 @@ public sealed class SetupServiceTests
             Asked.Add(remoteUrl);
             return Fail ? throw new InvalidOperationException("Permission denied (publickey).") : Task.FromResult("develop");
         }
+    }
+
+    private sealed class FakeLink : ISetupLink
+    {
+        public bool Revoked { get; private set; }
+
+        public void Revoke() => Revoked = true;
     }
 }

@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using Agentd.Application.Setup;
 
 namespace Agentd.Bff.Setup;
 
@@ -8,7 +9,7 @@ namespace Agentd.Bff.Setup;
 /// <c>~/.agentd/run/setup-token</c> (0600), so the file alone can't open a setup session. Issuing a new token
 /// replaces the old one (the daemon prints a fresh link on every start, <c>agentd setup-link</c> on request).
 /// </summary>
-public sealed class SetupToken(string path)
+public sealed class SetupToken(string path) : ISetupLink
 {
     public string FilePath { get; } = path;
 
@@ -49,7 +50,7 @@ public sealed class SetupToken(string path)
     }
 
     /// <summary>Kills the link (setup is complete).</summary>
-    public void Revoke() => File.Delete(FilePath);
+    public void Revoke() => File.Delete(FilePath);   // a missing file is fine: already revoked
 
     private static string Hash(string token) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
 

@@ -68,3 +68,16 @@ public sealed record RepositoryEntryVm(string Url, string? Name, string? BaseBra
         return new(r.Url, r.Name, r.BaseBranch, r.MatchTag, r.MatchAreaPaths);
     }
 }
+
+/// <summary>One review line: a step, whether finishing needs it, and its check.</summary>
+public sealed record ReviewItemVm(string Step, string Title, bool Required, StepCheckVm Check)
+{
+    public static ReviewItemVm From(Application.Setup.ReviewItem i)
+    {
+        ArgumentNullException.ThrowIfNull(i);
+        return new(i.Step, i.Title, i.Required, new StepCheckVm(i.Check.Ok, i.Check.Message, i.Check.Fix));
+    }
+}
+
+/// <summary>Setup is complete; the daemon uses the new settings after a restart.</summary>
+public sealed record FinishVm(DateTimeOffset CompletedAt);
