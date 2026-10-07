@@ -1,0 +1,80 @@
+name: release
+
+# Tag vX.Y.Z (or vX.Y.Z-beta.N for a pre-release) → four single-file builds, sha256sums.txt and install.sh on a
+# GitHub Release (T1b.7). `agentd update` and install.sh read these assets.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - { rid: linux-x64, os: ubuntu-latest }
+          - { rid: linux-arm64, os: ubuntu-latest }
+          - { rid: win-x64, os: ubuntu-latest }
+          # macOS arm64 binaries must be signed (ad hoc is enough); the SDK does that only on macOS.
+          - { rid: osx-arm64, os: macos-latest }
+    runs-on: ${{ matrix.os }}
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      DOTNET_NOLOGO: "1"
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: src/Agentd.Web/package-lock.json
+
+      - name: Publish ${{ matrix.rid }}
+        shell: bash
+        run: VERSION="${GITHUB_REF_NAME#v}" build/publish.sh "${{ matrix.rid }}"
+
+      - name: Name the asset
+        shell: bash
+        run: |
+          mkdir -p dist
+          if [[ "${{ matrix.rid }}" == win-* ]]; then
+            cp "artifacts/${{ matrix.rid }}/agentd.exe" "dist/agentd-${{ matrix.rid }}.exe"
+          else
+            cp "artifacts/${{ matrix.rid }}/agentd" "dist/agentd-${{ matrix.rid }}"
+          fi
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: agentd-${{ matrix.rid }}
+          path: dist/*
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Checksums
+        run: |
+          cp install.sh dist/
+          cd dist && sha256sum agentd-* install.sh > sha256sums.txt && cat sha256sums.txt
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          prerelease=""
+          [[ "$GITHUB_REF_NAME" == *-* ]] && prerelease="--prerelease"
+          gh release create "$GITHUB_REF_NAME" dist/* --title "agentd ${GITHUB_REF_NAME#v}" --generate-notes $prerelease

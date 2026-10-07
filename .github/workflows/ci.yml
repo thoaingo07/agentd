@@ -31,6 +31,10 @@ jobs:
       - name: Format
         run: dotnet format Agentd.slnx --verify-no-changes --no-restore
 
+      # install.sh is what people pipe into sh; build/publish.sh makes the releases.
+      - name: Shell scripts
+        run: shellcheck install.sh build/publish.sh
+
       - name: Build
         run: dotnet build Agentd.slnx --no-restore -c Release
 

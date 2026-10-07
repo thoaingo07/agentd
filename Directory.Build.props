@@ -8,6 +8,8 @@
     <AnalysisLevel>latest-recommended</AnalysisLevel>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- Releases set it from the tag (VERSION=x.y.z build/publish.sh); a local build is 0.0.0-dev, older than any release. -->
+    <Version Condition="'$(Version)' == ''">0.0.0-dev</Version>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <!-- Required for IDE0005 (unused usings) to be enforced at build time. -->
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
