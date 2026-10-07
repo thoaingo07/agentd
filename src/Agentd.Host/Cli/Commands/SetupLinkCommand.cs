@@ -22,8 +22,9 @@ internal static class SetupLinkCommand
 
             var urls = configuration?.GetSection($"{AgentdOptions.Section}:Web").Get<WebOptions>()?.Urls ?? SetupLink.DefaultBase;
             var token = new SetupToken(context.Home.SetupTokenFile).Issue();
-            await context.Out.WriteLineAsync(SetupLink.For(urls.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries), token)).ConfigureAwait(false);
-            await context.Out.WriteLineAsync("Open it on this machine, or from another computer through an SSH tunnel: ssh -L 7780:127.0.0.1:7780 <this server>. It works until setup is complete.").ConfigureAwait(false);
+            var link = SetupLink.For(urls.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries), token);
+            await context.Out.WriteLineAsync(link).ConfigureAwait(false);
+            await context.Out.WriteLineAsync($"Open it on this machine, or from another computer through an SSH tunnel: {SetupLink.Tunnel(link)}. It works until setup is complete.").ConfigureAwait(false);
             return ExitCodes.Ok;
         });
         return command;

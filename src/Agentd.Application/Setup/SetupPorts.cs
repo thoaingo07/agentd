@@ -50,3 +50,15 @@ public interface IDatabaseProbe
 
     Task<StepCheck> MigrateAsync(string connectionString, CancellationToken cancellationToken);
 }
+
+/// <param name="Organization">The organization name (e.g. <c>myorg</c>).</param>
+/// <param name="Project">The project name.</param>
+/// <param name="UsePat">A personal access token; otherwise the server's <c>az login</c>.</param>
+/// <param name="Pat">The token, when <paramref name="UsePat"/>.</param>
+public sealed record AzureDevOpsConnection(string Organization, string Project, bool UsePat, string? Pat);
+
+public interface IAzureDevOpsProbe
+{
+    /// <summary>The daemon's own WIQL query (work items tagged and waiting, per <paramref name="jobs"/>).</summary>
+    Task<StepCheck> TestAsync(AzureDevOpsConnection connection, Jobs.JobOptions jobs, CancellationToken cancellationToken);
+}

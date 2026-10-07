@@ -468,12 +468,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/setup/azure-devops": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetSetupAzureDevOps"];
+        put: operations["SaveSetupAzureDevOps"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/setup/azure-devops/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["TestSetupAzureDevOps"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         AntiforgeryTokenVm: {
             token: string;
+        };
+        /** @description string? AzureDevOpsRequest.Auth is `Pat` or `AzCli`. An empty string? AzureDevOpsRequest.Pat keeps the saved one. */
+        AzureDevOpsRequest: {
+            organization: null | string;
+            project: null | string;
+            auth: null | string;
+            pat: null | string;
+        };
+        /** @description string AzureDevOpsStepVm.Auth is `Pat` or `AzCli`. */
+        AzureDevOpsStepVm: {
+            organization: null | string;
+            project: null | string;
+            auth: string;
+            pat: components["schemas"]["SecretStatusVm"];
         };
         /** @description Read-only settings. Explicit fields only: tokens, keys and secrets have no way in. */
         ConfigVm: {
@@ -1734,6 +1780,92 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StepCheckVm"];
+                };
+            };
+        };
+    };
+    GetSetupAzureDevOps: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AzureDevOpsStepVm"];
+                };
+            };
+        };
+    };
+    SaveSetupAzureDevOps: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": null | components["schemas"]["AzureDevOpsRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SaveResultVm"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    TestSetupAzureDevOps: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": null | components["schemas"]["AzureDevOpsRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StepCheckVm"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
         };
