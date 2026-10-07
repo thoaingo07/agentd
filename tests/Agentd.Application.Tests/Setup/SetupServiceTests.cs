@@ -18,6 +18,7 @@ public sealed class SetupServiceTests
     private readonly FakeGitKey _gitKey = new();
     private readonly FakeClaude _claude = new();
     private readonly FakeChat _chat = new();
+    private readonly FakeRemote _remote = new();
 
     [TestMethod]
     public async Task Saving_the_database_stores_a_secret_and_audits_it_without_the_value()
@@ -295,7 +296,66 @@ public sealed class SetupServiceTests
         Assert.AreEqual(new ChatConnection("saved", Guild, Channel), _chat.Tested.Single());
     }
 
-    private SetupService Service() => new(_config, _secrets, _audit, _database, _azureDevOps, _gitKey, _claude, _chat, Options.Create(new JobOptions()), TimeProvider.System);
+    private const string RepoUrl = "git@ssh.dev.azure.com:v3/ermsystem/Portal/sysmin";
+
+    [TestMethod]
+    public async Task Adding_a_repository_detects_its_branch_defaults_the_tag_and_appends_it()
+    {
+        _config.Values["Repositories:Items:0:Url"] = "git@ssh.dev.azure.com:v3/ermsystem/Portal/other";
+
+        var result = await Service().AddRepositoryAsync(new RepositoryInput($" {RepoUrl} ", null, null, null, null), "setup", CancellationToken.None);
+
+        Assert.IsTrue(result.IsSuccess, result.Error?.Message);
+        Assert.AreEqual(new RepositoryEntry(RepoUrl, "sysmin", "develop", "repo:sysmin", []), result.Value with { MatchAreaPaths = [] });
+        Assert.AreEqual(RepoUrl, _config.Values["Repositories:Items:1:Url"]);
+        Assert.AreEqual("develop", _config.Values["Repositories:Items:1:BaseBranch"]);
+        Assert.AreEqual("repo:sysmin", _config.Values["Repositories:Items:1:MatchTag"]);
+        Assert.AreEqual(2, Service().GetRepositories().Count);
+        Assert.AreEqual(("Repositories:Items:1", "added"), (_audit.Changes.Single().Key, _audit.Changes.Single().Action));
+    }
+
+    [TestMethod]
+    public async Task Area_paths_replace_the_default_tag()
+    {
+        var result = await Service().AddRepositoryAsync(new RepositoryInput(RepoUrl, "sys", "main", null, ["Portal\\Sysmin", " ", "portal\\sysmin"]), "setup", CancellationToken.None);
+
+        Assert.IsNull(result.Value!.MatchTag);
+        CollectionAssert.AreEqual(new[] { "Portal\\Sysmin" }, result.Value.MatchAreaPaths.ToList());
+        Assert.AreEqual("main", _config.Values["Repositories:Items:0:BaseBranch"]);
+        Assert.IsEmpty(_remote.Asked, "a given base branch needs no lookup");
+        CollectionAssert.AreEqual(new[] { "Portal\\Sysmin" }, Service().GetRepositories().Single().MatchAreaPaths.ToList());
+    }
+
+    [TestMethod]
+    public async Task A_repository_is_refused_when_unparseable_unreachable_or_already_added()
+    {
+        var bad = await Service().AddRepositoryAsync(new RepositoryInput("https://github.com/x/y", null, null, null, null), "setup", CancellationToken.None);
+        _remote.Fail = true;
+        var unreachable = await Service().AddRepositoryAsync(new RepositoryInput(RepoUrl, null, null, null, null), "setup", CancellationToken.None);
+        _remote.Fail = false;
+        _config.Values["Repositories:Items:0:Url"] = RepoUrl;
+        var twice = await Service().AddRepositoryAsync(new RepositoryInput(RepoUrl, null, null, null, null), "setup", CancellationToken.None);
+
+        Assert.AreEqual("validation", bad.Error?.Code);
+        Assert.AreEqual("validation", unreachable.Error?.Code);
+        Assert.Contains("Permission denied", unreachable.Error!.Message);
+        Assert.AreEqual("conflict", twice.Error?.Code);
+        Assert.IsEmpty(_audit.Changes);
+    }
+
+    [TestMethod]
+    public async Task Testing_a_repository_reports_its_default_branch()
+    {
+        var ok = await Service().TestRepositoryAsync(RepoUrl, CancellationToken.None);
+        _remote.Fail = true;
+        var failed = await Service().TestRepositoryAsync(RepoUrl, CancellationToken.None);
+
+        Assert.AreEqual("Reached ermsystem/Portal/sysmin; its default branch is develop.", ok.Message);
+        Assert.IsFalse(failed.Ok);
+        Assert.Contains("Git access", failed.Fix!);
+    }
+
+    private SetupService Service() => new(_config, _secrets, _audit, _database, _azureDevOps, _gitKey, _claude, _chat, _remote, Options.Create(new JobOptions()), TimeProvider.System);
 
     private sealed class FakeConfig : IConfigWriter
     {
@@ -415,6 +475,19 @@ public sealed class SetupServiceTests
         {
             Tested.Add(connection);
             return Task.FromResult(new StepCheck(true, "posted"));
+        }
+    }
+
+    private sealed class FakeRemote : Ports.IGitRemote
+    {
+        public bool Fail { get; set; }
+
+        public List<string> Asked { get; } = [];
+
+        public Task<string> GetDefaultBranchAsync(string remoteUrl, CancellationToken cancellationToken)
+        {
+            Asked.Add(remoteUrl);
+            return Fail ? throw new InvalidOperationException("Permission denied (publickey).") : Task.FromResult("develop");
         }
     }
 }

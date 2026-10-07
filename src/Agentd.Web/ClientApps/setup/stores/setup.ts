@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { ApiError, get, send } from '../../shared/api/http'
-import type { AzureDevOpsRequest, AzureDevOpsStep, ChatRequest, ChatStep, ClaudeStep, DatabaseStep, GitKeyStep, SaveResult, SetupSession, StepCheck } from '../../shared/api/types'
+import type { AzureDevOpsRequest, AzureDevOpsStep, ChatRequest, ChatStep, ClaudeStep, DatabaseStep, GitKeyStep, RepositoryEntry, RepositoryRequest, SaveResult, SetupSession, StepCheck } from '../../shared/api/types'
 
 /**
  * The wizard's state. Secrets are write-only: they're sent once and never kept here; the server answers with
@@ -16,6 +16,7 @@ export const useSetupStore = defineStore('setup', () => {
   const gitKey = ref<GitKeyStep | null>(null)
   const claude = ref<ClaudeStep | null>(null)
   const chat = ref<ChatStep | null>(null)
+  const repositories = ref<RepositoryEntry[] | null>(null)
   /** A saved step only applies after `agentd daemon restart`. */
   const restartRequired = ref(false)
 
@@ -120,10 +121,26 @@ export const useSetupStore = defineStore('setup', () => {
     return send<StepCheck>('POST', '/api/setup/chat/test', { ...input, botToken: input.botToken?.trim() || null })
   }
 
+  async function loadRepositories(): Promise<void> {
+    repositories.value = await get<RepositoryEntry[]>('/api/setup/repositories')
+  }
+
+  /** Adds it to agentd.json after reaching it; the daemon clones it at its next start. */
+  async function addRepository(input: RepositoryRequest): Promise<RepositoryEntry> {
+    const added = await send<RepositoryEntry>('POST', '/api/setup/repositories', input)
+    await loadRepositories()
+    restartRequired.value = true
+    return added
+  }
+
+  function testRepository(url: string): Promise<StepCheck> {
+    return send<StepCheck>('POST', '/api/setup/repositories/test', { url })
+  }
+
   return {
-    session, expiresAt, database, azureDevOps, gitKey, claude, chat, restartRequired,
+    session, expiresAt, database, azureDevOps, gitKey, claude, chat, repositories, restartRequired,
     loadSession, loadDatabase, saveDatabase, testDatabase, migrateDatabase, loadAzureDevOps, saveAzureDevOps, testAzureDevOps,
     loadGitKey, generateGitKey, testGitAccess, loadClaude, saveClaudeToken, removeClaudeToken, testClaude,
-    loadChat, saveChat, testChat,
+    loadChat, saveChat, testChat, loadRepositories, addRepository, testRepository,
   }
 })

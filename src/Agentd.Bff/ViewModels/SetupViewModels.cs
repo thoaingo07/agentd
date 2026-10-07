@@ -58,3 +58,13 @@ public sealed record ChatStepVm(bool Enabled, string? GuildId, string? ChannelId
         return new(s.Enabled, s.GuildId, s.ChannelId, SecretStatusVm.From(s.BotToken), [.. s.Users.Select(u => new ChatUserVm(u.Name, u.DiscordId))]);
     }
 }
+
+/// <summary>A repository in <c>agentd.json</c>; the daemon registers and clones it at start.</summary>
+public sealed record RepositoryEntryVm(string Url, string? Name, string? BaseBranch, string? MatchTag, IReadOnlyList<string> MatchAreaPaths)
+{
+    public static RepositoryEntryVm From(Application.Setup.RepositoryEntry r)
+    {
+        ArgumentNullException.ThrowIfNull(r);
+        return new(r.Url, r.Name, r.BaseBranch, r.MatchTag, r.MatchAreaPaths);
+    }
+}

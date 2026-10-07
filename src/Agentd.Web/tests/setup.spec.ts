@@ -10,6 +10,7 @@ import AzureDevOpsStep from '../ClientApps/setup/steps/AzureDevOpsStep.vue'
 import GitKeyStep from '../ClientApps/setup/steps/GitKeyStep.vue'
 import ClaudeStep from '../ClientApps/setup/steps/ClaudeStep.vue'
 import ChatStep from '../ClientApps/setup/steps/ChatStep.vue'
+import RepositoriesStep from '../ClientApps/setup/steps/RepositoriesStep.vue'
 import App from '../ClientApps/setup/App.vue'
 
 const unset = { set: false, updatedAt: null, updatedBy: null }
@@ -43,6 +44,9 @@ beforeEach(() => {
     'GET /api/setup/chat': json({ enabled: false, guildId: null, channelId: null, botToken: unset, users: [] }),
     'PUT /api/setup/chat': json({ restartRequired: true }),
     'POST /api/setup/chat/test': json({ ok: true, message: 'agentd posted a test message in #agentd.', fix: null }),
+    'GET /api/setup/repositories': json([]),
+    'POST /api/setup/repositories': json({ url: 'git@ssh.dev.azure.com:v3/myorg/Portal/sysmin', name: 'sysmin', baseBranch: 'develop', matchTag: 'repo:sysmin', matchAreaPaths: [] }),
+    'POST /api/setup/repositories/test': json({ ok: true, message: 'Reached myorg/Portal/sysmin; its default branch is develop.', fix: null }),
     'POST /api/setup/git-key/test': json({ ok: false, message: 'Permission denied (publickey).', fix: 'add the public key to Azure DevOps' }),
   }
   vi.stubGlobal('fetch', vi.fn(async (req: Request) => {
@@ -201,6 +205,27 @@ describe('steps', () => {
     await step.get('input[type="checkbox"]').setValue(false)
     expect(step.text()).not.toContain('Bot token')
     expect(step.findAll('button').some((b) => b.text() === 'Send a test message')).toBe(false)
+  })
+
+  it('repositories: tests and adds a repository, then lists it and asks for a restart', async () => {
+    const step = mount(RepositoriesStep, { global: { plugins: [router()] } })
+    await flushPromises()
+    expect(step.text()).toContain('No repositories yet.')
+
+    await step.get('input').setValue('git@ssh.dev.azure.com:v3/myorg/Portal/sysmin')
+    await step.findAll('button').find((b) => b.text() === 'Test')!.trigger('click')
+    await flushPromises()
+    expect(step.text()).toContain('its default branch is develop')
+
+    routes['GET /api/setup/repositories'] = json([{ url: 'git@ssh.dev.azure.com:v3/myorg/Portal/sysmin', name: 'sysmin', baseBranch: 'develop', matchTag: 'repo:sysmin', matchAreaPaths: [] }])
+    await step.findAll('button').find((b) => b.text() === 'Add')!.trigger('click')
+    await flushPromises()
+    expect(calls.find((c) => c.method === 'POST' && c.path === '/api/setup/repositories')?.body).toEqual({
+      url: 'git@ssh.dev.azure.com:v3/myorg/Portal/sysmin', name: null, baseBranch: null, matchTag: null, matchAreaPaths: [],
+    })
+    expect(step.text()).toContain('Added sysmin (base branch develop)')
+    expect(step.get('ul').text()).toContain('repo:sysmin')
+    expect(useSetupStore().restartRequired).toBe(true)
   })
 
   it('without a session the wizard explains how to get the link', async () => {

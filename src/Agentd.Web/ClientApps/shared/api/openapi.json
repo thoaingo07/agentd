@@ -1664,6 +1664,119 @@
           }
         }
       }
+    },
+    "/api/setup/repositories": {
+      "get": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "GetSetupRepositories",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RepositoryEntryVm"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "AddSetupRepository",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/RepositoryRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RepositoryEntryVm"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/setup/repositories/test": {
+      "post": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "TestSetupRepository",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/GitTestRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StepCheckVm"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2905,6 +3018,92 @@
             "type": "string"
           }
         }
+      },
+      "RepositoryEntryVm": {
+        "required": [
+          "url",
+          "name",
+          "baseBranch",
+          "matchTag",
+          "matchAreaPaths"
+        ],
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "name": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "baseBranch": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "matchTag": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "matchAreaPaths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "description": "A repository in \u0060agentd.json\u0060; the daemon registers and clones it at start."
+      },
+      "RepositoryRequest": {
+        "required": [
+          "url",
+          "name",
+          "baseBranch",
+          "matchTag",
+          "matchAreaPaths"
+        ],
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "name": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "baseBranch": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "matchTag": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "matchAreaPaths": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "description": "A repository to add. Only \u0060Url\u0060 is required; the rest defaults like \u0060agentd repo add\u0060."
       },
       "RepositoryVm": {
         "required": [

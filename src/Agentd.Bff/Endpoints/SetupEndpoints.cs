@@ -77,6 +77,18 @@ public static class SetupEndpoints
             TooLong(body?.BotToken) ?? Check(await service.TestChatAsync(Chat(body), ct).ConfigureAwait(false)))
             .WithName("TestSetupChat").Accepts<ChatRequest>("application/json").Produces<StepCheckVm>().ProducesProblem(StatusCodes.Status400BadRequest);
 
+        setup.MapGet("/repositories", ([FromServices] SetupService service) =>
+                TypedResults.Ok(service.GetRepositories().Select(RepositoryEntryVm.From).ToList()))
+            .WithName("GetSetupRepositories");
+        setup.MapPost("/repositories", async (RepositoryRequest? body, ClaimsPrincipal user, [FromServices] SetupService service, CancellationToken ct) =>
+            (await service.AddRepositoryAsync(new RepositoryInput(body?.Url ?? string.Empty, body?.Name, body?.BaseBranch, body?.MatchTag, body?.MatchAreaPaths), By(user), ct).ConfigureAwait(false))
+                .ToHttpResult(r => TypedResults.Ok(RepositoryEntryVm.From(r))))
+            .WithName("AddSetupRepository").Accepts<RepositoryRequest>("application/json").Produces<RepositoryEntryVm>()
+            .ProducesProblem(StatusCodes.Status400BadRequest).ProducesProblem(StatusCodes.Status409Conflict);
+        setup.MapPost("/repositories/test", async (GitTestRequest? body, [FromServices] SetupService service, CancellationToken ct) =>
+            Check(await service.TestRepositoryAsync(body?.Url, ct).ConfigureAwait(false)))
+            .WithName("TestSetupRepository").Accepts<GitTestRequest>("application/json").Produces<StepCheckVm>();
+
         return setup;
     }
 
@@ -91,6 +103,9 @@ public static class SetupEndpoints
 
     /// <summary>Discord settings. An empty <c>BotToken</c> keeps the saved one; <c>UserName</c> + <c>UserDiscordId</c> add you as a user.</summary>
     public sealed record ChatRequest(bool Enabled, string? GuildId, string? ChannelId, string? BotToken, string? UserName, string? UserDiscordId);
+
+    /// <summary>A repository to add. Only <c>Url</c> is required; the rest defaults like <c>agentd repo add</c>.</summary>
+    public sealed record RepositoryRequest(string? Url, string? Name, string? BaseBranch, string? MatchTag, IReadOnlyList<string>? MatchAreaPaths);
 
     /// <summary>A repository's clone URL (SSH for agentd's key).</summary>
     public sealed record GitTestRequest(string? Url);

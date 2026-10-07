@@ -150,6 +150,26 @@ public sealed class SetupEndpointTests : IDisposable
         Assert.AreEqual("710392908099878953", step.GetProperty("users")[0].GetProperty("discordId").GetString());
     }
 
+    [TestMethod]
+    public async Task Repositories_are_added_once_and_listed()
+    {
+        await using var app = await StartAsync();
+        var client = await SetupClient.SignInAsync(app);
+        var body = new { url = "git@ssh.dev.azure.com:v3/ermsystem/Portal/sysmin" };
+
+        using var add = await client.SendAsync(HttpMethod.Post, "/api/setup/repositories", body);
+        using var again = await client.SendAsync(HttpMethod.Post, "/api/setup/repositories", body);
+        using var list = await client.SendAsync(HttpMethod.Get, "/api/setup/repositories");
+        using var test = await client.SendAsync(HttpMethod.Post, "/api/setup/repositories/test", body);
+
+        Assert.AreEqual(HttpStatusCode.OK, add.StatusCode, await add.Content.ReadAsStringAsync());
+        Assert.AreEqual(HttpStatusCode.Conflict, again.StatusCode);
+        var repos = JsonDocument.Parse(await list.Content.ReadAsStringAsync()).RootElement;
+        Assert.AreEqual(1, repos.GetArrayLength());
+        Assert.AreEqual("repo:sysmin", repos[0].GetProperty("matchTag").GetString());
+        Assert.IsTrue(JsonDocument.Parse(await test.Content.ReadAsStringAsync()).RootElement.GetProperty("ok").GetBoolean());
+    }
+
     public void Dispose() => _session.Dispose();
 
     private Task<WebApplication> StartAsync() => _session.StartAsync(services =>
@@ -162,6 +182,7 @@ public sealed class SetupEndpointTests : IDisposable
         services.AddSingleton<IGitKey, MemoryGitKey>();
         services.AddSingleton<IClaudeProbe, OkClaude>();
         services.AddSingleton<IChatProbe, OkChat>();
+        services.AddSingleton<Agentd.Application.Ports.IGitRemote, DevelopRemote>();
         services.AddSingleton(Options.Create(new JobOptions()));
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<SetupService>();
@@ -264,5 +285,10 @@ public sealed class SetupEndpointTests : IDisposable
     private sealed class OkChat : IChatProbe
     {
         public Task<StepCheck> TestAsync(ChatConnection connection, CancellationToken cancellationToken) => Task.FromResult(new StepCheck(true, "posted"));
+    }
+
+    private sealed class DevelopRemote : Agentd.Application.Ports.IGitRemote
+    {
+        public Task<string> GetDefaultBranchAsync(string remoteUrl, CancellationToken cancellationToken) => Task.FromResult("develop");
     }
 }
