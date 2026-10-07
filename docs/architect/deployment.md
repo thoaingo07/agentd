@@ -205,7 +205,7 @@ Repositories**, and **Health** shows the live `doctor` report.
   `~/.agentd/logs/settings-audit.jsonl` (0600) plus a log line, not a database event, because setup runs before the
   database exists.
 - The setup use cases write through ports (T1b.11): `IConfigWriter` (`agentd.json`: merged under a lock, atomic 0600
-  rename, keys matched case-insensitively; comments don't survive a write), `ISecrets` (the encrypted store; values
+  rename, keys matched case-insensitively, numeric segments are array items as in configuration; comments don't survive a write), `ISecrets` (the encrypted store; values
   are read only server-side, to test a connection) and `ISettingsAudit`.
 
 ### The setup API (T1b.11)

@@ -71,42 +71,88 @@ internal sealed class AgentdJsonFile(ConfigHome home, IConfiguration? configurat
     {
         foreach (var segment in path)
         {
-            node = node is JsonObject o && Property(o, segment) is { } name ? o[name] : null;
+            node = node is null ? null : Child(node, segment);
         }
 
         return node;
     }
 
+    /// <summary>Sets or removes one key. A numeric segment is an array index (<c>Users:0:Name</c>), like configuration.</summary>
     private static void Apply(JsonObject root, string[] path, string? value)
     {
-        var current = root;
-        foreach (var segment in path[..^1])
+        JsonNode current = root;
+        for (var i = 0; i < path.Length - 1; i++)
         {
-            var name = Property(current, segment);
-            if (name is null || current[name] is not JsonObject child)
+            var next = Child(current, path[i]);
+            if (next is not (JsonObject or JsonArray))
             {
                 if (value is null)
                 {
                     return;   // nothing to remove
                 }
 
-                child = [];
-                current[name ?? segment] = child;
+                next = Index(path[i + 1]) is null ? new JsonObject() : new JsonArray();
+                SetChild(current, path[i], next);
             }
 
-            current = child;
+            current = next;
         }
 
-        var leaf = Property(current, path[^1]) ?? path[^1];
         if (value is null)
         {
-            current.Remove(leaf);
+            RemoveChild(current, path[^1]);
         }
         else
         {
-            current[leaf] = value;
+            SetChild(current, path[^1], JsonValue.Create(value));
         }
     }
+
+    private static JsonNode? Child(JsonNode node, string segment) => node switch
+    {
+        JsonObject o => Property(o, segment) is { } name ? o[name] : null,
+        JsonArray a => Index(segment) is { } i && i < a.Count ? a[i] : null,
+        _ => null,
+    };
+
+    private static void SetChild(JsonNode node, string segment, JsonNode value)
+    {
+        if (node is JsonObject o)
+        {
+            o[Property(o, segment) ?? segment] = value;
+            return;
+        }
+
+        var array = (JsonArray)node;
+        var index = Index(segment) ?? throw new ArgumentException($"'{segment}' isn't an array index.", nameof(segment));
+        if (index < array.Count)
+        {
+            array[index] = value;
+        }
+        else if (index == array.Count)
+        {
+            array.Add(value);
+        }
+        else
+        {
+            throw new ArgumentException($"Index {index} would leave a gap (the array has {array.Count} items).", nameof(segment));
+        }
+    }
+
+    private static void RemoveChild(JsonNode node, string segment)
+    {
+        if (node is JsonObject o && Property(o, segment) is { } name)
+        {
+            o.Remove(name);
+        }
+        else if (node is JsonArray a && Index(segment) is { } i && i < a.Count)
+        {
+            a.RemoveAt(i);
+        }
+    }
+
+    private static int? Index(string segment) =>
+        int.TryParse(segment, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var i) ? i : null;
 
     private static string? Property(JsonObject o, string name) =>
         o.Select(p => p.Key).FirstOrDefault(k => string.Equals(k, name, StringComparison.OrdinalIgnoreCase));
