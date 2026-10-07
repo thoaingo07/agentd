@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref, watch } from 'vue'
-import { ApiError } from '../../shared/api/http'
-import type { StepCheck } from '../../shared/api/types'
-import { AgButton } from '../../shared/components/ui'
+import { ApiError } from '../../api/http'
+import type { StepCheck } from '../../api/types'
+import { AgButton } from '../../components/ui'
 import CheckResult from '../components/CheckResult.vue'
 import SecretField from '../components/SecretField.vue'
 import { useSetupStore } from '../stores/setup'

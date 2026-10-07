@@ -20,7 +20,7 @@ test('every page and interaction runs without CSP violations, and is accessible'
   await expect(page.getByRole('dialog')).toBeVisible()
   await page.getByRole('button', { name: 'Back' }).click()
 
-  for (const path of ['/history', '/ideas', '/settings']) {
+  for (const path of ['/history', '/ideas', '/settings', '/settings/database']) {
     await page.goto(path)
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
     await expectAccessible(page)

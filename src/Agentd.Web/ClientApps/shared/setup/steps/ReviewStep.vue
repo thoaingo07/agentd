@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { ApiError } from '../../shared/api/http'
-import type { ReviewItem } from '../../shared/api/types'
-import { AgButton } from '../../shared/components/ui'
+import { ApiError } from '../../api/http'
+import type { ReviewItem } from '../../api/types'
+import { AgButton } from '../../components/ui'
 import { useSetupStore } from '../stores/setup'
 
 const setup = useSetupStore()
@@ -10,6 +10,8 @@ const busy = ref<'review' | 'finish' | null>(null)
 const error = ref<string | null>(null)
 onMounted(() => void run('review'))
 
+/** In the dashboard (Settings → Health) this is the live report, without Finish. */
+const settings = computed(() => setup.base === '/api/settings')
 const blocked = computed(() => setup.review?.some((i) => i.required && !i.check.ok) ?? true)
 const mark = (i: ReviewItem) => (i.check.ok ? '✅' : i.required ? '❌' : '⚠️')
 const label = (i: ReviewItem) => (i.check.ok ? 'passed' : i.required ? 'failed, required' : 'warning')
@@ -31,7 +33,7 @@ async function run(action: 'review' | 'finish'): Promise<void> {
 <template>
   <section class="grid gap-4">
     <h2 class="text-lg font-semibold">
-      Review &amp; finish
+      {{ settings ? 'Health' : 'Review & finish' }}
     </h2>
 
     <div
@@ -53,7 +55,12 @@ async function run(action: 'review' | 'finish'): Promise<void> {
 
     <template v-else>
       <p class="text-sm text-muted">
-        Each step is checked again with the saved settings. ❌ must be fixed before finishing; ⚠️ can wait.
+        <template v-if="settings">
+          Each area is checked with its saved settings (changes since the daemon started apply after a restart).
+        </template>
+        <template v-else>
+          Each step is checked again with the saved settings. ❌ must be fixed before finishing; ⚠️ can wait.
+        </template>
       </p>
       <p
         v-if="busy === 'review'"
@@ -99,6 +106,7 @@ async function run(action: 'review' | 'finish'): Promise<void> {
           Check again
         </AgButton>
         <AgButton
+          v-if="!settings"
           :disabled="blocked || busy !== null"
           :loading="busy === 'finish'"
           @click="run('finish')"

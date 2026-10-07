@@ -3,7 +3,7 @@ import { onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { AgCspProvider } from '../shared/components/ui'
 import { steps } from './router'
-import { useSetupStore } from './stores/setup'
+import { useSetupStore } from '../shared/setup/stores/setup'
 
 const setup = useSetupStore()
 const route = useRoute()

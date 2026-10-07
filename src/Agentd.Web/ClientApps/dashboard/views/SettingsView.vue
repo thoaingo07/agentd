@@ -5,6 +5,7 @@ import { useConnectionStore } from '../stores/connection'
 import { usePermissionsStore } from '../stores/permissions'
 import { useSessionStore } from '../stores/session'
 import ThemeToggle from '../components/ThemeToggle.vue'
+import { settingsAreas } from '../settingsAreas'
 
 const config = useConfigStore()
 const connection = useConnectionStore()
@@ -22,6 +23,31 @@ onMounted(() => {
     <h1 class="text-xl font-semibold">
       Settings
     </h1>
+    <nav
+      v-if="isAdmin"
+      aria-labelledby="settings-areas"
+      class="grid gap-2"
+    >
+      <h2
+        id="settings-areas"
+        class="text-base font-semibold"
+      >
+        Configuration
+      </h2>
+      <ul class="flex flex-wrap gap-2">
+        <li
+          v-for="area in settingsAreas"
+          :key="area.name"
+        >
+          <RouterLink
+            :to="{ name: 'settings-area', params: { area: area.name } }"
+            class="btn btn-sm btn-outline"
+          >
+            {{ area.title }}
+          </RouterLink>
+        </li>
+      </ul>
+    </nav>
     <div class="grid gap-2">
       <h2 class="text-base font-semibold">
         Appearance

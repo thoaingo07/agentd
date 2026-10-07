@@ -1,11 +1,11 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import DatabaseStep from './steps/DatabaseStep.vue'
-import AzureDevOpsStep from './steps/AzureDevOpsStep.vue'
-import GitKeyStep from './steps/GitKeyStep.vue'
-import ClaudeStep from './steps/ClaudeStep.vue'
-import ChatStep from './steps/ChatStep.vue'
-import RepositoriesStep from './steps/RepositoriesStep.vue'
-import ReviewStep from './steps/ReviewStep.vue'
+import DatabaseStep from '../shared/setup/steps/DatabaseStep.vue'
+import AzureDevOpsStep from '../shared/setup/steps/AzureDevOpsStep.vue'
+import GitKeyStep from '../shared/setup/steps/GitKeyStep.vue'
+import ClaudeStep from '../shared/setup/steps/ClaudeStep.vue'
+import ChatStep from '../shared/setup/steps/ChatStep.vue'
+import RepositoriesStep from '../shared/setup/steps/RepositoriesStep.vue'
+import ReviewStep from '../shared/setup/steps/ReviewStep.vue'
 
 /** The wizard's steps, in order (docs/architect/deployment.md §5a). */
 export const steps = [

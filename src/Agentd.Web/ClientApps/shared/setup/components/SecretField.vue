@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref, useId } from 'vue'
-import type { SecretStatus } from '../../shared/api/types'
-import { AgButton } from '../../shared/components/ui'
-import { dateTime } from '../../shared/utils/format'
+import type { SecretStatus } from '../../api/types'
+import { AgButton } from '../../components/ui'
+import { dateTime } from '../../utils/format'
 
 // A write-only secret: once set, only "set · updated … by …" shows, until Replace opens an empty input.
 const props = defineProps<{ label: string; status: SecretStatus | null; placeholder?: string; hint?: string }>()

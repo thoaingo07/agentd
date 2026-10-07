@@ -192,6 +192,36 @@ public sealed class SetupEndpointTests : IDisposable
         Assert.IsFalse(SetupSessionTests.Tokens(app).Verify(token), "revoked");
     }
 
+    [TestMethod]
+    public async Task Admins_change_settings_with_their_normal_session()
+    {
+        await using var app = await StartAsync();
+        var admin = await new AntiforgeryClient(app).InitAsync();   // the local Admin: /bff/antiforgery, no setup cookie
+
+        using var save = await admin.SendAsync(HttpMethod.Put, "/api/settings/database", new { connectionString = ConnectionString });
+        using var health = await admin.SendAsync(HttpMethod.Get, "/api/settings/review");
+        using var finish = await admin.SendAsync(HttpMethod.Post, "/api/settings/finish");
+
+        Assert.AreEqual(HttpStatusCode.OK, save.StatusCode, await save.Content.ReadAsStringAsync());
+        Assert.AreEqual(ConnectionString, _secrets[SetupService.ConnectionStringSecret]);
+        Assert.AreEqual(HttpStatusCode.OK, health.StatusCode);
+        Assert.AreEqual(HttpStatusCode.NotFound, finish.StatusCode, "Finish is the wizard's only");
+    }
+
+    [TestMethod]
+    public async Task The_setup_session_is_not_an_admin_session()
+    {
+        await using var app = await StartAsync();
+        var session = await SetupSessionTests.ExchangeAsync(app, SetupSessionTests.Tokens(app).Issue());
+        using var request = new HttpRequestMessage(HttpMethod.Get, new Uri("/api/settings/database", UriKind.Relative));
+        request.Headers.Add("Cookie", session);
+        request.Headers.Add("X-Forwarded-For", "203.0.113.7");   // not the loopback user, so only the setup cookie could sign it in
+
+        using var response = await SetupSessionTests.Client(app).SendAsync(request);
+
+        Assert.AreEqual(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
     public void Dispose() => _session.Dispose();
 
     private Task<WebApplication> StartAsync() => _session.StartAsync(services =>
