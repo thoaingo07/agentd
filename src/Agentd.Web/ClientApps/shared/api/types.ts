@@ -27,6 +27,13 @@ export type PermissionChoice = 'once' | 'job' | 'repo' | 'deny'
 export type MessageRequest = Schemas['MessageRequest']
 export type MessageAccepted = Schemas['MessageAcceptedVm']
 export type RunAccepted = Schemas['RunAcceptedVm']
+export type SetupSession = Schemas['SetupSessionVm']
+export type SecretStatus = Schemas['SecretStatusVm']
+export type DatabaseStep = Schemas['DatabaseStepVm']
+export type AzureDevOpsStep = Schemas['AzureDevOpsStepVm']
+export type StepCheck = Schemas['StepCheckVm']
+export type SaveResult = Schemas['SaveResultVm']
+export type AzureDevOpsRequest = Schemas['AzureDevOpsRequest']
 
 /** Every BFF error is ProblemDetails; agentd adds a machine-readable `code` (not_found, invalid_transition, …). */
 export type Problem = Schemas['ProblemDetails'] & { code?: string }

@@ -172,7 +172,11 @@ How it's built (T1b.10):
 - **Logs:** request logging (`Microsoft.AspNetCore.Hosting.Diagnostics`) stays at Warning, so the only log line
   carrying the token is the announcement itself.
 
-### Wizard steps (`ClientApps/setup`, a separate small SPA at `/setup`)
+### Wizard steps (`ClientApps/setup`, a separate small SPA at `/setup/wizard`)
+
+`GET /setup?token=…` exchanges the link and redirects to `/setup/wizard`. Without a setup session the wizard says how
+to get a link (`agentd setup-link`). It fetches its antiforgery token from `/api/setup/antiforgery`, and each step
+calls only `/api/setup/*`. Built so far: Database, Azure DevOps.
 
 | Step | Asks for | "Test" button |
 |---|---|---|

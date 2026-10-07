@@ -507,14 +507,14 @@ export interface components {
         AntiforgeryTokenVm: {
             token: string;
         };
-        /** @description string? AzureDevOpsRequest.Auth is `Pat` or `AzCli`. An empty string? AzureDevOpsRequest.Pat keeps the saved one. */
+        /** @description `Auth` is `Pat` or `AzCli`. An empty `Pat` keeps the saved one. */
         AzureDevOpsRequest: {
             organization: null | string;
             project: null | string;
             auth: null | string;
             pat: null | string;
         };
-        /** @description string AzureDevOpsStepVm.Auth is `Pat` or `AzCli`. */
+        /** @description `Auth` is `Pat` or `AzCli`. */
         AzureDevOpsStepVm: {
             organization: null | string;
             project: null | string;

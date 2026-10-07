@@ -1389,7 +1389,7 @@
             ]
           }
         },
-        "description": "string? AzureDevOpsRequest.Auth is \u0060Pat\u0060 or \u0060AzCli\u0060. An empty string? AzureDevOpsRequest.Pat keeps the saved one."
+        "description": "\u0060Auth\u0060 is \u0060Pat\u0060 or \u0060AzCli\u0060. An empty \u0060Pat\u0060 keeps the saved one."
       },
       "AzureDevOpsStepVm": {
         "required": [
@@ -1419,7 +1419,7 @@
             "$ref": "#/components/schemas/SecretStatusVm"
           }
         },
-        "description": "string AzureDevOpsStepVm.Auth is \u0060Pat\u0060 or \u0060AzCli\u0060."
+        "description": "\u0060Auth\u0060 is \u0060Pat\u0060 or \u0060AzCli\u0060."
       },
       "ConfigVm": {
         "required": [

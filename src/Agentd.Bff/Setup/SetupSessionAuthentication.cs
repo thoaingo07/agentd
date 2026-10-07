@@ -27,6 +27,9 @@ public static class SetupSession
     public const string ClaimType = "agentd:setup";
     public const string PagePath = "/setup";
 
+    /// <summary>The wizard (the <c>setup</c> SPA, served by Agentd.Web); it reports a missing session itself.</summary>
+    public const string WizardPath = "/setup/wizard";
+
     public static readonly TimeSpan Lifetime = TimeSpan.FromMinutes(30);
 
     internal static AuthenticationBuilder AddSetupSession(this AuthenticationBuilder auth) =>
@@ -95,13 +98,10 @@ public static class SetupSession
                 [new Claim(ClaimTypes.NameIdentifier, "setup"), new Claim(ClaimTypes.Name, "setup"), new Claim(ClaimType, "1")],
                 SchemeName);
             await http.SignInAsync(SchemeName, new ClaimsPrincipal(identity), new AuthenticationProperties { IsPersistent = false }).ConfigureAwait(false);
-            return Results.Redirect(PagePath);   // the token leaves the address bar (and the history)
         }
 
-        var session = await http.AuthenticateAsync(SchemeName).ConfigureAwait(false);
-        return session.Succeeded
-            ? Results.Text("The setup session is active.")
-            : Results.Text("Open the setup link the daemon printed, or run `agentd setup-link` on the server for a new one.", statusCode: StatusCodes.Status401Unauthorized);
+        // The token leaves the address bar (and the history); without a session the wizard says how to get one.
+        return Results.Redirect(WizardPath);
     }
 
     private static Task Status(HttpResponse response, int status)

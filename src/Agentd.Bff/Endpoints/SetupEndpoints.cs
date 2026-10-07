@@ -52,7 +52,7 @@ public static class SetupEndpoints
     /// <summary>The PostgreSQL connection string (a secret). On Test, empty means "the saved one".</summary>
     public sealed record DatabaseRequest(string? ConnectionString);
 
-    /// <summary><see cref="Auth"/> is <c>Pat</c> or <c>AzCli</c>. An empty <see cref="Pat"/> keeps the saved one.</summary>
+    /// <summary><c>Auth</c> is <c>Pat</c> or <c>AzCli</c>. An empty <c>Pat</c> keeps the saved one.</summary>
     public sealed record AzureDevOpsRequest(string? Organization, string? Project, string? Auth, string? Pat);
 
     private static AzureDevOpsInput Input(AzureDevOpsRequest? body) =>

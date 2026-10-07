@@ -37,6 +37,18 @@ public sealed partial class SpaHostingTests
     }
 
     [TestMethod]
+    [DataRow("/setup/wizard")]
+    [DataRow("/setup/wizard/azure-devops")]
+    public async Task The_setup_wizard_has_its_own_shell(string path)
+    {
+        var html = await s_client.GetStringAsync(new Uri(path, UriKind.Relative));
+
+        StringAssert.Contains(html, """<script type="module" src="/_content/Agentd.Web/assets/setup-0f1e2d.js"></script>""");
+        Assert.DoesNotContain("dashboard-abc123.js", html);
+        Assert.IsFalse(InlineScript().IsMatch(html), "inline <script> content found (CSP forbids it)");
+    }
+
+    [TestMethod]
     public async Task Shell_references_assets_from_the_vite_manifest()
     {
         var html = await s_client.GetStringAsync(new Uri("/", UriKind.Relative));

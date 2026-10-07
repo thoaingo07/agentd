@@ -70,6 +70,7 @@ public static class WebHosting
         }
 
         app.MapControllerRoute("dashboard", "/", new { controller = "Spa", action = "Dashboard" });
+        app.MapControllerRoute("setup", "setup/wizard/{**rest}", new { controller = "Spa", action = "Setup" });
         app.MapFallbackToController("Dashboard", "Spa");
         return app;
     }
