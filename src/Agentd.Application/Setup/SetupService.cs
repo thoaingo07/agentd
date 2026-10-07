@@ -1,5 +1,7 @@
 using Agentd.Application.Jobs;
+using Agentd.Application.Ports;
 using Agentd.Domain.Common;
+using Agentd.Domain.Repositories;
 using Microsoft.Extensions.Options;
 
 namespace Agentd.Application.Setup;
@@ -39,6 +41,16 @@ public sealed record ChatStep(bool Enabled, string? GuildId, string? ChannelId, 
 /// <param name="UserDiscordId">Your Discord user ID.</param>
 public sealed record ChatInput(bool Enabled, string? GuildId, string? ChannelId, string? BotToken, string? UserName, string? UserDiscordId);
 
+/// <summary>A repository in <c>Agentd:Repositories:Items</c> (the daemon registers and clones these at start).</summary>
+public sealed record RepositoryEntry(string Url, string? Name, string? BaseBranch, string? MatchTag, IReadOnlyList<string> MatchAreaPaths);
+
+/// <param name="Url">The clone URL (Azure DevOps, SSH or HTTPS).</param>
+/// <param name="Name">Optional; default: the repository's name.</param>
+/// <param name="BaseBranch">Optional; default: the remote's default branch.</param>
+/// <param name="MatchTag">Optional; default <c>repo:&lt;name&gt;</c> unless area paths are given.</param>
+/// <param name="MatchAreaPaths">Work items under these area paths go to this repository.</param>
+public sealed record RepositoryInput(string Url, string? Name, string? BaseBranch, string? MatchTag, IReadOnlyList<string>? MatchAreaPaths);
+
 /// <summary>A saved step. The daemon reads these settings at start, so they apply after a restart.</summary>
 public sealed record SaveResult(bool RestartRequired);
 
@@ -56,6 +68,7 @@ public sealed class SetupService(
     IGitKey gitKey,
     IClaudeProbe claude,
     IChatProbe chat,
+    IGitRemote remote,
     IOptions<JobOptions> jobs,
     TimeProvider time)
 {
@@ -302,6 +315,100 @@ public sealed class SetupService(
         return token is null
             ? new StepCheck(false, "No bot token given or saved.", "Discord Developer Portal → your application → Bot → Reset Token")
             : await chat.TestAsync(new ChatConnection(token, input.GuildId!.Trim(), input.ChannelId!.Trim()), cancellationToken).ConfigureAwait(false);
+    }
+
+    public IReadOnlyList<RepositoryEntry> GetRepositories()
+    {
+        var entries = new List<RepositoryEntry>();
+        for (var i = 0; config.Read($"Repositories:Items:{i}:Url") is { } url; i++)
+        {
+            var paths = new List<string>();
+            for (var j = 0; config.Read($"Repositories:Items:{i}:MatchAreaPaths:{j}") is { } path; j++)
+            {
+                paths.Add(path);
+            }
+
+            entries.Add(new RepositoryEntry(url, config.Read($"Repositories:Items:{i}:Name"), config.Read($"Repositories:Items:{i}:BaseBranch"), config.Read($"Repositories:Items:{i}:MatchTag"), paths));
+        }
+
+        return entries;
+    }
+
+    /// <summary>
+    /// Adds a repository to <c>agentd.json</c> after reaching it (the default branch is detected, as in <c>agentd repo add</c>).
+    /// The daemon registers and clones it at its next start.
+    /// </summary>
+    public async Task<Result<RepositoryEntry>> AddRepositoryAsync(RepositoryInput input, string by, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        var url = RemoteUrl.Parse(input.Url);
+        if (!url.IsSuccess)
+        {
+            return url.Error;
+        }
+
+        var existing = GetRepositories();
+        if (existing.Any(r => string.Equals(r.Url, url.Value.Value, StringComparison.OrdinalIgnoreCase)))
+        {
+            return DomainError.Conflict($"{url.Value} is already added.");
+        }
+
+        string baseBranch;
+        try
+        {
+            baseBranch = string.IsNullOrWhiteSpace(input.BaseBranch)
+                ? await remote.GetDefaultBranchAsync(url.Value.Value, cancellationToken).ConfigureAwait(false)
+                : input.BaseBranch.Trim();
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return DomainError.Validation($"Cannot reach {url.Value}: {ex.Message}");
+        }
+
+        var name = string.IsNullOrWhiteSpace(input.Name) ? url.Value.AzureDevOps.Name : input.Name.Trim();
+        var paths = (input.MatchAreaPaths ?? []).Select(p => p.Trim()).Where(p => p.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        var tag = string.IsNullOrWhiteSpace(input.MatchTag) ? (paths.Count == 0 ? $"repo:{name}" : null) : input.MatchTag.Trim();
+        var at = $"Repositories:Items:{existing.Count}";
+        var values = new Dictionary<string, string?>(StringComparer.Ordinal)
+        {
+            [$"{at}:Url"] = url.Value.Value,
+            [$"{at}:Name"] = name,
+            [$"{at}:BaseBranch"] = baseBranch,
+        };
+        if (tag is not null)
+        {
+            values[$"{at}:MatchTag"] = tag;
+        }
+
+        for (var i = 0; i < paths.Count; i++)
+        {
+            values[$"{at}:MatchAreaPaths:{i}"] = paths[i];
+        }
+
+        await config.SetAsync(values, cancellationToken).ConfigureAwait(false);
+        await audit.RecordAsync([Change(at, "config", "added", by)], cancellationToken).ConfigureAwait(false);
+        return new RepositoryEntry(url.Value.Value, name, baseBranch, tag, paths);
+    }
+
+    /// <summary>Reaches the repository with agentd's git setup and reports its default branch. Nothing is saved.</summary>
+    public async Task<StepCheck> TestRepositoryAsync(string? url, CancellationToken cancellationToken)
+    {
+        var parsed = RemoteUrl.Parse(url);
+        if (!parsed.IsSuccess)
+        {
+            return new StepCheck(false, parsed.Error.Message, "use the repository's Azure DevOps clone URL (SSH or HTTPS)");
+        }
+
+        try
+        {
+            var branch = await remote.GetDefaultBranchAsync(parsed.Value.Value, cancellationToken).ConfigureAwait(false);
+            var repo = parsed.Value.AzureDevOps;
+            return new StepCheck(true, $"Reached {repo.Organization}/{repo.Project}/{repo.Name}; its default branch is {branch}.");
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return new StepCheck(false, ex.Message, "check the Git access step: agentd's key must be added where the repository lives");
+        }
     }
 
     private static string? ValidateChat(ChatInput input)

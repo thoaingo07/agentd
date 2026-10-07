@@ -4,6 +4,7 @@ import AzureDevOpsStep from './steps/AzureDevOpsStep.vue'
 import GitKeyStep from './steps/GitKeyStep.vue'
 import ClaudeStep from './steps/ClaudeStep.vue'
 import ChatStep from './steps/ChatStep.vue'
+import RepositoriesStep from './steps/RepositoriesStep.vue'
 
 /** The wizard's steps, in order (docs/architect/deployment.md §5a). Later steps join as their APIs land. */
 export const steps = [
@@ -12,6 +13,7 @@ export const steps = [
   { path: '/git', name: 'git', title: 'Git access', component: GitKeyStep },
   { path: '/claude', name: 'claude', title: 'Claude', component: ClaudeStep },
   { path: '/chat', name: 'chat', title: 'Chat (optional)', component: ChatStep },
+  { path: '/repositories', name: 'repositories', title: 'Repositories', component: RepositoriesStep },
 ] as const
 
 export const router = createRouter({
