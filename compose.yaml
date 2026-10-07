@@ -1,0 +1,49 @@
+# agentd + PostgreSQL (T1b.8):
+#   echo "POSTGRES_PASSWORD=$(openssl rand -hex 24)" > .env && docker compose up -d && docker compose logs -f agentd
+# .env may also set POSTGRES_PORT (default 5432, if another PostgreSQL already uses it) and AGENTD_VERSION (default latest).
+# Both use the host network and listen on 127.0.0.1 only: the Web UI is http://127.0.0.1:7780 on this machine, reached
+# from elsewhere through an SSH tunnel or Cloudflare Tunnel + Access (docs/architect/deployment.md §7.1), never a public port.
+# Linux hosts (a VPS); Docker Desktop's host networking is limited.
+services:
+  postgres:
+    image: postgres:17
+    network_mode: host
+    command: ["postgres", "-c", "listen_addresses=127.0.0.1", "-c", "port=${POSTGRES_PORT:-5432}"]
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - agentd-pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p ${POSTGRES_PORT:-5432} -U postgres"]
+      interval: 5s
+      retries: 20
+    restart: unless-stopped
+
+  # The daemon never migrates: this runs `agentd db migrate` first, every start (it's a no-op when up to date).
+  migrate:
+    image: ghcr.io/thoaingo07/agentd:${AGENTD_VERSION:-latest}
+    network_mode: host
+    command: ["db", "migrate"]
+    environment: &db
+      ConnectionStrings__agentd: Host=127.0.0.1;Port=${POSTGRES_PORT:-5432};Username=postgres;Password=${POSTGRES_PASSWORD};Database=postgres
+    volumes:
+      - agentd-home:/home/agentd/.agentd
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  agentd:
+    image: ghcr.io/thoaingo07/agentd:${AGENTD_VERSION:-latest}
+    network_mode: host
+    environment: *db
+    volumes:
+      - agentd-home:/home/agentd/.agentd
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    stop_grace_period: 60s
+
+volumes:
+  agentd-pg:
+  agentd-home:

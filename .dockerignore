@@ -1,0 +1,11 @@
+# Only what the build needs: sources, build/, global.json, the solution and props.
+.git
+**/bin
+**/obj
+**/node_modules
+artifacts
+src/Agentd.Web/wwwroot
+**/test-results
+**/playwright-report
+TestResults
+*.trx

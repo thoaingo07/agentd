@@ -255,16 +255,47 @@ arrives from `127.0.0.1`. That's why Mode `None` rejects requests carrying forwa
 
 ### B. Docker Compose
 
-`ghcr.io/thoaingo07/agentd` (multi-arch) contains agentd + git + openssh + **Node 24 + Claude Code
-CLI** (+ optional `az`). `compose.yaml` runs it together with PostgreSQL, with volumes for
-`~/.agentd` and the Postgres data.
+`ghcr.io/thoaingo07/agentd` (amd64 and arm64, pushed by the release workflow: `:<version>`, `:latest`, `:beta`) holds:
+- the single-file `agentd`;
+- git 2.47, openssh, **Node 24** and the **Claude Code CLI**;
+- `tini` as PID 1;
+- `az` optionally (`--build-arg INSTALL_AZ=true`).
 
-Toolchains for target repos are added by **extending the image**:
+It runs as an unprivileged `agentd` user (uid 10001), with `AGENTD_HOME=/home/agentd/.agentd` as a volume. No secrets
+are baked in.
+
+```bash
+echo "POSTGRES_PASSWORD=$(openssl rand -hex 24)" > .env      # optional: POSTGRES_PORT=55432, AGENTD_VERSION=0.2.0
+docker compose up -d && docker compose logs -f agentd
+docker compose exec -it agentd agentd secrets set AzureDevOps:Pat    # secrets go into the volume, encrypted
+docker compose restart agentd
+```
+
+**What `compose.yaml` runs:** PostgreSQL 17, then a one-shot **`migrate`** (`agentd db migrate`, a no-op when up to
+date, because the daemon never migrates), then **`agentd`**.
+
+**Host networking, on purpose.** Both use `network_mode: host` and listen on **127.0.0.1 only**.
+- In Mode `None` agentd refuses non-loopback bindings and non-loopback callers.
+- Publishing a container port would need a proxy that makes every visitor look local, which is the hole that rule
+  exists to prevent.
+- So the Web UI is `http://127.0.0.1:7780` on the host, reached like a bare-metal install: an SSH tunnel, or Cloudflare
+  Tunnel + Access (§7.1).
+- This targets Linux hosts; Docker Desktop's host networking is limited.
+
+**Toolchains** for the target repos are added by **extending the image**:
 
 ```dockerfile
 FROM ghcr.io/thoaingo07/agentd:latest
-RUN apt-get update && apt-get install -y dotnet-sdk-10.0 && rm -rf /var/lib/apt/lists/*
+USER root
+RUN apt-get update && apt-get install -y --no-install-recommends dotnet-sdk-10.0 && rm -rf /var/lib/apt/lists/*
+USER agentd
 ```
+
+**Verified (2026-10-06):**
+- `docker compose up` on a test port: the migration applied all 17, and the daemon answered `/health/live` and the
+  dashboard with its assets, on 127.0.0.1 only.
+- Inside the image, `agentd doctor` reports the missing database, Azure DevOps and Claude login instead of crashing.
+- CI builds the image on every PR and smoke-tests it.
 
 ### C. Later: per-repo dev containers
 
