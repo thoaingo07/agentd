@@ -79,7 +79,7 @@ public sealed class ReviewFindingsTests
 
         var text = ReviewFindings.MainMessage(result, "b7e9f01c2d");
 
-        StringAssert.StartsWith(text, "🤖 **agentd review** · 3 finding(s): 1 open, 1 fixed · checked at b7e9f01");
+        StringAssert.StartsWith(text, "**Review** · 3 finding(s): 1 open, 1 fixed · checked at b7e9f01");
         StringAssert.Contains(text, "| ✅ | Readiness never fails | `src/Api/Health.cs:42` |");
         StringAssert.Contains(text, "| 🟠 | Health checks run on every request |  |");
         StringAssert.Contains(text, "| ⚪ | Old \\| idea |  |", "a pipe can't break the table");
@@ -90,5 +90,27 @@ public sealed class ReviewFindingsTests
     public void Older_reviews_still_get_an_icon()
     {
         Assert.AreEqual(("🔴", "🔴", "🟠", "🟠"), (ReviewFindings.Icon("blocker"), ReviewFindings.Icon("major"), ReviewFindings.Icon("minor"), ReviewFindings.Icon("nit")));
+    }
+
+    [TestMethod]
+    [DataRow("""{"findings":[{"n":3,"status":"fixed"}]}""", "isn't one of the 2 posted")]
+    [DataRow("""{"findings":[{"n":1,"status":"done"}]}""", "open, fixed or closed")]
+    [DataRow("""{"findings":[],"new":[{"severity":"style","title":"t"}]}""", "severity")]
+    public void A_broken_recheck_is_reported_back(string json, string expected)
+    {
+        var (_, recheck, problem) = ReviewFindings.ExtractRecheck($"x\n```review-recheck\n{json}\n```", posted: 2);
+
+        Assert.IsNull(recheck);
+        StringAssert.Contains(problem, expected);
+    }
+
+    [TestMethod]
+    public void A_recheck_is_parsed_and_normalized()
+    {
+        var (text, recheck, problem) = ReviewFindings.ExtractRecheck("Done.\n```review-recheck\n{\"findings\":[{\"n\":2,\"status\":\"Fixed\"}]}\n```", posted: 2);
+
+        Assert.IsNull(problem);
+        Assert.AreEqual(("Done.", ReviewFindings.Fixed), (text, recheck!.Findings.Single().Status));
+        Assert.IsEmpty(recheck.New!);
     }
 }

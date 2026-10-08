@@ -172,6 +172,22 @@ public sealed class AzureDevOpsPullRequests(HttpClient http) : IPullRequestServi
         return created["id"]!.GetValue<int>();
     }
 
+    public async Task UpdateThreadTextAsync(Repository repository, int pullRequestId, int threadId, string text, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(repository);
+        ArgumentNullException.ThrowIfNull(text);
+        // The thread's first comment (id 1) is the one agentd opened it with.
+        var body = new JsonObject { ["content"] = $"{PullRequestComment.AgentdMarker} {text}" };
+        await SendAsync(http, HttpMethod.Patch, $"{Base(repository)}/pullrequests/{pullRequestId}/threads/{threadId}/comments/1?api-version={ApiVersion}", body, "application/json", cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task SetThreadStatusAsync(Repository repository, int pullRequestId, int threadId, PullRequestThreadStatus status, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(repository);
+        var body = new JsonObject { ["status"] = (int)status };
+        await SendAsync(http, HttpMethod.Patch, $"{Base(repository)}/pullrequests/{pullRequestId}/threads/{threadId}?api-version={ApiVersion}", body, "application/json", cancellationToken).ConfigureAwait(false);
+    }
+
     private static string Base(Repository r) =>
         $"{Esc(r.AzureDevOps.Organization)}/{Esc(r.AzureDevOps.Project)}/_apis/git/repositories/{Esc(r.AzureDevOps.Name)}";
 

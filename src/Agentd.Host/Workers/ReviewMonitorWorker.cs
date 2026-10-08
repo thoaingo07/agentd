@@ -4,7 +4,10 @@ using Microsoft.Extensions.Options;
 
 namespace Agentd.Host.Workers;
 
-/// <summary>Runs <see cref="ReviewPullRequests"/> every <see cref="JobOptions.ReviewPollInterval"/> while the scheduler is enabled.</summary>
+/// <summary>
+/// Every <see cref="JobOptions.ReviewPollInterval"/> while the scheduler is enabled: <see cref="ReviewPullRequests"/> for agentd's own PRs
+/// (with <see cref="JobOptions.ReviewLoop"/>), and the re-checks of posted <c>!review</c>s.
+/// </summary>
 internal sealed partial class ReviewMonitorWorker(
     IServiceScopeFactory scopes,
     IOptions<JobOptions> jobOptions,
@@ -13,7 +16,7 @@ internal sealed partial class ReviewMonitorWorker(
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        if (!schedulerOptions.Value.Enabled || !jobOptions.Value.ReviewLoop)
+        if (!schedulerOptions.Value.Enabled)
         {
             return;
         }
@@ -28,8 +31,13 @@ internal sealed partial class ReviewMonitorWorker(
                     var scope = scopes.CreateAsyncScope();
                     await using (scope.ConfigureAwait(false))
                     {
-                        await scope.ServiceProvider.GetRequiredService<ICommandHandler<ReviewPullRequests, int>>()
-                            .Handle(new ReviewPullRequests(), stoppingToken).ConfigureAwait(false);
+                        if (jobOptions.Value.ReviewLoop)
+                        {
+                            await scope.ServiceProvider.GetRequiredService<ICommandHandler<ReviewPullRequests, int>>()
+                                .Handle(new ReviewPullRequests(), stoppingToken).ConfigureAwait(false);
+                        }
+
+                        await scope.ServiceProvider.GetRequiredService<Application.Reviews.ReviewService>().MonitorAsync(stoppingToken).ConfigureAwait(false);
                     }
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)

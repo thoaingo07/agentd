@@ -15,6 +15,12 @@ RETURNS SETOF agentd.pr_reviews
 LANGUAGE sql STABLE
 AS $$ SELECT * FROM agentd.pr_reviews WHERE id = p_id $$;
 
+-- The latest review of a PR (newest first): `!review` on the same PR continues it.
+CREATE OR REPLACE FUNCTION agentd.pr_review_find_latest(p_repo text, p_pull_request_id int)
+RETURNS SETOF agentd.pr_reviews
+LANGUAGE sql STABLE
+AS $$ SELECT * FROM agentd.pr_reviews WHERE repo = p_repo AND pull_request_id = p_pull_request_id ORDER BY id DESC LIMIT 1 $$;
+
 CREATE OR REPLACE FUNCTION agentd.pr_review_find_by_thread(p_provider text, p_thread_id text)
 RETURNS SETOF agentd.pr_reviews
 LANGUAGE sql STABLE
@@ -47,6 +53,12 @@ LANGUAGE sql STABLE
 AS $$ SELECT * FROM agentd.pr_review_messages WHERE review_id = p_review_id ORDER BY id $$;
 
 -- The review threads chat providers should read: every review that isn't closed.
+-- Posted reviews, which agentd keeps re-checking after pushes until their PR is completed or abandoned.
+CREATE OR REPLACE FUNCTION agentd.pr_review_list_posted()
+RETURNS SETOF agentd.pr_reviews
+LANGUAGE sql STABLE
+AS $$ SELECT * FROM agentd.pr_reviews WHERE status = 'Posted' ORDER BY id $$;
+
 CREATE OR REPLACE FUNCTION agentd.pr_review_list_open_threads(p_provider text)
 RETURNS SETOF text
 LANGUAGE sql STABLE
