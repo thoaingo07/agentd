@@ -76,7 +76,8 @@ public interface IIdeaStore
 /// (<paramref name="Kind"/>; <paramref name="IdeaId"/> is then the review's id).
 /// </summary>
 public sealed record BrainstormTurn(
-    long IdeaId, string Worktree, Guid Session, bool Resume, string Prompt, string? Model = null, string? Effort = null, ThreadTurnKind Kind = ThreadTurnKind.Brainstorm);
+    long IdeaId, string Worktree, Guid Session, bool Resume, string Prompt, string? Model = null, string? Effort = null, ThreadTurnKind Kind = ThreadTurnKind.Brainstorm,
+    IReadOnlyList<string>? AddDirs = null);
 
 /// <summary>What a read-only thread turn is for: it picks the agent's instructions and where its transcript goes.</summary>
 public enum ThreadTurnKind
@@ -86,6 +87,9 @@ public enum ThreadTurnKind
 
     /// <summary>A finished job's session, resumed read-only to answer questions after its PR is merged (talk only).</summary>
     FollowUp,
+
+    /// <summary>A <c>!chat</c> question: answered read-only from the repositories' code.</summary>
+    Chat,
 }
 
 /// <summary>The model and effort people may pick for an idea (passed to the CLI's <c>--model</c> / <c>--effort</c>).</summary>

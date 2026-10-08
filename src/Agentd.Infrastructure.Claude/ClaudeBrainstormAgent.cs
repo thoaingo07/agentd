@@ -64,6 +64,15 @@ public sealed class ClaudeBrainstormAgent(IOptions<ClaudeOptions> options) : IBr
         "a finding is wrong, or ask you to change the list, send the whole revised block. Never claim you approved, posted or merged " +
         "anything: agentd posts only the findings the developer chooses.";
 
+    /// <summary>Instructions for a <c>!chat</c> turn (<see cref="ThreadTurnKind.Chat"/>).</summary>
+    public const string ChatRules =
+        "You are agentd's assistant in a chat thread, answering a developer's questions about the team's repositories. Your working " +
+        "directory and the added directories are read-only checkouts of each repository's base branch (the first prompt lists them). " +
+        "Read and search them (Read, Grep, Glob, git log/show/blame) and answer from what you find: name the files and lines " +
+        "(`path:line`) so the developer can check. Never edit, build, commit or push. If the answer isn't in the code, say so plainly " +
+        "instead of guessing. Keep answers short (under ~250 words) unless asked for detail, in the developer's language. When " +
+        "something should become work, suggest `!idea <text>` (to shape work items) or `!run <work item id>`.";
+
     public static IReadOnlyList<string> Args(BrainstormTurn turn, ClaudeOptions o)
     {
         ArgumentNullException.ThrowIfNull(turn);
@@ -74,7 +83,7 @@ public sealed class ClaudeBrainstormAgent(IOptions<ClaudeOptions> options) : IBr
             turn.Resume ? "--resume" : "--session-id", turn.Session.ToString(),
             "--output-format", "stream-json", "--verbose",
             "--max-turns", MaxTurns.ToString(CultureInfo.InvariantCulture),
-            "--append-system-prompt", turn.Kind switch { ThreadTurnKind.Review => ReviewRules, ThreadTurnKind.FollowUp => FollowUpRules, _ => Rules },
+            "--append-system-prompt", turn.Kind switch { ThreadTurnKind.Review => ReviewRules, ThreadTurnKind.FollowUp => FollowUpRules, ThreadTurnKind.Chat => ChatRules, _ => Rules },
             "--strict-mcp-config",
             "--allowedTools", string.Join(",", o.ReadOnlyTools.Where(t => !t.StartsWith("mcp__", StringComparison.Ordinal))),
             "--disallowedTools", "Edit,Write,MultiEdit,NotebookEdit",
@@ -89,6 +98,12 @@ public sealed class ClaudeBrainstormAgent(IOptions<ClaudeOptions> options) : IBr
             args.AddRange(["--effort", effort]);
         }
 
+        // One flag per directory: --add-dir takes a list and would swallow what follows.
+        foreach (var dir in turn.AddDirs ?? [])
+        {
+            args.AddRange(["--add-dir", dir]);
+        }
+
         return args;
     }
 
@@ -96,7 +111,7 @@ public sealed class ClaudeBrainstormAgent(IOptions<ClaudeOptions> options) : IBr
     {
         ArgumentNullException.ThrowIfNull(turn);
         var o = options.Value;
-        var dir = Path.Combine(Paths.Expand(o.TranscriptRoot), $"{turn.Kind switch { ThreadTurnKind.Review => "review", ThreadTurnKind.FollowUp => "followup", _ => "idea" }}-{turn.IdeaId}");
+        var dir = Path.Combine(Paths.Expand(o.TranscriptRoot), $"{turn.Kind switch { ThreadTurnKind.Review => "review", ThreadTurnKind.FollowUp => "followup", ThreadTurnKind.Chat => "chat", _ => "idea" }}-{turn.IdeaId}");
         Directory.CreateDirectory(dir);
         var psi = new ProcessStartInfo(o.Binary)
         {

@@ -50,7 +50,9 @@ public sealed partial class InboundMessageHandler(
     Ideas.IIdeaStore? ideaStore = null,
     Jobs.JobFollowUps? followUps = null,
     Reviews.ReviewService? reviews = null,
-    Reviews.IReviewStore? reviewStore = null) : IInboundMessageSink
+    Reviews.IReviewStore? reviewStore = null,
+    Chats.ChatService? chatService = null,
+    Chats.IChatStore? chatStore = null) : IInboundMessageSink
 {
     /// <summary>The role a stranger gets on a provider that allows everyone (enforced from Phase 5).</summary>
     public const string GuestRole = "Operator";
@@ -104,6 +106,13 @@ public sealed partial class InboundMessageHandler(
                 && await reviewStore.FindByThreadAsync(message.Provider, message.ExternalConversationId, ct).ConfigureAwait(false) is { } review)
             {
                 return new InboundOutcome(await reviews.HandleMessageAsync(review, user.Name, message.Text, ct).ConfigureAwait(false) ? "review" : "review_closed");
+            }
+
+            // …or a chat's.
+            if (chatService is not null && chatStore is not null && !string.IsNullOrWhiteSpace(message.Text)
+                && await chatStore.FindByThreadAsync(message.Provider, message.ExternalConversationId, ct).ConfigureAwait(false) is { } chat)
+            {
+                return new InboundOutcome(await chatService.HandleMessageAsync(chat, user.Name, message.Text, ct).ConfigureAwait(false) ? "chat" : "chat_closed");
             }
 
             return new InboundOutcome("ignored_no_job");

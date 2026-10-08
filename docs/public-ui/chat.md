@@ -10,6 +10,7 @@ Commands start with **`!`** in Discord. `!help` shows them all, with the job cyc
 | `!run <work item id>` | start a work item now, even without the `ai-workflow` tag |
 | `!idea [--repo r] [--model m] [--effort e] <text>` | brainstorm an idea into work items, in a new 💡 thread ([Ideas](ideas.md)) |
 | `!review <PR url or id> [instructions] [--repo r] [--focus f] [--model m] [--effort e]` | review a pull request, in a new 🔍 thread ([Reviews](reviews.md)) |
+| `!chat <question> [--repo r] [--model m] [--effort e]` | ask about the code, in a new 💬 thread (see below) |
 | `!repo list` | registered repositories and how work items match them |
 | `!repo add <clone url> [--name n] [--tag t] [--base b] [--area-path p]` · `!repo remove <name>` | register or remove a repository (Admins) |
 | `!help` | everything agentd can do |
@@ -45,6 +46,24 @@ When an agent needs a command outside its allowlist (and agentd isn't in auto mo
 - **"For this job" and "always" are remembered:** "always" covers that kind of command, so `npm` covers
   `npm install`. Admins can revoke remembered approvals under **Settings → Remembered permissions**.
 - See [Safety and permissions](safety.md).
+
+## Asking questions: `!chat`
+
+```text
+!chat where do we validate the login token?
+!chat --repo portal how is the order total computed?
+```
+
+agentd opens **💬 Chat: <your question>**, and a **read-only** agent answers there.
+- **What it reads:** every registered repository's base branch, or one with `--repo`. It points at files and lines
+  (`path:line`) and says so when the answer isn't in the code.
+- **Follow-ups:** ask in the same thread; it keeps the conversation. Anyone in the channel can join in.
+- **What it never does:** edit, build or push anything. When something should become work it suggests `!idea` or `!run`.
+- **Closing:** say **close** in the thread. The checkouts are removed and the conversation is kept.
+- **Model:** its default is `Jobs:Steps:chat` ([Configuration](configuration.md)); `--model` and `--effort` override it.
+
+Azure DevOps (work items, pull requests, pipelines and the wiki) comes next, through read-only tools that answer with
+agentd's own credentials.
 
 ## In an idea's or a review's thread
 

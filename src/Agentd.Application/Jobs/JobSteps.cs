@@ -29,6 +29,9 @@ public static class JobSteps
     /// <summary>Not a job turn: the defaults for <c>!review</c> (Model, Effort; a review's own --model / --effort win).</summary>
     public const string Review = "review";
 
+    /// <summary>Not a job turn: the defaults for <c>!chat</c> (Model, Effort).</summary>
+    public const string Chat = "chat";
+
     public static readonly IReadOnlyList<string> All = [Plan, Implement, Fix, Handoff];
 
     public static string Of(Job job)
