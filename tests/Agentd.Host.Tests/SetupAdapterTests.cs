@@ -101,6 +101,26 @@ public sealed class SetupAdapterTests : IDisposable
     }
 
     [TestMethod]
+    public void A_secret_from_the_environment_counts_as_set()
+    {
+        // Docker Compose passes the database as ConnectionStrings__agentd; containers pass AGENTD_AzureDevOps__Pat.
+        var running = new ConfigurationBuilder().AddInMemoryCollection(
+        [
+            new("ConnectionStrings:agentd", "Host=127.0.0.1;Password=from-env"),
+            new("Agentd:AzureDevOps:Pat", "pat-from-env"),
+        ]).Build();
+        var secrets = new StoredSecrets(new SecretStore(_home), running);
+
+        Assert.AreEqual(new SecretStatus(true, null, StoredSecrets.FromEnvironment), secrets.Status("ConnectionStrings:agentd"));
+        Assert.AreEqual("Host=127.0.0.1;Password=from-env", secrets.TryGet("ConnectionStrings:agentd"));
+        Assert.AreEqual("pat-from-env", secrets.TryGet("AzureDevOps:Pat"));
+        secrets.Store("AzureDevOps:Pat", "pat-stored", "setup");
+        Assert.AreEqual("pat-stored", secrets.TryGet("AzureDevOps:Pat"), "a stored secret wins");
+        Assert.AreEqual("setup", secrets.Status("AzureDevOps:Pat").UpdatedBy);
+        Assert.AreEqual(SecretStatus.Missing, secrets.Status("Claude:OAuthToken"));
+    }
+
+    [TestMethod]
     public async Task The_audit_appends_one_line_per_change_owner_only()
     {
         using var audit = new FileSettingsAudit(_home, NullLogger<FileSettingsAudit>.Instance);

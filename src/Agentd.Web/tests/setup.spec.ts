@@ -108,6 +108,12 @@ describe('SecretField', () => {
     expect(field.find('input[type="password"]').exists()).toBe(true)
   })
 
+  it('says when a secret comes from the environment', () => {
+    const field = mount(SecretField, { props: { label: 'Database', status: { set: true, updatedAt: null, updatedBy: 'environment' }, modelValue: '' } })
+
+    expect(field.text()).toContain('from the environment')
+  })
+
   it('is a password input when nothing is set', () => {
     const field = mount(SecretField, { props: { label: 'Token', status: unset, modelValue: '' } })
 

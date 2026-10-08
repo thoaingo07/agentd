@@ -379,7 +379,8 @@ toolchains become per repo and agents are isolated from each other. This is plan
 - **Sizing:** each running agent is one `claude` process plus the repo's builds and tests. Start
   with **4 vCPU / 16 GB** for `MaxConcurrent: 2–3`.
 - **Network:** a firewall with only SSH open (or nothing public, with Tailscale). agentd binds the
-  web UI to loopback or the Tailscale IP. Outbound traffic goes to Azure DevOps, Anthropic (or other
+  web UI to loopback only: reach it with an SSH tunnel (over Tailscale too) or Cloudflare Tunnel + Access.
+- **Step by step:** [the VPS guide](../public-ui/vps.md) (T1b.9). Outbound traffic goes to Azure DevOps, Anthropic (or other
   model providers) and the chat platforms.
 - **Updates:** `agentd update` downloads the new release, verifies its checksum, runs
   `db migrate`, and restarts the service. In-flight jobs resume from their checkpoints.

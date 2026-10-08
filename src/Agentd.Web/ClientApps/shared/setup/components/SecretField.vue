@@ -32,7 +32,14 @@ const isSet = () => props.status?.set === true && !replacing.value
         :id="id"
         class="badge badge-success badge-soft"
       >Set</span>
-      <span class="text-muted">
+      <span
+        v-if="status?.updatedBy === 'environment'"
+        class="text-muted"
+      >from the environment (an environment variable); saving one here takes precedence</span>
+      <span
+        v-else
+        class="text-muted"
+      >
         updated {{ status?.updatedAt ? dateTime(status.updatedAt) : '' }}<template v-if="status?.updatedBy"> by {{ status.updatedBy }}</template>
       </span>
       <AgButton

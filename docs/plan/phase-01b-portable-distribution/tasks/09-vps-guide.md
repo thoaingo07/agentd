@@ -9,7 +9,7 @@ A step-by-step guide for a fresh Ubuntu VPS: an unprivileged `agentd` user, fire
 sizing, PostgreSQL, backups and updates.
 
 ## Files
-- `docs/guides/vps.md`: create. Linked from the README and deployment.md §7–8.
+- `docs/public-ui/vps.md` (the user guide; planned as `docs/guides/vps.md`): create. Linked from the guide's README and deployment.md §8.
 
 ## Implementation
 1. Covers both install paths (binary + systemd, Docker Compose), Cloudflare Tunnel + Access (§7.1), and restoring
