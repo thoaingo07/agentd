@@ -36,6 +36,7 @@ public sealed class ProfileSessionsTests
         Assert.IsFalse(first.Resume);
         Assert.Contains("You're taking over work item #", first.Prompt);
         Assert.Contains("1. Fix the login", first.Prompt);
+        Assert.Contains("follow it step by step", first.Prompt);
         Assert.EndsWith("Implement it.", first.Prompt.TrimEnd());
         Assert.AreEqual((first.Session, true, "Next."), (second.Session, second.Resume, second.Prompt), "resumed, no second handoff");
     }

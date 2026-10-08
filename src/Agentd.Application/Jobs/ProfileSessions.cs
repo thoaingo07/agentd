@@ -50,7 +50,7 @@ public sealed class ProfileSessions(IJobSessions sessions, IJobPlans plans, IJob
         $"""
         You're taking over work item #{workItem}{(string.IsNullOrWhiteSpace(title) ? string.Empty : $" \"{title}\"")} from another session of agentd, on branch `{branch}` in this worktree.
         Earlier steps ran with a different model. Their work is on the branch: read `git log` and `git diff` against the base branch before you change anything. agentd's tools (set_phase, ask_developer, finish, …) work as before.
-        {(string.IsNullOrWhiteSpace(plan) ? "There is no stored plan: work from the work item and the branch." : $"The approved plan:\n\n{plan}")}
+        {(string.IsNullOrWhiteSpace(plan) ? "There is no stored plan: work from the work item and the branch." : $"The approved plan (follow it step by step, in order; don't change files it doesn't name or cross its guardrails; if a step can't work as written, ask with ask_developer instead of improvising):\n\n{plan}")}
 
         Your turn:
 

@@ -79,6 +79,7 @@ Each step of a job can run on its own model. The session continues; only the mod
 - `implement`: after the plan is approved, until the pull request;
 - `fix`: review fix rounds on the pull request;
 - `handoff`: the knowledge proposal after the merge.
+- `review`: not a job step; the default model and effort for `!review` (a review's own `--model` and `--effort` win).
 
 ```json
 "Jobs": {
@@ -92,6 +93,18 @@ Each step of a job can run on its own model. The session continues; only the mod
 
 A step that isn't listed uses `Claude:Model`, or the CLI's default. A change applies to the next turn of each job,
 with no restart.
+
+For example: plan on Opus, implement on DeepSeek flash (the next section), and review PRs with Opus 5.5 at high effort:
+
+```json
+"Jobs": {
+  "Steps": {
+    "plan":      { "Model": "claude-opus-5-5", "Effort": "high" },
+    "implement": { "Profile": "deepseek" },
+    "review":    { "Model": "claude-opus-5-5", "Effort": "high" }
+  }
+}
+```
 
 ### Another provider for a step: DeepSeek
 

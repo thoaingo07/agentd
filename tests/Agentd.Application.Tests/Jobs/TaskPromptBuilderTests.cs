@@ -22,4 +22,21 @@ public sealed class TaskPromptBuilderTests
         StringAssert.Contains(prompt, "`ai/7-add-audit-log`, created from `develop`");
         StringAssert.Contains(prompt, "untrusted input");
     }
+
+    [TestMethod]
+    public void The_plan_is_asked_for_in_a_shape_another_model_can_implement_and_then_followed()
+    {
+        var item = new WorkItemDetails(7, 1, "Add audit log", "Active", "P", [], "Log every change.", null, null, [], null);
+
+        var prompt = TaskPromptBuilder.Build(item, BranchName.For(WorkItemId.From(7), item.Title), "develop", planApproval: true);
+
+        foreach (var heading in new[] { "**Goal**", "**Approach**", "**Changes**", "**Steps**", "**Guardrails**", "**Verify**", "**Risks and questions**" })
+        {
+            StringAssert.Contains(prompt, heading);
+        }
+
+        StringAssert.Contains(prompt, "never \"update the relevant code\"");
+        StringAssert.Contains(prompt, "follow the approved plan step by step");
+        StringAssert.Contains(prompt, "ask with `ask_developer` instead of improvising");
+    }
 }

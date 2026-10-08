@@ -141,9 +141,24 @@ public sealed class ReviewServiceTests
     [DataRow("post the first one")]
     public void Anything_else_is_a_question_for_the_agent(string answer) => Assert.IsNull(ReviewChoice.Parse(answer, 3));
 
+    [TestMethod]
+    public async Task A_review_uses_the_review_steps_model_unless_it_names_its_own()
+    {
+        var jobs = new Agentd.Application.Jobs.JobOptions();
+        jobs.Steps["review"] = new Agentd.Application.Jobs.StepModel { Model = "claude-opus-5-5", Effort = "High" };
+        var defaults = new Harness(jobs);
+        var own = new Harness(jobs);
+
+        await defaults.Service.StartAsync(s_discord, "tngo", ["3944"], default);
+        await own.Service.StartAsync(s_discord, "tngo", ["3944", "--model", "sonnet"], default);
+
+        Assert.AreEqual(("claude-opus-5-5", "high"), (defaults.Store.Rows[1].Model, defaults.Store.Rows[1].Effort));
+        Assert.AreEqual(("sonnet", "high"), (own.Store.Rows[1].Model, own.Store.Rows[1].Effort), "--model wins; the effort still defaults");
+    }
+
     private sealed class Harness
     {
-        public Harness()
+        public Harness(Agentd.Application.Jobs.JobOptions? jobs = null)
         {
             var options = Microsoft.Extensions.Options.Options.Create(new MessagingOptions());
             options.Value.Providers["discord"] = new MessagingProviderSettings { Enabled = true };
@@ -153,7 +168,8 @@ public sealed class ReviewServiceTests
                 "- test deploys on merge to develop\n- prod deploys on main", null, [], null);
             PullRequests.Comments.Add(new PullRequestComment(10, 1, "Kelvin Pham", "Why is the probe timeout 1s?", "/charts/api/values.yaml", 14, "active", DateTimeOffset.UnixEpoch));
             PullRequests.Comments.Add(new PullRequestComment(11, 2, "Kelvin Pham", "Typo fixed", null, null, "fixed", DateTimeOffset.UnixEpoch));
-            Service = new ReviewService(Store, Registry, PullRequests, Worktrees, Agent, new MessagingProviderRegistry([Chat], options), NullLogger<ReviewService>.Instance, WorkItems);
+            Service = new ReviewService(Store, Registry, PullRequests, Worktrees, Agent, new MessagingProviderRegistry([Chat], options), NullLogger<ReviewService>.Instance, WorkItems,
+                jobs is null ? null : Microsoft.Extensions.Options.Options.Create(jobs));
         }
 
         public FakeChat Chat { get; } = new("discord");

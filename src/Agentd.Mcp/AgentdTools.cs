@@ -102,7 +102,7 @@ public sealed class AgentdTools(
         "Submit your implementation plan with an estimate. If the developer must approve it, it is posted for approval and you must END YOUR TURN " +
         "(you can't edit files until it's approved; you'll be resumed with their decision). Otherwise it is posted and you continue.")]
     public async Task<string> SubmitPlan(
-        [Description("The plan in Markdown: the options you considered, the chosen approach, the files to change, how you'll verify (up to 1,800 characters).")] string plan,
+        [Description("The plan in Markdown, with the headings from your task: Goal, Approach, Changes (exact files and symbols), Steps (small and ordered), Guardrails, Verify (exact commands and tests), Risks and questions. Detailed enough that another model can implement it without guessing (up to 6,000 characters).")] string plan,
         [Description("Estimated time to implement and verify, in minutes.")] int estimateMinutes,
         [Description("Estimated share of the 5-hour Claude usage window this will take, in percent (0–100).")] int estimateUsagePercent,
         CancellationToken cancellationToken)

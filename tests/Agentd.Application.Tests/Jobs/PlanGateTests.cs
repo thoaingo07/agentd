@@ -112,6 +112,19 @@ public sealed class PlanGateTests
     }
 
     [TestMethod]
+    public async Task A_detailed_plan_fits_but_not_an_endless_one()
+    {
+        var request = await _t.RunningJobAsync();
+        var handler = new SubmitPlanHandler(_t.Jobs, _t.Outbox, _t.Activity, _t.Clock, _plans);
+
+        var tooLong = await handler.Handle(new SubmitPlan(request.JobId, new string('x', SubmitPlanHandler.MaxPlanLength + 1), 25, 15), default);
+        var detailed = await handler.Handle(new SubmitPlan(request.JobId, new string('x', 5000), 25, 15), default);
+
+        Assert.AreEqual("validation", tooLong.Error?.Code);
+        Assert.IsTrue(detailed.IsSuccess, "a 5,000-character plan is fine");
+    }
+
+    [TestMethod]
     public async Task The_submitted_plan_is_kept_for_a_later_session()
     {
         var request = await _t.RunningJobAsync();

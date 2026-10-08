@@ -18,6 +18,7 @@ public sealed class ModelsOptionsTests
     [DataRow("url", "BaseUrl")]
     [DataRow("kind", "isn't supported yet")]
     [DataRow("step", "isn't in Agentd:Models:Profiles")]
+    [DataRow("review", "reviews run on Claude for now")]
     public void A_profile_that_cant_work_fails_startup(string defect, string message)
     {
         var (models, jobs) = Config();
@@ -28,6 +29,7 @@ public sealed class ModelsOptionsTests
             case "url": deepseek.BaseUrl = "http://api.deepseek.com/anthropic"; break;
             case "kind": deepseek.Kind = "OpenAiApi"; break;
             case "step": jobs.Steps["fix"] = new StepModel { Profile = "glm" }; break;
+            case "review": jobs.Steps["review"] = new StepModel { Profile = "deepseek" }; break;
         }
 
         var result = Validate(models, jobs);

@@ -65,6 +65,12 @@ public sealed class ModelsOptionsValidator(IOptions<JobOptions> jobs) : IValidat
 
         foreach (var (step, model) in jobs.Value.Steps)
         {
+            if (string.Equals(step, JobSteps.Review, StringComparison.OrdinalIgnoreCase) && model.Profile is { Length: > 0 })
+            {
+                errors.Add($"Agentd:Jobs:Steps:review:Profile: reviews run on Claude for now (Model and Effort only).");
+                continue;
+            }
+
             if (model.Profile is { Length: > 0 } profile && !options.Profiles.ContainsKey(profile))
             {
                 errors.Add($"Agentd:Jobs:Steps:{step}:Profile '{profile}' isn't in Agentd:Models:Profiles.");

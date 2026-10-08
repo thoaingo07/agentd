@@ -22,6 +22,18 @@ agentd claims the work item by adding **`ai-in-progress`**, so it's never picked
    3 days.
 2. **Plan.** It posts a plan with an estimate of time and usage. Reply **`1`** (or `approve`) to go ahead, or say
    what to change. Work items tagged **`ai-auto`** skip the approval.
+
+   The plan is written so **another model can implement it** without guessing (for example DeepSeek, when the
+   implement step runs there). It has these parts:
+   - **Goal:** "done when", tied to the acceptance criteria.
+   - **Approach:** the chosen approach, and the options rejected.
+   - **Changes:** the exact files and symbols to touch.
+   - **Steps:** small, ordered, each naming the existing code to copy.
+   - **Guardrails:** what must not change, and the edge cases and error handling to get right.
+   - **Verify:** the exact commands, and the tests to add.
+   - **Risks and questions.**
+
+   The implementer follows it step by step. If a step can't work as written, it asks you instead of improvising.
 3. **Implement and verify.** It edits, builds and tests in its worktree. A heartbeat in the thread shows what it's
    doing, for example `🔧 dotnet test (running for 2 min) · CPU 180% · RAM 2.1 GB`.
 4. **Pull request.** It commits; agentd pushes the branch `ai/<id>-<title>` and opens the PR, linked to the work
