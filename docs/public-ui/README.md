@@ -25,6 +25,7 @@ and [`docs/plan`](../plan/README.md).
 | [Command line](cli.md) | Every `agentd` command on the server |
 | [Configuration](configuration.md) | `agentd.json`, secrets, and the settings you're most likely to change |
 | [Safety and permissions](safety.md) | What agents may and may not do, permission requests, auto mode, secrets |
+| [Run agentd on a VPS](vps.md) | A fresh Ubuntu server: its own user, firewall, PostgreSQL, systemd or Docker, backups, restore and updates |
 | [Troubleshooting](troubleshooting.md) | Common problems and how to fix them |
 
 ## The short version

@@ -29,7 +29,7 @@ internal static class AgentdServices
         builder.Services.AddSingleton(new Bff.Setup.SetupToken(home.SetupTokenFile));
         builder.Services.AddSingleton<Application.Setup.ISetupLink>(sp => sp.GetRequiredService<Bff.Setup.SetupToken>());
         builder.Services.AddSingleton<Application.Setup.IConfigWriter>(sp => new Configuration.AgentdJsonFile(home, sp.GetRequiredService<IConfiguration>()));
-        builder.Services.AddSingleton<Application.Setup.ISecrets>(new Configuration.StoredSecrets(new Configuration.SecretStore(home)));
+        builder.Services.AddSingleton<Application.Setup.ISecrets>(sp => new Configuration.StoredSecrets(new Configuration.SecretStore(home), sp.GetRequiredService<IConfiguration>()));
         builder.Services.AddSingleton<Application.Setup.ISettingsAudit, Configuration.FileSettingsAudit>();
         builder.Services.AddSingleton<Application.Setup.IDatabaseProbe, Setup.NpgsqlDatabaseProbe>();
 

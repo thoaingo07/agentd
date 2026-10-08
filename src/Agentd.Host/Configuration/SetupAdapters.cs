@@ -3,17 +3,26 @@ using Agentd.Application.Setup;
 
 namespace Agentd.Host.Configuration;
 
-/// <summary><see cref="ISecrets"/> over the encrypted <see cref="SecretStore"/>.</summary>
-internal sealed class StoredSecrets(SecretStore store) : ISecrets
+/// <summary>
+/// <see cref="ISecrets"/> over the encrypted <see cref="SecretStore"/>. A secret given to the daemon some other way counts
+/// as set too: an environment variable (<c>AGENTD_AzureDevOps__Pat</c>, Docker's <c>ConnectionStrings__agentd</c>) in the
+/// running <paramref name="configuration"/>. Its status then says "environment".
+/// </summary>
+internal sealed class StoredSecrets(SecretStore store, IConfiguration? configuration = null) : ISecrets
 {
+    public const string FromEnvironment = "environment";
+
     private readonly Lock _lock = new();
 
     public SecretStatus Status(string key) =>
         store.List().FirstOrDefault(s => string.Equals(s.Key, key, StringComparison.Ordinal)) is { } s
             ? new SecretStatus(true, s.UpdatedAt, s.UpdatedBy)
-            : SecretStatus.Missing;
+            : FromConfiguration(key) is null ? SecretStatus.Missing : new SecretStatus(true, null, FromEnvironment);
 
-    public string? TryGet(string key) => store.Load().Values.TryGetValue(key, out var value) ? value : null;
+    public string? TryGet(string key) => store.Load().Values.TryGetValue(key, out var value) ? value : FromConfiguration(key);
+
+    private string? FromConfiguration(string key) =>
+        configuration?[SecretStore.ConfigKey(key)] is { Length: > 0 } value ? value : null;
 
     public void Store(string key, string value, string by)
     {
