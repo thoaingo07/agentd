@@ -28,6 +28,7 @@ public static class SessionEndpoints
             {
                 Http.LocalUserAuthenticationHandler.SchemeName => "local",
                 Security.CloudflareAccessAuthenticationHandler.SchemeName => "cloudflare",
+                Security.TailscaleAuthenticationHandler.SchemeName => "tailscale",
                 var other => other ?? string.Empty,
             })))
             .WithName("GetUser");

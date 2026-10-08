@@ -13,6 +13,9 @@ public enum AuthMode
     /// <summary>Cloudflare Tunnel + Access (T3.14).</summary>
     CloudflareAccess,
 
+    /// <summary><c>tailscale serve</c> on this machine: tailnet users by their Tailscale login.</summary>
+    Tailscale,
+
     /// <summary>OpenID Connect (Phase 5).</summary>
     Sso,
 }
@@ -37,6 +40,11 @@ public sealed class BffAuthOptionsValidator(IConfiguration configuration) : IVal
         if (options.Mode == AuthMode.Sso)
         {
             return ValidateOptionsResult.Fail("Agentd:Auth:Mode 'Sso' is not available yet (Phase 5); use None or CloudflareAccess.");
+        }
+
+        if (options.Mode == AuthMode.Tailscale && !configuration.GetSection(BffAuthOptions.Section + ":Tailscale:AdminLogins").GetChildren().Any(c => !string.IsNullOrWhiteSpace(c.Value)))
+        {
+            return ValidateOptionsResult.Fail("Agentd:Auth:Mode Tailscale needs Agentd:Auth:Tailscale:AdminLogins (your tailnet login, e.g. alice@example.com).");
         }
 
         if (options.Mode == AuthMode.CloudflareAccess)

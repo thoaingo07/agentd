@@ -34,10 +34,17 @@ public static class BffModule
         services.AddAuthentication()
             .AddScheme<AuthenticationSchemeOptions, LocalUserAuthenticationHandler>(LocalUserAuthenticationHandler.SchemeName, _ => { })
             .AddScheme<AuthenticationSchemeOptions, CloudflareAccessAuthenticationHandler>(CloudflareAccessAuthenticationHandler.SchemeName, _ => { })
+            .AddScheme<AuthenticationSchemeOptions, TailscaleAuthenticationHandler>(TailscaleAuthenticationHandler.SchemeName, _ => { })
             .AddSetupSession();   // the one-time setup link's cookie: /api/setup only
         // Agentd:Auth:Mode picks the scheme; endpoints only say RequireAuthorization().
         services.AddOptions<AuthenticationOptions>().Configure<IOptions<BffAuthOptions>>((o, auth) =>
-            o.DefaultScheme = auth.Value.Mode == AuthMode.CloudflareAccess ? CloudflareAccessAuthenticationHandler.SchemeName : LocalUserAuthenticationHandler.SchemeName);
+            o.DefaultScheme = auth.Value.Mode switch
+            {
+                AuthMode.CloudflareAccess => CloudflareAccessAuthenticationHandler.SchemeName,
+                AuthMode.Tailscale => TailscaleAuthenticationHandler.SchemeName,
+                _ => LocalUserAuthenticationHandler.SchemeName,
+            });
+        services.AddOptions<TailscaleOptions>().BindConfiguration(BffAuthOptions.Section + ":Tailscale");
         services.AddOptions<CloudflareAccessOptions>().BindConfiguration(BffAuthOptions.Section + ":CloudflareAccess");
         services.AddHttpClient(CloudflareAccessKeys.HttpClientName);
         services.TryAddSingleton(TimeProvider.System);
@@ -69,14 +76,14 @@ public static class BffModule
     }
 
     /// <summary>
-    /// Behind Cloudflare Tunnel only: trust <c>X-Forwarded-Proto</c> / <c>X-Forwarded-For</c> from the loopback
-    /// proxy (cloudflared), so the daemon sees https and the visitor's address. Call it first. In Mode None the
+    /// Behind Cloudflare Tunnel or <c>tailscale serve</c> only: trust <c>X-Forwarded-Proto</c> / <c>X-Forwarded-For</c> from
+    /// the loopback proxy (cloudflared, tailscaled), so the daemon sees https and the visitor's address. Call it first. In Mode None the
     /// headers are left alone, and the local-user handler refuses forwarded requests.
     /// </summary>
     public static IApplicationBuilder UseBffForwardedHeaders(this IApplicationBuilder app)
     {
         ArgumentNullException.ThrowIfNull(app);
-        if (app.ApplicationServices.GetRequiredService<IOptions<BffAuthOptions>>().Value.Mode != AuthMode.CloudflareAccess)
+        if (app.ApplicationServices.GetRequiredService<IOptions<BffAuthOptions>>().Value.Mode is not (AuthMode.CloudflareAccess or AuthMode.Tailscale))
         {
             return app;
         }
