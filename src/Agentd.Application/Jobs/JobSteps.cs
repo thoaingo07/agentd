@@ -9,6 +9,9 @@ public sealed class StepModel
     public string? Model { get; set; }
 
     public string? Effort { get; set; }
+
+    /// <summary>A profile in <c>Agentd:Models:Profiles</c> (e.g. <c>deepseek</c>); empty: the default (the Claude subscription).</summary>
+    public string? Profile { get; set; }
 }
 
 /// <summary>
@@ -47,6 +50,7 @@ public static class JobSteps
         {
             Model = request.Model ?? (string.IsNullOrWhiteSpace(step.Model) ? null : step.Model.Trim()),
             Effort = request.Effort ?? (string.IsNullOrWhiteSpace(step.Effort) ? null : step.Effort.Trim()),
+            Profile = request.Profile ?? (string.IsNullOrWhiteSpace(step.Profile) ? null : step.Profile.Trim()),
         };
     }
 }

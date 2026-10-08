@@ -10,6 +10,9 @@ public interface IJobSessions
 {
     /// <summary>The profile's session for the job; <paramref name="proposed"/> becomes it (Created = true) when it has none yet.</summary>
     Task<(Guid Session, bool Created)> GetOrCreateAsync(JobId job, string profile, Guid proposed, CancellationToken cancellationToken);
+
+    /// <summary>The profiles that have a session for the job, oldest first.</summary>
+    Task<IReadOnlyList<string>> ProfilesAsync(JobId job, CancellationToken cancellationToken);
 }
 
 /// <summary>The plan the agent submitted, kept for a session that starts mid-job (its handoff).</summary>

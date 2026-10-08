@@ -26,6 +26,8 @@ public sealed class JobSessionStoreTests
         Assert.AreEqual((first, false), again, "the same session, not the new proposal");
         Assert.IsTrue(other.Created);
         Assert.AreNotEqual(first, other.Session, "each profile has its own session");
+        CollectionAssert.AreEquivalent(new[] { "deepseek", "glm" }, (await store.ProfilesAsync(job, default)).ToList());
+        Assert.IsEmpty(await store.ProfilesAsync(await AddJobAsync(db, 5699), default), "another job has none");
     }
 
     [TestMethod]

@@ -13,7 +13,8 @@ public sealed record AgentRunRequest(
     bool ReadOnly = false,
     string? Step = null,
     string? Model = null,
-    string? Effort = null);
+    string? Effort = null,
+    string? Profile = null);
 
 /// <summary>Summary of the agent's final <c>result</c> event, when it produced one.</summary>
 public sealed record AgentResultSummary(int Turns, string? ErrorSubtype, bool IsError);

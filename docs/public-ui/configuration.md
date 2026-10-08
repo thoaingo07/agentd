@@ -91,7 +91,44 @@ Each step of a job can run on its own model. The session continues; only the mod
 ```
 
 A step that isn't listed uses `Claude:Model`, or the CLI's default. A change applies to the next turn of each job,
-with no restart. Other providers (DeepSeek, Codex, …), fallback and budgets come with model profiles.
+with no restart.
+
+### Another provider for a step: DeepSeek
+
+A step can also run on **another provider** that offers an Anthropic-compatible endpoint, such as DeepSeek. Claude Code
+still runs the agent, so the tools, permissions and chat stay the same, but the model behind it is DeepSeek's.
+
+1. Store your DeepSeek API key, never in a file:
+   ```bash
+   agentd secrets set Models:Profiles:deepseek:ApiKey
+   ```
+2. Add the profile, and pick it for a step. Copy the endpoint and model IDs from
+   [DeepSeek's Claude Code guide](https://api-docs.deepseek.com/quick_start/agent_integrations/claude_code); providers
+   rename models.
+   ```json
+   "Models": { "Profiles": {
+     "deepseek": {
+       "BaseUrl": "https://api.deepseek.com/anthropic",
+       "Model": "deepseek-flash[1m]",
+       "SmallModel": "deepseek-flash",
+       "Environment": { "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "786432" }
+     } } },
+   "Jobs": { "Steps": { "fix": { "Profile": "deepseek" } } }
+   ```
+3. `agentd daemon restart`. It refuses to start if a profile has no key, a non-https URL, or a step names a profile
+   that doesn't exist.
+
+**How it behaves:**
+- **Isolated:** a DeepSeek turn gets DeepSeek's endpoint, key and models, and nothing from your Claude subscription.
+  It has its own Claude Code folder (`~/.agentd/claude/profiles/deepseek`).
+- **Its own session:** a job's Claude conversation is never replayed to DeepSeek. The first DeepSeek turn of a job
+  starts its own session with a handoff (the work item, the approved plan, "the branch has the work so far"), and
+  later DeepSeek turns continue it. Coming back to Claude after DeepSeek turns, the Claude session gets a short "check
+  `git log`" note.
+- **No fallback or budgets yet:** those come with Phase 6. If DeepSeek is down, that step fails like any other turn,
+  and `!retry` runs it again.
+
+DeepSeek is weaker than Claude at tool use. A good start is `fix` or `implement` on DeepSeek and `plan` on Claude.
 
 ## Web access
 

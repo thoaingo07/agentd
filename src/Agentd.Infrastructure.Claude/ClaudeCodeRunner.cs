@@ -18,7 +18,8 @@ public sealed partial class ClaudeCodeRunner(
     IEventStore events,
     IMcpTokenIssuer tokens,
     IAgentActivitySink activity,
-    ILogger<ClaudeCodeRunner> logger) : IAgentRunner
+    ILogger<ClaudeCodeRunner> logger,
+    IOptions<Application.Jobs.ModelsOptions>? models = null) : IAgentRunner
 {
     private readonly ConcurrentDictionary<long, Running> _running = new();
 
@@ -75,7 +76,15 @@ public sealed partial class ClaudeCodeRunner(
         }
 
         psi.Environment.Clear();
-        foreach (var (key, value) in SafeEnvironment.Build(Environment.GetEnvironmentVariables(), o))
+        var env = SafeEnvironment.Build(Environment.GetEnvironmentVariables(), o);
+        if (request.Profile is { } name)
+        {
+            // Another provider (DeepSeek, …): its endpoint, key and models in this process only.
+            var profile = (models is not null && models.Value.Profiles.TryGetValue(name, out var p) ? p : null) ?? throw new InvalidOperationException($"Agentd:Models:Profiles:{name} isn't configured.");
+            ProfileEnvironment.Apply(env, name, profile, o);
+        }
+
+        foreach (var (key, value) in env)
         {
             psi.Environment[key] = value;
         }
