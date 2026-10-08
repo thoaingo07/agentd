@@ -25,7 +25,7 @@ public enum PlanOutcome
 /// Records the estimate and posts the plan. When the job needs approval it is asked as a question with
 /// "✅ Approve plan" / "✏️ Request changes", and the job waits; otherwise it is posted and work continues.
 /// </summary>
-public sealed class SubmitPlanHandler(IJobRepository jobs, IOutbox outbox, JobActivity activity, IClock clock) : ICommandHandler<SubmitPlan, PlanOutcome>
+public sealed class SubmitPlanHandler(IJobRepository jobs, IOutbox outbox, JobActivity activity, IClock clock, IJobPlans? plans = null) : ICommandHandler<SubmitPlan, PlanOutcome>
 {
     public const string ApproveLabel = "✅ Approve plan";
     public const string ChangesLabel = "✏️ Request changes";
@@ -58,6 +58,12 @@ public sealed class SubmitPlanHandler(IJobRepository jobs, IOutbox outbox, JobAc
         }
 
         activity.SetPhase(job.Id, "plan");
+        if (plans is not null)
+        {
+            // Kept for a session that starts mid-job on another model profile (its handoff carries the plan).
+            await plans.SaveAsync(job.Id, command.Plan.Trim(), clock.UtcNow, cancellationToken).ConfigureAwait(false);
+        }
+
         var estimate = string.Create(CultureInfo.InvariantCulture,
             $"**Estimate:** ~{command.EstimateMinutes} min, ~{command.EstimateUsagePercent}% of the 5-hour usage window (now at {JobActivity.Percent(usageNow)}).");
         if (job.PlanStatus == PlanStatus.Pending)

@@ -28,6 +28,9 @@ public static class DependencyInjection
         services.AddSingleton<Application.Permissions.IPermissionStore, PermissionStore>();
         services.AddSingleton<Application.Ideas.IIdeaStore, IdeaStore>();
         services.AddSingleton<Application.Reviews.IReviewStore, ReviewStore>();
+        services.AddSingleton<JobSessionStore>();
+        services.AddSingleton<Application.Jobs.IJobSessions>(sp => sp.GetRequiredService<JobSessionStore>());
+        services.AddSingleton<Application.Jobs.IJobPlans>(sp => sp.GetRequiredService<JobSessionStore>());
         services.AddSingleton<IConversationStore, ConversationStore>();
         services.AddSingleton<IUserDirectory, UserDirectory>();
         services.AddSingleton<IOutbox, Outbox>();

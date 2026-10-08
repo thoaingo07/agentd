@@ -111,6 +111,31 @@ public sealed class PlanGateTests
             _t.Outbox.Enqueued.Select(e => e.Message.Message.Markdown).Single(m => m.StartsWith("📊", StringComparison.Ordinal)));
     }
 
+    [TestMethod]
+    public async Task The_submitted_plan_is_kept_for_a_later_session()
+    {
+        var request = await _t.RunningJobAsync();
+
+        await Submit(request.JobId);
+
+        Assert.AreEqual("1. Edit AGENTS.md\n2. Verify the commands", _plans.Plans[request.JobId.Value]);
+    }
+
+    private readonly MemoryPlans _plans = new();
+
     private Task<Domain.Common.Result<PlanOutcome>> Submit(JobId job) =>
-        new SubmitPlanHandler(_t.Jobs, _t.Outbox, _t.Activity, _t.Clock).Handle(new SubmitPlan(job, "1. Edit AGENTS.md\n2. Verify the commands", 25, 15), default);
+        new SubmitPlanHandler(_t.Jobs, _t.Outbox, _t.Activity, _t.Clock, _plans).Handle(new SubmitPlan(job, "1. Edit AGENTS.md\n2. Verify the commands", 25, 15), default);
+
+    private sealed class MemoryPlans : IJobPlans
+    {
+        public Dictionary<long, string> Plans { get; } = [];
+
+        public Task SaveAsync(JobId job, string plan, DateTimeOffset submittedAt, CancellationToken cancellationToken)
+        {
+            Plans[job.Value] = plan;
+            return Task.CompletedTask;
+        }
+
+        public Task<string?> GetAsync(JobId job, CancellationToken cancellationToken) => Task.FromResult(Plans.GetValueOrDefault(job.Value));
+    }
 }
