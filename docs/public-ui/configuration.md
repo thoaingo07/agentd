@@ -150,6 +150,23 @@ agentd **only ever listens on loopback** (`127.0.0.1`). It refuses to start with
 (`Auth:Mode` `None`) there is no sign-in: whoever reaches the port is the local admin. Requests that came through a
 proxy are refused, so from another computer use an SSH tunnel ([Getting started, step 8](getting-started.md#8-reach-the-web-ui)).
 
+**On your tailnet (Tailscale), the easy way:**
+1. On the server: `tailscale serve --bg --https=443 http://127.0.0.1:7780`. The UI is then at
+   `https://<machine>.<tailnet>.ts.net` for your tailnet only. Nothing is public, and never use `tailscale funnel`.
+2. In `agentd.json`:
+   ```json
+   "Auth": { "Mode": "Tailscale", "Tailscale": { "AdminLogins": ["you@example.com"] } },
+   "Web": { "Urls": "http://127.0.0.1:7780", "PublicOrigin": "https://<machine>.<tailnet>.ts.net" }
+   ```
+3. `agentd daemon restart`.
+
+How sign-in works:
+- **Identity:** each visitor is signed in by their **Tailscale login**, which Serve adds to every request and never
+  lets a client fake.
+- **Roles:** logins in `AdminLogins` are Admins and everyone else is a User. `AllowedLogins` narrows who gets in at all.
+- **Other ways in:** an SSH tunnel still works and is the local Admin. Tagged devices and Funnel traffic aren't
+  signed in.
+
 To publish it on the internet safely, use **Cloudflare Tunnel + Cloudflare Access**:
 1. **Tunnel:** `cloudflared tunnel create agentd`. Route `agentd.example.com` to `http://127.0.0.1:7780`, and **never
    publish `/mcp`** (the agents' endpoint).
