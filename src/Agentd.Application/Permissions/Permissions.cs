@@ -150,9 +150,10 @@ public sealed class PermissionAskHandler(
         }
 
         var timeout = options.Value.PermissionTimeout;
+        // Before the request exists: once it does, an answer may arrive at once, and its "running" status must win.
+        activity.RecordActivity(job.Id, $"⏳ waiting for permission: {Short(analysis.Summary)}", clock.UtcNow);
         var id = await store.InsertAsync(job.Id, command.ToolName, analysis.Summary, needed.Count > 0 ? needed : analysis.RuleKeys, cancellationToken).ConfigureAwait(false);
         await outbox.TryEnqueueAsync(job.Id, Question(id, analysis.Summary, job.Repository, timeout), cancellationToken).ConfigureAwait(false);
-        activity.RecordActivity(job.Id, $"⏳ waiting for permission: {Short(analysis.Summary)}", clock.UtcNow);
 
         var decided = await waiter.WaitAsync(id, store, timeout, PollInterval, time, cancellationToken).ConfigureAwait(false);
         if (decided is { Status: "pending" })

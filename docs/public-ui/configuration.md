@@ -68,8 +68,30 @@ In containers, environment variables work too (`ConnectionStrings__agentd`, `AGE
 | `Claude:CommandTimeout` | `00:10:00` | the longest one shell command may run |
 | `Claude:AllowedTools` | (git, read-only and build tools) | extra commands agents may run without asking, e.g. `"Bash(make:*)"` |
 | `Claude:Model` | (the CLI's default) | the model for jobs |
+| `Jobs:Steps:<step>:Model` · `…:Effort` | (`Claude:Model`) | a model and effort per step: `plan`, `implement`, `fix`, `handoff` (see below) |
 | `Messaging:Providers:Discord:AllowEveryone` | `false` | accept messages from everyone who can post in the channel, not just `Users` |
 | `Web:Urls` | `http://127.0.0.1:7780` | where the web UI and API listen (always a loopback address, e.g. `127.0.0.1`) |
+
+## A model per step
+
+Each step of a job can run on its own model. The session continues; only the model changes:
+- `plan`: clarify and plan, read-only, before your approval;
+- `implement`: after the plan is approved, until the pull request;
+- `fix`: review fix rounds on the pull request;
+- `handoff`: the knowledge proposal after the merge.
+
+```json
+"Jobs": {
+  "Steps": {
+    "plan":      { "Model": "opus",   "Effort": "high" },
+    "implement": { "Model": "sonnet" },
+    "fix":       { "Model": "sonnet", "Effort": "low" }
+  }
+}
+```
+
+A step that isn't listed uses `Claude:Model`, or the CLI's default. A change applies to the next turn of each job,
+with no restart. Other providers (DeepSeek, Codex, …), fallback and budgets come with model profiles.
 
 ## Web access
 

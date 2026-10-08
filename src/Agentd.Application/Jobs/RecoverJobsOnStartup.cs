@@ -42,7 +42,7 @@ public sealed class RecoverJobsOnStartupHandler(
                     if (job.MarkRecovered().IsSuccess && (await jobs.SaveAsync(job, cancellationToken).ConfigureAwait(false)).IsSuccess)
                     {
                         resume.Add(new AgentRunRequest(job.Id, job.WorkItemId, wt, session, TaskPromptBuilder.ResumePrompt, Resume: true,
-                            ReadOnly: job.PlanStatus == PlanStatus.Pending));
+                            ReadOnly: job.PlanStatus == PlanStatus.Pending, Step: JobSteps.Of(job)));
                     }
 
                     break;

@@ -10,7 +10,10 @@ public sealed record AgentRunRequest(
     ClaudeSessionId Session,
     string Prompt,
     bool Resume,
-    bool ReadOnly = false);
+    bool ReadOnly = false,
+    string? Step = null,
+    string? Model = null,
+    string? Effort = null);
 
 /// <summary>Summary of the agent's final <c>result</c> event, when it produced one.</summary>
 public sealed record AgentResultSummary(int Turns, string? ErrorSubtype, bool IsError);

@@ -68,6 +68,9 @@ public sealed class JobOptions
 
     /// <summary>How often unused checkouts are removed (<see cref="SweepWorktrees"/>).</summary>
     public TimeSpan WorktreeSweepInterval { get; set; } = TimeSpan.FromHours(1);
+
+    /// <summary>A model (and effort) per cycle step: <c>plan</c>, <c>implement</c>, <c>fix</c>, <c>handoff</c> (see <see cref="JobSteps"/>).</summary>
+    public IDictionary<string, StepModel> Steps { get; } = new Dictionary<string, StepModel>(StringComparer.OrdinalIgnoreCase);
 }
 
 /// <summary>How agentd answers an agent's tool calls outside its allowlist.</summary>

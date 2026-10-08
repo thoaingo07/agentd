@@ -137,6 +137,14 @@ Each profile has these properties:
 
 ## 3. Routing: which profile runs which phase
 
+> **Early version (2026-10-07, before Phase 6):** `Agentd:Jobs:Steps:<step>` gives each step of today's cycle its own
+> **Claude model and effort**, with no profiles, accounts or fallback yet.
+> - The steps are `plan` (clarify and plan, read-only), `implement`, `fix` (PR review rounds) and `handoff`.
+> - The turn builders name each turn's step (`JobSteps.Of`), and the dispatcher fills in that step's model and effort
+>   just before the runner starts it (`JobSteps.Apply`). The session stays the same: `--resume … --model`.
+> - The setting is runner-neutral, so Phase 6 can replace it with `PhaseRouting` without touching the turn builders.
+
+
 ```jsonc
 "Models": {
   "Routing": {
