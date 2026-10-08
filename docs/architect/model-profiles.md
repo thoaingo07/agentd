@@ -198,6 +198,13 @@ provider-specific content, so **a session is pinned to one profile**.
 - `jobs.claude_session_id` becomes a `job_sessions` table: `job_id`, `phase`, `profile`, `runner`,
   `session_id`, `started_at`, `ended_at`, `end_reason`.
 
+**Built first (2026-10-07, for DeepSeek before Phase 6):**
+- `agentd.job_sessions (job_id, profile, session_id, created_at)`, one row per job and profile.
+  `job_session_get_or_create` is safe under concurrent callers: the first insert wins.
+- The job's original session (`jobs.claude_session_id`) stays the default profile's.
+- `agentd.job_plans` keeps the plan the agent submitted, so a session that starts mid-job gets it in its handoff.
+- The phase, runner and end-reason columns come with Phase 6.
+
 ---
 
 ## 4a. Subscription usage limits
