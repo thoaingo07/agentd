@@ -59,5 +59,13 @@ public sealed class LiveClaudeTests
         public void Revoke(JobId jobId)
         {
         }
+
+        public string IssueChat(long chatId) => $"chat-token-{chatId}";
+
+        public long? ValidateChat(string token) => null;
+
+        public void RevokeChat(long chatId)
+        {
+        }
     }
 }

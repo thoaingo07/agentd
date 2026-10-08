@@ -8,38 +8,47 @@ using Agentd.Domain.Jobs.ValueObjects;
 namespace Agentd.Mcp;
 
 /// <summary>
-/// Per-job bearer tokens for <c>/mcp</c>: 32 random bytes (base64url), stored only as SHA-256 hashes,
-/// valid for a bounded time and revoked when the run ends. In memory: a restart issues fresh tokens.
+/// Bearer tokens for <c>/mcp</c>, per job (the job tools) or per chat (the read-only chat tools): 32 random bytes
+/// (base64url), stored only as SHA-256 hashes, valid for a bounded time and revoked when the run or chat ends. In
+/// memory: a restart issues fresh tokens.
 /// </summary>
 public sealed class McpTokenIssuer(IClock clock) : IMcpTokenIssuer
 {
     public static readonly TimeSpan Lifetime = TimeSpan.FromHours(12);
 
-    private readonly ConcurrentDictionary<string, (long JobId, DateTimeOffset ExpiresAt)> _byHash = new(StringComparer.Ordinal);
+    private const string Job = "job";
+    private const string Chat = "chat";
 
-    public string Issue(JobId jobId)
+    private readonly ConcurrentDictionary<string, (string Kind, long Id, DateTimeOffset ExpiresAt)> _byHash = new(StringComparer.Ordinal);
+
+    public string Issue(JobId jobId) => IssueFor(Job, jobId.Value);
+
+    public JobId? Validate(string token) => Find(Job, token) is { } id ? new JobId(id) : null;
+
+    public void Revoke(JobId jobId) => RevokeFor(Job, jobId.Value);
+
+    public string IssueChat(long chatId) => IssueFor(Chat, chatId);
+
+    public long? ValidateChat(string token) => Find(Chat, token);
+
+    public void RevokeChat(long chatId) => RevokeFor(Chat, chatId);
+
+    private string IssueFor(string kind, long id)
     {
-        Revoke(jobId);   // one live token per job
+        RevokeFor(kind, id);   // one live token per job or chat
         var token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
-        _byHash[Hash(token)] = (jobId.Value, clock.UtcNow + Lifetime);
+        _byHash[Hash(token)] = (kind, id, clock.UtcNow + Lifetime);
         return token;
     }
 
-    public JobId? Validate(string token)
-    {
-        if (string.IsNullOrEmpty(token) || !_byHash.TryGetValue(Hash(token), out var entry))
-        {
-            return null;
-        }
+    private long? Find(string kind, string token) =>
+        !string.IsNullOrEmpty(token) && _byHash.TryGetValue(Hash(token), out var entry) && entry.Kind == kind && entry.ExpiresAt > clock.UtcNow ? entry.Id : null;
 
-        return entry.ExpiresAt > clock.UtcNow ? new JobId(entry.JobId) : null;
-    }
-
-    public void Revoke(JobId jobId)
+    private void RevokeFor(string kind, long id)
     {
         foreach (var (hash, entry) in _byHash)
         {
-            if (entry.JobId == jobId.Value)
+            if (entry.Kind == kind && entry.Id == id)
             {
                 _byHash.TryRemove(hash, out _);
             }

@@ -78,4 +78,11 @@ public interface IMcpTokenIssuer
     JobId? Validate(string token);
 
     void Revoke(JobId jobId);
+
+    /// <summary>A chat's token (<c>!chat</c>): only the read-only chat tools accept it. One live token per chat.</summary>
+    string IssueChat(long chatId);
+
+    long? ValidateChat(string token);
+
+    void RevokeChat(long chatId);
 }

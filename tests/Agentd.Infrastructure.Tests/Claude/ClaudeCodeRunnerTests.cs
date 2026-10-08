@@ -241,5 +241,13 @@ public sealed class ClaudeCodeRunnerTests
         public JobId? Validate(string token) => null;
 
         public void Revoke(JobId jobId) => Revoked.Add(jobId.Value);
+
+        public string IssueChat(long chatId) => $"chat-token-{chatId}";
+
+        public long? ValidateChat(string token) => null;
+
+        public void RevokeChat(long chatId)
+        {
+        }
     }
 }

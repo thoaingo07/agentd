@@ -62,8 +62,17 @@ agentd opens **💬 Chat: <your question>**, and a **read-only** agent answers t
 - **Closing:** say **close** in the thread. The checkouts are removed and the conversation is kept.
 - **Model:** its default is `Jobs:Steps:chat` ([Configuration](configuration.md)); `--model` and `--effort` override it.
 
-Azure DevOps (work items, pull requests, pipelines and the wiki) comes next, through read-only tools that answer with
-agentd's own credentials.
+**Azure DevOps** too: it can search **work items** (by words in the title, type, state, assignee, tag, area or
+`@CurrentIteration`) and read one with its comments; and list and read **pull requests** with their comment threads.
+For example:
+
+```text
+!chat what's still open in the current sprint for sysmin, and who has it?
+!chat what did the reviewers say on PR !3944, and is it addressed?
+```
+
+It reads Azure DevOps through agentd's own read-only tools: agentd answers them with its credentials, so the agent
+never sees the access token. A chat's tools stop working when it's closed. Pipelines and the wiki come next.
 
 ## In an idea's or a review's thread
 

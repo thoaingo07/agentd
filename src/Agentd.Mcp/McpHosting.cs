@@ -12,7 +12,14 @@ namespace Agentd.Mcp;
 public static class McpHosting
 {
     public const string Path = "/mcp";
+    /// <summary>The job tools (<see cref="AgentdTools"/>).</summary>
     public const string Policy = "McpJob";
+
+    /// <summary>The read-only chat tools (<see cref="ChatTools"/>).</summary>
+    public const string ChatPolicy = "McpChat";
+
+    /// <summary>The endpoint: any agent token; each tool class then requires its own policy, and lists only what the caller may call.</summary>
+    public const string AgentPolicy = "McpAgent";
 
     /// <summary>MCP server (stateless Streamable HTTP), per-job bearer auth and the token issuer.</summary>
     public static IServiceCollection AddAgentdMcp(this IServiceCollection services)
@@ -24,10 +31,18 @@ public static class McpHosting
         services.AddAuthorizationBuilder()
             .AddPolicy(Policy, p => p
                 .AddAuthenticationSchemes(McpJobAuthenticationHandler.SchemeName)
-                .RequireClaim(McpJobAuthenticationHandler.JobIdClaim));
+                .RequireClaim(McpJobAuthenticationHandler.JobIdClaim))
+            .AddPolicy(ChatPolicy, p => p
+                .AddAuthenticationSchemes(McpJobAuthenticationHandler.SchemeName)
+                .RequireClaim(McpJobAuthenticationHandler.ChatIdClaim))
+            .AddPolicy(AgentPolicy, p => p
+                .AddAuthenticationSchemes(McpJobAuthenticationHandler.SchemeName)
+                .RequireAssertion(c => c.User.HasClaim(x => x.Type is McpJobAuthenticationHandler.JobIdClaim or McpJobAuthenticationHandler.ChatIdClaim)));
         services.AddMcpServer()
             .WithHttpTransport(o => o.SessionMode = HttpServerSessionMode.Stateless)
-            .WithTools<AgentdTools>();
+            .AddAuthorizationFilters()
+            .WithTools<AgentdTools>()
+            .WithTools<ChatTools>();
         return services;
     }
 
@@ -49,7 +64,7 @@ public static class McpHosting
             await next(context).ConfigureAwait(false);
         });
 
-    /// <summary>Maps <c>/mcp</c> behind the per-job bearer policy.</summary>
+    /// <summary>Maps <c>/mcp</c> behind the agent bearer policy (job or chat token).</summary>
     public static IEndpointConventionBuilder MapAgentdMcp(this IEndpointRouteBuilder endpoints) =>
-        endpoints.MapMcp(Path).RequireAuthorization(Policy);
+        endpoints.MapMcp(Path).RequireAuthorization(AgentPolicy);
 }

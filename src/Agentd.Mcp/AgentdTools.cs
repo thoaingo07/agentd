@@ -16,6 +16,7 @@ namespace Agentd.Mcp;
 /// read from the authenticated HTTP request; it is never a tool argument the agent could set.
 /// </summary>
 [McpServerToolType]
+[Microsoft.AspNetCore.Authorization.Authorize(Policy = McpHosting.Policy)]
 public sealed class AgentdTools(
     IHttpContextAccessor http,
     ICommandHandler<FinishWork, PullRequestRef> finish,

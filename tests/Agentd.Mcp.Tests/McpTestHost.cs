@@ -57,6 +57,9 @@ internal sealed class McpTestHost : IAsyncDisposable
         builder.Services.AddScoped<ICommandHandler<SubmitPlan, PlanOutcome>, SubmitPlanHandler>();
         builder.Services.AddScoped<ICommandHandler<ProposeKnowledge, Unit>, ProposeKnowledgeHandler>();
         builder.Services.AddSingleton<IOutbox>(outbox);
+        builder.Services.AddSingleton<IAzureDevOpsSearch, Search>();
+        builder.Services.AddSingleton(Unused<IPullRequestService>.Create());
+        builder.Services.AddSingleton(Unused<IRepositoryRegistry>.Create());
         builder.Services.AddAgentdMcp();
 
         var app = builder.Build();
@@ -98,6 +101,27 @@ internal sealed class McpTestHost : IAsyncDisposable
     }
 
     public async ValueTask DisposeAsync() => await _app.DisposeAsync();
+
+    /// <summary>A dependency these tests never call: any call fails loudly.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1852:Seal internal types", Justification = "DispatchProxy derives from it at runtime.")]
+    internal class Unused<T> : System.Reflection.DispatchProxy
+        where T : class
+    {
+        public static T Create() => Create<T, Unused<T>>();
+
+        protected override object? Invoke(System.Reflection.MethodInfo? targetMethod, object?[]? args) =>
+            throw new NotSupportedException($"{typeof(T).Name}.{targetMethod?.Name} isn't used by these tests.");
+    }
+
+    /// <summary>One work item for any search: what agentd's Azure DevOps search would answer.</summary>
+    internal sealed class Search : IAzureDevOpsSearch
+    {
+        public Task<IReadOnlyList<WorkItemHit>> SearchWorkItemsAsync(WorkItemQuery query, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<WorkItemHit>>([new WorkItemHit(5617, "User Story", $"Deploy to AKS ({query.State})", "Active", "Dev One", ["ai-workflow"], null)]);
+
+        public Task<IReadOnlyList<PullRequestHit>> ListPullRequestsAsync(string? repository, string status, int top, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<PullRequestHit>>([]);
+    }
 
     internal sealed class Clock : IClock
     {
