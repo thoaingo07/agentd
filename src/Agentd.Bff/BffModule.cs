@@ -94,6 +94,12 @@ public static class BffModule
         options.KnownIPNetworks.Clear();
         options.KnownIPNetworks.Add(System.Net.IPNetwork.Parse("127.0.0.0/8"));
         options.KnownIPNetworks.Add(System.Net.IPNetwork.Parse("::1/128"));
+        // Remember who actually connected (the proxy) before X-Forwarded-For replaces it with the visitor's address.
+        app.Use((context, next) =>
+        {
+            context.Features.Set(new ProxyPeer(context.Connection.RemoteIpAddress, LocalUserAuthenticationHandler.IsForwarded(context.Request.Headers)));
+            return next(context);
+        });
         return app.UseForwardedHeaders(options);
     }
 

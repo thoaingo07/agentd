@@ -20,7 +20,7 @@ public sealed class TailscaleAuthTests
         var admin = await UserAsync(app, ("Tailscale-User-Login", "thoaingo07@gmail.com"), ("Tailscale-User-Name", "Thoai Ngo"), ("X-Forwarded-For", "100.126.116.29"));
         var other = await UserAsync(app, ("Tailscale-User-Login", "dev@example.com"), ("X-Forwarded-For", "100.111.15.109"));
 
-        Assert.AreEqual(("Thoai Ngo", "Admin", "tailscale"), admin);
+        Assert.AreEqual(("Thoai Ngo", "Admin", "tailscale"), admin, "Serve's X-Forwarded-For (the tailnet address) doesn't hide that Serve connected");
         Assert.AreEqual(("dev@example.com", "User", "tailscale"), other);
     }
 
@@ -92,6 +92,12 @@ public sealed class TailscaleAuthTests
         builder.Services.AddBff();
         builder.Services.AddSingleton<ILiveEvents>(new EventHub(NullLogger<EventHub>.Instance));
         var app = builder.Build();
+        app.Use((context, next) =>
+        {
+            context.Connection.RemoteIpAddress = IPAddress.Loopback;   // Serve connects from this machine
+            return next(context);
+        });
+        app.UseBffForwardedHeaders();   // as the daemon does: X-Forwarded-For becomes RemoteIpAddress
         app.UseAuthentication();
         app.UseAuthorization();
         app.MapBff();
