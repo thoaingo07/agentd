@@ -46,7 +46,8 @@ public sealed partial class ChatCommands(
     Reviews.ReviewService? reviews = null,
     Reviews.IReviewStore? reviewStore = null,
     JobActivity? activity = null,
-    Domain.Common.IClock? clock = null)
+    Domain.Common.IClock? clock = null,
+    Chats.ChatService? chats = null)
 {
     /// <summary>Commands typed in a job's thread are recorded, so the work item conversation shows both directions.</summary>
     public const string CommandEventType = "chat.command";
@@ -55,7 +56,7 @@ public sealed partial class ChatCommands(
 
     /// <summary>The command list alone (the reply to an unknown command).</summary>
     public static readonly string Commands =
-        "In a job's thread: `status`, `logs`, `pause`, `resume`, `cancel`, `retry`, `handoff`, `approve`, `deny`. Anywhere: `list`, `run <id>`, `idea <text>`, `review <PR>`, `repo`, `help`. In idea/review threads: `model`, `effort`.";
+        "In a job's thread: `status`, `logs`, `pause`, `resume`, `cancel`, `retry`, `handoff`, `approve`, `deny`. Anywhere: `list`, `run <id>`, `idea <text>`, `review <PR>`, `chat <q>`, `repo`, `help`. Idea/review: `model`, `effort`.";
 
     /// <summary>The reply to <c>idea</c> until brainstorming (Phase 2d) is built.</summary>
     public const string IdeaComingSoon =
@@ -79,11 +80,12 @@ public sealed partial class ChatCommands(
         "• `run <work item id>`: start a work item now, even without the tag",
         "• `idea <text>`: brainstorm into work items",
         "• `review <PR> [instructions]`: review a PR; you pick what's posted",
+        "• `chat <question>`: ask about the code (`close` ends it)",
         "• `repo list|add <url>|remove <name>`: repositories (Admins change them)",
         "• `help`: this message",
         "",
         "**Talking to the agent** (in a job's thread)",
-        "• Any other message goes to the agent: you get the status right away, and it reads your message at its next step.",
+        "• Any other message goes to the agent (it reads it at its next step).",
         "• Ask \"what's the progress?\" anytime.",
         "• Answer a question with its number (`1`, `2`, …) or in your own words.",
         "• 🔐 Permissions: `1` once, `2` this job, `3` always (repo), `4` deny (no answer in 10 min = deny).",
@@ -172,6 +174,13 @@ public sealed partial class ChatCommands(
             case "idea":
                 reply = await StartIdeaAsync(message, user, command.Args, ct).ConfigureAwait(false);
                 break;
+            case "chat":
+                reply = chats is null
+                    ? new(MessageKind.Info, "Chats aren't enabled.")
+                    : await chats.StartAsync(message.Provider, user.Name, command.Args, ct).ConfigureAwait(false) is var startedChat && startedChat.IsSuccess
+                        ? new(MessageKind.Info, startedChat.Value)
+                        : new(MessageKind.Info, startedChat.Error.Message);
+                break;
             case "review":
                 reply = reviews is null
                     ? new(MessageKind.Info, "PR reviews aren't enabled.")
@@ -191,7 +200,7 @@ public sealed partial class ChatCommands(
         }
 
         await ReplyAsync(message, job, reply, ct).ConfigureAwait(false);
-        return new InboundOutcome($"command:{(name is "list" or "run" or "status" or "cancel" or "retry" or "logs" or "handoff" or "approve" or "deny" or "idea" or "review" or "model" or "effort" or "repo" or "pause" or "resume" or "help" ? name : "unknown")}", job);
+        return new InboundOutcome($"command:{(name is "list" or "run" or "status" or "cancel" or "retry" or "logs" or "handoff" or "approve" or "deny" or "idea" or "review" or "chat" or "model" or "effort" or "repo" or "pause" or "resume" or "help" ? name : "unknown")}", job);
     }
 
     /// <summary><c>approve [request] [once|job|always]</c> or <c>deny [request]</c>; null when it was decided (announced in the thread).</summary>

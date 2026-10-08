@@ -90,4 +90,18 @@ public sealed class ClaudeOptionsTests
         CollectionAssert.Contains(options.ReadOnlyTools.ToList(), "Bash(git branch:*)");
         CollectionAssert.Contains(options.ReadOnlyTools.ToList(), "Read");
     }
+
+    [TestMethod]
+    public void A_chat_turn_gets_the_chat_rules_and_one_add_dir_per_repository()
+    {
+        var turn = new Agentd.Application.Ideas.BrainstormTurn(1, "/wt/sysmin/chat-1", Guid.NewGuid(), false, "where?", Kind: Agentd.Application.Ideas.ThreadTurnKind.Chat,
+            AddDirs: ["/wt/portal/chat-1", "/wt/api/chat-1"]);
+
+        var args = ClaudeBrainstormAgent.Args(turn, new ClaudeOptions()).ToList();
+
+        Assert.AreEqual(ClaudeBrainstormAgent.ChatRules, args[args.IndexOf("--append-system-prompt") + 1]);
+        var dirs = args.Select((a, i) => (a, i)).Where(x => x.a == "--add-dir").Select(x => args[x.i + 1]).ToList();
+        CollectionAssert.AreEqual(new[] { "/wt/portal/chat-1", "/wt/api/chat-1" }, dirs);
+        CollectionAssert.Contains(args, "Edit,Write,MultiEdit,NotebookEdit", "read-only");
+    }
 }

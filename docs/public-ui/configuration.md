@@ -80,6 +80,7 @@ Each step of a job can run on its own model. The session continues; only the mod
 - `fix`: review fix rounds on the pull request;
 - `handoff`: the knowledge proposal after the merge.
 - `review`: not a job step; the default model and effort for `!review` (a review's own `--model` and `--effort` win).
+- `chat`: not a job step; the default model and effort for `!chat`.
 
 ```json
 "Jobs": {

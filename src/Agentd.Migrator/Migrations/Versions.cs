@@ -58,3 +58,6 @@ public sealed class PrReviews : SqlMigration;
 
 [Migration(2026_10_15_0001, "A session per job and model profile; the approved plan per job")]
 public sealed class JobSessions : SqlMigration;
+
+[Migration(2026_10_16_0001, "Chats: read-only Q&A threads over the code")]
+public sealed class Chats : SqlMigration;
