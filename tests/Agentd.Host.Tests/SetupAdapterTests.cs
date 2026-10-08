@@ -54,6 +54,20 @@ public sealed class SetupAdapterTests : IDisposable
     }
 
     [TestMethod]
+    public async Task Children_lists_the_files_keys_or_else_the_running_configurations()
+    {
+        var running = new ConfigurationBuilder().AddInMemoryCollection([new("Agentd:Models:Profiles:glm:Model", "glm-5")]).Build();
+        using var file = new AgentdJsonFile(_home, running);
+
+        CollectionAssert.AreEqual(new[] { "glm" }, file.Children("Models:Profiles").ToArray(), "nothing in the file yet");
+        await file.SetAsync(new Dictionary<string, string?> { ["Models:Profiles:deepseek:Model"] = "deepseek-flash", ["Models:Profiles:kimi:Model"] = "k2" }, CancellationToken.None);
+        await file.SetAsync(new Dictionary<string, string?> { ["Models:Profiles:kimi"] = null }, CancellationToken.None);
+
+        CollectionAssert.AreEqual(new[] { "deepseek" }, file.Children("models:profiles").ToArray());
+        Assert.IsEmpty(file.Children("Models:Nothing"));
+    }
+
+    [TestMethod]
     public async Task Numeric_segments_are_array_items_like_configuration()
     {
         File.WriteAllText(_home.ConfigFile, """{ "Users": [ { "Name": "alice", "Roles": [ "Admin" ] } ] }""");

@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.Text.Json.Nodes;
+using Agentd.Application.Jobs;
 using Agentd.Application.Setup;
 using Microsoft.Extensions.Options;
 
@@ -30,6 +31,27 @@ public sealed class ClaudeCliProbe(IOptions<ClaudeOptions> options) : IClaudePro
             status?["loggedIn"]?.GetValue<bool>() == true,
             status?["authMethod"]?.GetValue<string>(),
             status?["subscriptionType"]?.GetValue<string>());
+    }
+
+    public async Task<StepCheck> TestProfileAsync(string name, ModelProfile profile, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+        var o = options.Value;
+        var env = Environment(o, token: null);
+        ProfileEnvironment.Apply(env, name, profile, o);
+        var watch = Stopwatch.StartNew();
+        var (exit, output) = await RunAsync(o.Binary,
+            ["-p", $"Reply with exactly: {Expected}", "--max-turns", "1", "--output-format", "json", "--strict-mcp-config", "--tools", ""],
+            env, cancellationToken).ConfigureAwait(false);
+        var reply = exit == 0 ? Parse(output)?["result"]?.GetValue<string>() : null;
+        if (reply?.Contains(Expected, StringComparison.Ordinal) == true)
+        {
+            return new StepCheck(true, string.Create(CultureInfo.InvariantCulture, $"{profile.Model ?? name} answered a test prompt in {watch.Elapsed.TotalSeconds:0.0} s."));
+        }
+
+        var detail = (reply ?? output).Trim().ReplaceLineEndings(" ");
+        return new StepCheck(false, exit == -1 ? $"'{o.Binary}' isn't installed on this server." : $"The test prompt failed: {detail[..Math.Min(200, detail.Length)]}",
+            "check the base URL, the model ID (the provider's docs name the current ones) and the API key");
     }
 
     public async Task<StepCheck> TestAsync(string? token, CancellationToken cancellationToken)

@@ -81,3 +81,20 @@ public sealed record ReviewItemVm(string Step, string Title, bool Required, Step
 
 /// <summary>Setup is complete; the daemon uses the new settings after a restart.</summary>
 public sealed record FinishVm(DateTimeOffset CompletedAt);
+
+/// <summary>Another provider: endpoint and models; the API key as a status only.</summary>
+public sealed record ProfileVm(string Name, string? BaseUrl, string? Model, string? SmallModel, SecretStatusVm ApiKey);
+
+/// <summary>One step's model, effort and provider (empty: the defaults).</summary>
+public sealed record StepModelVm(string Step, string? Model, string? Effort, string? Profile);
+
+public sealed record ModelsStepVm(IReadOnlyList<ProfileVm> Profiles, IReadOnlyList<StepModelVm> Steps)
+{
+    public static ModelsStepVm From(Application.Setup.ModelsStep m)
+    {
+        ArgumentNullException.ThrowIfNull(m);
+        return new(
+            [.. m.Profiles.Select(p => new ProfileVm(p.Name, p.BaseUrl, p.Model, p.SmallModel, SecretStatusVm.From(p.ApiKey)))],
+            [.. m.Steps.Select(s => new StepModelVm(s.Step, s.Model, s.Effort, s.Profile))]);
+    }
+}

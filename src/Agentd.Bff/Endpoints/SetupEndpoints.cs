@@ -93,6 +93,21 @@ public static class SetupEndpoints
             Check(await service.TestRepositoryAsync(body?.Url, ct).ConfigureAwait(false)))
             .WithName($"Test{prefix}Repository").Accepts<GitTestRequest>("application/json").Produces<StepCheckVm>();
 
+        setup.MapGet("/models", ([FromServices] SetupService service) => TypedResults.Ok(ModelsStepVm.From(service.GetModels())))
+            .WithName($"Get{prefix}Models");
+        setup.MapPut("/models/profiles", async (ProfileRequest? body, ClaimsPrincipal user, [FromServices] SetupService service, CancellationToken ct) =>
+            TooLong(body?.ApiKey) ?? (await service.SaveProfileAsync(Profile(body), By(user), ct).ConfigureAwait(false)).ToHttpResult(Saved))
+            .WithName($"Save{prefix}ModelProfile").Accepts<ProfileRequest>("application/json").Produces<SaveResultVm>().ProducesProblem(StatusCodes.Status400BadRequest);
+        setup.MapDelete("/models/profiles/{name}", async (string name, ClaimsPrincipal user, [FromServices] SetupService service, CancellationToken ct) =>
+            (await service.RemoveProfileAsync(name, By(user), ct).ConfigureAwait(false)).ToHttpResult(Saved))
+            .WithName($"Remove{prefix}ModelProfile").Produces<SaveResultVm>().ProducesProblem(StatusCodes.Status409Conflict);
+        setup.MapPost("/models/profiles/test", async (ProfileRequest? body, [FromServices] SetupService service, CancellationToken ct) =>
+            TooLong(body?.ApiKey) ?? Check(await service.TestProfileAsync(Profile(body), ct).ConfigureAwait(false)))
+            .WithName($"Test{prefix}ModelProfile").Accepts<ProfileRequest>("application/json").Produces<StepCheckVm>().ProducesProblem(StatusCodes.Status400BadRequest);
+        setup.MapPut("/models/steps", async (IReadOnlyList<StepModelVm>? body, ClaimsPrincipal user, [FromServices] SetupService service, CancellationToken ct) =>
+            (await service.SaveStepsAsync([.. (body ?? []).Select(s => new StepView(s.Step, s.Model, s.Effort, s.Profile))], By(user), ct).ConfigureAwait(false)).ToHttpResult(Saved))
+            .WithName($"Save{prefix}ModelSteps").Accepts<IReadOnlyList<StepModelVm>>("application/json").Produces<SaveResultVm>().ProducesProblem(StatusCodes.Status400BadRequest);
+
         setup.MapGet("/review", async ([FromServices] SetupService service, CancellationToken ct) =>
                 TypedResults.Ok((await service.ReviewAsync(ct).ConfigureAwait(false)).Select(ReviewItemVm.From).ToList()))
             .WithName($"Get{prefix}Review");
@@ -123,11 +138,17 @@ public static class SetupEndpoints
     /// <summary>A repository to add. Only <c>Url</c> is required; the rest defaults like <c>agentd repo add</c>.</summary>
     public sealed record RepositoryRequest(string? Url, string? Name, string? BaseBranch, string? MatchTag, IReadOnlyList<string>? MatchAreaPaths);
 
+    /// <summary>A provider (Anthropic-compatible endpoint). An empty <c>ApiKey</c> keeps the saved one.</summary>
+    public sealed record ProfileRequest(string? Name, string? BaseUrl, string? Model, string? SmallModel, string? ApiKey);
+
     /// <summary>A repository's clone URL (SSH for agentd's key).</summary>
     public sealed record GitTestRequest(string? Url);
 
     private static AzureDevOpsInput Input(AzureDevOpsRequest? body) =>
         new(body?.Organization ?? string.Empty, body?.Project ?? string.Empty, body?.Auth ?? SetupService.AzCliAuth, body?.Pat);
+
+    private static ProfileInput Profile(ProfileRequest? body) =>
+        new(body?.Name ?? string.Empty, body?.BaseUrl, body?.Model, body?.SmallModel, body?.ApiKey);
 
     private static ChatInput Chat(ChatRequest? body) =>
         new(body?.Enabled ?? false, body?.GuildId, body?.ChannelId, body?.BotToken, body?.UserName, body?.UserDiscordId);

@@ -133,6 +133,20 @@ Each profile has these properties:
 | `Capabilities` | e.g. `{ "Tools": "good", "LongContext": true, "Vision": false }`. The router refuses to put a phase on a profile that lacks a capability the phase requires. |
 | `DailyBudgetUsd` | a hard stop per profile. Jobs fall back to the next profile, or wait. |
 
+**Managed from the web (added 2026-10-08).** `/api/settings/models` (Admin) and `/api/setup/models` (the wizard)
+manage `AnthropicCompatible` profiles and the per-step routing through `SetupService`, like every other settings step:
+
+| Endpoint | Does |
+|---|---|
+| `GET /models` | the profiles (`ApiKey` only as set / not set, never the value) and every step's Model / Effort / Profile |
+| `PUT /models/profiles` | add or change a profile: a name of `[a-z0-9-]`, an https (or loopback) `BaseUrl`, models; the key is stored as the secret `Models:Profiles:<name>:ApiKey` and is required the first time, empty keeps it |
+| `POST /models/profiles/test` | one test prompt through Claude Code with the profile's environment (the saved key when none is sent), never the subscription token |
+| `DELETE /models/profiles/{name}` | `409` while a step uses it; otherwise removes the profile and its key |
+| `PUT /models/steps` | `plan`, `implement`, `fix`, `handoff`, `review`, `chat`: empty values clear; `review` and `chat` run on Claude, so they take no profile |
+
+Changes are written to `agentd.json` and need a restart (the response says `restartRequired`); environment variables
+still override the file.
+
 ---
 
 ## 3. Routing: which profile runs which phase
