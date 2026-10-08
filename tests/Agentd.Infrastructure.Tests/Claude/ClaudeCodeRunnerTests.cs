@@ -21,6 +21,21 @@ public sealed class ClaudeCodeRunnerTests
     public void Cleanup() => Directory.Delete(_dir, recursive: true);
 
     [TestMethod]
+    public void A_turns_step_model_and_effort_replace_the_default_model()
+    {
+        var options = new ClaudeOptions { Model = "sonnet" };
+
+        var stepped = ClaudeArgs.Build(Request(resume: true) with { Model = "opus", Effort = "high" }, options, null).ToList();
+        var plain = ClaudeArgs.Build(Request(resume: true), options, null).ToList();
+
+        Assert.AreEqual("opus", stepped[stepped.IndexOf("--model") + 1]);
+        Assert.AreEqual("high", stepped[stepped.IndexOf("--effort") + 1]);
+        Assert.AreEqual(1, stepped.Count(a => a == "--model"));
+        Assert.AreEqual("sonnet", plain[plain.IndexOf("--model") + 1]);
+        Assert.DoesNotContain("--effort", plain);
+    }
+
+    [TestMethod]
     public async Task A_run_streams_the_transcript_records_events_and_returns_the_summary()
     {
         var (runner, events, _) = Runner(Script("cat \"$FIXTURE\""));

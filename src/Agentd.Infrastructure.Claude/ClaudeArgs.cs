@@ -19,10 +19,17 @@ public static class ClaudeArgs
             "--max-turns", options.MaxTurns.ToString(CultureInfo.InvariantCulture),
             "--append-system-prompt", options.SystemPromptRules,
         };
-        if (!string.IsNullOrWhiteSpace(options.Model))
+        // The step's model (Agentd:Jobs:Steps) over the default (Agentd:Claude:Model); the session itself stays the same.
+        if ((request.Model ?? options.Model) is { Length: > 0 } model)
         {
             args.Add("--model");
-            args.Add(options.Model);
+            args.Add(model);
+        }
+
+        if (request.Effort is { Length: > 0 } effort)
+        {
+            args.Add("--effort");
+            args.Add(effort);
         }
 
         // Until the plan is approved the agent may only read: no edit, commit or build tools are allowed.

@@ -27,10 +27,12 @@ public sealed partial class JobDispatcher : IDisposable
     private readonly ConcurrentDictionary<long, Task> _active = new();
     private readonly Channel<bool> _wake = Channel.CreateBounded<bool>(new BoundedChannelOptions(1) { FullMode = BoundedChannelFullMode.DropWrite });
     private volatile bool _stopping;
+    private readonly IOptionsMonitor<JobOptions>? _jobs;
 
-    public JobDispatcher(IServiceScopeFactory scopes, IAgentRunner runner, IOptions<SchedulerOptions> options, ILogger<JobDispatcher> logger)
+    public JobDispatcher(IServiceScopeFactory scopes, IAgentRunner runner, IOptions<SchedulerOptions> options, ILogger<JobDispatcher> logger, IOptionsMonitor<JobOptions>? jobs = null)
     {
         ArgumentNullException.ThrowIfNull(options);
+        _jobs = jobs;
         _scopes = scopes;
         _runner = runner;
         _options = options.Value;
@@ -161,7 +163,8 @@ public sealed partial class JobDispatcher : IDisposable
             AgentRunOutcome outcome;
             try
             {
-                outcome = await _runner.RunAsync(request, _runs.Token).ConfigureAwait(false);
+                // Each step of the cycle may run on its own model (Agentd:Jobs:Steps), read when the turn starts.
+                outcome = await _runner.RunAsync(JobSteps.Apply(request, _jobs?.CurrentValue), _runs.Token).ConfigureAwait(false);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {

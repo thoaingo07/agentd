@@ -39,7 +39,7 @@ public sealed class ResumeJobTurnHandler(IJobRepository jobs, IOutbox outbox) : 
                     ? TaskPromptBuilder.Handoff(job.PullRequest?.Value, job.Branch!.Value)
                     : TaskPromptBuilder.Replies(messages, job.PlanStatus, job.Handoff);
                 return new AgentRunRequest(job.Id, job.WorkItemId, worktree, session, prompt, Resume: true,
-                    ReadOnly: job.PlanStatus == PlanStatus.Pending || job.Handoff == HandoffStatus.Proposing);
+                    ReadOnly: job.PlanStatus == PlanStatus.Pending || job.Handoff == HandoffStatus.Proposing, Step: JobSteps.Of(job));
             }
         }
 

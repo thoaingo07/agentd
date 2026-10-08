@@ -80,7 +80,34 @@ public sealed class JobDispatcherTests
         Assert.IsFalse(dispatcher.TryStartNextAsync(CancellationToken.None).IsCompleted, "the only slot is taken");
     }
 
-    private static async Task<(TestContext, JobDispatcher, ServiceProvider)> Create(int queued, int maxConcurrent)
+    [TestMethod]
+    public async Task A_turn_runs_on_its_steps_model()
+    {
+        var jobs = new JobOptions();
+        jobs.Steps[JobSteps.Plan] = new StepModel { Model = "opus", Effort = "high" };
+        jobs.Steps[JobSteps.Implement] = new StepModel { Model = "sonnet", Effort = "medium" };   // the test context skips plan approval
+        var (t, dispatcher, provider) = await Create(queued: 1, maxConcurrent: 1, jobs);
+        using var _ = dispatcher;
+        await using var __ = provider;
+
+        Assert.IsTrue(await dispatcher.TryStartNextAsync(CancellationToken.None));
+        await WaitUntil(() => t.Runner.Started.Count == 1);
+
+        var turn = t.Runner.Started.Single();
+        Assert.AreEqual((JobSteps.Implement, "sonnet", "medium"), (turn.Step, turn.Model, turn.Effort));
+        t.Runner.Release(turn.JobId, new AgentRunOutcome.Exited(1, null));
+    }
+
+    private sealed class Monitor(JobOptions value) : Microsoft.Extensions.Options.IOptionsMonitor<JobOptions>
+    {
+        public JobOptions CurrentValue => value;
+
+        public JobOptions Get(string? name) => value;
+
+        public IDisposable? OnChange(Action<JobOptions, string?> listener) => null;
+    }
+
+    private static async Task<(TestContext, JobDispatcher, ServiceProvider)> Create(int queued, int maxConcurrent, JobOptions? jobs = null)
     {
         var t = new TestContext();
         t.Runner.Hold = true;
@@ -96,7 +123,7 @@ public sealed class JobDispatcherTests
             .AddSingleton<ICommandHandler<HandleAgentExit, JobState>>(t.AgentExit())
             .BuildServiceProvider();
         var options = Microsoft.Extensions.Options.Options.Create(new SchedulerOptions { MaxConcurrent = maxConcurrent, ShutdownGrace = TimeSpan.FromMilliseconds(50) });
-        var dispatcher = new JobDispatcher(provider.GetRequiredService<IServiceScopeFactory>(), t.Runner, options, NullLogger<JobDispatcher>.Instance);
+        var dispatcher = new JobDispatcher(provider.GetRequiredService<IServiceScopeFactory>(), t.Runner, options, NullLogger<JobDispatcher>.Instance, jobs is null ? null : new Monitor(jobs));
         return (t, dispatcher, provider);
     }
 

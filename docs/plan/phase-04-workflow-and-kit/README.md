@@ -95,6 +95,6 @@ Detailed tasks: [tasks/README.md](tasks/README.md)
 
 - **The MAF .NET API** for conditional edges and custom checkpoint stores: confirm it against the
   pinned version in a spike (1–2 days) at the start of the phase.
-- **Default gates:** plan gate on, design gate off. Agreed?
-- **Bootstrap run:** is it on by default, or opt-in?
-- **Sessions:** one Claude session for Design → Test, with Review in a fresh session (as designed). OK?
+- **Default gates:** ~~plan gate on, design gate off~~ → **decided (2026-10-07): both the design and the plan gate are on by default.**
+- **Bootstrap run:** → **decided (2026-10-07): opt-in** (it spends a Claude run on the subscription).
+- **Sessions:** → **decided (2026-10-07): as designed**, one Claude session for Design → Test, with Review in a fresh session.

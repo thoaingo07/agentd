@@ -84,7 +84,7 @@ public sealed class StartNextJobHandler(
                 await outbox.TryEnqueueAsync(job.Id, MessageCatalog.Started(job, item, repository.BaseBranch), cancellationToken).ConfigureAwait(false);
             }
 
-            return new AgentRunRequest(job.Id, job.WorkItemId, worktree, session, prompt, resume, ReadOnly: job.PlanStatus == PlanStatus.Pending);
+            return new AgentRunRequest(job.Id, job.WorkItemId, worktree, session, prompt, resume, ReadOnly: job.PlanStatus == PlanStatus.Pending, Step: JobSteps.Of(job));
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
