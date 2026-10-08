@@ -625,9 +625,9 @@ public sealed class SetupService(
                 return DomainError.Validation($"`{s.Step}` isn't a step ({string.Join(", ", ModelSteps)}).");
             }
 
-            if (Blank(s.Effort) is { } effort && !BrainstormSettingsEfforts.Contains(effort.ToLowerInvariant()))
+            if (Blank(s.Effort) is { } effort && !s_efforts.Contains(effort.ToLowerInvariant()))
             {
-                return DomainError.Validation($"`{effort}` isn't an effort level ({string.Join(", ", BrainstormSettingsEfforts)}).");
+                return DomainError.Validation($"`{effort}` isn't an effort level ({string.Join(", ", s_efforts)}).");
             }
 
             if (Blank(s.Profile) is { } profile)
@@ -653,7 +653,7 @@ public sealed class SetupService(
         return new SaveResult(RestartRequired: true);
     }
 
-    private static readonly string[] BrainstormSettingsEfforts = ["low", "medium", "high", "xhigh", "max"];
+    private static readonly string[] s_efforts = ["low", "medium", "high", "xhigh", "max"];
 
     private ProfileView Profile(string name) => new(
         name, config.Read($"Models:Profiles:{name}:BaseUrl"), config.Read($"Models:Profiles:{name}:Model"), config.Read($"Models:Profiles:{name}:SmallModel"),
