@@ -29,7 +29,8 @@ public sealed class SubmitPlanHandler(IJobRepository jobs, IOutbox outbox, JobAc
 {
     public const string ApproveLabel = "✅ Approve plan";
     public const string ChangesLabel = "✏️ Request changes";
-    public const int MaxPlanLength = 1800;
+    /// <summary>Room for a plan another model can implement from (Discord shows it in parts).</summary>
+    public const int MaxPlanLength = 6000;
 
     private static readonly HashSet<string> s_approvals = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -41,7 +42,7 @@ public sealed class SubmitPlanHandler(IJobRepository jobs, IOutbox outbox, JobAc
         ArgumentNullException.ThrowIfNull(command);
         if (string.IsNullOrWhiteSpace(command.Plan) || command.Plan.Length > MaxPlanLength)
         {
-            return DomainError.Validation($"The plan must be 1–{MaxPlanLength} characters (link to files for details).");
+            return DomainError.Validation($"The plan must be 1–{MaxPlanLength} characters (name files and symbols instead of pasting code).");
         }
 
         var job = await jobs.GetAsync(command.JobId, cancellationToken).ConfigureAwait(false);

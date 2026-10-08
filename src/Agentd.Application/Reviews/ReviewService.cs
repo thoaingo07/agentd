@@ -25,7 +25,8 @@ public sealed partial class ReviewService(
     IBrainstormAgent agent,
     IMessagingProviderRegistry providers,
     ILogger<ReviewService> logger,
-    IWorkItemSource? workItems = null) : IDisposable
+    IWorkItemSource? workItems = null,
+    Microsoft.Extensions.Options.IOptions<Jobs.JobOptions>? jobs = null) : IDisposable
 {
     public const int MaxConcurrentReviews = 2;
 
@@ -82,6 +83,10 @@ public sealed partial class ReviewService(
         var thread = await providers.Resolve(provider).OpenConversationAsync(
             new ConversationSpec(default, default, title, repo.Value.Name, opening, $"🔍 Review: {IdeaService.Title(title)}"), ct).ConfigureAwait(false);
         var reviewId = await reviews.InsertAsync(repo.Value.Name.Value, id, details.Title, author, provider, thread.ExternalConversationId, thread.ExternalSpaceId, ct).ConfigureAwait(false);
+        // --model / --effort, else the review step's defaults (Agentd:Jobs:Steps:review), else the runner's.
+        var defaults = jobs?.Value.Steps.TryGetValue(Jobs.JobSteps.Review, out var step) == true ? step : null;
+        model ??= string.IsNullOrWhiteSpace(defaults?.Model) ? null : defaults.Model.Trim();
+        effort ??= string.IsNullOrWhiteSpace(defaults?.Effort) ? null : defaults.Effort.Trim().ToLowerInvariant();
         var review = (await reviews.GetAsync(reviewId, ct).ConfigureAwait(false))! with { HeadCommit = details.SourceCommit, Focus = focus, Model = model, Effort = effort };
         await reviews.SaveAsync(review, ct).ConfigureAwait(false);
 

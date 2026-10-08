@@ -26,6 +26,9 @@ public static class JobSteps
     public const string Fix = "fix";
     public const string Handoff = "handoff";
 
+    /// <summary>Not a job turn: the defaults for <c>!review</c> (Model, Effort; a review's own --model / --effort win).</summary>
+    public const string Review = "review";
+
     public static readonly IReadOnlyList<string> All = [Plan, Implement, Fix, Handoff];
 
     public static string Of(Job job)
