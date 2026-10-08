@@ -139,4 +139,18 @@ public interface IPullRequestService
     /// Returns the thread id.
     /// </summary>
     Task<int> CreateThreadAsync(Repository repository, int pullRequestId, string text, string? filePath, int? line, CancellationToken cancellationToken);
+
+    /// <summary>Replaces the text of a thread's first comment (agentd's own); prefixed with <see cref="PullRequestComment.AgentdMarker"/>.</summary>
+    Task UpdateThreadTextAsync(Repository repository, int pullRequestId, int threadId, string text, CancellationToken cancellationToken);
+
+    /// <summary>Sets a thread's status: <see cref="PullRequestThreadStatus"/> (fixed: resolved; closed: won't fix).</summary>
+    Task SetThreadStatusAsync(Repository repository, int pullRequestId, int threadId, PullRequestThreadStatus status, CancellationToken cancellationToken);
+}
+
+/// <summary>The thread statuses agentd sets on its own review threads.</summary>
+public enum PullRequestThreadStatus
+{
+    Active = 1,
+    Fixed = 2,
+    Closed = 4,
 }

@@ -47,7 +47,19 @@ public sealed record Review(
 public sealed record ReviewResult(
     [property: JsonPropertyName("summary")] string Summary,
     [property: JsonPropertyName("findings")] IReadOnlyList<ReviewFinding> Findings,
-    [property: JsonPropertyName("mainThread")] int? MainThread = null);
+    [property: JsonPropertyName("mainThread")] int? MainThread = null,
+    [property: JsonPropertyName("repliesSeenUntil")] DateTimeOffset? RepliesSeenUntil = null);
+
+/// <summary>One posted finding after a re-check: <paramref name="Number"/> is its 1-based place, <paramref name="Reply"/> what to say on its thread (null: nothing new).</summary>
+public sealed record RecheckItem(
+    [property: JsonPropertyName("n")] int Number,
+    [property: JsonPropertyName("status")] string Status,
+    [property: JsonPropertyName("reply")] string? Reply);
+
+/// <summary>A re-check of posted findings against the PR's new head, plus problems the new commits introduce.</summary>
+public sealed record Recheck(
+    [property: JsonPropertyName("findings")] IReadOnlyList<RecheckItem> Findings,
+    [property: JsonPropertyName("new")] IReadOnlyList<ReviewFinding>? New);
 
 /// <summary>
 /// One finding: where (<paramref name="File"/> relative to the repo root, optional line on the PR's side), what breaks
@@ -72,6 +84,12 @@ public interface IReviewStore
     Task<Review?> GetAsync(long id, CancellationToken cancellationToken);
 
     Task<Review?> FindByThreadAsync(ProviderKey provider, string threadId, CancellationToken cancellationToken);
+
+    /// <summary>Reviews posted to their PR (re-checked after pushes until the PR closes).</summary>
+    Task<IReadOnlyList<Review>> ListPostedAsync(CancellationToken cancellationToken);
+
+    /// <summary>The PR's latest review, or null.</summary>
+    Task<Review?> FindLatestAsync(string repository, int pullRequestId, CancellationToken cancellationToken);
 
     Task SaveAsync(Review review, CancellationToken cancellationToken);
 
@@ -115,20 +133,58 @@ public static partial class ReviewFindings
         {
             var result = JsonSerializer.Deserialize<ReviewResult>(match.Groups["json"].Value, s_json);
             var findings = result?.Findings ?? [];
-            var problem = result is null || string.IsNullOrWhiteSpace(result.Summary) ? "it needs a summary"
-                : findings.Count > MaxFindings ? $"more than {MaxFindings} findings (keep the important ones)"
-                : findings.FirstOrDefault(f => string.IsNullOrWhiteSpace(f.Title)) is not null ? "every finding needs a title"
-                : findings.FirstOrDefault(f => !Severities.Contains(f.Severity?.ToLowerInvariant())) is { } bad ? $"\"{bad.Title}\" has severity \"{bad.Severity}\" (use {string.Join(", ", Severities)})"
-                : findings.FirstOrDefault(f => f.File is { } path && !IsRelativePath(path)) is { } outside ? $"\"{outside.Title}\": the file must be a path inside the repository"
-                : findings.FirstOrDefault(f => f.Line is < 1) is { } line ? $"\"{line.Title}\": the line must be 1 or more"
-                : null;
+            var problem = result is null || string.IsNullOrWhiteSpace(result.Summary) ? "it needs a summary" : Problem(findings);
             return problem is null
-                ? (text, result! with { Findings = [.. findings.Select(f => f with { Severity = f.Severity.ToLowerInvariant(), File = f.File?.TrimStart('/') })] }, null)
+                ? (text, result! with { Findings = Normalize(findings) }, null)
                 : (text, null, problem);
         }
         catch (JsonException ex)
         {
             return (text, null, "the review-findings block isn't valid JSON: " + ex.Message);
+        }
+    }
+
+    /// <summary>Why <paramref name="findings"/> can't be used, or null.</summary>
+    public static string? Problem(IReadOnlyList<ReviewFinding> findings)
+    {
+        ArgumentNullException.ThrowIfNull(findings);
+        return findings.Count > MaxFindings ? $"more than {MaxFindings} findings (keep the important ones)"
+            : findings.FirstOrDefault(f => string.IsNullOrWhiteSpace(f.Title)) is not null ? "every finding needs a title"
+            : findings.FirstOrDefault(f => !Severities.Contains(f.Severity?.ToLowerInvariant())) is { } bad ? $"\"{bad.Title}\" has severity \"{bad.Severity}\" (use {string.Join(", ", Severities)})"
+            : findings.FirstOrDefault(f => f.File is { } path && !IsRelativePath(path)) is { } outside ? $"\"{outside.Title}\": the file must be a path inside the repository"
+            : findings.FirstOrDefault(f => f.Line is < 1) is { } line ? $"\"{line.Title}\": the line must be 1 or more"
+            : null;
+    }
+
+    public static IReadOnlyList<ReviewFinding> Normalize(IReadOnlyList<ReviewFinding> findings) =>
+        [.. findings.Select(f => f with { Severity = f.Severity.ToLowerInvariant(), File = f.File?.TrimStart('/') })];
+
+    /// <summary>The <c>review-recheck</c> block of a re-check turn: the statuses of <paramref name="posted"/> findings, and new ones.</summary>
+    public static (string Text, Recheck? Recheck, string? Problem) ExtractRecheck(string reply, int posted)
+    {
+        ArgumentNullException.ThrowIfNull(reply);
+        var match = RecheckBlock().Match(reply);
+        if (!match.Success)
+        {
+            return (reply.Trim(), null, null);
+        }
+
+        var text = (reply[..match.Index] + reply[(match.Index + match.Length)..]).Trim();
+        try
+        {
+            var recheck = JsonSerializer.Deserialize<Recheck>(match.Groups["json"].Value, s_json);
+            var items = recheck?.Findings ?? [];
+            var problem = recheck is null ? "it's empty"
+                : items.FirstOrDefault(i => i.Number < 1 || i.Number > posted) is { } outside ? $"#{outside.Number} isn't one of the {posted} posted findings"
+                : items.FirstOrDefault(i => i.Status?.ToLowerInvariant() is not (Open or Fixed or Closed)) is { } bad ? $"#{bad.Number} has status \"{bad.Status}\" (use open, fixed or closed)"
+                : Problem(recheck.New ?? []);
+            return problem is null
+                ? (text, recheck! with { Findings = [.. items.Select(i => i with { Status = i.Status.ToLowerInvariant() })], New = Normalize(recheck.New ?? []) }, null)
+                : (text, null, problem);
+        }
+        catch (JsonException ex)
+        {
+            return (text, null, "the review-recheck block isn't valid JSON: " + ex.Message);
         }
     }
 
@@ -174,7 +230,7 @@ public static partial class ReviewFindings
         var fixedCount = result.Findings.Count(f => f.Status == Fixed);
         var lines = new List<string>
         {
-            $"🤖 **agentd review** · {result.Findings.Count} finding(s): {open} open, {fixedCount} fixed{(checkedAt is { Length: > 0 } c ? $" · checked at {c[..Math.Min(7, c.Length)]}" : string.Empty)}",
+            $"**Review** · {result.Findings.Count} finding(s): {open} open, {fixedCount} fixed{(checkedAt is { Length: > 0 } c ? $" · checked at {c[..Math.Min(7, c.Length)]}" : string.Empty)}",
             string.Empty,
             result.Summary.Trim(),
         };
@@ -233,4 +289,7 @@ public static partial class ReviewFindings
 
     [GeneratedRegex(@"```review-findings\s*\n(?<json>[\s\S]*?)\n```", RegexOptions.IgnoreCase)]
     private static partial Regex Block();
+
+    [GeneratedRegex(@"```review-recheck\s*\n(?<json>[\s\S]*?)\n```", RegexOptions.IgnoreCase)]
+    private static partial Regex RecheckBlock();
 }

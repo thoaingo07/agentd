@@ -75,7 +75,7 @@ public sealed class ReviewServiceTests
         Assert.HasCount(2, h.PullRequests.Threads, "the picked finding and the main message, nothing else");
         var main = h.PullRequests.Threads[1];
         Assert.AreEqual((null, (int?)null), (main.File, main.Line), "the main message is PR-wide");
-        StringAssert.StartsWith(main.Text, "🤖 **agentd review** · 1 finding(s): 1 open, 0 fixed");
+        StringAssert.StartsWith(main.Text, "**Review** · 1 finding(s): 1 open, 0 fixed");
         StringAssert.Contains(main.Text, "Adds a deploy pipeline");
         StringAssert.Contains(main.Text, "| 🔴 | Readiness probe path is wrong | `charts/api/values.yaml:12` |");
         Assert.AreEqual(ReviewStatus.Posted, h.Store.Rows[1].Status);
@@ -85,7 +85,7 @@ public sealed class ReviewServiceTests
         Assert.IsNotNull(stored.MainThread);
         Assert.AreNotEqual(stored.MainThread, stored.Findings.Single().Thread);
         StringAssert.Contains(h.Chat.SentText[^2], "Posted 1 finding(s)");
-        StringAssert.Contains(h.Chat.SentText.Last(), "Delete this thread?");
+        StringAssert.Contains(h.Chat.SentText.Last(), "re-check the findings after each push", "the thread stays open for re-checks");
     }
 
     [TestMethod]
@@ -140,6 +140,125 @@ public sealed class ReviewServiceTests
     [DataRow("why is 2 a problem?")]
     [DataRow("post the first one")]
     public void Anything_else_is_a_question_for_the_agent(string answer) => Assert.IsNull(ReviewChoice.Parse(answer, 3));
+
+    [TestMethod]
+    public async Task Review_again_rechecks_the_posted_findings_and_updates_the_pr()
+    {
+        var h = await PostedAsync();   // #1 and #2 posted, threads 101 and 102, main message 103
+        h.PullRequests.Details[3944] = h.PullRequests.Details[3944] with { SourceCommit = "def5678aa" };   // a push
+        h.PullRequests.Comments.Add(new PullRequestComment(102, 2, "Dev One", "Pinned it in the template.", "/azure-pipelines.yml", 40, "active", DateTimeOffset.UtcNow));
+        h.Agent.Replies.Enqueue("""
+            Checked the new commits.
+
+            ```review-recheck
+            {"findings":[{"n":1,"status":"fixed","reply":null},{"n":2,"status":"open","reply":"the tag is still `latest` in azure-pipelines.yml:44."}],
+             "new":[{"severity":"breaks","file":"charts/api/deployment.yaml","line":7,"title":"Liveness probe now hits the DB","detail":"A slow DB restarts the pods.","suggestion":"Probe /health/live."}]}
+            ```
+            """);
+        var sent = h.Chat.SentText.Count;
+
+        Assert.IsTrue(await h.Service.HandleMessageAsync(h.Store.Rows[1], "tngo", "review again", default));
+        await h.WaitForSentAsync(sent + 3);
+
+        var prompt = h.Agent.Turns.Last().Prompt;
+        StringAssert.Contains(prompt, "last checked at abc1234");
+        StringAssert.Contains(prompt, "reply from Dev One: Pinned it in the template.", "the author's reply reaches the reviewer");
+        Assert.AreEqual((101, "✅ Fixed in def5678."), (h.PullRequests.Replies[0].Thread, h.PullRequests.Replies[0].Text));
+        Assert.AreEqual(PullRequestThreadStatus.Fixed, h.PullRequests.ThreadStatus[101], "a fixed finding's thread is resolved");
+        Assert.AreEqual((102, "Still open in def5678: the tag is still `latest` in azure-pipelines.yml:44."), (h.PullRequests.Replies[1].Thread, h.PullRequests.Replies[1].Text));
+        Assert.IsFalse(h.PullRequests.ThreadStatus.ContainsKey(102), "still active");
+        StringAssert.StartsWith(h.PullRequests.Threads.Last().Text, "🔴 **Liveness probe now hits the DB**", "a new problem gets its thread");
+        var main = h.PullRequests.Edited[103];
+        StringAssert.StartsWith(main, "**Review** · 3 finding(s): 2 open, 1 fixed · checked at def5678");
+        StringAssert.Contains(main, "| ✅ | Readiness probe path is wrong |");
+        StringAssert.Contains(main, "| 🔴 | Liveness probe now hits the DB |");
+        Assert.IsTrue(h.Chat.SentText.Any(t => t.Contains("re-checked at def5678:** 1 fixed ✅, 2 open, 1 new", StringComparison.Ordinal)));
+        Assert.AreEqual("def5678aa", h.Store.Rows[1].HeadCommit);
+    }
+
+    [TestMethod]
+    public async Task The_same_pr_again_continues_its_review()
+    {
+        var h = await PostedAsync();
+        h.Agent.Replies.Enqueue("""
+            ```review-recheck
+            {"findings":[{"n":1,"status":"closed","reply":"Agreed: /health is the readiness path in this chart."},{"n":2,"status":"fixed"}]}
+            ```
+            """);
+
+        var sent = h.Chat.SentText.Count;
+        var started = await h.Service.StartAsync(s_discord, "tngo", ["3944"], default);
+        await h.WaitForSentAsync(sent + 2);   // "Re-checking…" and the result line
+
+        StringAssert.Contains(started.Value, "Continuing review #1");
+        Assert.HasCount(1, h.Store.Rows, "no second review");
+        Assert.AreEqual(PullRequestThreadStatus.Closed, h.PullRequests.ThreadStatus[101]);
+        Assert.AreEqual("Agreed: /health is the readiness path in this chart.", h.PullRequests.Replies.First(r => r.Thread == 101).Text);
+        StringAssert.Contains(h.PullRequests.Edited[103], "0 open, 1 fixed");
+        Assert.IsTrue(h.Chat.SentText.Any(t => t.Contains("Everything is resolved", StringComparison.Ordinal)));
+    }
+
+    private const string AllFixed = """
+        ```review-recheck
+        {"findings":[{"n":1,"status":"fixed"},{"n":2,"status":"fixed"}]}
+        ```
+        """;
+
+    [TestMethod]
+    public async Task A_push_is_rechecked_once_without_being_asked()
+    {
+        var h = await PostedAsync();
+        await h.Service.MonitorAsync(default);
+        var turns = h.Agent.Turns.Count;
+        Assert.AreEqual(turns, h.Agent.Turns.Count, "nothing new: no re-check");
+
+        h.PullRequests.Details[3944] = h.PullRequests.Details[3944] with { SourceCommit = "def5678aa" };
+        h.Agent.Replies.Enqueue(AllFixed);
+        var sent = h.Chat.SentText.Count;
+        await h.Service.MonitorAsync(default);
+        await h.WaitForSentAsync(sent + 2);
+        await h.Service.MonitorAsync(default);
+
+        Assert.AreEqual(turns + 1, h.Agent.Turns.Count, "one push, one re-check");
+        Assert.IsTrue(h.Chat.SentText.Any(t => t.Contains("Re-checking the posted findings (new commits)", StringComparison.Ordinal)));
+        Assert.AreEqual(PullRequestThreadStatus.Fixed, h.PullRequests.ThreadStatus[102]);
+    }
+
+    [TestMethod]
+    public async Task A_reply_on_a_findings_thread_is_rechecked_too()
+    {
+        var h = await PostedAsync();
+        h.PullRequests.Comments.Add(new PullRequestComment(101, 2, "Dev One", "This path is right for our chart.", "/charts/api/values.yaml", 12, "active", DateTimeOffset.UtcNow));
+        h.Agent.Replies.Enqueue(AllFixed);
+        var sent = h.Chat.SentText.Count;
+
+        await h.Service.MonitorAsync(default);
+        await h.WaitForSentAsync(sent + 2);
+
+        StringAssert.Contains(h.Agent.Turns.Last().Prompt, "This path is right for our chart.");
+        Assert.IsTrue(h.Chat.SentText.Any(t => t.Contains("(new replies)", StringComparison.Ordinal)));
+    }
+
+    [TestMethod]
+    public async Task A_completed_pr_ends_the_review()
+    {
+        var h = await PostedAsync();
+        h.PullRequests.Details[3944] = h.PullRequests.Details[3944] with { Status = PullRequestStatus.Completed };
+
+        await h.Service.MonitorAsync(default);
+
+        Assert.AreEqual(ReviewStatus.Closed, h.Store.Rows[1].Status);
+        StringAssert.Contains(h.Chat.SentText.Last(), "PR !3944 is completed: this review is done.");
+    }
+
+    private static async Task<Harness> PostedAsync()
+    {
+        var h = new Harness();
+        await h.ReviewedAsync();
+        await h.Service.HandleMessageAsync(h.Store.Rows[1], "tngo", "post 1,2", default);
+        Assert.AreEqual(ReviewStatus.Posted, h.Store.Rows[1].Status);
+        return h;
+    }
 
     [TestMethod]
     public async Task A_review_uses_the_review_steps_model_unless_it_names_its_own()
@@ -231,6 +350,12 @@ public sealed class ReviewServiceTests
         }
 
         public Task<Review?> GetAsync(long id, CancellationToken cancellationToken) => Task.FromResult(Rows.TryGetValue(id, out var r) ? r : null);
+
+        public Task<IReadOnlyList<Review>> ListPostedAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<Review>>([.. Rows.Values.Where(r => r.Status == ReviewStatus.Posted).OrderBy(r => r.Id)]);
+
+        public Task<Review?> FindLatestAsync(string repository, int pullRequestId, CancellationToken cancellationToken) =>
+            Task.FromResult(Rows.Values.Where(r => r.Repository == repository && r.PullRequestId == pullRequestId).OrderByDescending(r => r.Id).FirstOrDefault());
 
         public Task<Review?> FindByThreadAsync(ProviderKey provider, string threadId, CancellationToken cancellationToken) =>
             Task.FromResult(Rows.Values.FirstOrDefault(r => r.ThreadId == threadId));

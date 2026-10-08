@@ -92,6 +92,10 @@ public sealed class SweepWorktreesTests
 
         public Task<Review?> FindByThreadAsync(ProviderKey provider, string threadId, CancellationToken cancellationToken) => throw new NotSupportedException();
 
+        public Task<Review?> FindLatestAsync(string repository, int pullRequestId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<IReadOnlyList<Review>> ListPostedAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
         public Task SaveAsync(Review review, CancellationToken cancellationToken) => throw new NotSupportedException();
 
         public Task AddMessageAsync(long reviewId, string direction, string author, string text, CancellationToken cancellationToken) => throw new NotSupportedException();

@@ -23,6 +23,12 @@ public sealed class ReviewStore(NpgsqlDataSource dataSource) : IReviewStore
     public async Task<Review?> FindByThreadAsync(ProviderKey provider, string threadId, CancellationToken cancellationToken) =>
         (await ReadAsync("SELECT * FROM agentd.pr_review_find_by_thread($1, $2)", cancellationToken, T(provider.Value), T(threadId)).ConfigureAwait(false)).SingleOrDefault();
 
+    public async Task<IReadOnlyList<Review>> ListPostedAsync(CancellationToken cancellationToken) =>
+        await ReadAsync("SELECT * FROM agentd.pr_review_list_posted()", cancellationToken).ConfigureAwait(false);
+
+    public async Task<Review?> FindLatestAsync(string repository, int pullRequestId, CancellationToken cancellationToken) =>
+        (await ReadAsync("SELECT * FROM agentd.pr_review_find_latest($1, $2)", cancellationToken, T(repository), P(pullRequestId, NpgsqlDbType.Integer)).ConfigureAwait(false)).SingleOrDefault();
+
     public async Task SaveAsync(Review review, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(review);

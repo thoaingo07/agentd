@@ -83,4 +83,29 @@ Adds the deploy pipelines. One real bug; otherwise ready.
 Each finding's own thread is just its title, why, and the fix. The main message is the one to follow: its icons turn
 ✅ when a finding is fixed.
 
-agentd **never votes or approves**. After posting, it asks whether to delete or archive the chat thread.
+## Keep reviewing until it's fixed
+
+After posting, the chat thread stays open and agentd **re-checks** the findings:
+- **automatically,** within a couple of minutes of a **push** to the PR or a **reply** on a finding's thread, while
+  findings are open (one re-check per push);
+- when you say **review again** (or `recheck`) in the review's thread;
+- when you run **`!review <the same PR>`**: it continues that review in its thread instead of starting a new one.
+
+When the PR is completed or abandoned, the review ends ("🏁 PR !3944 is completed: this review is done.").
+
+A re-check reads the new commits and people's replies on each finding's thread, then updates the PR:
+
+| The reviewer finds | On the PR |
+|---|---|
+| the problem is gone (checked in the code, not just the reply) | `✅ Fixed in b7e9f01.` on its thread, the thread is **resolved**, and the main message shows ✅ |
+| the author's reply convinced it | its reply, e.g. "Agreed: /health is the readiness path here.", and the thread is **closed** (⚪) |
+| still there | `Still open in b7e9f01: …` with what's still wrong (only when there's something new to say) |
+| a new problem from the new commits | a new short thread, added to the main message |
+
+The main message is edited in place: `x open, y fixed · checked at <commit>`. The chat thread gets one line:
+
+```text
+🔄 PR !3944 re-checked at b7e9f01: 1 fixed ✅, 1 open, 1 new.
+```
+
+agentd **never votes or approves**.

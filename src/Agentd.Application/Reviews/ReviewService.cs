@@ -75,6 +75,13 @@ public sealed partial class ReviewService(
             return DomainError.Validation($"PR !{id} is {details.Status.ToString().ToLowerInvariant()}, so there's nothing to review.");
         }
 
+        // The same PR again: continue its review (a re-check once posted) instead of starting over.
+        if (await reviews.FindLatestAsync(repo.Value.Name.Value, id, ct).ConfigureAwait(false) is { Status: not (ReviewStatus.Closed or ReviewStatus.Discarded) } existing)
+        {
+            await ContinueAsync(existing, author, instructions, ct).ConfigureAwait(false);
+            return $"🔄 Continuing review #{existing.Id} of PR !{id} in its thread.";
+        }
+
         var opening = new OutboundMessage(MessageKind.Info,
             $"🔍 **Review of PR !{id}** requested by {author}: {details.Title}\n`{details.SourceBranch}` → `{details.TargetBranch}` · by {details.Author} · {details.Url}\n\n" +
             (instructions is null ? string.Empty : $"Your instructions: {instructions}\n\n") +
@@ -196,7 +203,7 @@ public sealed partial class ReviewService(
             return false;
         }
 
-        if (review.Status is ReviewStatus.Posted or ReviewStatus.Kept or ReviewStatus.Discarded && CloseOutAnswer(answer) is { } delete)
+        if (review.Status is ReviewStatus.Kept or ReviewStatus.Discarded && CloseOutAnswer(answer) is { } delete)
         {
             await CloseOutAsync(review, delete, author, ct).ConfigureAwait(false);
             return true;
@@ -206,6 +213,13 @@ public sealed partial class ReviewService(
         {
             await PostAsync(review, new OutboundMessage(MessageKind.Info, "This review was discarded. Start a new one with `!review <PR>`."), ct).ConfigureAwait(false);
             return false;
+        }
+
+        if (IsAgain(answer))
+        {
+            await reviews.AddMessageAsync(review.Id, "in", author, answer, ct).ConfigureAwait(false);
+            await ContinueAsync(review, author, null, ct).ConfigureAwait(false);
+            return true;
         }
 
         if (review.Status == ReviewStatus.Reviewed && review.Result is { } result && ReviewChoice.Parse(answer, result.Findings.Count) is { } choice)
@@ -306,10 +320,199 @@ public sealed partial class ReviewService(
         await PostAsync(review, new OutboundMessage(MessageKind.Result, failure is null
             ? $"📤 **Posted {count} finding(s) to PR !{review.PullRequestId}** ({author}){(link is null ? string.Empty : $": {link}")}: one main message with all of them, and a short thread for each. No vote was cast."
             : $"⚠️ Posted {count} finding(s), then stopped at {failure}. Fix the cause and choose again, or post the rest by hand."), ct).ConfigureAwait(false);
-        if (failure is null)
+        if (failure is null && count > 0)
         {
-            await AskCloseOutAsync(review, ct).ConfigureAwait(false);
+            await PostAsync(review, new OutboundMessage(MessageKind.Info, "🔁 I'll keep this thread open and re-check the findings after each push. Say **review again** any time."), ct).ConfigureAwait(false);
         }
+    }
+
+    /// <summary>
+    /// The automatic re-check (every review poll): for each posted review, a re-check when its PR has new commits or new
+    /// replies on a finding's thread while findings are open; done when the PR is completed or abandoned. A review with a
+    /// turn running or queued is left alone, so one push is one re-check.
+    /// </summary>
+    public async Task MonitorAsync(CancellationToken ct)
+    {
+        foreach (var review in await reviews.ListPostedAsync(ct).ConfigureAwait(false))
+        {
+            if (Busy(review.Id) || await repositories.GetAsync(RepositoryName.From(review.Repository), ct).ConfigureAwait(false) is not { } repo)
+            {
+                continue;
+            }
+
+            var pr = await pullRequests.GetAsync(repo, review.PullRequestId, ct).ConfigureAwait(false);
+            if (pr is null || pr.Status != PullRequestStatus.Active)
+            {
+                await reviews.SaveAsync(review with { Status = ReviewStatus.Closed }, ct).ConfigureAwait(false);
+                await PostAsync(review, new OutboundMessage(MessageKind.Info,
+                    $"🏁 PR !{review.PullRequestId} is {(pr is null ? "gone" : pr.Status.ToString().ToLowerInvariant())}: this review is done."), ct).ConfigureAwait(false);
+                await RemoveCheckoutAsync(review.Repository, review.Worktree, ct).ConfigureAwait(false);
+                continue;
+            }
+
+            if (review.Result is not { } posted || !posted.Findings.Any(f => (f.Status ?? ReviewFindings.Open) == ReviewFindings.Open))
+            {
+                continue;
+            }
+
+            var threads = posted.Findings.Select(f => f.Thread).OfType<int>().ToHashSet();
+            var replied = (await pullRequests.ListCommentsAsync(repo, review.PullRequestId, ct).ConfigureAwait(false))
+                .Any(c => threads.Contains(c.ThreadId) && (posted.RepliesSeenUntil is not { } seen || c.PublishedAt > seen));
+            if (pr.SourceCommit != review.HeadCommit || replied)
+            {
+                await ContinueAsync(review, pr.SourceCommit != review.HeadCommit ? "new commits" : "new replies", null, ct).ConfigureAwait(false);
+            }
+        }
+    }
+
+    private bool Busy(long reviewId)
+    {
+        if (!_queues.TryGetValue(reviewId, out var queue))
+        {
+            return false;
+        }
+
+        lock (queue)
+        {
+            return queue.Running || queue.Prompts.Count > 0;
+        }
+    }
+
+    /// <summary>"review again", "recheck", "check again": ask for the review to continue.</summary>
+    public static bool IsAgain(string text) =>
+        text.Trim().TrimEnd('.', '!', '?').ToLowerInvariant() is "review again" or "recheck" or "re-check" or "check again" or "review" or "again";
+
+    /// <summary>
+    /// Continue a review: once posted, a re-check of its findings against the PR's head and the replies on their threads;
+    /// before that, another look at the latest head.
+    /// </summary>
+    public async Task ContinueAsync(Review review, string author, string? instructions, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(review);
+        var also = string.IsNullOrWhiteSpace(instructions) ? string.Empty : $"\n\nInstructions from {author}: {instructions}";
+        if (review.Status != ReviewStatus.Posted || review.Result is not { Findings.Count: > 0 } posted)
+        {
+            await PostAsync(review, new OutboundMessage(MessageKind.Info, $"🔄 {author} asked for this review again: looking at the latest commits."), ct).ConfigureAwait(false);
+            Enqueue(review.Id, $"(agentd) {author} asked you to review the PR again at its latest head. Send the updated review-findings block.{also}");
+            return;
+        }
+
+        await PostAsync(review, new OutboundMessage(MessageKind.Info, $"🔄 Re-checking the posted findings ({author})…"), ct).ConfigureAwait(false);
+        Enqueue(review.Id, await RecheckPromptAsync(review, posted, ct).ConfigureAwait(false) + also);
+    }
+
+    /// <summary>The posted findings, the commits since the last check, and people's replies on each finding's thread since then.</summary>
+    private async Task<string> RecheckPromptAsync(Review review, ReviewResult posted, CancellationToken ct)
+    {
+        var repo = await repositories.GetAsync(RepositoryName.From(review.Repository), ct).ConfigureAwait(false);
+        var comments = repo is null ? [] : await pullRequests.ListCommentsAsync(repo, review.PullRequestId, ct).ConfigureAwait(false);
+        var fresh = comments.Where(c => posted.RepliesSeenUntil is not { } seen || c.PublishedAt > seen).ToList();
+        if (comments.Count > 0)
+        {
+            await reviews.SaveAsync(review with { Result = posted with { RepliesSeenUntil = comments.Max(c => c.PublishedAt) } }, ct).ConfigureAwait(false);
+        }
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine(CultureInfo.InvariantCulture, $"(agentd) Re-check your posted findings against the PR's current head (they were last checked at {review.HeadCommit}; `git diff {review.HeadCommit}..HEAD` shows what changed).");
+        sb.AppendLine();
+        for (var i = 0; i < posted.Findings.Count; i++)
+        {
+            var f = posted.Findings[i];
+            sb.AppendLine(CultureInfo.InvariantCulture, $"#{i + 1} [{f.Status ?? ReviewFindings.Open}] {f.Title} ({f.File}{(f.Line is { } l ? $":{l}" : string.Empty)})");
+            foreach (var c in fresh.Where(c => c.ThreadId == f.Thread))
+            {
+                sb.AppendLine(CultureInfo.InvariantCulture, $"   reply from {c.Author}: {c.Content.ReplaceLineEndings(" ").Trim()}");
+            }
+        }
+
+        sb.AppendLine();
+        sb.Append("For each finding decide: fixed (the problem is gone in the code: check the code, not just the reply), closed (the author " +
+            "convinced you it isn't a problem: say so briefly) or open (still there: reply only with what is still wrong and where, or null " +
+            "when there's nothing new to say). Add problems the new commits introduce under \"new\" (breaks or performance only). Then end " +
+            "with:\n```review-recheck\n{\"findings\":[{\"n\":1,\"status\":\"fixed\",\"reply\":null}],\"new\":[]}\n```");
+        return sb.ToString();
+    }
+
+    /// <summary>Updates the PR: replies and statuses on each finding's thread, threads for new findings, the main message; then one line in chat.</summary>
+    private async Task ApplyRecheckAsync(Review review, ReviewResult posted, Recheck recheck, CancellationToken ct)
+    {
+        if (await repositories.GetAsync(RepositoryName.From(review.Repository), ct).ConfigureAwait(false) is not { } repo)
+        {
+            return;
+        }
+
+        var at = review.HeadCommit is { Length: > 0 } h ? h[..Math.Min(7, h.Length)] : "the latest head";
+        var findings = posted.Findings.ToList();
+        foreach (var item in recheck.Findings)
+        {
+            var f = findings[item.Number - 1];
+            var was = f.Status ?? ReviewFindings.Open;
+            var (reply, status) = item.Status switch
+            {
+                ReviewFindings.Fixed when was != ReviewFindings.Fixed => ($"✅ Fixed in {at}.", PullRequestThreadStatus.Fixed),
+                ReviewFindings.Closed when was != ReviewFindings.Closed => (string.IsNullOrWhiteSpace(item.Reply) ? "👍 Closing." : item.Reply.Trim(), PullRequestThreadStatus.Closed),
+                ReviewFindings.Open => (string.IsNullOrWhiteSpace(item.Reply) ? null : $"Still open in {at}: {item.Reply.Trim()}", was == ReviewFindings.Open ? (PullRequestThreadStatus?)null : PullRequestThreadStatus.Active),
+                _ => (null, null),
+            };
+            findings[item.Number - 1] = f with { Status = item.Status };
+            if (f.Thread is not { } thread)
+            {
+                continue;
+            }
+
+            try
+            {
+                if (reply is not null)
+                {
+                    await pullRequests.ReplyAsync(repo, review.PullRequestId, thread, reply, ct).ConfigureAwait(false);
+                }
+
+                if (status is { } s)
+                {
+                    await pullRequests.SetThreadStatusAsync(repo, review.PullRequestId, thread, s, ct).ConfigureAwait(false);
+                }
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                LogPostFailed(logger, ex, review.Id);
+            }
+        }
+
+        var added = 0;
+        foreach (var f in recheck.New ?? [])
+        {
+            try
+            {
+                var thread = await pullRequests.CreateThreadAsync(repo, review.PullRequestId, ReviewFindings.ThreadText(f), f.File, f.Line, ct).ConfigureAwait(false);
+                findings.Add(f with { Thread = thread, Status = ReviewFindings.Open });
+                added++;
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                LogPostFailed(logger, ex, review.Id);
+            }
+        }
+
+        var result = posted with { Findings = findings };
+        if (result.MainThread is { } main)
+        {
+            try
+            {
+                await pullRequests.UpdateThreadTextAsync(repo, review.PullRequestId, main, ReviewFindings.MainMessage(result, review.HeadCommit), ct).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                LogPostFailed(logger, ex, review.Id);
+            }
+        }
+
+        var current = await reviews.GetAsync(review.Id, ct).ConfigureAwait(false) ?? review;   // keeps RepliesSeenUntil
+        await reviews.SaveAsync(review with { Result = result with { RepliesSeenUntil = current.Result?.RepliesSeenUntil } }, ct).ConfigureAwait(false);
+        var open = findings.Count(f => (f.Status ?? ReviewFindings.Open) == ReviewFindings.Open);
+        var line = $"🔄 **PR !{review.PullRequestId} re-checked at {at}:** {findings.Count(f => f.Status == ReviewFindings.Fixed)} fixed ✅, {open} open" +
+            $"{(findings.Any(f => f.Status == ReviewFindings.Closed) ? $", {findings.Count(f => f.Status == ReviewFindings.Closed)} closed" : string.Empty)}" +
+            $"{(added > 0 ? $", {added} new" : string.Empty)}.{(open == 0 ? " Everything is resolved 🎉" : string.Empty)}";
+        await PostAsync(review, new OutboundMessage(MessageKind.Result, line), ct).ConfigureAwait(false);
     }
 
     private bool Enqueue(long reviewId, string prompt)
@@ -395,6 +598,31 @@ public sealed partial class ReviewService(
             await reviews.SaveAsync(review, ct).ConfigureAwait(false);
             await PostAsync(review, new OutboundMessage(MessageKind.Info, why), ct).ConfigureAwait(false);
             return;
+        }
+
+        if (review.Status == ReviewStatus.Posted && review.Result is { } posted)
+        {
+            var (said, recheck, wrong) = ReviewFindings.ExtractRecheck(reply.Text, posted.Findings.Count);
+            if (recheck is not null || wrong is not null)
+            {
+                await reviews.SaveAsync(review, ct).ConfigureAwait(false);
+                await reviews.AddMessageAsync(review.Id, "out", "agent", reply.Text, ct).ConfigureAwait(false);
+                if (recheck is not null)
+                {
+                    await ApplyRecheckAsync(review, posted, recheck, ct).ConfigureAwait(false);
+                }
+                else
+                {
+                    Enqueue(review.Id, $"(agentd) Your review-recheck block couldn't be read: {wrong}. Send the corrected block.");
+                }
+
+                if (said.Length > 0)
+                {
+                    await PostAsync(review, new OutboundMessage(MessageKind.Info, said), ct).ConfigureAwait(false);
+                }
+
+                return;
+            }
         }
 
         var (text, result, problem) = ReviewFindings.Extract(reply.Text);

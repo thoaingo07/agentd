@@ -347,6 +347,23 @@ internal sealed class FakePullRequests : IPullRequestService
         Threads.Add((pullRequestId, text, filePath, line));
         return Task.FromResult(100 + Threads.Count);
     }
+
+    /// <summary>The latest text of each thread agentd edited (its main message).</summary>
+    public Dictionary<int, string> Edited { get; } = [];
+
+    public Dictionary<int, PullRequestThreadStatus> ThreadStatus { get; } = [];
+
+    public Task UpdateThreadTextAsync(Repository repository, int pullRequestId, int threadId, string text, CancellationToken cancellationToken)
+    {
+        Edited[threadId] = text;
+        return Task.CompletedTask;
+    }
+
+    public Task SetThreadStatusAsync(Repository repository, int pullRequestId, int threadId, PullRequestThreadStatus status, CancellationToken cancellationToken)
+    {
+        ThreadStatus[threadId] = status;
+        return Task.CompletedTask;
+    }
 }
 
 internal sealed class FakeRunner : IAgentRunner

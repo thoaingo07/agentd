@@ -97,5 +97,20 @@ public sealed class PullRequestReviewTests
         Assert.AreEqual(42, anchored["threadContext"]!["rightFileStart"]!["line"]!.GetValue<int>());
         Assert.IsNull(JsonNode.Parse(ado.Requests[1].Body!)!["threadContext"], "a PR-wide comment");
     }
-}
 
+    [TestMethod]
+    public async Task The_main_message_is_edited_in_place_and_a_thread_is_resolved()
+    {
+        var ado = new FakeAdo()
+            .On(HttpMethod.Patch, PrPath + "/threads/103/comments/1", HttpStatusCode.OK, "{}")
+            .On(HttpMethod.Patch, PrPath + "/threads/101", HttpStatusCode.OK, "{}");
+        var prs = new AzureDevOpsPullRequests(ado.Client());
+
+        await prs.UpdateThreadTextAsync(s_repo, 3935, 103, "**Review** · 1 finding(s): 0 open, 1 fixed", default);
+        await prs.SetThreadStatusAsync(s_repo, 3935, 101, PullRequestThreadStatus.Fixed, default);
+
+        Assert.AreEqual("🤖 agentd: **Review** · 1 finding(s): 0 open, 1 fixed", JsonNode.Parse(ado.Requests[0].Body!)!["content"]!.GetValue<string>(), "still marked as agentd's");
+        Assert.AreEqual(2, JsonNode.Parse(ado.Requests[1].Body!)!["status"]!.GetValue<int>(), "fixed");
+        StringAssert.Contains(ado.Requests[1].Url, "/threads/101?");
+    }
+}

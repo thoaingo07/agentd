@@ -47,4 +47,22 @@ public sealed class ReviewStoreTests
         await using var events = db.CreateCommand("SELECT count(*) FROM agentd.events WHERE type LIKE 'review.%' AND payload::text LIKE '%why is 1%'");
         Assert.AreEqual(0L, (long)(await events.ExecuteScalarAsync())!, "the conversation isn't copied into the event log");
     }
+
+    [TestMethod]
+    public async Task The_latest_review_of_a_pr_is_found()
+    {
+        await using var db = await Database.CreateMigratedAsync("pr_reviews_latest");
+        var store = new ReviewStore(db);
+        var discord = ProviderKey.From("discord");
+        await store.InsertAsync("sysmin", 3935, "First", "tngo", discord, "t-1", null, default);
+        var latest = await store.InsertAsync("sysmin", 3935, "Again", "tngo", discord, "t-2", null, default);
+        await store.InsertAsync("other", 3935, "Same number, other repo", "tngo", discord, "t-3", null, default);
+
+        Assert.AreEqual(latest, (await store.FindLatestAsync("sysmin", 3935, default))!.Id);
+        Assert.IsNull(await store.FindLatestAsync("sysmin", 1, default));
+
+        var posted = (await store.GetAsync(latest, default))! with { Status = ReviewStatus.Posted };
+        await store.SaveAsync(posted, default);
+        CollectionAssert.AreEqual(new[] { latest }, (await store.ListPostedAsync(default)).Select(r => r.Id).ToList(), "only posted reviews are re-checked");
+    }
 }
