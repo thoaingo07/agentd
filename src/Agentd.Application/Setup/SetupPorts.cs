@@ -6,6 +6,9 @@ public interface IConfigWriter
     /// <summary>The value in <c>agentd.json</c>, else the running configuration's.</summary>
     string? Read(string key);
 
+    /// <summary>The names under <paramref name="section"/> (e.g. the profiles under <c>Models:Profiles</c>): agentd.json's when it has the section, else the running configuration's.</summary>
+    IReadOnlyList<string> Children(string section);
+
     /// <summary>Sets (or, for null, removes) the keys in one atomic write.</summary>
     Task SetAsync(IReadOnlyDictionary<string, string?> values, CancellationToken cancellationToken);
 }
@@ -91,6 +94,9 @@ public interface IClaudeProbe
     /// token) or, when it's null, the server's own login.
     /// </summary>
     Task<StepCheck> TestAsync(string? token, CancellationToken cancellationToken);
+
+    /// <summary>The same tiny prompt through another provider's profile (<see cref="Jobs.ModelProfile"/>), never the Claude subscription.</summary>
+    Task<StepCheck> TestProfileAsync(string name, Jobs.ModelProfile profile, CancellationToken cancellationToken);
 }
 
 /// <summary>A Discord bot and the channel agentd works in.</summary>

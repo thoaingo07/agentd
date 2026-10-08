@@ -16,7 +16,7 @@ public sealed class ClaudeCliProbeTests : IDisposable
           --version) echo "2.1.300 (Claude Code)" ;;
           auth) echo '{"loggedIn":true,"authMethod":"claude.ai","subscriptionType":"max"}' ;;
           -p)
-            if [ "$CLAUDE_CODE_OAUTH_TOKEN" = "sk-ant-oat01-good-token-0123456789" ] || { [ -z "$CLAUDE_CODE_OAUTH_TOKEN" ] && [ -f "$dir/logged-in" ]; }; then
+            if [ "$ANTHROPIC_AUTH_TOKEN" = "sk-good-provider-key" ] || [ "$CLAUDE_CODE_OAUTH_TOKEN" = "sk-ant-oat01-good-token-0123456789" ] || { [ -z "$CLAUDE_CODE_OAUTH_TOKEN" ] && [ -f "$dir/logged-in" ]; }; then
               echo '{"result":"agentd-ok"}'
             else
               echo "Invalid bearer token" >&2; exit 1
@@ -109,6 +109,38 @@ public sealed class ClaudeCliProbeTests : IDisposable
         var env = File.ReadAllText(Path.Combine(_dir, "env.txt"));
         Assert.DoesNotContain("daemon-only", env);
         Assert.Contains($"CLAUDE_CODE_OAUTH_TOKEN={GoodToken}", env);
+    }
+
+    [TestMethod]
+    public async Task A_provider_is_tested_with_its_own_endpoint_and_key_and_never_the_subscription()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("The fake CLI is a shell script.");
+        }
+
+        var profile = new Application.Jobs.ModelProfile { BaseUrl = "https://api.deepseek.com/anthropic", Model = "deepseek-flash[1m]", SmallModel = "deepseek-flash", ApiKey = "sk-good-provider-key" };
+        Environment.SetEnvironmentVariable("CLAUDE_CODE_OAUTH_TOKEN", GoodToken);
+        Application.Setup.StepCheck good, bad;
+        try
+        {
+            good = await _probe.TestProfileAsync("deepseek", profile, CancellationToken.None);
+            var env = File.ReadAllText(Path.Combine(_dir, "env.txt"));
+            Assert.Contains("ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic", env);
+            Assert.Contains("ANTHROPIC_MODEL=deepseek-flash[1m]", env);
+            Assert.DoesNotContain("CLAUDE_CODE_OAUTH_TOKEN", env);
+            profile.ApiKey = "sk-wrong";
+            bad = await _probe.TestProfileAsync("deepseek", profile, CancellationToken.None);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("CLAUDE_CODE_OAUTH_TOKEN", null);
+        }
+
+        Assert.IsTrue(good.Ok, good.Message);
+        Assert.Contains("deepseek-flash[1m] answered", good.Message);
+        Assert.IsFalse(bad.Ok);
+        Assert.Contains("API key", bad.Fix!);
     }
 
     [TestMethod]

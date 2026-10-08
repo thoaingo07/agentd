@@ -404,6 +404,100 @@ public sealed class SetupServiceTests
         _config.Values["AzureDevOps:Project"] = "Portal";
     }
 
+    private static readonly ProfileInput s_deepseek = new("DeepSeek", "https://api.deepseek.com/anthropic/", "deepseek-flash[1m]", "deepseek-flash", "sk-SECRET-deepseek");
+
+    [TestMethod]
+    public async Task A_provider_is_saved_with_its_key_as_a_secret()
+    {
+        var result = await Service().SaveProfileAsync(s_deepseek, "setup", CancellationToken.None);
+
+        Assert.IsTrue(result.IsSuccess, result.Error?.Message);
+        Assert.AreEqual("https://api.deepseek.com/anthropic", _config.Values["Models:Profiles:deepseek:BaseUrl"], "a lowercase name, no trailing slash");
+        Assert.AreEqual(("deepseek-flash[1m]", "deepseek-flash", "AnthropicCompatible"),
+            (_config.Values["Models:Profiles:deepseek:Model"], _config.Values["Models:Profiles:deepseek:SmallModel"], _config.Values["Models:Profiles:deepseek:Kind"]));
+        Assert.AreEqual("sk-SECRET-deepseek", _secrets.Values["Models:Profiles:deepseek:ApiKey"]);
+        Assert.IsFalse(_config.Values.ContainsValue("sk-SECRET-deepseek"));
+        var listed = Service().GetModels().Profiles.Single();
+        Assert.AreEqual(("deepseek", true), (listed.Name, listed.ApiKey.Set));
+    }
+
+    [TestMethod]
+    [DataRow("Deep Seek", "https://api.deepseek.com/anthropic", "sk", "name")]
+    [DataRow("deepseek", "http://api.deepseek.com/anthropic", "sk", "https")]
+    [DataRow("deepseek", "https://api.deepseek.com/anthropic", "", "API key")]
+    public async Task A_provider_that_cant_work_is_refused(string name, string url, string key, string expected)
+    {
+        var result = await Service().SaveProfileAsync(new ProfileInput(name, url, "m", null, key), "setup", CancellationToken.None);
+
+        Assert.AreEqual("validation", result.Error?.Code);
+        StringAssert.Contains(result.Error!.Message, expected);
+        Assert.IsEmpty(_config.Values);
+    }
+
+    [TestMethod]
+    public async Task Steps_get_a_model_effort_and_provider_and_empty_values_clear_them()
+    {
+        await Service().SaveProfileAsync(s_deepseek, "setup", CancellationToken.None);
+
+        var result = await Service().SaveStepsAsync(
+        [
+            new StepView("plan", "claude-opus-5-5", "High", null),
+            new StepView("implement", null, null, "deepseek"),
+            new StepView("review", "claude-opus-5-5", "high", " "),
+        ], "setup", CancellationToken.None);
+
+        Assert.IsTrue(result.IsSuccess, result.Error?.Message);
+        Assert.AreEqual("high", _config.Values["Jobs:Steps:plan:Effort"]);
+        Assert.AreEqual("deepseek", _config.Values["Jobs:Steps:implement:Profile"]);
+        Assert.IsNull(_config.Values["Jobs:Steps:implement:Model"], "cleared: the profile's model applies");
+        var steps = Service().GetModels().Steps;
+        CollectionAssert.AreEqual(SetupService.ModelSteps.ToList(), steps.Select(s => s.Step).ToList(), "every step is listed");
+        Assert.AreEqual("deepseek", steps.Single(s => s.Step == "implement").Profile);
+    }
+
+    [TestMethod]
+    [DataRow("review", null, "deepseek", "runs on Claude")]
+    [DataRow("implement", null, "glm", "no provider `glm`")]
+    [DataRow("implement", "ultra", null, "effort level")]
+    [DataRow("deploy", null, null, "isn't a step")]
+    public async Task A_step_that_cant_work_is_refused(string step, string? effort, string? profile, string expected)
+    {
+        await Service().SaveProfileAsync(s_deepseek, "setup", CancellationToken.None);
+
+        var result = await Service().SaveStepsAsync([new StepView(step, null, effort, profile)], "setup", CancellationToken.None);
+
+        StringAssert.Contains(result.Error!.Message, expected);
+    }
+
+    [TestMethod]
+    public async Task A_provider_in_use_isnt_removed_and_one_not_in_use_takes_its_key_along()
+    {
+        await Service().SaveProfileAsync(s_deepseek, "setup", CancellationToken.None);
+        await Service().SaveStepsAsync([new StepView("implement", null, null, "deepseek")], "setup", CancellationToken.None);
+
+        var refused = await Service().RemoveProfileAsync("deepseek", "setup", CancellationToken.None);
+        await Service().SaveStepsAsync([new StepView("implement", null, null, null)], "setup", CancellationToken.None);
+        var removed = await Service().RemoveProfileAsync("deepseek", "setup", CancellationToken.None);
+
+        Assert.AreEqual("conflict", refused.Error?.Code);
+        StringAssert.Contains(refused.Error!.Message, "implement");
+        Assert.IsTrue(removed.IsSuccess);
+        Assert.IsFalse(_secrets.Values.ContainsKey("Models:Profiles:deepseek:ApiKey"));
+    }
+
+    [TestMethod]
+    public async Task Testing_a_provider_uses_its_saved_key_and_never_the_subscription()
+    {
+        await Service().SaveProfileAsync(s_deepseek, "setup", CancellationToken.None);
+
+        var check = await Service().TestProfileAsync(s_deepseek with { ApiKey = null }, CancellationToken.None);
+
+        Assert.IsTrue(check.Ok);
+        var (name, profile) = _claude.Profiles.Single();
+        Assert.AreEqual(("deepseek", "sk-SECRET-deepseek", "deepseek-flash[1m]"), (name, profile.ApiKey, profile.Model));
+        Assert.IsEmpty(_claude.Tested, "not the Claude login test");
+    }
+
     private SetupService Service() => new(_config, _secrets, _audit, _database, _azureDevOps, _gitKey, _claude, _chat, _remote, _link, Options.Create(new JobOptions()), TimeProvider.System);
 
     private sealed class FakeConfig : IConfigWriter
@@ -411,6 +505,9 @@ public sealed class SetupServiceTests
         public Dictionary<string, string?> Values { get; } = new(StringComparer.OrdinalIgnoreCase);
 
         public string? Read(string key) => Values.GetValueOrDefault(key);
+
+        public IReadOnlyList<string> Children(string section) =>
+            [.. Values.Keys.Where(k => k.StartsWith(section + ":", StringComparison.OrdinalIgnoreCase)).Select(k => k[(section.Length + 1)..].Split(':')[0]).Distinct(StringComparer.OrdinalIgnoreCase)];
 
         public Task SetAsync(IReadOnlyDictionary<string, string?> values, CancellationToken cancellationToken)
         {
@@ -513,6 +610,14 @@ public sealed class SetupServiceTests
         {
             Tested.Add(token);
             return Task.FromResult(new StepCheck(true, "answered"));
+        }
+
+        public List<(string Name, ModelProfile Profile)> Profiles { get; } = [];
+
+        public Task<StepCheck> TestProfileAsync(string name, ModelProfile profile, CancellationToken cancellationToken)
+        {
+            Profiles.Add((name, profile));
+            return Task.FromResult(new StepCheck(true, "answered through the profile"));
         }
     }
 

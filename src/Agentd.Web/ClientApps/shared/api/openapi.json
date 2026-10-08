@@ -1778,6 +1778,207 @@
         }
       }
     },
+    "/api/setup/models": {
+      "get": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "GetSetupModels",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelsStepVm"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/setup/models/profiles": {
+      "put": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "SaveSetupModelProfile",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ProfileRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SaveResultVm"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/setup/models/profiles/{name}": {
+      "delete": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "RemoveSetupModelProfile",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SaveResultVm"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/setup/models/profiles/test": {
+      "post": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "TestSetupModelProfile",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ProfileRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StepCheckVm"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/setup/models/steps": {
+      "put": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "SaveSetupModelSteps",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/StepModelVm"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SaveResultVm"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/setup/review": {
       "get": {
         "tags": [
@@ -2951,6 +3152,27 @@
           }
         }
       },
+      "ModelsStepVm": {
+        "required": [
+          "profiles",
+          "steps"
+        ],
+        "type": "object",
+        "properties": {
+          "profiles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProfileVm"
+            }
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StepModelVm"
+            }
+          }
+        }
+      },
       "PermissionAnswerRequest": {
         "required": [
           "choice"
@@ -3068,6 +3290,86 @@
             ]
           }
         }
+      },
+      "ProfileRequest": {
+        "required": [
+          "name",
+          "baseUrl",
+          "model",
+          "smallModel",
+          "apiKey"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "baseUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "model": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "smallModel": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "apiKey": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "A provider (Anthropic-compatible endpoint). An empty \u0060ApiKey\u0060 keeps the saved one."
+      },
+      "ProfileVm": {
+        "required": [
+          "name",
+          "baseUrl",
+          "model",
+          "smallModel",
+          "apiKey"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "baseUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "model": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "smallModel": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "apiKey": {
+            "$ref": "#/components/schemas/SecretStatusVm"
+          }
+        },
+        "description": "Another provider: endpoint and models; the API key as a status only."
       },
       "PullRequestLinkVm": {
         "required": [
@@ -3332,6 +3634,39 @@
           }
         },
         "description": "A step\u0027s \u0022Test\u0022 result; string? StepCheckVm.Fix says what to do when it failed."
+      },
+      "StepModelVm": {
+        "required": [
+          "step",
+          "model",
+          "effort",
+          "profile"
+        ],
+        "type": "object",
+        "properties": {
+          "step": {
+            "type": "string"
+          },
+          "model": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "effort": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "profile": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "One step\u0027s model, effort and provider (empty: the defaults)."
       },
       "UsageVm": {
         "required": [

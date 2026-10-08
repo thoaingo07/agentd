@@ -57,6 +57,22 @@ public sealed record ReviewItem(string Step, string Title, bool Required, StepCh
 /// <summary>Setup is finished: the daemon must restart to use the new settings.</summary>
 public sealed record FinishResult(DateTimeOffset CompletedAt);
 
+/// <summary>Another provider (DeepSeek, …): where it is and which models; the API key's status only.</summary>
+public sealed record ProfileView(string Name, string? BaseUrl, string? Model, string? SmallModel, SecretStatus ApiKey);
+
+/// <summary>One step's model, effort and provider (empty: the defaults).</summary>
+public sealed record StepView(string Step, string? Model, string? Effort, string? Profile);
+
+/// <summary>The models step: the providers, and which runs each step.</summary>
+public sealed record ModelsStep(IReadOnlyList<ProfileView> Profiles, IReadOnlyList<StepView> Steps);
+
+/// <param name="Name">The provider's name in agentd (e.g. <c>deepseek</c>).</param>
+/// <param name="BaseUrl">Its Anthropic-compatible endpoint.</param>
+/// <param name="Model">The model ID at the provider.</param>
+/// <param name="SmallModel">The cheaper model for background tasks; default: <paramref name="Model"/>.</param>
+/// <param name="ApiKey">A new key; null keeps the saved one.</param>
+public sealed record ProfileInput(string Name, string? BaseUrl, string? Model, string? SmallModel, string? ApiKey);
+
 /// <summary>A saved step. The daemon reads these settings at start, so they apply after a restart.</summary>
 public sealed record SaveResult(bool RestartRequired);
 
@@ -517,6 +533,133 @@ public sealed class SetupService(
 
         values[$"Users:{index}:Identities:Discord"] = discordId;
     }
+
+    /// <summary>The steps the models page sets: the job cycle's, then !review and !chat (which run on Claude only).</summary>
+    public static readonly IReadOnlyList<string> ModelSteps = [Jobs.JobSteps.Plan, Jobs.JobSteps.Implement, Jobs.JobSteps.Fix, Jobs.JobSteps.Handoff, Jobs.JobSteps.Review, Jobs.JobSteps.Chat];
+
+    public ModelsStep GetModels() => new(
+        [.. config.Children("Models:Profiles").Order(StringComparer.OrdinalIgnoreCase).Select(Profile)],
+        [.. ModelSteps.Select(step => new StepView(step, config.Read($"Jobs:Steps:{step}:Model"), config.Read($"Jobs:Steps:{step}:Effort"), config.Read($"Jobs:Steps:{step}:Profile")))]);
+
+    /// <summary>Adds or changes a provider (an Anthropic-compatible endpoint). The key is required the first time.</summary>
+    public async Task<Result<SaveResult>> SaveProfileAsync(ProfileInput input, string by, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        var name = input.Name?.Trim().ToLowerInvariant() ?? string.Empty;
+        if (name.Length is 0 or > 32 || !name.All(c => char.IsAsciiLetterLower(c) || char.IsAsciiDigit(c) || c == '-'))
+        {
+            return DomainError.Validation("A provider's name is 1–32 lowercase letters, digits or dashes, e.g. deepseek.");
+        }
+
+        if (!Uri.TryCreate(input.BaseUrl?.Trim(), UriKind.Absolute, out var url) || (url.Scheme != Uri.UriSchemeHttps && !url.IsLoopback))
+        {
+            return DomainError.Validation("The base URL must be https (or http on this machine, for a gateway), e.g. https://api.deepseek.com/anthropic.");
+        }
+
+        var key = $"Models:Profiles:{name}:ApiKey";
+        if (string.IsNullOrWhiteSpace(input.ApiKey) && !secrets.Status(key).Set)
+        {
+            return DomainError.Validation("Enter the provider's API key.");
+        }
+
+        var values = new Dictionary<string, string?>(StringComparer.Ordinal)
+        {
+            [$"Models:Profiles:{name}:Kind"] = Jobs.ModelProfile.AnthropicCompatible,
+            [$"Models:Profiles:{name}:BaseUrl"] = url.ToString().TrimEnd('/'),
+            [$"Models:Profiles:{name}:Model"] = Blank(input.Model),
+            [$"Models:Profiles:{name}:SmallModel"] = Blank(input.SmallModel),
+        };
+        await config.SetAsync(values, cancellationToken).ConfigureAwait(false);
+        var changes = values.Keys.Select(k => Change(k, "config", "set", by)).ToList();
+        if (!string.IsNullOrWhiteSpace(input.ApiKey))
+        {
+            secrets.Store(key, input.ApiKey.Trim(), by);
+            changes.Add(Change(key, "secret", "set", by));
+        }
+
+        await audit.RecordAsync(changes, cancellationToken).ConfigureAwait(false);
+        return new SaveResult(RestartRequired: true);
+    }
+
+    /// <summary>Removes a provider and its key; refused while a step uses it.</summary>
+    public async Task<Result<SaveResult>> RemoveProfileAsync(string name, string by, CancellationToken cancellationToken)
+    {
+        var profile = name?.Trim().ToLowerInvariant() ?? string.Empty;
+        if (GetModels().Steps.FirstOrDefault(s => string.Equals(s.Profile, profile, StringComparison.OrdinalIgnoreCase)) is { } user)
+        {
+            return DomainError.Conflict($"The {user.Step} step uses {profile}: pick another provider for it first.");
+        }
+
+        await config.SetAsync(new Dictionary<string, string?> { [$"Models:Profiles:{profile}"] = null }, cancellationToken).ConfigureAwait(false);
+        var removed = secrets.Remove($"Models:Profiles:{profile}:ApiKey");
+        await audit.RecordAsync([Change($"Models:Profiles:{profile}", "config", "removed", by), .. removed ? [Change($"Models:Profiles:{profile}:ApiKey", "secret", "removed", by)] : Array.Empty<SettingsChange>()], cancellationToken).ConfigureAwait(false);
+        return new SaveResult(RestartRequired: true);
+    }
+
+    /// <summary>A tiny prompt through the given provider (an empty key: the saved one). Nothing is saved.</summary>
+    public async Task<StepCheck> TestProfileAsync(ProfileInput input, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        var name = input.Name?.Trim().ToLowerInvariant() ?? "profile";
+        var apiKey = string.IsNullOrWhiteSpace(input.ApiKey) ? secrets.TryGet($"Models:Profiles:{name}:ApiKey") : input.ApiKey.Trim();
+        if (!Uri.TryCreate(input.BaseUrl?.Trim(), UriKind.Absolute, out _) || apiKey is null)
+        {
+            return new StepCheck(false, "Enter the base URL and the API key first.", "copy them from the provider's Claude Code guide");
+        }
+
+        var profile = new Jobs.ModelProfile { BaseUrl = input.BaseUrl!.Trim(), Model = Blank(input.Model), SmallModel = Blank(input.SmallModel), ApiKey = apiKey };
+        return await claude.TestProfileAsync(name, profile, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Sets each step's model, effort and provider (empty values clear them, so the defaults apply).</summary>
+    public async Task<Result<SaveResult>> SaveStepsAsync(IReadOnlyList<StepView> steps, string by, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(steps);
+        var profiles = config.Children("Models:Profiles").ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var values = new Dictionary<string, string?>(StringComparer.Ordinal);
+        foreach (var s in steps)
+        {
+            var step = s.Step?.Trim().ToLowerInvariant() ?? string.Empty;
+            if (!ModelSteps.Contains(step))
+            {
+                return DomainError.Validation($"`{s.Step}` isn't a step ({string.Join(", ", ModelSteps)}).");
+            }
+
+            if (Blank(s.Effort) is { } effort && !BrainstormSettingsEfforts.Contains(effort.ToLowerInvariant()))
+            {
+                return DomainError.Validation($"`{effort}` isn't an effort level ({string.Join(", ", BrainstormSettingsEfforts)}).");
+            }
+
+            if (Blank(s.Profile) is { } profile)
+            {
+                if (step is Jobs.JobSteps.Review or Jobs.JobSteps.Chat)
+                {
+                    return DomainError.Validation($"The {step} step runs on Claude for now: leave its provider empty.");
+                }
+
+                if (!profiles.Contains(profile))
+                {
+                    return DomainError.Validation($"There's no provider `{profile}`: add it first.");
+                }
+            }
+
+            values[$"Jobs:Steps:{step}:Model"] = Blank(s.Model);
+            values[$"Jobs:Steps:{step}:Effort"] = Blank(s.Effort)?.ToLowerInvariant();
+            values[$"Jobs:Steps:{step}:Profile"] = Blank(s.Profile)?.ToLowerInvariant();
+        }
+
+        await config.SetAsync(values, cancellationToken).ConfigureAwait(false);
+        await audit.RecordAsync([.. values.Keys.Select(k => Change(k, "config", "set", by))], cancellationToken).ConfigureAwait(false);
+        return new SaveResult(RestartRequired: true);
+    }
+
+    private static readonly string[] BrainstormSettingsEfforts = ["low", "medium", "high", "xhigh", "max"];
+
+    private ProfileView Profile(string name) => new(
+        name, config.Read($"Models:Profiles:{name}:BaseUrl"), config.Read($"Models:Profiles:{name}:Model"), config.Read($"Models:Profiles:{name}:SmallModel"),
+        secrets.Status($"Models:Profiles:{name}:ApiKey"));
+
+    private static string? Blank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     /// <summary>"https://dev.azure.com/myorg/", "https://myorg.visualstudio.com" or "myorg" → "myorg".</summary>
     public static string? OrganizationName(string? value)

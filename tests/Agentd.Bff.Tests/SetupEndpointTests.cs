@@ -47,6 +47,33 @@ public sealed class SetupEndpointTests : IDisposable
     }
 
     [TestMethod]
+    public async Task A_providers_key_goes_in_but_never_comes_back_out()
+    {
+        await using var app = await StartAsync();
+        var client = await SetupClient.SignInAsync(app);
+        var deepseek = new { name = "deepseek", baseUrl = "https://api.deepseek.com/anthropic", model = "deepseek-flash[1m]", smallModel = "deepseek-flash", apiKey = "sk-SECRET-deepseek" };
+
+        using var save = await client.SendAsync(HttpMethod.Put, "/api/setup/models/profiles", deepseek);
+        using var test = await client.SendAsync(HttpMethod.Post, "/api/setup/models/profiles/test", new { deepseek.name, deepseek.baseUrl, deepseek.model, deepseek.smallModel });
+        using var steps = await client.SendAsync(HttpMethod.Put, "/api/setup/models/steps", new[] { new { step = "implement", profile = "deepseek" } });
+        using var inUse = await client.SendAsync(HttpMethod.Delete, "/api/setup/models/profiles/deepseek");
+        using var get = await client.SendAsync(HttpMethod.Get, "/api/setup/models");
+
+        foreach (var response in new[] { save, test, steps, get })
+        {
+            var body = await response.Content.ReadAsStringAsync();
+            Assert.AreEqual(HttpStatusCode.OK, response.StatusCode, body);
+            Assert.DoesNotContain("SECRET", body);
+        }
+
+        Assert.AreEqual(HttpStatusCode.Conflict, inUse.StatusCode);
+        Assert.AreEqual("sk-SECRET-deepseek", _secrets["Models:Profiles:deepseek:ApiKey"]);
+        var models = JsonDocument.Parse(await get.Content.ReadAsStringAsync()).RootElement;
+        Assert.IsTrue(models.GetProperty("profiles")[0].GetProperty("apiKey").GetProperty("set").GetBoolean());
+        Assert.AreEqual("deepseek", models.GetProperty("steps").EnumerateArray().Single(s => s.GetProperty("step").GetString() == "implement").GetProperty("profile").GetString());
+    }
+
+    [TestMethod]
     public async Task Every_step_needs_the_setup_session()
     {
         await using var app = await StartAsync();
@@ -275,6 +302,9 @@ public sealed class SetupEndpointTests : IDisposable
     {
         public string? Read(string key) => values.GetValueOrDefault(key);
 
+        public IReadOnlyList<string> Children(string section) =>
+            [.. values.Keys.Where(k => k.StartsWith(section + ":", StringComparison.OrdinalIgnoreCase)).Select(k => k[(section.Length + 1)..].Split(':')[0]).Distinct(StringComparer.OrdinalIgnoreCase)];
+
         public Task SetAsync(IReadOnlyDictionary<string, string?> changes, CancellationToken cancellationToken)
         {
             foreach (var (k, v) in changes)
@@ -339,6 +369,8 @@ public sealed class SetupEndpointTests : IDisposable
         public Task<ClaudeLogin> StatusAsync(CancellationToken cancellationToken) => Task.FromResult(new ClaudeLogin(true, "2.1.300", true, "claude.ai", "max"));
 
         public Task<StepCheck> TestAsync(string? token, CancellationToken cancellationToken) => Task.FromResult(new StepCheck(true, "answered"));
+
+        public Task<StepCheck> TestProfileAsync(string name, Agentd.Application.Jobs.ModelProfile profile, CancellationToken cancellationToken) => Task.FromResult(new StepCheck(true, "answered"));
     }
 
     private sealed class OkChat : IChatProbe

@@ -27,6 +27,17 @@ internal sealed class AgentdJsonFile(ConfigHome home, IConfiguration? configurat
         return configuration?[$"{Options.AgentdOptions.Section}:{key}"];
     }
 
+    public IReadOnlyList<string> Children(string section)
+    {
+        ArgumentNullException.ThrowIfNull(section);
+        if (Find(Load(), section.Split(':')) is JsonObject node)
+        {
+            return [.. node.Select(p => p.Key)];
+        }
+
+        return configuration is null ? [] : [.. configuration.GetSection($"{Options.AgentdOptions.Section}:{section}").GetChildren().Select(c => c.Key)];
+    }
+
     public async Task SetAsync(IReadOnlyDictionary<string, string?> values, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(values);

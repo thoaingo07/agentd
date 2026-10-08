@@ -182,6 +182,8 @@ public sealed class InitCommandTests : IDisposable
         Task<StepCheck> IClaudeProbe.TestAsync(string? token, CancellationToken cancellationToken) =>
             Task.FromResult(ClaudeFails ? new StepCheck(false, "The test prompt failed.", "claude auth login") : new StepCheck(true, "Claude answered."));
 
+        public Task<StepCheck> TestProfileAsync(string name, ModelProfile profile, CancellationToken cancellationToken) => Task.FromResult(new StepCheck(true, "Answered."));
+
         public Task<StepCheck> TestAsync(ChatConnection connection, CancellationToken cancellationToken) => Task.FromResult(new StepCheck(true, "Posted."));
 
         public Task<string> GetDefaultBranchAsync(string remoteUrl, CancellationToken cancellationToken) => Task.FromResult("develop");
