@@ -17,6 +17,20 @@ public sealed class JobSessionStore(NpgsqlDataSource dataSource) : IJobSessions,
         return (reader.GetGuid(0), reader.GetBoolean(1));
     }
 
+    public async Task<IReadOnlyList<string>> ProfilesAsync(JobId job, CancellationToken cancellationToken)
+    {
+        await using var cmd = dataSource.CreateCommand("SELECT * FROM agentd.job_session_profiles($1)");
+        cmd.Parameters.Add(P(job.Value, NpgsqlDbType.Bigint));
+        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        var profiles = new List<string>();
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            profiles.Add(reader.GetString(0));
+        }
+
+        return profiles;
+    }
+
     public async Task SaveAsync(JobId job, string plan, DateTimeOffset submittedAt, CancellationToken cancellationToken)
     {
         await using var cmd = dataSource.CreateCommand("SELECT agentd.job_plan_save($1, $2, $3)");

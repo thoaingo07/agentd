@@ -19,8 +19,9 @@ public static class ClaudeArgs
             "--max-turns", options.MaxTurns.ToString(CultureInfo.InvariantCulture),
             "--append-system-prompt", options.SystemPromptRules,
         };
-        // The step's model (Agentd:Jobs:Steps) over the default (Agentd:Claude:Model); the session itself stays the same.
-        if ((request.Model ?? options.Model) is { Length: > 0 } model)
+        // The step's model (Agentd:Jobs:Steps) over the default (Agentd:Claude:Model). On another provider's profile the
+        // default is the profile's own (ANTHROPIC_MODEL), never a Claude model name.
+        if ((request.Model ?? (request.Profile is null ? options.Model : null)) is { Length: > 0 } model)
         {
             args.Add("--model");
             args.Add(model);

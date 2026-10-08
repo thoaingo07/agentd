@@ -28,3 +28,9 @@ CREATE OR REPLACE FUNCTION agentd.job_plan_get(p_job_id bigint)
 RETURNS text
 LANGUAGE sql STABLE
 AS $$ SELECT plan FROM agentd.job_plans WHERE job_id = p_job_id $$;
+
+-- The profiles that have a session for the job.
+CREATE OR REPLACE FUNCTION agentd.job_session_profiles(p_job_id bigint)
+RETURNS SETOF text
+LANGUAGE sql STABLE
+AS $$ SELECT profile FROM agentd.job_sessions WHERE job_id = p_job_id ORDER BY created_at, profile $$;

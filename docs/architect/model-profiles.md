@@ -143,6 +143,17 @@ Each profile has these properties:
 > - The turn builders name each turn's step (`JobSteps.Of`), and the dispatcher fills in that step's model and effort
 >   just before the runner starts it (`JobSteps.Apply`). The session stays the same: `--resume … --model`.
 > - The setting is runner-neutral, so Phase 6 can replace it with `PhaseRouting` without touching the turn builders.
+>
+> **And other providers (2026-10-07, DeepSeek first):**
+> - `Agentd:Models:Profiles:<name>` (only `Kind: AnthropicCompatible` for now) plus `Jobs:Steps:<step>:Profile`.
+> - `ModelsOptionsValidator` fails startup on a missing key, a non-https URL, an unknown kind or an unknown profile.
+> - `ProfileEnvironment` sets `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_MODEL`, the default Opus/Sonnet/Haiku
+>   models and `CLAUDE_CODE_SUBAGENT_MODEL` (as DeepSeek's Claude Code guide lists them), plus the profile's own
+>   `CLAUDE_CONFIG_DIR`. It removes the subscription token.
+> - `ProfileSessions` implements §4: each profile has its own session per job, started with a handoff and resumed
+>   after that. The job's own session is recorded as profile `default`; a session that missed turns gets a catch-up
+>   note.
+> - Still Phase 6: fallback, breakers, budgets, cost, and the Codex/Gemini runners.
 
 
 ```jsonc

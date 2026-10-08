@@ -28,11 +28,13 @@ public sealed partial class JobDispatcher : IDisposable
     private readonly Channel<bool> _wake = Channel.CreateBounded<bool>(new BoundedChannelOptions(1) { FullMode = BoundedChannelFullMode.DropWrite });
     private volatile bool _stopping;
     private readonly IOptionsMonitor<JobOptions>? _jobs;
+    private readonly ProfileSessions? _profiles;
 
-    public JobDispatcher(IServiceScopeFactory scopes, IAgentRunner runner, IOptions<SchedulerOptions> options, ILogger<JobDispatcher> logger, IOptionsMonitor<JobOptions>? jobs = null)
+    public JobDispatcher(IServiceScopeFactory scopes, IAgentRunner runner, IOptions<SchedulerOptions> options, ILogger<JobDispatcher> logger, IOptionsMonitor<JobOptions>? jobs = null, ProfileSessions? profiles = null)
     {
         ArgumentNullException.ThrowIfNull(options);
         _jobs = jobs;
+        _profiles = profiles;
         _scopes = scopes;
         _runner = runner;
         _options = options.Value;
@@ -163,8 +165,15 @@ public sealed partial class JobDispatcher : IDisposable
             AgentRunOutcome outcome;
             try
             {
-                // Each step of the cycle may run on its own model (Agentd:Jobs:Steps), read when the turn starts.
-                outcome = await _runner.RunAsync(JobSteps.Apply(request, _jobs?.CurrentValue), _runs.Token).ConfigureAwait(false);
+                // Each step of the cycle may run on its own model or profile (Agentd:Jobs:Steps), read when the turn starts;
+                // a profile's turn runs in that profile's own session.
+                var turn = JobSteps.Apply(request, _jobs?.CurrentValue);
+                if (_profiles is not null)
+                {
+                    turn = await _profiles.ApplyAsync(turn, _runs.Token).ConfigureAwait(false);
+                }
+
+                outcome = await _runner.RunAsync(turn, _runs.Token).ConfigureAwait(false);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
