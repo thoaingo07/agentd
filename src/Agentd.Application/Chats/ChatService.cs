@@ -23,7 +23,8 @@ public sealed partial class ChatService(
     IBrainstormAgent agent,
     IMessagingProviderRegistry providers,
     ILogger<ChatService> logger,
-    IOptions<Jobs.JobOptions>? jobs = null) : IDisposable
+    IOptions<Jobs.JobOptions>? jobs = null,
+    IMcpTokenIssuer? tokens = null) : IDisposable
 {
     public const int MaxConcurrentChats = 2;
 
@@ -101,6 +102,7 @@ public sealed partial class ChatService(
 
     private async Task CloseAsync(Chat chat, string author, CancellationToken ct)
     {
+        tokens?.RevokeChat(chat.Id);
         await chats.SaveAsync(chat with { Status = ChatStatus.Closed, Worktrees = [] }, ct).ConfigureAwait(false);
         await PostAsync(chat, new OutboundMessage(MessageKind.Info, $"🧹 Chat closed by {author}. The conversation is kept; `!chat <question>` starts a new one."), ct).ConfigureAwait(false);
         foreach (var (repo, worktree) in chat.Repositories.Zip(chat.Worktrees))
@@ -205,7 +207,9 @@ public sealed partial class ChatService(
         }
 
         var session = chat.Session ?? Guid.NewGuid();
-        var reply = await agent.RunAsync(new BrainstormTurn(chat.Id, paths[0], session, chat.Session is not null, prompt, chat.Model, chat.Effort, ThreadTurnKind.Chat, [.. paths.Skip(1)]), ct).ConfigureAwait(false);
+        // The chat's token lets the agent call agentd's read-only Azure DevOps tools (agentd answers with its own credentials).
+        var reply = await agent.RunAsync(new BrainstormTurn(chat.Id, paths[0], session, chat.Session is not null, prompt, chat.Model, chat.Effort, ThreadTurnKind.Chat,
+            [.. paths.Skip(1)], tokens?.IssueChat(chat.Id)), ct).ConfigureAwait(false);
         chat = chat with { Session = session, Worktrees = paths };
         await chats.SaveAsync(chat, ct).ConfigureAwait(false);
         if (reply.UsageLimitedUntil is { } until || reply.Text is null)

@@ -104,4 +104,20 @@ public sealed class ClaudeOptionsTests
         CollectionAssert.AreEqual(new[] { "/wt/portal/chat-1", "/wt/api/chat-1" }, dirs);
         CollectionAssert.Contains(args, "Edit,Write,MultiEdit,NotebookEdit", "read-only");
     }
+
+    [TestMethod]
+    public void Only_a_turn_with_a_token_gets_agentds_tools()
+    {
+        var chat = new Agentd.Application.Ideas.BrainstormTurn(1, "/wt", Guid.NewGuid(), false, "q", Kind: Agentd.Application.Ideas.ThreadTurnKind.Chat, McpToken: "chat-token");
+        var idea = new Agentd.Application.Ideas.BrainstormTurn(1, "/wt", Guid.NewGuid(), false, "q");
+
+        var withTools = ClaudeBrainstormAgent.Args(chat, new ClaudeOptions(), "/logs/chat-1/mcp.json").ToList();
+        var without = ClaudeBrainstormAgent.Args(idea, new ClaudeOptions(), null).ToList();
+
+        Assert.AreEqual("/logs/chat-1/mcp.json", withTools[withTools.IndexOf("--mcp-config") + 1]);
+        StringAssert.Contains(withTools[withTools.IndexOf("--allowedTools") + 1], "mcp__agentd");
+        CollectionAssert.Contains(withTools, "--strict-mcp-config", "only agentd's server, never the user's");
+        CollectionAssert.DoesNotContain(without, "--mcp-config");
+        Assert.DoesNotContain("mcp__", without[without.IndexOf("--allowedTools") + 1]);
+    }
 }

@@ -49,7 +49,9 @@ public sealed class ChatServiceTests
         Assert.AreEqual(("kelvin: and who calls it?", true), (h.Agent.Turns[1].Prompt, h.Agent.Turns[1].Resume));
         Assert.AreEqual(h.Agent.Turns[0].Session, h.Agent.Turns[1].Session);
 
+        Assert.AreEqual("chat-token-1", h.Agent.Turns[0].McpToken, "the chat's own token for agentd's Azure DevOps tools");
         Assert.IsTrue(await h.Service.HandleMessageAsync(h.Store.Rows[1], "tngo", "close", default));
+        CollectionAssert.AreEqual(new[] { 1L }, h.Tokens.Revoked, "closing revokes it");
         Assert.AreEqual(ChatStatus.Closed, h.Store.Rows[1].Status);
         Assert.HasCount(2, h.Worktrees.Removed, "both checkouts are removed");
         StringAssert.Contains(h.Chat.SentText.Last(), "Chat closed by tngo");
@@ -81,7 +83,7 @@ public sealed class ChatServiceTests
             Registry.Repositories.Add(new Repository(RepositoryName.From("portal"), "git@erm-azdo:v3/ermsystem/Portal/portal", new AzureDevOpsRepo("ermsystem", "Portal", "portal"), "main", "repo:portal", []));
             var jobs = new JobOptions();
             jobs.Steps[JobSteps.Chat] = new StepModel { Model = "claude-opus-5-5", Effort = "High" };
-            Service = new ChatService(Store, Registry, Worktrees, Agent, new MessagingProviderRegistry([Chat], options), NullLogger<ChatService>.Instance, Microsoft.Extensions.Options.Options.Create(jobs));
+            Service = new ChatService(Store, Registry, Worktrees, Agent, new MessagingProviderRegistry([Chat], options), NullLogger<ChatService>.Instance, Microsoft.Extensions.Options.Options.Create(jobs), Tokens);
         }
 
         public FakeChat Chat { get; } = new("discord");
@@ -95,6 +97,8 @@ public sealed class ChatServiceTests
         public Store Store { get; } = new();
 
         public ChatService Service { get; }
+
+        public Tokens Tokens { get; } = new();
 
         public async Task WaitForSentAsync(int count)
         {
@@ -118,6 +122,25 @@ public sealed class ChatServiceTests
             Turns.Add(turn);
             return Task.FromResult(new BrainstormReply(Replies.TryDequeue(out var r) ? r : "…", null, null));
         }
+    }
+
+    private sealed class Tokens : Ports.IMcpTokenIssuer
+    {
+        public List<long> Revoked { get; } = [];
+
+        public string Issue(JobId jobId) => throw new NotSupportedException();
+
+        public JobId? Validate(string token) => null;
+
+        public void Revoke(JobId jobId)
+        {
+        }
+
+        public string IssueChat(long chatId) => $"chat-token-{chatId}";
+
+        public long? ValidateChat(string token) => null;
+
+        public void RevokeChat(long chatId) => Revoked.Add(chatId);
     }
 
     private sealed class Store : IChatStore

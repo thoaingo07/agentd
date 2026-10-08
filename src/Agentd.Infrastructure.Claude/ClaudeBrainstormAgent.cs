@@ -69,11 +69,13 @@ public sealed class ClaudeBrainstormAgent(IOptions<ClaudeOptions> options) : IBr
         "You are agentd's assistant in a chat thread, answering a developer's questions about the team's repositories. Your working " +
         "directory and the added directories are read-only checkouts of each repository's base branch (the first prompt lists them). " +
         "Read and search them (Read, Grep, Glob, git log/show/blame) and answer from what you find: name the files and lines " +
-        "(`path:line`) so the developer can check. Never edit, build, commit or push. If the answer isn't in the code, say so plainly " +
+        "(`path:line`) so the developer can check. For Azure DevOps use agentd's tools: ado_search_work_items, ado_get_work_item, " +
+        "ado_list_pull_requests, ado_get_pull_request (read-only; link items as #id and PRs as !id). Never edit, build, commit or push. If the " +
+        "answer isn't in the code or Azure DevOps, say so plainly " +
         "instead of guessing. Keep answers short (under ~250 words) unless asked for detail, in the developer's language. When " +
         "something should become work, suggest `!idea <text>` (to shape work items) or `!run <work item id>`.";
 
-    public static IReadOnlyList<string> Args(BrainstormTurn turn, ClaudeOptions o)
+    public static IReadOnlyList<string> Args(BrainstormTurn turn, ClaudeOptions o, string? mcpConfig = null)
     {
         ArgumentNullException.ThrowIfNull(turn);
         ArgumentNullException.ThrowIfNull(o);
@@ -85,7 +87,8 @@ public sealed class ClaudeBrainstormAgent(IOptions<ClaudeOptions> options) : IBr
             "--max-turns", MaxTurns.ToString(CultureInfo.InvariantCulture),
             "--append-system-prompt", turn.Kind switch { ThreadTurnKind.Review => ReviewRules, ThreadTurnKind.FollowUp => FollowUpRules, ThreadTurnKind.Chat => ChatRules, _ => Rules },
             "--strict-mcp-config",
-            "--allowedTools", string.Join(",", o.ReadOnlyTools.Where(t => !t.StartsWith("mcp__", StringComparison.Ordinal))),
+            // agentd's tools only for a turn that brings its own token (a chat); the rest run with no MCP at all.
+            "--allowedTools", string.Join(",", o.ReadOnlyTools.Where(t => turn.McpToken is not null || !t.StartsWith("mcp__", StringComparison.Ordinal))),
             "--disallowedTools", "Edit,Write,MultiEdit,NotebookEdit",
         };
         if ((turn.Model ?? o.Model) is { Length: > 0 } model)
@@ -96,6 +99,11 @@ public sealed class ClaudeBrainstormAgent(IOptions<ClaudeOptions> options) : IBr
         if (turn.Effort is { Length: > 0 } effort)
         {
             args.AddRange(["--effort", effort]);
+        }
+
+        if (turn.McpToken is not null && mcpConfig is { } config)
+        {
+            args.AddRange(["--mcp-config", config]);
         }
 
         // One flag per directory: --add-dir takes a list and would swallow what follows.
@@ -123,7 +131,7 @@ public sealed class ClaudeBrainstormAgent(IOptions<ClaudeOptions> options) : IBr
             StandardOutputEncoding = Encoding.UTF8,
             StandardErrorEncoding = Encoding.UTF8,
         };
-        foreach (var arg in Args(turn, o))
+        foreach (var arg in Args(turn, o, WriteMcpConfig(turn, dir, o)))
         {
             psi.ArgumentList.Add(arg);
         }
@@ -177,6 +185,36 @@ public sealed class ClaudeBrainstormAgent(IOptions<ClaudeOptions> options) : IBr
         return !failed && !string.IsNullOrWhiteSpace(result)
             ? new BrainstormReply(result, null, null)
             : new BrainstormReply(null, null, failed ? $"the agent stopped with an error{(result is null ? string.Empty : ": " + result)}" : error.Length > 0 ? error[..Math.Min(200, error.Length)] : $"exit code {process.ExitCode}");
+    }
+
+    /// <summary>A chat's agentd MCP server, with its bearer token (0600, like a job's).</summary>
+    private static string? WriteMcpConfig(BrainstormTurn turn, string dir, ClaudeOptions o)
+    {
+        if (turn.McpToken is null || string.IsNullOrWhiteSpace(o.McpUrl))
+        {
+            return null;
+        }
+
+        var path = Path.Combine(dir, "mcp.json");
+        var config = new System.Text.Json.Nodes.JsonObject
+        {
+            ["mcpServers"] = new System.Text.Json.Nodes.JsonObject
+            {
+                ["agentd"] = new System.Text.Json.Nodes.JsonObject
+                {
+                    ["type"] = "http",
+                    ["url"] = o.McpUrl,
+                    ["headers"] = new System.Text.Json.Nodes.JsonObject { ["Authorization"] = "Bearer " + turn.McpToken },
+                },
+            },
+        };
+        File.WriteAllText(path, config.ToJsonString());
+        if (!OperatingSystem.IsWindows())
+        {
+            File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+        }
+
+        return path;
     }
 
     private static void TryKill(Process process)

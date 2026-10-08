@@ -26,7 +26,8 @@ public static class DependencyInjection
             .ConfigurePrimaryHttpMessageHandler(NoRedirects)
             .AddHttpMessageHandler<AdoAuthHandler>()
             .AddTypedClient<IWorkItemSource, AzureDevOpsWorkItemSource>()
-            .AddTypedClient<IPullRequestService, AzureDevOpsPullRequests>();
+            .AddTypedClient<IPullRequestService, AzureDevOpsPullRequests>()
+            .AddTypedClient<IAzureDevOpsSearch, AzureDevOpsSearch>();
         return services;
 
         static HttpMessageHandler NoRedirects() => new SocketsHttpHandler { AllowAutoRedirect = false };

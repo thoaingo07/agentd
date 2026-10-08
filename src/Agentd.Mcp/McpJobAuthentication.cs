@@ -7,7 +7,10 @@ using Microsoft.Extensions.Options;
 
 namespace Agentd.Mcp;
 
-/// <summary>Authenticates <c>/mcp</c> requests by per-job bearer token. No cookies; the job id comes only from the token.</summary>
+/// <summary>
+/// Authenticates <c>/mcp</c> requests by bearer token: a job's (the job tools) or a chat's (the read-only chat tools).
+/// No cookies; the job or chat id comes only from the token.
+/// </summary>
 public sealed class McpJobAuthenticationHandler(
     IOptionsMonitor<AuthenticationSchemeOptions> options,
     ILoggerFactory logger,
@@ -16,6 +19,7 @@ public sealed class McpJobAuthenticationHandler(
 {
     public const string SchemeName = "McpJob";
     public const string JobIdClaim = "agentd:job_id";
+    public const string ChatIdClaim = "agentd:chat_id";
 
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
@@ -25,12 +29,16 @@ public sealed class McpJobAuthenticationHandler(
             return Task.FromResult(AuthenticateResult.NoResult());
         }
 
-        if (tokens.Validate(header["Bearer ".Length..].Trim()) is not { } jobId)
+        var token = header["Bearer ".Length..].Trim();
+        Claim? claim = tokens.Validate(token) is { } jobId ? new Claim(JobIdClaim, jobId.ToString())
+            : tokens.ValidateChat(token) is { } chatId ? new Claim(ChatIdClaim, chatId.ToString(System.Globalization.CultureInfo.InvariantCulture))
+            : null;
+        if (claim is null)
         {
             return Task.FromResult(AuthenticateResult.Fail("Invalid or expired agent token."));
         }
 
-        var identity = new ClaimsIdentity([new Claim(JobIdClaim, jobId.ToString())], SchemeName);
+        var identity = new ClaimsIdentity([claim], SchemeName);
         return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(identity), SchemeName)));
     }
 }

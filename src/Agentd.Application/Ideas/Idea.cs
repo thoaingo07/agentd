@@ -77,7 +77,8 @@ public interface IIdeaStore
 /// </summary>
 public sealed record BrainstormTurn(
     long IdeaId, string Worktree, Guid Session, bool Resume, string Prompt, string? Model = null, string? Effort = null, ThreadTurnKind Kind = ThreadTurnKind.Brainstorm,
-    IReadOnlyList<string>? AddDirs = null);
+    IReadOnlyList<string>? AddDirs = null,
+    string? McpToken = null);
 
 /// <summary>What a read-only thread turn is for: it picks the agent's instructions and where its transcript goes.</summary>
 public enum ThreadTurnKind

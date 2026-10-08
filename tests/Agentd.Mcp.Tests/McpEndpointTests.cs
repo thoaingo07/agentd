@@ -74,6 +74,58 @@ public sealed class McpEndpointTests
     }
 
     [TestMethod]
+    public async Task A_chat_sees_only_the_read_only_azure_devops_tools_and_a_job_never_does()
+    {
+        await using var host = await McpTestHost.StartAsync();
+        await using var chat = await host.ClientAsync(host.Tokens.IssueChat(7));
+        await using var job = await host.ClientAsync(host.Tokens.Issue(new JobId(1)));
+
+        var chatTools = (await chat.ListToolsAsync()).Select(t => t.Name).ToList();
+        var jobTools = (await job.ListToolsAsync()).Select(t => t.Name).ToList();
+
+        CollectionAssert.AreEquivalent(new[] { "ado_search_work_items", "ado_get_work_item", "ado_list_pull_requests", "ado_get_pull_request" }, chatTools);
+        Assert.IsFalse(jobTools.Any(t => t.StartsWith("ado_", StringComparison.Ordinal)), "a job agent gets no chat tools");
+    }
+
+    [TestMethod]
+    public async Task A_chat_token_cant_call_a_job_tool_but_can_search()
+    {
+        await using var host = await McpTestHost.StartAsync();
+        await using var chat = await host.ClientAsync(host.Tokens.IssueChat(7));
+
+        var finish = await Task.Run(async () =>
+        {
+            try
+            {
+                var r = await chat.CallToolAsync("finish", Args(("prTitle", "T"), ("prDescription", "D"), ("summary", "S")));
+                return r.IsError == true ? "refused" : "ran";
+            }
+            catch (McpException)
+            {
+                return "refused";
+            }
+        });
+        var search = await chat.CallToolAsync("ado_search_work_items", Args(("state", "Active")));
+
+        Assert.AreEqual("refused", finish, "a chat can't finish (or touch) a job");
+        StringAssert.Contains(((TextContentBlock)search.Content[0]).Text, "#5617 [User Story] Active · Deploy to AKS (Active) · Dev One · tags: ai-workflow");
+    }
+
+    [TestMethod]
+    public async Task Chat_and_job_tokens_dont_open_each_others_doors()
+    {
+        await using var host = await McpTestHost.StartAsync();
+        var chat = host.Tokens.IssueChat(7);
+        var job = host.Tokens.Issue(new JobId(7));
+
+        Assert.IsNull(host.Tokens.Validate(chat), "a chat token isn't a job token");
+        Assert.IsNull(host.Tokens.ValidateChat(job));
+        host.Tokens.RevokeChat(7);
+        Assert.IsNull(host.Tokens.ValidateChat(chat));
+        Assert.IsNotNull(host.Tokens.Validate(job), "revoking the chat leaves job 7 alone");
+    }
+
+    [TestMethod]
     public async Task Finish_publishes_the_job_behind_the_token()
     {
         await using var host = await McpTestHost.StartAsync();
