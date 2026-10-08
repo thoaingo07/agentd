@@ -19,9 +19,9 @@ public sealed class ReviewServiceTests
 
         ```review-findings
         {"summary":"Adds a deploy pipeline. One real bug.","findings":[
-          {"severity":"major","file":"charts/api/values.yaml","line":12,"title":"Readiness probe path is wrong","detail":"It points at /health.","suggestion":"Use /health/ready."},
-          {"severity":"minor","file":"azure-pipelines.yml","line":40,"title":"Image tag isn't pinned"},
-          {"severity":"nit","title":"PR description is empty"}]}
+          {"severity":"breaks","file":"charts/api/values.yaml","line":12,"title":"Readiness probe path is wrong","detail":"It points at /health.","suggestion":"Use /health/ready."},
+          {"severity":"performance","file":"azure-pipelines.yml","line":40,"title":"Image tag isn't pinned"},
+          {"severity":"breaks","title":"PR description is empty"}]}
         ```
         """;
 
@@ -47,7 +47,7 @@ public sealed class ReviewServiceTests
         Assert.DoesNotContain("Typo fixed", turn.Prompt, "resolved threads are left out");
         Assert.AreEqual(("review-1", "abc1234"), h.Worktrees.CheckedOutCommits.Single(), "a checkout of the PR head");
         Assert.AreEqual(ReviewStatus.Reviewed, h.Store.Rows[1].Status);
-        StringAssert.Contains(h.Chat.SentText.Last(), "**1.** 🟠 major **Readiness probe path is wrong**");
+        StringAssert.Contains(h.Chat.SentText.Last(), "**1.** 🔴 **Readiness probe path is wrong**");
         StringAssert.Contains(h.Chat.SentText.Last(), "`post 1,3`");
         Assert.IsEmpty(h.PullRequests.Threads, "nothing goes to the PR until someone chooses");
     }
@@ -71,10 +71,19 @@ public sealed class ReviewServiceTests
 
         var (pr, text, file, line) = h.PullRequests.Threads[0];
         Assert.AreEqual((3944, "charts/api/values.yaml", (int?)12), (pr, file, line), "anchored to the finding's file and line");
-        StringAssert.Contains(text, "🟠 major: Readiness probe path is wrong");
-        Assert.HasCount(2, h.PullRequests.Threads, "the picked finding and a summary, nothing else");
-        StringAssert.Contains(h.PullRequests.Threads[1].Text, "Adds a deploy pipeline");
+        StringAssert.StartsWith(text, "🔴 **Readiness probe path is wrong**");
+        Assert.HasCount(2, h.PullRequests.Threads, "the picked finding and the main message, nothing else");
+        var main = h.PullRequests.Threads[1];
+        Assert.AreEqual((null, (int?)null), (main.File, main.Line), "the main message is PR-wide");
+        StringAssert.StartsWith(main.Text, "🤖 **agentd review** · 1 finding(s): 1 open, 0 fixed");
+        StringAssert.Contains(main.Text, "Adds a deploy pipeline");
+        StringAssert.Contains(main.Text, "| 🔴 | Readiness probe path is wrong | `charts/api/values.yaml:12` |");
         Assert.AreEqual(ReviewStatus.Posted, h.Store.Rows[1].Status);
+        var stored = h.Store.Rows[1].Result!;
+        Assert.AreEqual(ReviewFindings.Open, stored.Findings.Single().Status, "only the posted finding is followed");
+        Assert.IsNotNull(stored.Findings.Single().Thread);
+        Assert.IsNotNull(stored.MainThread);
+        Assert.AreNotEqual(stored.MainThread, stored.Findings.Single().Thread);
         StringAssert.Contains(h.Chat.SentText[^2], "Posted 1 finding(s)");
         StringAssert.Contains(h.Chat.SentText.Last(), "Delete this thread?");
     }

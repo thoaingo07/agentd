@@ -245,7 +245,10 @@ public sealed partial class ReviewService(
         }
     }
 
-    /// <summary>One PR thread per finding (at its file and line), then a summary thread. Never a vote.</summary>
+    /// <summary>
+    /// A short PR thread per finding (at its file and line), then the main message listing them all with their status:
+    /// the one place to follow the review, edited in place after each re-check. Never a vote.
+    /// </summary>
     private async Task PublishAsync(Review review, ReviewResult result, IReadOnlyList<ReviewFinding> selected, string author, CancellationToken ct)
     {
         if (await repositories.GetAsync(RepositoryName.From(review.Repository), ct).ConfigureAwait(false) is not { } repo)
@@ -255,14 +258,15 @@ public sealed partial class ReviewService(
         }
 
         var posted = new List<int>(review.PostedThreads);
+        var findings = new List<ReviewFinding>();
         string? failure = null;
         foreach (var f in selected)
         {
-            var text = $"**{ReviewFindings.Icon(f.Severity)}: {f.Title.Trim()}**" + (string.IsNullOrWhiteSpace(f.Detail) ? string.Empty : $"\n\n{f.Detail.Trim()}")
-                + (string.IsNullOrWhiteSpace(f.Suggestion) ? string.Empty : $"\n\n💡 {f.Suggestion.Trim()}");
             try
             {
-                posted.Add(await pullRequests.CreateThreadAsync(repo, review.PullRequestId, text, f.File, f.Line, ct).ConfigureAwait(false));
+                var thread = await pullRequests.CreateThreadAsync(repo, review.PullRequestId, ReviewFindings.ThreadText(f), f.File, f.Line, ct).ConfigureAwait(false);
+                posted.Add(thread);
+                findings.Add(f with { Thread = thread, Status = ReviewFindings.Open });
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -271,24 +275,31 @@ public sealed partial class ReviewService(
             }
         }
 
-        var count = posted.Count - review.PostedThreads.Count;
+        var postedResult = result with { Findings = findings };
         if (failure is null)
         {
             try
             {
-                posted.Add(await pullRequests.CreateThreadAsync(repo, review.PullRequestId,
-                    $"**Review** requested by {author} in chat: {result.Summary.Trim()}\n\n{count} finding(s) posted as separate threads.", null, null, ct).ConfigureAwait(false));
+                var main = await pullRequests.CreateThreadAsync(repo, review.PullRequestId, ReviewFindings.MainMessage(postedResult, review.HeadCommit), null, null, ct).ConfigureAwait(false);
+                posted.Add(main);
+                postedResult = postedResult with { MainThread = main };
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                failure = $"the summary: {ex.Message}";
+                failure = $"the main message: {ex.Message}";
             }
         }
 
-        await reviews.SaveAsync(review with { Status = count > 0 || failure is null ? ReviewStatus.Posted : review.Status, PostedThreads = posted }, ct).ConfigureAwait(false);
+        var count = findings.Count;
+        await reviews.SaveAsync(review with
+        {
+            Status = count > 0 || failure is null ? ReviewStatus.Posted : review.Status,
+            PostedThreads = posted,
+            Result = count > 0 || failure is null ? postedResult : review.Result,
+        }, ct).ConfigureAwait(false);
         var link = (await pullRequests.GetAsync(repo, review.PullRequestId, ct).ConfigureAwait(false))?.Url;
         await PostAsync(review, new OutboundMessage(MessageKind.Result, failure is null
-            ? $"📤 **Posted {count} finding(s) and a summary to PR !{review.PullRequestId}** ({author}){(link is null ? string.Empty : $": {link}")}. No vote was cast."
+            ? $"📤 **Posted {count} finding(s) to PR !{review.PullRequestId}** ({author}){(link is null ? string.Empty : $": {link}")}: one main message with all of them, and a short thread for each. No vote was cast."
             : $"⚠️ Posted {count} finding(s), then stopped at {failure}. Fix the cause and choose again, or post the rest by hand."), ct).ConfigureAwait(false);
         if (failure is null)
         {

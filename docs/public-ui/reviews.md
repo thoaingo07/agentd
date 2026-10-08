@@ -22,33 +22,31 @@ agentd opens **🔍 Review: PR !3944: <title>** and checks out the PR's head **r
 
 ## What the reviewer looks at
 
-1. **Intent:** does the change do what its **linked work items' acceptance criteria** ask? Is anything out of scope?
-2. **The diff in context,** and the repository's own rules (`AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`).
-3. **In order:**
-   - correctness;
-   - security, including secrets in the diff;
-   - breaking changes and database migrations;
-   - error handling;
-   - tests;
-   - performance;
-   - consistency.
-4. **It checks before it claims.** It searches before saying something is missing or unused.
-5. **It skips** formatter-level style, generated files, lockfiles, and anything already raised in the PR's open
-   comment threads.
+Only two kinds of problems, so the review stays short:
+
+- 🔴 **can break the app:**
+  - a bug or wrong result, a crash or unhandled error, data loss;
+  - a security hole (injection, missing authorization, secrets in the diff);
+  - a breaking change (an API, contract, configuration key, or a migration without a safe rollback);
+  - an acceptance criterion of the linked work item that isn't met.
+- 🟠 **performance:** N+1 queries, unbounded loops or memory, blocking calls on hot paths, missing pagination or
+  indexes for growing data.
+
+Style, naming, docs, missing tests and "could be cleaner" are left out. The reviewer reads the code around each
+change and **only reports what it could confirm**. It skips anything already raised in the PR's open comment threads.
+At most 15 findings, worst first.
 
 ## Findings
 
 ```text
-🔍 Review summary: Adds the deploy pipelines. One real bug; otherwise ready.
-1. 🟠 major Readiness probe path is wrong · charts/api/values.yaml:12
-   It points at /health, which never fails.
-   💡 Use /health/ready.
-2. 🟡 minor Image tag isn't pinned · azure-pipelines.yml:40
+🔍 Review: Adds the deploy pipelines. One real bug; otherwise ready.
+1. 🔴 Readiness probe path is wrong · charts/api/values.yaml:12
+   It points at /health, which never fails, so broken pods get traffic.
+   Fix: use /health/ready.
+2. 🟠 Every request re-reads the whole config file · src/Config.cs:30
+   Fix: read it once at startup and cache it.
 1 post all to the PR · 2 keep in chat · 3 discard · or post 1,3 / drop 2. Ask me about any finding first if you like.
 ```
-
-**Severities:** 🔴 blocker (fix before merging) · 🟠 major (fix in this PR) · 🟡 minor (worth fixing) · ⚪ nit
-(optional).
 
 ## Talk, then choose
 
@@ -62,11 +60,27 @@ commits, the next reply reviews the new head.
 
 | Answer | What happens |
 |---|---|
-| **1** / `post` | every finding is posted as its own PR comment thread, at its file and line, plus a summary thread |
+| **1** / `post` | each finding gets a short PR thread at its file and line, and **one main message** lists them all with their status |
 | `post 1,3` | only those |
 | `drop 2` | removes #2 and renumbers |
 | **2** / `keep` | nothing is posted; the review stays in chat |
 | **3** / `discard` | nothing is posted |
 
-agentd **never votes or approves**. Its comments start with "🤖 agentd:". After posting, it asks whether to delete or
-archive the thread.
+## On the pull request
+
+```text
+🤖 agentd review · 2 finding(s): 2 open, 0 fixed · checked at a1b2c3d
+
+Adds the deploy pipelines. One real bug; otherwise ready.
+
+|    | Finding                            | Where                        |
+| 🔴 | Readiness probe path is wrong       | charts/api/values.yaml:12    |
+| 🟠 | Every request re-reads the config   | src/Config.cs:30             |
+
+🔴 can break the app · 🟠 performance · ✅ fixed · ⚪ closed
+```
+
+Each finding's own thread is just its title, why, and the fix. The main message is the one to follow: its icons turn
+✅ when a finding is fixed.
+
+agentd **never votes or approves**. After posting, it asks whether to delete or archive the chat thread.
