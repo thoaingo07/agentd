@@ -17,8 +17,8 @@ for the operator. `agentd --help` and `agentd <command> --help` show every optio
 
 | Command | What it does |
 |---|---|
-| `agentd status [--all]` | active jobs (`--all` adds the ones finished in the last 24 hours) |
-| `agentd run <work item id> [--repo name]` | queue a work item now, even without the tag (`--repo` overrides the tag/area-path match) |
+| `agentd status [--all]` | active jobs (`--all` adds the ones finished in the last 24 hours). With the daemon running it also shows each job's phase and what it's doing right now; otherwise it reads the database and says so |
+| `agentd run <work item id> [--repo name]` | queue a work item now, even without the tag (`--repo` overrides the tag/area-path match). A running daemon starts it at once |
 | `agentd repo add <clone url> [--name n] [--base b] [--tag repo:x] [--area-path p]…` | register a repository and clone it (the base defaults to the remote's default branch, the tag to `repo:<name>`; `--area-path` can repeat) |
 | `agentd repo list` · `agentd repo remove <name>` | list, or unregister (job history is kept) |
 

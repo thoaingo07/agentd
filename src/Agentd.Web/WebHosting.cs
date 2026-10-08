@@ -18,7 +18,7 @@ namespace Agentd.Web;
 public static class WebHosting
 {
     /// <summary>Server-owned path prefixes that must never be answered by an SPA shell.</summary>
-    private static readonly string[] s_reservedPrefixes = ["/api", "/bff", "/hubs", "/mcp"];
+    private static readonly string[] s_reservedPrefixes = ["/api", "/bff", "/hubs", "/mcp", "/control"];   // /control: the Unix socket only
 
     public static IServiceCollection AddWebHosting(this IServiceCollection services, IConfiguration configuration)
     {

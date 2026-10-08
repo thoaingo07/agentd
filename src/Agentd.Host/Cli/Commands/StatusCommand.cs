@@ -14,6 +14,16 @@ internal static class StatusCommand
         command.SetAction(async (parse, ct) =>
         {
             var includeRecent = parse.GetValue(all);
+            using (var daemon = Control.DaemonClient.TryCreate(context.Home))
+            {
+                if (daemon is not null && await daemon.StatusAsync(includeRecent, ct).ConfigureAwait(false) is { } live)
+                {
+                    await context.Out.WriteAsync(RenderLive(live, includeRecent)).ConfigureAwait(false);
+                    return ExitCodes.Ok;
+                }
+            }
+
+            await context.Error.WriteLineAsync("(daemon not running; from the database)").ConfigureAwait(false);
             var scope = context.CreateScope();
             await using (scope.ConfigureAwait(false))
             {
@@ -46,6 +56,28 @@ internal static class StatusCommand
             r.PullRequestUrl ?? OneLine(r.LastError),
         }).Prepend(header).ToList();
         return TextTable.Render(table);
+    }
+
+    /// <summary>The daemon's answer: the same columns plus what each job is doing right now.</summary>
+    internal static string RenderLive(IReadOnlyList<Control.ControlJob> jobs, bool includeRecent)
+    {
+        if (jobs.Count == 0)
+        {
+            return includeRecent ? "No jobs in the last 24 hours.\n" : "No active jobs.\n";
+        }
+
+        string[] header = ["ID", "WORK ITEM", "REPO", "STATE", "PHASE", "ELAPSED", "ACTIVITY", "PR / LAST ERROR"];
+        return TextTable.Render([.. jobs.Select(j => new[]
+        {
+            j.Id.ToString(CultureInfo.InvariantCulture),
+            "#" + j.WorkItemId.ToString(CultureInfo.InvariantCulture),
+            j.Repository,
+            j.State,
+            j.Phase ?? "",
+            Elapsed(TimeSpan.FromSeconds(j.ElapsedSeconds)),
+            OneLine(j.Activity),
+            j.PullRequestUrl ?? OneLine(j.LastError),
+        }).Prepend(header)]);
     }
 
     internal static string Elapsed(TimeSpan t) => t switch

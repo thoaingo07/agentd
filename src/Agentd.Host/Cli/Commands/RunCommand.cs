@@ -32,6 +32,21 @@ internal static class RunCommand
                 repository = parsed.Value;
             }
 
+            using (var daemon = Control.DaemonClient.TryCreate(context.Home))
+            {
+                if (daemon is not null && await daemon.RunAsync(id.Value.Value, repository?.Value, ct).ConfigureAwait(false) is { } answer)
+                {
+                    if (answer.Error is { } refused)
+                    {
+                        await context.Error.WriteLineAsync(refused.Message).ConfigureAwait(false);
+                        return refused.Code == "validation" ? ExitCodes.NotFound : ExitCodes.From(new Domain.Common.DomainError(refused.Code, refused.Message));
+                    }
+
+                    await context.Out.WriteLineAsync($"Queued job #{answer.Run!.JobId} for work item #{id.Value}; the daemon is starting it.").ConfigureAwait(false);
+                    return ExitCodes.Ok;
+                }
+            }
+
             var scope = context.CreateScope();
             await using (scope.ConfigureAwait(false))
             {
@@ -44,7 +59,7 @@ internal static class RunCommand
                     return result.Error.Code == "validation" ? ExitCodes.NotFound : ExitCodes.From(result.Error);
                 }
 
-                await context.Out.WriteLineAsync($"Queued job #{result.Value} for work item #{id.Value}. The daemon starts it when a slot is free.").ConfigureAwait(false);
+                await context.Out.WriteLineAsync($"Queued job #{result.Value} for work item #{id.Value} (daemon not running; it starts the job when it runs).").ConfigureAwait(false);
                 return ExitCodes.Ok;
             }
         });

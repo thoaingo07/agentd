@@ -76,6 +76,7 @@ public sealed partial class SpaHostingTests
     [DataRow("/api/nope")]
     [DataRow("/bff/whatever")]
     [DataRow("/hubs/events")]
+    [DataRow("/control/status")]
     [DataRow("/mcp/nope")]
     public async Task Reserved_paths_never_fall_back_to_the_spa(string path)
     {

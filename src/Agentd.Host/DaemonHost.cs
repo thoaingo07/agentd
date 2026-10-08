@@ -32,7 +32,8 @@ internal static class DaemonHost
         builder.Services.AddAgentdMcp();
         builder.Services.AddBff();
 
-        builder.Services.AddHostedService<SetupLinkAnnouncer>();   // not set up yet: logs the one-time setup link
+        builder.Services.AddHostedService<SetupLinkAnnouncer>();
+        builder.Services.AddHostedService<Control.ControlSocket>();   // ~/.agentd/run/agentd.sock: live status and run for the CLI   // not set up yet: logs the one-time setup link
 
         // Daemon loop. Recovery is registered first: hosted services start in order, so it completes before the workers run.
         builder.Services.AddHostedService<UserDirectorySeeder>();
