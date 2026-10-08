@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { ApiError, get, send } from '../../api/http'
-import type { AzureDevOpsRequest, AzureDevOpsStep, ChatRequest, ChatStep, ClaudeStep, DatabaseStep, FinishResult, GitKeyStep, RepositoryEntry, RepositoryRequest, ReviewItem, SaveResult, SetupSession, StepCheck } from '../../api/types'
+import type { AzureDevOpsRequest, AzureDevOpsStep, ChatRequest, ChatStep, ClaudeStep, DatabaseStep, FinishResult, GitKeyStep, ModelsStep, ProfileRequest, RepositoryEntry, RepositoryRequest, ReviewItem, SaveResult, SetupSession, StepCheck, StepModel } from '../../api/types'
 
 /**
  * The wizard's state. Secrets are write-only: they're sent once and never kept here; the server answers with
@@ -19,6 +19,7 @@ export const useSetupStore = defineStore('setup', () => {
   const claude = ref<ClaudeStep | null>(null)
   const chat = ref<ChatStep | null>(null)
   const repositories = ref<RepositoryEntry[] | null>(null)
+  const models = ref<ModelsStep | null>(null)
   const review = ref<ReviewItem[] | null>(null)
   const completedAt = ref<string | null>(null)
   /** A saved step only applies after `agentd daemon restart`. */
@@ -141,6 +142,35 @@ export const useSetupStore = defineStore('setup', () => {
     return send<StepCheck>('POST', `${base.value}/repositories/test`, { url })
   }
 
+  async function loadModels(): Promise<void> {
+    models.value = await get<ModelsStep>(`${base.value}/models`)
+  }
+
+  /** Adds or changes a provider; an empty key keeps the saved one (it's required the first time). */
+  async function saveProfile(input: ProfileRequest): Promise<SaveResult> {
+    const result = await send<SaveResult>('PUT', `${base.value}/models/profiles`, { ...input, apiKey: input.apiKey?.trim() || null })
+    await loadModels()
+    return saved(result)
+  }
+
+  async function removeProfile(name: string): Promise<SaveResult> {
+    const result = await send<SaveResult>('DELETE', `${base.value}/models/profiles/${encodeURIComponent(name)}`)
+    await loadModels()
+    return saved(result)
+  }
+
+  /** One test prompt through the provider (an empty key: the saved one). Nothing is saved. */
+  function testProfile(input: ProfileRequest): Promise<StepCheck> {
+    return send<StepCheck>('POST', `${base.value}/models/profiles/test`, { ...input, apiKey: input.apiKey?.trim() || null })
+  }
+
+  /** Every step's model, effort and provider; empty values go back to the defaults. */
+  async function saveSteps(steps: StepModel[]): Promise<SaveResult> {
+    const result = await send<SaveResult>('PUT', `${base.value}/models/steps`, steps)
+    await loadModels()
+    return saved(result)
+  }
+
   /** Every step's own check against the saved settings (it runs live tests, so it takes a few seconds). */
   async function loadReview(): Promise<void> {
     review.value = null
@@ -154,9 +184,10 @@ export const useSetupStore = defineStore('setup', () => {
   }
 
   return {
-    base, session, expiresAt, database, azureDevOps, gitKey, claude, chat, repositories, review, completedAt, restartRequired,
+    base, session, expiresAt, database, azureDevOps, gitKey, claude, chat, repositories, models, review, completedAt, restartRequired,
     loadSession, loadDatabase, saveDatabase, testDatabase, migrateDatabase, loadAzureDevOps, saveAzureDevOps, testAzureDevOps,
     loadGitKey, generateGitKey, testGitAccess, loadClaude, saveClaudeToken, removeClaudeToken, testClaude,
-    loadChat, saveChat, testChat, loadRepositories, addRepository, testRepository, loadReview, finish,
+    loadChat, saveChat, testChat, loadRepositories, addRepository, testRepository,
+    loadModels, saveProfile, removeProfile, testProfile, saveSteps, loadReview, finish,
   }
 })

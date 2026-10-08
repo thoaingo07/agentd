@@ -112,6 +112,9 @@ For example: plan on Opus, implement on DeepSeek flash (the next section), and r
 A step can also run on **another provider** that offers an Anthropic-compatible endpoint, such as DeepSeek. Claude Code
 still runs the agent, so the tools, permissions and chat stay the same, but the model behind it is DeepSeek's.
 
+**In the web UI:** **Settings → Models → Add DeepSeek** fills in the endpoint and models; paste the key, test, save,
+and pick `deepseek` for a step under **Models per step**. Or by hand:
+
 1. Store your DeepSeek API key, never in a file:
    ```bash
    agentd secrets set Models:Profiles:deepseek:ApiKey

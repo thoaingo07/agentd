@@ -190,7 +190,8 @@ How it's built (T1b.10):
 
 `GET /setup?token=…` exchanges the link and redirects to `/setup/wizard`. Without a setup session the wizard says how
 to get a link (`agentd setup-link`). It fetches its antiforgery token from `/api/setup/antiforgery`, and each step
-calls only `/api/setup/*`. Built: Database, Azure DevOps, Git access, Claude, Chat, Repositories, Review & finish. (Step 1, admin access, comes with SSO in Phase 5.)
+calls only `/api/setup/*`. Built: Database, Azure DevOps, Git access, Claude, Models (providers and per-step routing), Chat, Repositories, Review &
+finish. (Step 1, admin access, comes with SSO in Phase 5.)
 
 | Step | Asks for | "Test" button |
 |---|---|---|
