@@ -71,7 +71,8 @@ Steps 2 to 6 below can also be done in a **setup wizard** in your browser. Each 
 2. Until setup is finished, it logs a one-time link: `agentd daemon logs` shows
    `Open http://127.0.0.1:7780/setup?token=…`. `agentd setup-link` prints a new one.
 3. On your laptop, open an SSH tunnel to the server (`ssh -L 7780:127.0.0.1:7780 <server>`), then open the link.
-4. Go through **Database → Azure DevOps → Git access → Claude → Chat (optional) → Repositories → Review & finish**.
+4. Go through **Database → Azure DevOps → Git access → Claude → Models (optional) → Chat (optional) → Repositories →
+   Review & finish**.
    Secrets you enter are stored encrypted and never shown again.
 5. **Finish setup** checks everything again. It needs the database, Azure DevOps and Claude to pass. After that the
    link stops working.
@@ -147,6 +148,16 @@ or create a long-lived token on any machine that has a browser, and store it on 
 claude setup-token                          # on your laptop: prints a token
 agentd secrets set Claude:OAuthToken        # on the server: paste it at the prompt
 ```
+
+**Other models (optional).** Every step runs on your Claude subscription by default. To run a step on another
+provider such as DeepSeek, open **Settings → Models** (or the wizard's Models step):
+1. **Add DeepSeek** fills in the endpoint and models. Paste your API key; it's stored on the server and never shown
+   again.
+2. **Send a test prompt**, then **Save provider**.
+3. Under **Models per step**, pick `deepseek` for a step (e.g. Implement), and a model and effort for others (e.g.
+   Review: `claude-opus-5-5`, high). Save, then `agentd daemon restart`.
+
+See [configuration](configuration.md#another-provider-for-a-step-deepseek) for how it behaves.
 
 ## 6. Chat (optional): Discord
 

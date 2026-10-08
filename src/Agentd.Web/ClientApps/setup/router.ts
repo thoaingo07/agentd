@@ -3,6 +3,7 @@ import DatabaseStep from '../shared/setup/steps/DatabaseStep.vue'
 import AzureDevOpsStep from '../shared/setup/steps/AzureDevOpsStep.vue'
 import GitKeyStep from '../shared/setup/steps/GitKeyStep.vue'
 import ClaudeStep from '../shared/setup/steps/ClaudeStep.vue'
+import ModelsStep from '../shared/setup/steps/ModelsStep.vue'
 import ChatStep from '../shared/setup/steps/ChatStep.vue'
 import RepositoriesStep from '../shared/setup/steps/RepositoriesStep.vue'
 import ReviewStep from '../shared/setup/steps/ReviewStep.vue'
@@ -13,6 +14,7 @@ export const steps = [
   { path: '/azure-devops', name: 'azure-devops', title: 'Azure DevOps', component: AzureDevOpsStep },
   { path: '/git', name: 'git', title: 'Git access', component: GitKeyStep },
   { path: '/claude', name: 'claude', title: 'Claude', component: ClaudeStep },
+  { path: '/models', name: 'models', title: 'Models (optional)', component: ModelsStep },
   { path: '/chat', name: 'chat', title: 'Chat (optional)', component: ChatStep },
   { path: '/repositories', name: 'repositories', title: 'Repositories', component: RepositoriesStep },
   { path: '/review', name: 'review', title: 'Review & finish', component: ReviewStep },

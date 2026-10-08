@@ -42,6 +42,10 @@ export type RepositoryEntry = Schemas['RepositoryEntryVm']
 export type RepositoryRequest = Schemas['RepositoryRequest']
 export type ReviewItem = Schemas['ReviewItemVm']
 export type FinishResult = Schemas['FinishVm']
+export type ModelsStep = Schemas['ModelsStepVm']
+export type ModelProfile = Schemas['ProfileVm']
+export type ProfileRequest = Schemas['ProfileRequest']
+export type StepModel = Schemas['StepModelVm']
 
 /** Every BFF error is ProblemDetails; agentd adds a machine-readable `code` (not_found, invalid_transition, …). */
 export type Problem = Schemas['ProblemDetails'] & { code?: string }

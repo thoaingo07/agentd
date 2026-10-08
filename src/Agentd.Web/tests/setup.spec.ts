@@ -10,6 +10,7 @@ import AzureDevOpsStep from '../ClientApps/shared/setup/steps/AzureDevOpsStep.vu
 import GitKeyStep from '../ClientApps/shared/setup/steps/GitKeyStep.vue'
 import ClaudeStep from '../ClientApps/shared/setup/steps/ClaudeStep.vue'
 import ChatStep from '../ClientApps/shared/setup/steps/ChatStep.vue'
+import ModelsStep from '../ClientApps/shared/setup/steps/ModelsStep.vue'
 import RepositoriesStep from '../ClientApps/shared/setup/steps/RepositoriesStep.vue'
 import ReviewStep from '../ClientApps/shared/setup/steps/ReviewStep.vue'
 import App from '../ClientApps/setup/App.vue'
@@ -45,6 +46,10 @@ beforeEach(() => {
     'GET /api/setup/chat': json({ enabled: false, guildId: null, channelId: null, botToken: unset, users: [] }),
     'PUT /api/setup/chat': json({ restartRequired: true }),
     'POST /api/setup/chat/test': json({ ok: true, message: 'agentd posted a test message in #agentd.', fix: null }),
+    'GET /api/setup/models': json({ profiles: [], steps: ['plan', 'implement', 'fix', 'handoff', 'review', 'chat'].map((step) => ({ step, model: null, effort: null, profile: null })) }),
+    'PUT /api/setup/models/profiles': json({ restartRequired: true }),
+    'POST /api/setup/models/profiles/test': json({ ok: true, message: 'deepseek-flash[1m] answered a test prompt in 1.2 s.', fix: null }),
+    'PUT /api/setup/models/steps': json({ restartRequired: true }),
     'GET /api/setup/repositories': json([]),
     'POST /api/setup/repositories': json({ url: 'git@ssh.dev.azure.com:v3/myorg/Portal/sysmin', name: 'sysmin', baseBranch: 'develop', matchTag: 'repo:sysmin', matchAreaPaths: [] }),
     'POST /api/setup/repositories/test': json({ ok: true, message: 'Reached myorg/Portal/sysmin; its default branch is develop.', fix: null }),
@@ -218,6 +223,40 @@ describe('steps', () => {
     await step.get('input[type="checkbox"]').setValue(false)
     expect(step.text()).not.toContain('Bot token')
     expect(step.findAll('button').some((b) => b.text() === 'Send a test message')).toBe(false)
+  })
+
+  it('models: the DeepSeek preset fills in the provider, the key is sent once, and a step picks it', async () => {
+    const step = mount(ModelsStep, { global: { plugins: [router()] } })
+    await flushPromises()
+    expect(step.text()).toContain('None yet.')
+
+    await step.findAll('button').find((b) => b.text() === 'Add DeepSeek')!.trigger('click')
+    const inputs = step.findAll('form input')
+    expect(inputs.slice(0, 4).map((i) => (i.element as HTMLInputElement).value)).toEqual(['deepseek', 'https://api.deepseek.com/anthropic', 'deepseek-flash[1m]', 'deepseek-flash'])
+    await step.get('form input[type="password"]').setValue('sk-SECRET')
+    await step.findAll('button').find((b) => b.text() === 'Send a test prompt')!.trigger('click')
+    await flushPromises()
+    expect(step.text()).toContain('deepseek-flash[1m] answered')
+
+    const deepseek = { name: 'deepseek', baseUrl: 'https://api.deepseek.com/anthropic', model: 'deepseek-flash[1m]', smallModel: 'deepseek-flash' }
+    routes['GET /api/setup/models'] = json({ profiles: [{ ...deepseek, apiKey: set }], steps: ['plan', 'implement', 'fix', 'handoff', 'review', 'chat'].map((step) => ({ step, model: null, effort: null, profile: null })) })
+    await step.get('form').trigger('submit')
+    await flushPromises()
+    expect(calls.find((c) => c.method === 'PUT' && c.path === '/api/setup/models/profiles')?.body).toEqual({ ...deepseek, apiKey: 'sk-SECRET' })
+    expect(step.find('form').exists()).toBe(false)
+    expect(step.text()).toContain('key set')
+    expect(JSON.stringify(useSetupStore().$state)).not.toContain('SECRET')
+
+    expect((step.get('select[aria-label="review provider"]').element as HTMLSelectElement).disabled).toBe(true)
+    await step.get('select[aria-label="implement provider"]').setValue('deepseek')
+    await step.get('input[aria-label="review model"]').setValue('claude-opus-5-5')
+    await step.get('select[aria-label="review effort"]').setValue('high')
+    await step.findAll('button').find((b) => b.text() === 'Save models per step')!.trigger('click')
+    await flushPromises()
+    const saved = calls.find((c) => c.method === 'PUT' && c.path === '/api/setup/models/steps')?.body as { step: string }[]
+    expect(saved.find((s) => s.step === 'implement')).toEqual({ step: 'implement', model: null, effort: null, profile: 'deepseek' })
+    expect(saved.find((s) => s.step === 'review')).toEqual({ step: 'review', model: 'claude-opus-5-5', effort: 'high', profile: null })
+    expect(step.text()).toContain('Models per step saved.')
   })
 
   it('repositories: tests and adds a repository, then lists it and asks for a restart', async () => {

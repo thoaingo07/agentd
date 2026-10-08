@@ -60,6 +60,6 @@ describe('Settings', () => {
 
     session.user = { name: 'local', roles: ['Admin'], provider: 'local' }
     await flushPromises()
-    expect(view.findAll('a').map((a) => a.text())).toEqual(expect.arrayContaining(['Health', 'Database', 'Azure DevOps', 'Repositories']))
+    expect(view.findAll('a').map((a) => a.text())).toEqual(expect.arrayContaining(['Health', 'Database', 'Azure DevOps', 'Models', 'Repositories']))
   })
 })
