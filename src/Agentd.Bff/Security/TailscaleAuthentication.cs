@@ -1,7 +1,6 @@
 using System.Net;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
-using Agentd.Bff.Http;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -37,9 +36,10 @@ public sealed class TailscaleAuthenticationHandler(
 
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
-        // Serve connects from this machine; in-process test servers have no remote address (local too).
-        var remote = Context.Connection.RemoteIpAddress;
-        if (remote is not null && !IPAddress.IsLoopback(remote))
+        // Serve connects from this machine; in-process test servers have no remote address (local too). The peer, not
+        // the visitor: forwarded headers have already put Serve's X-Forwarded-For (the tailnet address) in RemoteIpAddress.
+        var peer = ProxyPeer.Of(Context);
+        if (peer.Address is not null && !IPAddress.IsLoopback(peer.Address))
         {
             return Task.FromResult(AuthenticateResult.NoResult());
         }
@@ -47,7 +47,7 @@ public sealed class TailscaleAuthenticationHandler(
         var login = Request.Headers[LoginHeader].ToString().Trim();
         if (login.Length == 0)
         {
-            return Task.FromResult(LocalUserAuthenticationHandler.IsForwarded(Request.Headers)
+            return Task.FromResult(peer.Forwarded
                 ? AuthenticateResult.NoResult()   // proxied, but Serve didn't name anyone
                 : AuthenticateResult.Success(Ticket("local", "local", "Admin")));
         }
