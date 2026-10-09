@@ -10,6 +10,7 @@ const props = defineProps<{ file: DiffFile; findings: ReviewFinding[]; comments:
 const emit = defineEmits<{
   decide: [n: number, decision: 'kept' | 'dropped' | 'edited', text?: string]
   comment: [line: number, text: string]
+  ask: [line: number, text: string]
   removeComment: [id: number]
 }>()
 const tint = { add: 'bg-success/10', del: 'bg-error/10', context: '' } as const
@@ -37,9 +38,10 @@ function startComment(line: number | null): void {
   draft.value = ''
 }
 
-function saveComment(): void {
+function send(kind: 'comment' | 'ask'): void {
   if (at.value == null || !draft.value.trim()) return
-  emit('comment', at.value, draft.value.trim())
+  if (kind === 'comment') emit('comment', at.value, draft.value.trim())
+  else emit('ask', at.value, draft.value.trim())
   at.value = null
 }
 </script>
@@ -154,14 +156,21 @@ function saveComment(): void {
                     v-model="draft"
                     class="textarea w-full text-sm"
                     rows="2"
-                    :aria-label="`Your comment on line ${l.newNo}`"
+                    :aria-label="`Your comment or question on line ${l.newNo}`"
                   />
                   <div class="flex gap-2">
                     <AgButton
                       size="sm"
-                      @click="saveComment"
+                      @click="send('comment')"
                     >
                       Comment
+                    </AgButton>
+                    <AgButton
+                      size="sm"
+                      variant="outline"
+                      @click="send('ask')"
+                    >
+                      Ask
                     </AgButton>
                     <AgButton
                       size="sm"

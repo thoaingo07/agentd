@@ -64,6 +64,14 @@ public sealed class ClaudeBrainstormAgent(IOptions<ClaudeOptions> options) : IBr
         "a finding is wrong, or ask you to change the list, send the whole revised block. Never claim you approved, posted or merged " +
         "anything: agentd posts only the findings the developer chooses.";
 
+    /// <summary>Instructions for a question asked on a review page (<see cref="ThreadTurnKind.ReviewAsk"/>).</summary>
+    public const string ReviewAskRules =
+        "You are agentd's assistant on a code review page, explaining code to a developer. Your working directory is a read-only " +
+        "checkout of the change's head; the prompt gives the change (a git diff range) and what the developer selected. Read the code " +
+        "around it, its callers and history (Read, Grep, Glob, git log/show/blame), then answer the question plainly: what it does and " +
+        "why, naming files and lines (`path:line`). Never edit, build, commit or push. If you can't tell from the code, say so. Keep it " +
+        "short (under ~200 words) unless asked for detail, in the developer's language.";
+
     /// <summary>Instructions for a <c>!chat</c> turn (<see cref="ThreadTurnKind.Chat"/>).</summary>
     public const string ChatRules =
         "You are agentd's assistant in a chat thread, answering a developer's questions about the team's repositories. Your working " +
@@ -88,7 +96,7 @@ public sealed class ClaudeBrainstormAgent(IOptions<ClaudeOptions> options) : IBr
             turn.Resume ? "--resume" : "--session-id", turn.Session.ToString(),
             "--output-format", "stream-json", "--verbose",
             "--max-turns", MaxTurns.ToString(CultureInfo.InvariantCulture),
-            "--append-system-prompt", turn.Kind switch { ThreadTurnKind.Review or ThreadTurnKind.ReviewSession => ReviewRules, ThreadTurnKind.FollowUp => FollowUpRules, ThreadTurnKind.Chat => ChatRules, _ => Rules },
+            "--append-system-prompt", turn.Kind switch { ThreadTurnKind.Review or ThreadTurnKind.ReviewSession => ReviewRules, ThreadTurnKind.ReviewAsk => ReviewAskRules, ThreadTurnKind.FollowUp => FollowUpRules, ThreadTurnKind.Chat => ChatRules, _ => Rules },
             "--strict-mcp-config",
             // agentd's tools only for a turn that brings its own token (a chat); the rest run with no MCP at all.
             "--allowedTools", string.Join(",", o.ReadOnlyTools.Where(t => turn.McpToken is not null || !t.StartsWith("mcp__", StringComparison.Ordinal))),
@@ -122,7 +130,7 @@ public sealed class ClaudeBrainstormAgent(IOptions<ClaudeOptions> options) : IBr
     {
         ArgumentNullException.ThrowIfNull(turn);
         var o = options.Value;
-        var dir = Path.Combine(Paths.Expand(o.TranscriptRoot), $"{turn.Kind switch { ThreadTurnKind.Review => "review", ThreadTurnKind.ReviewSession => "review-session", ThreadTurnKind.FollowUp => "followup", ThreadTurnKind.Chat => "chat", _ => "idea" }}-{turn.IdeaId}");
+        var dir = Path.Combine(Paths.Expand(o.TranscriptRoot), $"{turn.Kind switch { ThreadTurnKind.Review => "review", ThreadTurnKind.ReviewSession => "review-session", ThreadTurnKind.ReviewAsk => "review-ask", ThreadTurnKind.FollowUp => "followup", ThreadTurnKind.Chat => "chat", _ => "idea" }}-{turn.IdeaId}");
         Directory.CreateDirectory(dir);
         var psi = new ProcessStartInfo(o.Binary)
         {

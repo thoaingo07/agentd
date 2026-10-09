@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { ApiError } from '../../shared/api/http'
 import { AgButton } from '../../shared/components/ui'
+import MarkdownText from '../../shared/components/MarkdownText.vue'
 import DiffFileReview from '../../shared/review/DiffFileReview.vue'
 import FindingCard from '../../shared/review/FindingCard.vue'
 import { useReviewsStore } from '../stores/reviews'
@@ -39,11 +40,15 @@ async function act(work: () => Promise<unknown>): Promise<void> {
 
 const decide = (n: number, d: 'kept' | 'dropped' | 'edited', t?: string) => act(() => reviews.decide(n, d, t))
 const commentAt = (file: string, line: number, text: string) => act(() => reviews.comment({ file, line, text }))
-const commentAll = () => act(async () => {
+const askAt = (file: string, line: number, text: string) => act(() => reviews.ask({ file, line, text }))
+const overallSend = (kind: 'comment' | 'ask') => act(async () => {
   if (!overall.value.trim()) return
-  await reviews.comment({ text: overall.value.trim() })
+  if (kind === 'comment') await reviews.comment({ text: overall.value.trim() })
+  else await reviews.ask({ text: overall.value.trim() })
   overall.value = ''
 })
+const where = (a: { file?: string | null; line?: number | null; endLine?: number | null }) =>
+  a.file ? `${a.file}${a.line ? `:${a.line}${a.endLine && a.endLine !== a.line ? `-${a.endLine}` : ''}` : ''}` : 'the whole change'
 </script>
 
 <template>
@@ -144,6 +149,7 @@ const commentAll = () => act(async () => {
             :readonly="readonly"
             @decide="decide"
             @comment="(line, text) => commentAt(f.newPath, line, text)"
+            @ask="(line, text) => askAt(f.newPath, line, text)"
             @remove-comment="(c) => act(() => reviews.removeComment(c))"
           />
         </div>
@@ -200,19 +206,56 @@ const commentAll = () => act(async () => {
                 v-model="overall"
                 class="textarea w-full text-sm"
                 rows="2"
-                placeholder="A comment on the whole change"
-                aria-label="A comment on the whole change"
+                placeholder="A comment or a question on the whole change"
+                aria-label="A comment or a question on the whole change"
               />
-              <div>
+              <div class="flex gap-2">
                 <AgButton
                   size="sm"
                   variant="outline"
-                  @click="commentAll"
+                  @click="overallSend('comment')"
                 >
                   Add comment
                 </AgButton>
+                <AgButton
+                  size="sm"
+                  variant="outline"
+                  @click="overallSend('ask')"
+                >
+                  Ask
+                </AgButton>
               </div>
             </template>
+          </section>
+          <section
+            v-if="reviews.current?.asks.length"
+            aria-labelledby="asks-title"
+            class="grid gap-3 text-sm"
+          >
+            <h2
+              id="asks-title"
+              class="font-semibold"
+            >
+              Questions · {{ reviews.current.asks.length }}
+            </h2>
+            <article
+              v-for="a in reviews.current.asks"
+              :key="a.id"
+              class="grid gap-1 rounded-box border border-base-300 p-2"
+              data-testid="ask"
+            >
+              <p>❓ <span class="font-mono text-xs">{{ where(a) }}</span> {{ a.question }}</p>
+              <MarkdownText
+                v-if="a.answer"
+                :text="a.answer"
+              />
+              <p
+                v-else
+                class="text-muted"
+              >
+                <span class="loading loading-dots loading-xs" /> thinking…
+              </p>
+            </article>
           </section>
         </aside>
       </div>

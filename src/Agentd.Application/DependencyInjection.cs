@@ -47,6 +47,7 @@ public static class DependencyInjection
         services.AddSingleton<Jobs.JobFollowUps>();
         services.AddSingleton<Reviews.ReviewService>();
         services.AddSingleton<Reviews.ReviewSessionReviewer>();
+        services.AddSingleton<Reviews.ReviewSessionAsks>();
         services.AddSingleton<Reviews.ReviewSessionService>();
         services.AddSingleton<Chats.ChatService>();
         services.AddSingleton<AzureDevOps.AdoConnections>();
