@@ -68,7 +68,9 @@ reviewer (the `review` step's model) looks for what can break the app or slow it
 The review page:
 - the **files** on the left, the **diff** in the middle, and each **finding at its line** (🔴 can break the app,
   🟠 performance) with **Keep**, **Edit** (your wording) or **Drop**;
-- **click a line number** to comment there; a comment on the whole change goes at the side;
+- **click a line number** to comment there, or **Ask** about that code ("why is this here?"); the whole change has
+  its own comment and Ask box at the side. Answers come from the code at the review's head, naming files and lines,
+  and show under **Questions** ("thinking…" until then);
 - "Reviewing…" while the reviewer works: the findings appear when it's done, and you can read and comment meanwhile.
 
 **My reviews** lists the ones you started. Sending the review (to the PR under your name, or to an agent to fix)

@@ -161,10 +161,35 @@ public sealed class ReviewSessionServiceTests
         public Task<IReadOnlyList<ReviewComment>> ListCommentsAsync(long sessionId, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<ReviewComment>>([.. _comments.Where(c => _sessionOf[c.Id] == sessionId)]);
 
-        public Task<long> AddAskAsync(long sessionId, string? file, int? line, int? endLine, string question, string author, CancellationToken cancellationToken) => Task.FromResult(++_next);
+        public Task<long> AddAskAsync(long sessionId, string? file, int? line, int? endLine, string question, string author, CancellationToken cancellationToken)
+        {
+            lock (Asks)
+            {
+                var id = ++_next;
+                Asks.Add((sessionId, new ReviewAsk(id, file, line, endLine, question, null, author, default, null)));
+                return Task.FromResult(id);
+            }
+        }
 
-        public Task AnswerAsync(long askId, string answer, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task AnswerAsync(long askId, string answer, CancellationToken cancellationToken)
+        {
+            lock (Asks)
+            {
+                var i = Asks.FindIndex(a => a.Ask.Id == askId);
+                Asks[i] = (Asks[i].Session, Asks[i].Ask with { Answer = answer, AnsweredAt = DateTimeOffset.UnixEpoch });
+            }
 
-        public Task<IReadOnlyList<ReviewAsk>> ListAsksAsync(long sessionId, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<ReviewAsk>>([]);
+            return Task.CompletedTask;
+        }
+
+        public Task<IReadOnlyList<ReviewAsk>> ListAsksAsync(long sessionId, CancellationToken cancellationToken)
+        {
+            lock (Asks)
+            {
+                return Task.FromResult<IReadOnlyList<ReviewAsk>>([.. Asks.Where(a => a.Session == sessionId).Select(a => a.Ask)]);
+            }
+        }
+
+        public List<(long Session, ReviewAsk Ask)> Asks { get; } = [];
     }
 }

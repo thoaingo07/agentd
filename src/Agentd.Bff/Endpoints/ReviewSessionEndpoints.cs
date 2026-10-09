@@ -45,6 +45,11 @@ public static class ReviewSessionEndpoints
             (await service.DeleteCommentAsync(id, commentId, AdoConnectEndpoints.Login(user), ct).ConfigureAwait(false)).ToHttpResult(_ => TypedResults.NoContent()))
             .WithName("DeleteReviewComment").Produces(StatusCodes.Status204NoContent).ProducesProblem(StatusCodes.Status404NotFound);
 
+        reviews.MapPost("/{id:long}/asks", async (long id, CommentRequest? body, ClaimsPrincipal user, [FromServices] ReviewSessionAsks asks, CancellationToken ct) =>
+            (await asks.AskAsync(id, body?.File, body?.Line, body?.EndLine, body?.Text ?? string.Empty, AdoConnectEndpoints.Login(user), ct).ConfigureAwait(false))
+                .ToHttpResult(a => TypedResults.Accepted($"/api/reviews/{id}", new ReviewAskVm(a.Id, a.File, a.Line, a.EndLine, a.Question, a.Answer, a.Author, a.AskedAt))))
+            .WithName("AskAboutReview").Produces<ReviewAskVm>(StatusCodes.Status202Accepted).ProducesProblem(StatusCodes.Status400BadRequest).ProducesProblem(StatusCodes.Status404NotFound);
+
         return api;
     }
 
@@ -62,7 +67,7 @@ public static class ReviewSessionEndpoints
     /// <param name="File">The file (none: the whole change).</param>
     /// <param name="Line">The first line.</param>
     /// <param name="EndLine">The last line.</param>
-    /// <param name="Text">The comment.</param>
+    /// <param name="Text">The comment, or the question (Ask).</param>
     public sealed record CommentRequest(string? File, int? Line, int? EndLine, string? Text);
 }
 

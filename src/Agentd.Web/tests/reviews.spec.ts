@@ -11,6 +11,7 @@ type Call = { method: string; path: string; body: unknown }
 let calls: Call[]
 let session: Record<string, unknown>
 let comments: object[]
+let asks: Record<string, unknown>[]
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status })
 const diff = 'diff --git a/src/Sync.cs b/src/Sync.cs\n--- a/src/Sync.cs\n+++ b/src/Sync.cs\n@@ -40,2 +40,2 @@\n var page = 0;\n-var rows = await ReadAllAsync(table);\n+await foreach (var chunk in KeysetAsync(table))\n'
 const finding = { number: 1, severity: 'breaks', file: 'src/Sync.cs', line: 41, title: 'Unbounded read', detail: 'Large tables load at once.', suggestion: 'Page by key.', decision: 'kept', edited: null }
@@ -24,6 +25,7 @@ beforeEach(() => {
   setAntiforgeryUrl('/bff/antiforgery')
   calls = []
   comments = []
+  asks = []
   session = { id: 7, repo: 'sysmin', target: 'branch', pullRequestId: null, headRef: 'feature/keyset', baseRef: 'develop', baseCommit: 'a1b2c3d4', headCommit: 'f9e8d7c6',
     status: 'Ready', error: null, model: 'claude-opus-5-5', effort: 'high', summary: 'One real bug.', findings: [finding], createdBy: 'local', sentTo: null, createdAt: '2026-10-09T10:00:00Z' }
   vi.stubGlobal('fetch', vi.fn(async (req: Request) => {
@@ -35,7 +37,12 @@ beforeEach(() => {
     if (path === '/api/reviews' && req.method === 'GET') return json([session])
     if (path === '/api/reviews' && req.method === 'POST') return json({ ...session, id: 9 }, 201)
     if (path === '/api/reviews/7/diff') return json({ baseCommit: 'a1b2c3d4', headCommit: 'f9e8d7c6', files: ['src/Sync.cs'], unifiedDiff: diff, truncated: false })
-    if (path === '/api/reviews/7') return json({ session, comments, asks: [] })
+    if (path === '/api/reviews/7') return json({ session, comments, asks })
+    if (path === '/api/reviews/7/asks') {
+      const a = { id: 5, author: 'local', askedAt: '2026-10-09T10:02:00Z', endLine: null, answer: null, question: (body as { text: string }).text, file: (body as { file?: string }).file ?? null, line: (body as { line?: number }).line ?? null }
+      asks = [...asks, a]
+      return json(a, 202)
+    }
     if (path.startsWith('/api/reviews/7/findings/')) {
       session = { ...session, findings: [{ ...finding, decision: (body as { decision: string }).decision, edited: (body as { text: string | null }).text }] }
       return new Response(null, { status: 204 })
@@ -94,7 +101,7 @@ describe('reviews', () => {
     await flushPromises()
 
     await view.get('button[aria-label="Comment on line 40"]').trigger('click')
-    await view.get('textarea[aria-label="Your comment on line 40"]').setValue('make it config')
+    await view.get('textarea[aria-label="Your comment or question on line 40"]').setValue('make it config')
     await view.findAll('button').find((b) => b.text() === 'Comment')!.trigger('click')
     await flushPromises()
 
@@ -115,5 +122,25 @@ describe('reviews', () => {
 
     expect(view.text()).toContain('#1 Unbounded read')
     expect(view.find('[role=status]').exists()).toBe(false)
+  })
+
+  it('asks about a line and shows the answer when it arrives', async () => {
+    vi.useFakeTimers()
+    const view = mount(ReviewView, { props: { id: 7 }, global: { plugins: [router()] } })
+    await flushPromises()
+
+    await view.get('button[aria-label="Comment on line 41"]').trigger('click')
+    await view.get('textarea[aria-label="Your comment or question on line 41"]').setValue('why a loop here?')
+    await view.findAll('button').find((b) => b.text() === 'Ask')!.trigger('click')
+    await flushPromises()
+    expect(calls.find((c) => c.path === '/api/reviews/7/asks')?.body).toEqual({ file: 'src/Sync.cs', line: 41, text: 'why a loop here?' })
+    expect(view.get('[data-testid=ask]').text()).toContain('thinking…')
+
+    asks = [{ ...asks[0], answer: 'It pages by **key**.' }]
+    await vi.advanceTimersByTimeAsync(reviewPollMs + 1)
+    await flushPromises()
+    const answer = view.get('[data-testid=ask]')
+    expect(answer.text()).toContain('src/Sync.cs:41 why a loop here?')
+    expect(answer.find('strong').text()).toBe('key')
   })
 })

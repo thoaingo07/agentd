@@ -36,8 +36,10 @@ export const useReviewsStore = defineStore('reviews', () => {
     poll(id)
   }
 
+  /** Keep checking while the reviewer works or a question waits for its answer. */
   function poll(id: number): void {
-    if (current.value?.session.status !== 'Reviewing') return
+    const waiting = current.value?.session.status === 'Reviewing' || current.value?.asks.some((a) => a.answer == null)
+    if (!waiting) return
     timer = setTimeout(() => {
       void get<ReviewDetail>(`/api/reviews/${id}`).then((d) => {
         if (current.value?.session.id !== id) return
@@ -72,11 +74,21 @@ export const useReviewsStore = defineStore('reviews', () => {
     return added
   }
 
+  /** A question about the selection (or the whole change); the answer arrives later, so this starts polling. */
+  async function ask(input: { file?: string | null; line?: number | null; endLine?: number | null; text: string }): Promise<void> {
+    if (!current.value) return
+    const id = current.value.session.id
+    await send<unknown>('POST', `/api/reviews/${id}/asks`, input)
+    await refresh()
+    clearTimeout(timer)
+    poll(id)
+  }
+
   async function removeComment(id: number): Promise<void> {
     if (!current.value) return
     await send<void>('DELETE', `/api/reviews/${current.value.session.id}/comments/${id}`)
     await refresh()
   }
 
-  return { mine, current, diff, files, loadMine, start, open, close, decide, comment, removeComment }
+  return { mine, current, diff, files, loadMine, start, open, close, decide, comment, ask, removeComment }
 })

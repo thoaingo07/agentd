@@ -94,6 +94,9 @@ public enum ThreadTurnKind
 
     /// <summary>A review session's reviewer (docs/architect/review-sessions.md): the review rules, on a pinned change.</summary>
     ReviewSession,
+
+    /// <summary>A question asked on a review page (Ask): explain the code, read-only, in the review's checkout.</summary>
+    ReviewAsk,
 }
 
 /// <summary>The model and effort people may pick for an idea (passed to the CLI's <c>--model</c> / <c>--effort</c>).</summary>
