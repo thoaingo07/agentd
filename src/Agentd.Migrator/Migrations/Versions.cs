@@ -64,3 +64,6 @@ public sealed class Chats : SqlMigration;
 
 [Migration(2026_10_17_0001, "Azure DevOps delegated sign-ins, one per person")]
 public sealed class AdoUserConnections : SqlMigration;
+
+[Migration(2026_10_18_0001, "Review sessions: findings with decisions, comments and questions")]
+public sealed class ReviewSessions : SqlMigration;
