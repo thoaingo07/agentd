@@ -34,6 +34,7 @@ public static class DependencyInjection
         services.AddScoped<ICommandHandler<RecoverJobsOnStartup, RecoveryPlan>, RecoverJobsOnStartupHandler>();
         services.AddScoped<ICommandHandler<RetryDuePublishes, int>, RetryDuePublishesHandler>();
         services.AddSingleton<ProfileSessions>();
+        services.AddSingleton<IStepAnnouncer, StepAnnouncer>();
         services.AddSingleton<JobDispatcher>();
         services.AddScoped<IQueryHandler<GetJobStatus, IReadOnlyList<JobStatusRow>>, GetJobStatusHandler>();
         services.AddScoped<IQueryHandler<GetDashboard, Dashboard>, GetDashboardHandler>();

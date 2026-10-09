@@ -69,6 +69,17 @@ describe('transcript rows', () => {
   })
 })
 
+describe('step rows', () => {
+  it('shows which step, provider, model and effort the agent runs', () => {
+    const rows = toRows([
+      ev(1, 'step.started', { step: 'plan', profile: null, model: 'claude-opus-5-5', effort: 'high', line: '📝 Plan · Claude · claude-opus-5-5 · effort high' }),
+      ev(2, 'step.started', { step: 'implement', profile: 'deepseek', model: 'deepseek-flash', line: '🔨 Implement · deepseek · deepseek-flash' }),
+    ])
+    expect(rows.map((r) => (r.kind === 'state' ? r.title : r.kind))).toEqual(['📝 Plan · Claude · claude-opus-5-5 · effort high', '🔨 Implement · deepseek · deepseek-flash'])
+    expect(rows.every((r) => r.kind === 'state')).toBe(true)   // the "state" filter
+  })
+})
+
 describe('ToolCallCard', () => {
   it('starts expanded when the result failed', async () => {
     const w = mount(ToolCallCard, {

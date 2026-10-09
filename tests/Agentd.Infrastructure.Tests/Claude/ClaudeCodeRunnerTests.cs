@@ -204,14 +204,38 @@ public sealed class ClaudeCodeRunnerTests
         return path;
     }
 
+    [TestMethod]
+    public async Task The_step_line_carries_the_model_claude_reports_or_none_when_it_never_started()
+    {
+        var steps = new RecordingSteps();
+        var started = Runner(Script("echo '{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"s\",\"model\":\"deepseek-flash\"}'; echo '{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"s\",\"model\":\"x\"}'"), steps: steps).Runner;
+        var refused = Runner(Script("echo 'unrecognized_model' >&2; exit 1"), steps: steps).Runner;
+
+        await started.RunAsync(Request(resume: false) with { Step = "implement", Profile = null }, default);
+        await refused.RunAsync(Request(resume: false) with { Step = "implement" }, default);
+
+        CollectionAssert.AreEqual(new[] { "implement:deepseek-flash", "implement:" }, steps.Calls, "once per run: the first init, else when the run ends");
+    }
+
+    private sealed class RecordingSteps : IStepAnnouncer
+    {
+        public List<string> Calls { get; } = [];
+
+        public Task AnnounceAsync(AgentRunRequest turn, string? model, CancellationToken cancellationToken)
+        {
+            Calls.Add($"{turn.Step}:{model}");
+            return Task.CompletedTask;
+        }
+    }
+
     private readonly Application.Jobs.JobActivity _activity = new();
 
-    private (ClaudeCodeRunner Runner, RecordingEvents Events, FakeTokens Tokens) Runner(string binary, TimeSpan? idle = null, string? mcpUrl = null)
+    private (ClaudeCodeRunner Runner, RecordingEvents Events, FakeTokens Tokens) Runner(string binary, TimeSpan? idle = null, string? mcpUrl = null, IStepAnnouncer? steps = null)
     {
         var options = new ClaudeOptions { Binary = binary, TranscriptRoot = Path.Combine(_dir, "logs"), IdleTimeout = idle ?? TimeSpan.FromMinutes(1), McpUrl = mcpUrl };
         var events = new RecordingEvents();
         var tokens = new FakeTokens();
-        return (new ClaudeCodeRunner(Options.Create(options), events, tokens, _activity, NullLogger<ClaudeCodeRunner>.Instance), events, tokens);
+        return (new ClaudeCodeRunner(Options.Create(options), events, tokens, _activity, NullLogger<ClaudeCodeRunner>.Instance, steps: steps), events, tokens);
     }
 
     private AgentRunRequest Request(bool resume) =>

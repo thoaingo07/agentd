@@ -40,6 +40,11 @@ const sessionId = computed(() => {
   const session = [...(eventWindow.value?.events ?? [])].reverse().find((e) => e.type === 'agent.session')
   return session ? String((session.payload as Record<string, unknown>).sessionId ?? '') : ''
 })
+/** The latest step the agent started: "🔨 Implement · deepseek · deepseek-flash" (step.started events). */
+const currentStep = computed(() => {
+  const started = [...(eventWindow.value?.events ?? [])].reverse().find((e) => e.type === 'step.started')
+  return started ? String((started.payload as Record<string, unknown>).line ?? '') : ''
+})
 /** The agent's replies already in the transcript replace the optimistic ones. */
 const shownReplies = computed(() => {
   const arrived = new Set((eventWindow.value?.events ?? []).filter((e: AgentEvent) => e.type === 'DeveloperReplied').map((e) => String((e.payload as Record<string, unknown>).reply ?? '')))
@@ -145,6 +150,12 @@ onBeforeUnmount(() => {
         </div>
         <p class="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
           <span class="tabular-nums">{{ duration(elapsed) }}</span>
+          <span
+            v-if="currentStep"
+            class="badge badge-outline badge-sm"
+            data-testid="step"
+            title="The step the agent runs: provider, model and effort"
+          >{{ currentStep }}</span>
           <span v-if="job.phase">phase: {{ job.phase }}</span>
           <span>{{ job.repo }}</span>
           <span

@@ -26,12 +26,14 @@ It updates live; the dot in the header shows whether it's connected.
 ## Session (a job's page)
 
 - **The header:**
-  - state, phase, branch, Claude session id, usage, and the job's CPU / RAM / disk;
+  - state, **the current step** (e.g. `🔨 Implement · deepseek · deepseek-flash`), phase, branch, Claude session id,
+    usage, and the job's CPU / RAM / disk;
   - links to the work item, the chat threads and the PR;
   - **Pause**, **Resume**, **Cancel** and **Retry**.
 - **🔐 Permission banner:** when the agent asks for a command, answer with the same four choices as in chat.
 - **Tabs** (`1` `2` `3`):
   - **Transcript:** everything the agent said and did, live. Tool calls fold open, and long outputs load on demand.
+    Each step's start is a row (under **state**), so you can see which model did what.
   - **Diff:** what the branch changes, refreshed as the agent edits files.
   - **Details:** plan status, estimate, attempts, errors, threads.
 - **The message box** sends a message to the agent, like replying in the thread.

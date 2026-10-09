@@ -70,6 +70,9 @@ export function toRows(events: AgentEvent[]): Row[] {
       case 'progress.reported':
         rows.push({ kind: 'state', key: event.seq, event, title: str(p.message) || 'Progress' })
         break
+      case 'step.started':
+        rows.push({ kind: 'state', key: event.seq, event, title: str(p.line) || 'Step started' })
+        break
       case 'PullRequestCreated':
         rows.push({ kind: 'state', key: event.seq, event, title: 'Pull request opened', detail: val(p.url) })
         break

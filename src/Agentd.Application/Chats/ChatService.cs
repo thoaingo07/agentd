@@ -61,7 +61,7 @@ public sealed partial class ChatService(
         var title = IdeaService.Title(question);
         var opening = new OutboundMessage(MessageKind.Info,
             $"💬 **{author} asks:** {question.Trim()}\n\nI'm reading the code of {string.Join(", ", repos.Select(r => $"`{r.Name}`"))} (read-only). " +
-            "Ask follow-ups in this thread; say **close** when you're done.");
+            "Ask follow-ups in this thread; say **close** when you're done.\n" + Jobs.StepAnnouncer.ModelNote(model, effort));
         var thread = await providers.Resolve(provider).OpenConversationAsync(
             new ConversationSpec(default, default, title, repos[0].Name, opening, $"💬 Chat: {title}"), ct).ConfigureAwait(false);
         var id = await chats.InsertAsync(author, provider, thread.ExternalConversationId, thread.ExternalSpaceId, [.. repos.Select(r => r.Name.Value)], ct).ConfigureAwait(false);
