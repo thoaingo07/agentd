@@ -48,6 +48,9 @@ public static class DependencyInjection
         services.AddSingleton<Reviews.ReviewService>();
         services.AddSingleton<Chats.ChatService>();
         services.AddSingleton<AzureDevOps.AdoConnections>();
+        services.AddSingleton<AzureDevOps.AdoActor>();
+        services.AddSingleton<AzureDevOps.AdoUserTokens>();
+        services.AddSingleton<AzureDevOps.AdoOnBehalf>();
         services.AddSingleton<Setup.SetupService>();
         services.AddScoped<ICommandHandler<Permissions.PermissionAsk, Permissions.PermissionDecision>, Permissions.PermissionAskHandler>();
         services.AddScoped<ICommandHandler<Permissions.PermissionAnswer, bool>, Permissions.PermissionAnswerHandler>();

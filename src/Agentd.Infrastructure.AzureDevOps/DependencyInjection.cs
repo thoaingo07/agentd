@@ -15,12 +15,16 @@ public static class DependencyInjection
         services.AddSingleton<IAdoAuthProvider>(sp =>
         {
             var options = sp.GetRequiredService<IOptions<AzureDevOpsOptions>>();
-            return options.Value.Auth switch
+            IAdoAuthProvider own = options.Value.Auth switch
             {
                 AzureDevOpsAuth.Pat => new PatAuthProvider(options),
                 AzureDevOpsAuth.ServicePrincipal => AzCliAuthProvider.ForServicePrincipal(options.Value.TenantId, options.Value.ClientId, options.Value.ClientSecret),
                 _ => new AzCliAuthProvider(),
             };
+            // Inside an AdoActor scope, a person's delegated token instead (docs/architect/ado-user-delegation.md).
+            return sp.GetService<Application.AzureDevOps.AdoActor>() is { } actor && sp.GetService<Application.AzureDevOps.AdoUserTokens>() is { } tokens
+                ? new ActingAsAuthProvider(own, actor, tokens)
+                : own;
         });
         services.AddTransient<AdoAuthHandler>();
         // People's delegated sign-in: its own client (their tokens, never agentd's auth handler), no redirects.

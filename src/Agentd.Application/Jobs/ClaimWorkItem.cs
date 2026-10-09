@@ -29,7 +29,9 @@ public sealed class ClaimWorkItemHandler(
     IJobRepository jobs,
     IClock clock,
     NoMatchNotices notices,
-    IOptions<JobOptions> options) : ICommandHandler<ClaimWorkItem, JobId>
+    IOptions<JobOptions> options,
+    AzureDevOps.AdoOnBehalf? onBehalf = null,
+    AzureDevOps.AdoActor? actor = null) : ICommandHandler<ClaimWorkItem, JobId>
 {
     public async Task<Result<JobId>> Handle(ClaimWorkItem command, CancellationToken cancellationToken)
     {
@@ -63,20 +65,25 @@ public sealed class ClaimWorkItemHandler(
         switch (match)
         {
             case RepositoryMatch.Matched { Repository: var repository }:
-                if (!await workItems.TryClaimAsync(item.Id, item.Rev, options.Value.ClaimTag, cancellationToken).ConfigureAwait(false))
+                // The claim tag and the comment go under the work item's Assigned To when they've connected.
+                var assignee = onBehalf is null ? null : await onBehalf.ResolveAsync(item.AssignedToId, item.AssignedTo, null, cancellationToken).ConfigureAwait(false);
+                using (actor?.Begin(assignee))
                 {
-                    return DomainError.Conflict($"Work item {item.Id} changed while claiming it; will retry on the next poll.");
-                }
+                    if (!await workItems.TryClaimAsync(item.Id, item.Rev, options.Value.ClaimTag, cancellationToken).ConfigureAwait(false))
+                    {
+                        return DomainError.Conflict($"Work item {item.Id} changed while claiming it; will retry on the next poll.");
+                    }
 
-                var job = Job.Create(command.WorkItemId, repository.Name, item.Title, clock);
-                var added = await jobs.AddAsync(job, cancellationToken).ConfigureAwait(false);
-                if (!added.IsSuccess)
-                {
-                    return added.Error;
-                }
+                    var job = Job.Create(command.WorkItemId, repository.Name, item.Title, clock);
+                    var added = await jobs.AddAsync(job, cancellationToken).ConfigureAwait(false);
+                    if (!added.IsSuccess)
+                    {
+                        return added.Error;
+                    }
 
-                await workItems.AddCommentAsync(item.Id, $"agentd picked this up (job #{job.Id}, repository `{repository.Name}`).", cancellationToken).ConfigureAwait(false);
-                return job.Id;
+                    await workItems.AddCommentAsync(item.Id, $"agentd picked this up (job #{job.Id}, repository `{repository.Name}`).", cancellationToken).ConfigureAwait(false);
+                    return job.Id;
+                }
 
             case RepositoryMatch.Ambiguous { Candidates: var candidates }:
                 await NotifyOnceAsync(command.WorkItemId, $"agentd: several repositories match this item ({string.Join(", ", candidates)}). Add a `repo:<name>` tag to choose one.", cancellationToken).ConfigureAwait(false);

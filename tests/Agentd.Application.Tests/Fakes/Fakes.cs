@@ -131,9 +131,15 @@ internal sealed class FakeWorkItems : IWorkItemSource
         return Task.FromResult(true);
     }
 
+    /// <summary>Who the calls run as, recorded per comment.</summary>
+    public Func<Guid?>? ActingAs { get; set; }
+
+    public List<Guid?> CommentedAs { get; } = [];
+
     public Task AddCommentAsync(int id, string text, CancellationToken cancellationToken)
     {
         Comments.Add((id, text));
+        CommentedAs.Add(ActingAs?.Invoke());
         if (Items.TryGetValue(id, out var item))
         {
             Items[id] = item with { Comments = [.. item.Comments, new WorkItemComment("agentd", DateTimeOffset.UnixEpoch, text)] };
@@ -312,9 +318,15 @@ internal sealed class FakePullRequests : IPullRequestService
 
     public Task<PullRequestRef?> FindOpenAsync(Repository repository, BranchName source, CancellationToken cancellationToken) => Task.FromResult(Existing);
 
+    /// <summary>Who the calls run as (an <c>AdoActor</c>'s Current), recorded per created PR.</summary>
+    public Func<Guid?>? ActingAs { get; set; }
+
+    public List<Guid?> CreatedAs { get; } = [];
+
     public Task<PullRequestRef> CreateAsync(Repository repository, BranchName source, string target, string title, string description, WorkItemId workItem, CancellationToken cancellationToken)
     {
         Created.Add((source.Value, target, title));
+        CreatedAs.Add(ActingAs?.Invoke());
         return Task.FromResult(new PullRequestRef(77, new Uri("https://dev.azure.com/ermsystem/Portal/_git/sysmin/pullrequest/77")));
     }
 
@@ -572,7 +584,12 @@ internal sealed class TestContext
         Conversations = new FakeConversations(id => Jobs.TryGet(id)?.WorkItemId);
     }
 
-    public ClaimWorkItemHandler Claim() => new(WorkItems, Registry, Jobs, Clock, Notices, Options);
+    /// <summary>Acting as a work item's Assigned To in Azure DevOps (null: always agentd's own, as before).</summary>
+    public Application.AzureDevOps.AdoOnBehalf? OnBehalf { get; set; }
+
+    public Application.AzureDevOps.AdoActor? Actor { get; set; }
+
+    public ClaimWorkItemHandler Claim() => new(WorkItems, Registry, Jobs, Clock, Notices, Options, OnBehalf, Actor);
 
     public StartNextJobHandler StartNext() => new(Jobs, Registry, Worktrees, WorkItems, MessagingService(), Outbox, Options);
 
@@ -584,7 +601,7 @@ internal sealed class TestContext
 
     public HandleAgentExitHandler AgentExit() => new(Jobs, Registry, Worktrees, Clock, Options);
 
-    public PublishPullRequestHandler Publish() => new(Jobs, Registry, Worktrees, PullRequests, WorkItems, Outbox, Activity, Clock, Options, StartHandoff());
+    public PublishPullRequestHandler Publish() => new(Jobs, Registry, Worktrees, PullRequests, WorkItems, Outbox, Activity, Clock, Options, StartHandoff(), OnBehalf, Actor);
 
     public FinishWorkHandler Finish() => new(Jobs, Publish());
 

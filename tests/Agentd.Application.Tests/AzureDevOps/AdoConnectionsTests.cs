@@ -80,7 +80,7 @@ public sealed class AdoConnectionsTests
 
     private AdoConnections Service() => new(_delegation, _store, new FakeProtector());
 
-    private sealed class FakeDelegation : IAdoDelegation
+    internal sealed class FakeDelegation : IAdoDelegation
     {
         public List<(string State, string Challenge, Uri Redirect)> Authorized { get; } = [];
 
@@ -106,9 +106,25 @@ public sealed class AdoConnectionsTests
             Redeemed.Add((code, codeVerifier));
             return Task.FromResult(new DelegatedSignIn(s_dev, "dev.one@example.com", "Dev One", "refresh-SECRET"));
         }
+
+        public List<string> Refreshed { get; } = [];
+
+        /// <summary>Thrown by <see cref="RefreshAsync"/>: InvalidOperationException (refused) or HttpRequestException (unreachable).</summary>
+        public Exception? RefreshFailure { get; set; }
+
+        public async Task<DelegatedToken> RefreshAsync(string refreshToken, CancellationToken cancellationToken)
+        {
+            await Task.Yield();
+            lock (Refreshed)
+            {
+                Refreshed.Add(refreshToken);
+            }
+
+            return RefreshFailure is { } failure ? throw failure : new DelegatedToken($"access-{Refreshed.Count}", $"rotated-{Refreshed.Count}", TimeSpan.FromHours(1));
+        }
     }
 
-    private sealed class FakeProtector : ITokenProtector
+    internal sealed class FakeProtector : ITokenProtector
     {
         public byte[] Protect(string token) => Encoding.UTF8.GetBytes("enc:" + token);
 
@@ -134,9 +150,27 @@ public sealed class AdoConnectionsTests
         public Task<IReadOnlyList<AdoUserConnection>> ListByWebLoginAsync(string webLogin, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<AdoUserConnection>>([.. Rows.Where(r => r.WebLogin == webLogin)]);
 
-        public Task<bool> StoreTokenAsync(Guid identityId, byte[] refreshToken, CancellationToken cancellationToken) => Task.FromResult(false);
+        public Task<bool> StoreTokenAsync(Guid identityId, byte[] refreshToken, CancellationToken cancellationToken)
+        {
+            var i = Rows.FindIndex(r => r.IdentityId == identityId);
+            if (i >= 0)
+            {
+                Rows[i] = Rows[i] with { RefreshToken = refreshToken, Failed = false, LastError = null };
+            }
 
-        public Task MarkFailedAsync(Guid identityId, string reason, CancellationToken cancellationToken) => Task.CompletedTask;
+            return Task.FromResult(i >= 0);
+        }
+
+        public Task MarkFailedAsync(Guid identityId, string reason, CancellationToken cancellationToken)
+        {
+            var i = Rows.FindIndex(r => r.IdentityId == identityId);
+            if (i >= 0)
+            {
+                Rows[i] = Rows[i] with { Failed = true, LastError = reason };
+            }
+
+            return Task.CompletedTask;
+        }
 
         public Task<bool> DeleteAsync(Guid identityId, string webLogin, CancellationToken cancellationToken) =>
             Task.FromResult(Rows.RemoveAll(r => r.IdentityId == identityId && r.WebLogin == webLogin) > 0);

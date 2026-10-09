@@ -80,5 +80,8 @@ Access tokens are never stored: they're cached in memory per identity until five
 1. The token store: this design, the migration, the routines with integration tests (including parallel callers), the
    store, and the protector.
 2. Connect / Disconnect: the OAuth flow, the BFF endpoints and the settings section.
-3. Using the tokens: the job's actions under the Assigned To, `!review` under its requester, the fallback and its
-   thread note.
+3. Using the tokens:
+   - **3a, jobs:** `AdoUserTokens` (refresh, rotate, cache, mark failed), `AdoActor` (an async-local "as whom" scope that
+     agentd's auth provider honours: `ActingAsAuthProvider`), and `AdoOnBehalf` (the work item's Assigned To, or
+     agentd's own with the thread note). Claiming and publishing run inside the scope.
+   - **3b, `!review`:** findings and re-checks under the person who ran it.

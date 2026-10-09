@@ -57,6 +57,25 @@ public sealed class AzCliAuthProvider(TokenCredential credential) : IAdoAuthProv
     public void Dispose() => _lock.Dispose();
 }
 
+/// <summary>
+/// agentd's own auth, except inside an <see cref="Application.AzureDevOps.AdoActor"/> scope: then the person's delegated
+/// token (docs/architect/ado-user-delegation.md). A person's call never falls back to agentd once it's under way.
+/// </summary>
+public sealed class ActingAsAuthProvider(IAdoAuthProvider own, Application.AzureDevOps.AdoActor actor, Application.AzureDevOps.AdoUserTokens tokens) : IAdoAuthProvider
+{
+    public async ValueTask<AuthenticationHeaderValue> GetAsync(bool forceRefresh, CancellationToken cancellationToken)
+    {
+        if (actor.Current is not { } person)
+        {
+            return await own.GetAsync(forceRefresh, cancellationToken).ConfigureAwait(false);
+        }
+
+        return await tokens.GetAccessTokenAsync(person, forceRefresh, cancellationToken).ConfigureAwait(false) is { } token
+            ? new AuthenticationHeaderValue("Bearer", token)
+            : throw new AdoException("The person's Azure DevOps sign-in stopped working during this action; they need to reconnect (Settings → Your Azure DevOps).", 401);
+    }
+}
+
 /// <summary>Auth that isn't configured: every request fails with <paramref name="message"/>.</summary>
 internal sealed class MissingAuthProvider(string message) : IAdoAuthProvider
 {
