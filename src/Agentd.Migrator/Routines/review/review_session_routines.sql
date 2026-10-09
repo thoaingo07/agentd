@@ -21,6 +21,12 @@ RETURNS SETOF agentd.review_sessions
 LANGUAGE sql STABLE
 AS $$ SELECT * FROM agentd.review_sessions WHERE created_by = p_created_by ORDER BY id DESC LIMIT p_limit $$;
 
+-- Sessions in one status (e.g. the reviews to resume after a restart), oldest first.
+CREATE OR REPLACE FUNCTION agentd.review_session_list_by_status(p_status text)
+RETURNS SETOF agentd.review_sessions
+LANGUAGE sql STABLE
+AS $$ SELECT * FROM agentd.review_sessions WHERE status = p_status ORDER BY id $$;
+
 CREATE OR REPLACE FUNCTION agentd.review_session_pin(p_id bigint, p_base_commit text, p_head_commit text, p_worktree_path text)
 RETURNS void
 LANGUAGE sql
