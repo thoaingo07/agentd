@@ -19,7 +19,8 @@ public sealed partial class ClaudeCodeRunner(
     IMcpTokenIssuer tokens,
     IAgentActivitySink activity,
     ILogger<ClaudeCodeRunner> logger,
-    IOptions<Application.Jobs.ModelsOptions>? models = null) : IAgentRunner
+    IOptions<Application.Jobs.ModelsOptions>? models = null,
+    IStepAnnouncer? steps = null) : IAgentRunner
 {
     private readonly ConcurrentDictionary<long, Running> _running = new();
 
@@ -99,6 +100,7 @@ public sealed partial class ClaudeCodeRunner(
         using var idle = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         idle.CancelAfter(o.IdleTimeout);
         var stderrTask = PumpStderrAsync(process, request.JobId.Value);
+        var announced = false;
         try
         {
             await using var transcript = new StreamWriter(Path.Combine(jobDir, "transcript.jsonl"), append: true, Encoding.UTF8);
@@ -111,6 +113,12 @@ public sealed partial class ClaudeCodeRunner(
                 {
                     tracker.Observe(agentEvent);
                     ReportActivity(request.JobId, request.Session.Value.ToString(), agentEvent);
+                    if (!announced && agentEvent is AgentEvent.SessionStarted started)
+                    {
+                        announced = true;
+                        await AnnounceAsync(request, started.Model).ConfigureAwait(false);
+                    }
+
                     await events.AppendAsync(request.JobId, agentEvent.LogType, StreamJsonParser.ToPayloadJson(agentEvent), CancellationToken.None).ConfigureAwait(false);
                 }
             }
@@ -138,6 +146,10 @@ public sealed partial class ClaudeCodeRunner(
             }
 
             await stderrTask.ConfigureAwait(false);
+            if (!announced)
+            {
+                await AnnounceAsync(request, null).ConfigureAwait(false);   // it never started (e.g. a model it doesn't know): still say what was tried
+            }
         }
 
         if (run.Cancelled)
@@ -151,6 +163,26 @@ public sealed partial class ClaudeCodeRunner(
         }
 
         return new AgentRunOutcome.Exited(process.ExitCode, tracker.Summary);
+    }
+
+    /// <summary>The step line never fails a run.</summary>
+    private async Task AnnounceAsync(AgentRunRequest request, string? model)
+    {
+        if (steps is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await steps.AnnounceAsync(request, model, CancellationToken.None).ConfigureAwait(false);
+        }
+#pragma warning disable CA1031 // a lost announcement is only logged
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            LogAnnounceFailed(logger, ex, request.JobId.Value);
+        }
     }
 
     private string? WriteMcpConfig(AgentRunRequest request, string jobDir, ClaudeOptions o)
@@ -240,6 +272,9 @@ public sealed partial class ClaudeCodeRunner(
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Job {JobId}: no output for {Timeout}; killing claude")]
     private static partial void LogIdle(ILogger logger, long jobId, TimeSpan timeout);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Job {JobId}: posting the step line failed")]
+    private static partial void LogAnnounceFailed(ILogger logger, Exception exception, long jobId);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Job {JobId} claude stderr: {Line}")]
     private static partial void LogStderr(ILogger logger, long jobId, string line);

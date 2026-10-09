@@ -55,6 +55,15 @@ public interface IResourceSampler
     Jobs.MachineResources? SampleMachine(string diskPath);
 }
 
+/// <summary>Says which step, provider, model and effort a job's agent turn runs on (thread line + timeline event).</summary>
+public interface IStepAnnouncer
+{
+    /// <param name="turn">The turn as started (step, profile, model, effort).</param>
+    /// <param name="model">The model the agent reported at start-up; null when it didn't start.</param>
+    /// <param name="cancellationToken">Cancels the announcement.</param>
+    Task AnnounceAsync(AgentRunRequest turn, string? model, CancellationToken cancellationToken);
+}
+
 /// <summary>What the runner reports while an agent works (fed into <c>JobActivity</c>).</summary>
 public interface IAgentActivitySink
 {

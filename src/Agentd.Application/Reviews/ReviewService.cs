@@ -82,18 +82,19 @@ public sealed partial class ReviewService(
             return $"🔄 Continuing review #{existing.Id} of PR !{id} in its thread.";
         }
 
-        var opening = new OutboundMessage(MessageKind.Info,
-            $"🔍 **Review of PR !{id}** requested by {author}: {details.Title}\n`{details.SourceBranch}` → `{details.TargetBranch}` · by {details.Author} · {details.Url}\n\n" +
-            (instructions is null ? string.Empty : $"Your instructions: {instructions}\n\n") +
-            "I'm reading the change and will post my findings here. **Nothing goes to the PR until you choose.** Ask me anything in this thread.");
-        var title = $"PR !{id}: {details.Title}";
-        var thread = await providers.Resolve(provider).OpenConversationAsync(
-            new ConversationSpec(default, default, title, repo.Value.Name, opening, $"🔍 Review: {IdeaService.Title(title)}"), ct).ConfigureAwait(false);
-        var reviewId = await reviews.InsertAsync(repo.Value.Name.Value, id, details.Title, author, provider, thread.ExternalConversationId, thread.ExternalSpaceId, ct).ConfigureAwait(false);
         // --model / --effort, else the review step's defaults (Agentd:Jobs:Steps:review), else the runner's.
         var defaults = jobs?.Value.Steps.TryGetValue(Jobs.JobSteps.Review, out var step) == true ? step : null;
         model ??= string.IsNullOrWhiteSpace(defaults?.Model) ? null : defaults.Model.Trim();
         effort ??= string.IsNullOrWhiteSpace(defaults?.Effort) ? null : defaults.Effort.Trim().ToLowerInvariant();
+        var opening = new OutboundMessage(MessageKind.Info,
+            $"🔍 **Review of PR !{id}** requested by {author}: {details.Title}\n`{details.SourceBranch}` → `{details.TargetBranch}` · by {details.Author} · {details.Url}\n\n" +
+            (instructions is null ? string.Empty : $"Your instructions: {instructions}\n\n") +
+            "I'm reading the change and will post my findings here. **Nothing goes to the PR until you choose.** Ask me anything in this thread.\n" +
+            Jobs.StepAnnouncer.ModelNote(model, effort));
+        var title = $"PR !{id}: {details.Title}";
+        var thread = await providers.Resolve(provider).OpenConversationAsync(
+            new ConversationSpec(default, default, title, repo.Value.Name, opening, $"🔍 Review: {IdeaService.Title(title)}"), ct).ConfigureAwait(false);
+        var reviewId = await reviews.InsertAsync(repo.Value.Name.Value, id, details.Title, author, provider, thread.ExternalConversationId, thread.ExternalSpaceId, ct).ConfigureAwait(false);
         var review = (await reviews.GetAsync(reviewId, ct).ConfigureAwait(false))! with { HeadCommit = details.SourceCommit, Focus = focus, Model = model, Effort = effort };
         await reviews.SaveAsync(review, ct).ConfigureAwait(false);
 

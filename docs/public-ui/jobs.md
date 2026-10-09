@@ -34,6 +34,14 @@ agentd claims the work item by adding **`ai-in-progress`**, so it's never picked
    - **Risks and questions.**
 
    The implementer follows it step by step. If a step can't work as written, it asks you instead of improvising.
+   **Each step says what it runs on** when it starts, in the thread and on the session page:
+   ```text
+   📝 Plan · Claude · claude-opus-5-5 · effort high
+   🔨 Implement · deepseek · deepseek-flash
+   🔧 Fix round 1 · deepseek · deepseek-flash
+   ```
+   The model is the one Claude Code reports at start-up. A resumed step (after your answer, or a restart) isn't
+   repeated. `!review` and `!chat` say theirs in the opening message (`🧠 claude-opus-5-5 · effort high`).
 3. **Implement and verify.** It edits, builds and tests in its worktree. A heartbeat in the thread shows what it's
    doing, for example `🔧 dotnet test (running for 2 min) · CPU 180% · RAM 2.1 GB`.
 4. **Pull request.** It commits; agentd pushes the branch `ai/<id>-<title>` and opens the PR, linked to the work
