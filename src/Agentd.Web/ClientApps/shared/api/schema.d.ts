@@ -872,6 +872,15 @@ export interface components {
             unifiedDiff: null | string;
             truncated: boolean;
         };
+        /** @description A mounted disk; `home`: it holds agentd's home (worktrees, logs). */
+        DiskVm: {
+            mount: string;
+            /** Format: int64 */
+            total: number;
+            /** Format: int64 */
+            free: number;
+            home: boolean;
+        };
         EstimateVm: {
             /** Format: int32 */
             minutes: number;
@@ -1031,6 +1040,24 @@ export interface components {
             pendingPermissions: number;
         };
         JsonElement: unknown;
+        /** @description Cores, load averages (null: unknown), swap, uptime in seconds, and each real disk. */
+        MachineDetailsVm: {
+            /** Format: int32 */
+            cores: number;
+            /** Format: double */
+            load1: null | number;
+            /** Format: double */
+            load5: null | number;
+            /** Format: double */
+            load15: null | number;
+            /** Format: int64 */
+            swapTotal: number;
+            /** Format: int64 */
+            swapFree: number;
+            /** Format: int64 */
+            uptimeSeconds: null | number;
+            disks: components["schemas"]["DiskVm"][];
+        };
         /** @description The machine agentd runs on (null fields: not sampled, e.g. off Linux). */
         MachineVm: {
             /** Format: double */
@@ -1047,6 +1074,7 @@ export interface components {
             lowDisk: boolean;
             /** Format: date-time */
             at: string;
+            details: null | components["schemas"]["MachineDetailsVm"];
         };
         MessageAcceptedVm: {
             outcome: string;

@@ -90,14 +90,61 @@ internal sealed class ProcResourceSampler(string procRoot = "/proc") : IResource
                 .Where(p => p.Length == 2)
                 .ToDictionary(p => p[0].Trim(), p => long.Parse(p[1].Trim().Split(' ')[0], CultureInfo.InvariantCulture) * 1024);
             var drive = new DriveInfo(Path.GetPathRoot(Path.GetFullPath(diskPath))!);
+            var cores = File.ReadLines(Path.Combine(procRoot, "stat")).Count(l => l.Length > 3 && l.StartsWith("cpu", StringComparison.Ordinal) && char.IsAsciiDigit(l[3]));
+            var load = TryRead(Path.Combine(procRoot, "loadavg"))?.Split(' ') is { Length: >= 3 } l ? l : null;
+            var uptime = TryRead(Path.Combine(procRoot, "uptime"))?.Split(' ')[0] is { } u && double.TryParse(u, NumberStyles.Float, CultureInfo.InvariantCulture, out var up) ? TimeSpan.FromSeconds(Math.Floor(up)) : (TimeSpan?)null;
             return new MachineResources(cpu, memory.GetValueOrDefault("MemTotal"), memory.GetValueOrDefault("MemAvailable"),
-                drive.TotalSize, drive.AvailableFreeSpace, DateTimeOffset.UtcNow);
+                drive.TotalSize, drive.AvailableFreeSpace, DateTimeOffset.UtcNow)
+            {
+                Details = new MachineDetails(cores, Number(load, 0), Number(load, 1), Number(load, 2),
+                    memory.GetValueOrDefault("SwapTotal"), memory.GetValueOrDefault("SwapFree"), uptime, Disks(Path.GetFullPath(diskPath))),
+            };
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or FormatException or InvalidOperationException or IndexOutOfRangeException)
         {
             return null;   // not Linux, or /proc looks different: no machine numbers
         }
     }
+
+    /// <summary>Filesystems that are real disks; tmpfs, overlay, squashfs (snaps), proc and the like are left out.</summary>
+    private static readonly HashSet<string> s_diskTypes = ["ext2", "ext3", "ext4", "xfs", "btrfs", "zfs", "f2fs", "bcachefs"];
+
+    private static double? Number(string[]? fields, int i) =>
+        fields is not null && double.TryParse(fields[i], NumberStyles.Float, CultureInfo.InvariantCulture, out var v) ? v : null;
+
+    /// <summary>Each real disk once (btrfs subvolumes mount one device many times), from <c>/proc/mounts</c>.</summary>
+    internal List<DiskUse> Disks(string home)
+    {
+        var mounts = (TryRead(Path.Combine(procRoot, "mounts")) ?? string.Empty)
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Select(l => l.Split(' '))
+            .Where(f => f.Length >= 3 && s_diskTypes.Contains(f[2]))
+            .Select(f => (Device: f[0], Mount: f[1].Replace("\\040", " ", StringComparison.Ordinal)))
+            .DistinctBy(m => m.Device)
+            .ToList();
+        var homeMount = mounts.Select(m => m.Mount).Where(m => IsUnder(home, m)).MaxBy(m => m.Length);
+        var disks = new List<DiskUse>();
+        foreach (var (_, mount) in mounts)
+        {
+            try
+            {
+                var drive = new DriveInfo(mount);
+                if (drive.TotalSize > 0)
+                {
+                    disks.Add(new DiskUse(mount, drive.TotalSize, drive.AvailableFreeSpace, mount == homeMount));
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+            {
+                // unmounted meanwhile, or not ours to read
+            }
+        }
+
+        return disks;
+    }
+
+    private static bool IsUnder(string path, string mount) =>
+        mount == "/" || path == mount || path.StartsWith(mount + "/", StringComparison.Ordinal);
 
     /// <summary>The root and every descendant.</summary>
     private static IEnumerable<int> Tree(int root, Dictionary<int, List<int>> children)

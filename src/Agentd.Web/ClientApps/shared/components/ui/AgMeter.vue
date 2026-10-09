@@ -1,14 +1,15 @@
 <script setup lang="ts">
 import { MeterIndicator, MeterLabel, MeterRoot, MeterTrack, MeterValue } from 'base-ui-vue'
 
-withDefaults(defineProps<{ label: string; value: number; max?: number }>(), { max: 100 })
+// `percent`: the value is 0–100 and shows as "35%"; otherwise it shows as a plain number (e.g. agent slots).
+withDefaults(defineProps<{ label: string; value: number; max?: number; percent?: boolean }>(), { max: 100, percent: false })
 </script>
 
 <template>
   <MeterRoot
     :value="value"
     :max="max"
-    :format="{ maximumFractionDigits: 0 }"
+    :format="percent ? undefined : { maximumFractionDigits: 0 }"
     class="grid grid-cols-[1fr_auto] items-center gap-1 text-xs"
   >
     <MeterLabel class="text-muted">

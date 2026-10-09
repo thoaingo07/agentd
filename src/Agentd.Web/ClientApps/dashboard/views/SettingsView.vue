@@ -4,6 +4,7 @@ import { useConfigStore } from '../stores/config'
 import { useConnectionStore } from '../stores/connection'
 import { usePermissionsStore } from '../stores/permissions'
 import { useSessionStore } from '../stores/session'
+import HostPanel from '../components/HostPanel.vue'
 import ThemeToggle from '../components/ThemeToggle.vue'
 import { settingsAreas } from '../settingsAreas'
 
@@ -23,6 +24,7 @@ onMounted(() => {
     <h1 class="text-xl font-semibold">
       Settings
     </h1>
+    <HostPanel />
     <nav
       v-if="isAdmin"
       aria-labelledby="settings-areas"
