@@ -32,6 +32,21 @@ agentd fetches the pushed branch, compares it with where it left its base (the r
 channel: "📝 The review of `feature/keyset` → `develop` is ready: 🔴 1 🟠 0 … <link>". The findings, keep/edit/drop,
 comments and Ask are on that page (see [Web UI → Reviews](web-ui.md#reviews)).
 
+## Your own changes, on your laptop
+
+```bash
+cd ~/src/sysmin
+agentd review                 # your uncommitted changes (staged and unstaged)
+agentd review --base develop  # everything since develop: your commits plus uncommitted changes
+agentd review --untracked     # include new files git doesn't track yet
+agentd review --model opus --effort high
+```
+
+It runs **your own `claude`** (your login, your subscription) in your repository, **read-only**, with the same rules
+as the server's reviewer. It doesn't need the agentd server. The findings are printed and saved to
+**`.agentd/review.md`**, so you can tell your agent "fix what's in `.agentd/review.md`" (keep that file out of git).
+The review page on your laptop, `--fix` and `--share` come next.
+
 ## What the reviewer looks at
 
 Only two kinds of problems, so the review stays short:

@@ -88,6 +88,7 @@ internal static class AgentdCli
         root.Subcommands.Add(SecretsCommand.Create(context));
         root.Subcommands.Add(SetupLinkCommand.Create(context));
         root.Subcommands.Add(InitCommand.Create(context));
+        root.Subcommands.Add(ReviewCommand.Create(context));
         root.Subcommands.Add(UpdateCommand.Update(context));
         root.Subcommands.Add(UpdateCommand.Version(context));
         return root;
