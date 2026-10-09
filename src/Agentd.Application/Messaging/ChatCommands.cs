@@ -47,7 +47,8 @@ public sealed partial class ChatCommands(
     Reviews.IReviewStore? reviewStore = null,
     JobActivity? activity = null,
     Domain.Common.IClock? clock = null,
-    Chats.ChatService? chats = null)
+    Chats.ChatService? chats = null,
+    Reviews.BranchReviews? branchReviews = null)
 {
     /// <summary>Commands typed in a job's thread are recorded, so the work item conversation shows both directions.</summary>
     public const string CommandEventType = "chat.command";
@@ -69,7 +70,7 @@ public sealed partial class ChatCommands(
         "",
         "**Commands** (start with `!` on Discord)",
         "In a job's thread:",
-        "• `status`: phase, current activity, elapsed time and usage",
+        "• `status`: phase, activity, time and usage",
         "• `logs`: the agent's recent transcript",
         "• `pause` / `resume`: stop for now, continue later (`cancel` ends it)",
         "• `retry`: run a failed or cancelled job again",
@@ -79,7 +80,7 @@ public sealed partial class ChatCommands(
         "• `list`: active jobs",
         "• `run <work item id>`: start a work item now, even without the tag",
         "• `idea <text>`: brainstorm into work items",
-        "• `review <PR> [instructions]`: review a PR; you pick what's posted",
+        "• `review <PR> [instructions]`: review a PR; you pick what's posted (or `branch:<name>`)",
         "• `chat <question>`: ask about the code (`close` ends it)",
         "• `repo list|add <url>|remove <name>`: repositories (Admins change them)",
         "• `help`: this message",
@@ -180,6 +181,11 @@ public sealed partial class ChatCommands(
                     : await chats.StartAsync(message.Provider, user.Name, command.Args, ct).ConfigureAwait(false) is var startedChat && startedChat.IsSuccess
                         ? new(MessageKind.Info, startedChat.Value)
                         : new(MessageKind.Info, startedChat.Error.Message);
+                break;
+            case "review" when branchReviews is not null && Reviews.BranchReviews.Matches(command.Args):
+                reply = await branchReviews.StartAsync(new ConversationRef(message.Provider, message.ExternalConversationId, null), user.Name, command.Args, ct).ConfigureAwait(false) is var startedBranch && startedBranch.IsSuccess
+                    ? new(MessageKind.Info, startedBranch.Value)
+                    : new(MessageKind.Info, startedBranch.Error.Message);
                 break;
             case "review":
                 reply = reviews is null

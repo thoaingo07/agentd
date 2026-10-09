@@ -10,6 +10,7 @@ Commands start with **`!`** in Discord. `!help` shows them all, with the job cyc
 | `!run <work item id>` | start a work item now, even without the `ai-workflow` tag |
 | `!idea [--repo r] [--model m] [--effort e] <text>` | brainstorm an idea into work items, in a new 💡 thread ([Ideas](ideas.md)) |
 | `!review <PR url or id> [instructions] [--repo r] [--focus f] [--model m] [--effort e]` | review a pull request, in a new 🔍 thread ([Reviews](reviews.md)) |
+| `!review branch:<name> [--base b] [--repo r]` | review a pushed branch on its web page; agentd says here when it's ready ([Reviews](reviews.md#a-branch-without-a-pr)) |
 | `!chat <question> [--repo r] [--model m] [--effort e]` | ask about the code, in a new 💬 thread (see below) |
 | `!repo list` | registered repositories and how work items match them |
 | `!repo add <clone url> [--name n] [--tag t] [--base b] [--area-path p]` · `!repo remove <name>` | register or remove a repository (Admins) |

@@ -20,6 +20,18 @@ thread until **you** choose what gets posted to the PR.
 
 agentd opens **🔍 Review: PR !3944: <title>** and checks out the PR's head **read-only**.
 
+## A branch, without a PR
+
+```text
+!review branch:feature/keyset
+!review branch:feature/keyset --base release/1.2 --repo sysmin
+```
+
+agentd fetches the pushed branch, compares it with where it left its base (the repository's base branch, or
+`--base`), and answers with the review's page in the web UI. When the reviewer is done it says so in the same
+channel: "📝 The review of `feature/keyset` → `develop` is ready: 🔴 1 🟠 0 … <link>". The findings, keep/edit/drop,
+comments and Ask are on that page (see [Web UI → Reviews](web-ui.md#reviews)).
+
 ## What the reviewer looks at
 
 Only two kinds of problems, so the review stays short:
