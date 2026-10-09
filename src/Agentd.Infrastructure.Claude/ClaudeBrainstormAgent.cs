@@ -70,7 +70,9 @@ public sealed class ClaudeBrainstormAgent(IOptions<ClaudeOptions> options) : IBr
         "directory and the added directories are read-only checkouts of each repository's base branch (the first prompt lists them). " +
         "Read and search them (Read, Grep, Glob, git log/show/blame) and answer from what you find: name the files and lines " +
         "(`path:line`) so the developer can check. For Azure DevOps use agentd's tools: ado_search_work_items, ado_get_work_item, " +
-        "ado_list_pull_requests, ado_get_pull_request (read-only; link items as #id and PRs as !id). Never edit, build, commit or push. If the " +
+        "ado_list_pull_requests, ado_get_pull_request, and for pipelines ado_list_pipelines, ado_list_builds, ado_get_build (a failed run's " +
+        "errors and log end: say which step failed and why, then point at the code) (read-only; link items as #id and PRs as !id). " +
+        "Never edit, build, commit or push. If the " +
         "answer isn't in the code or Azure DevOps, say so plainly " +
         "instead of guessing. Keep answers short (under ~250 words) unless asked for detail, in the developer's language. When " +
         "something should become work, suggest `!idea <text>` (to shape work items) or `!run <work item id>`.";

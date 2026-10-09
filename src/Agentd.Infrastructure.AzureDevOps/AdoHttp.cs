@@ -22,6 +22,20 @@ internal static class AdoHttp
         return await ReadAsync(response, ct).ConfigureAwait(false);
     }
 
+    /// <summary>A plain-text resource (e.g. a build log); null when it doesn't exist.</summary>
+    public static async Task<string?> GetTextAsync(HttpClient http, string url, CancellationToken ct)
+    {
+        using var response = await http.GetAsync(new Uri(url, UriKind.Relative), ct).ConfigureAwait(false);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+
+        ThrowIfSignInRedirect(response);
+        var text = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+        return response.IsSuccessStatusCode ? text : throw new AdoException($"Azure DevOps returned {(int)response.StatusCode}: {TryMessage(text) ?? response.ReasonPhrase}", (int)response.StatusCode);
+    }
+
     public static async Task<JsonNode?> SendAsync(HttpClient http, HttpMethod method, string url, JsonNode body, string mediaType, CancellationToken ct)
     {
         using var request = new HttpRequestMessage(method, new Uri(url, UriKind.Relative))

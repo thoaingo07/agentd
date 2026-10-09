@@ -7,7 +7,7 @@ using static Agentd.Infrastructure.AzureDevOps.AdoHttp;
 namespace Agentd.Infrastructure.AzureDevOps;
 
 /// <summary>Work item and pull request searches in the configured project (REST 7.1), for <c>!chat</c>.</summary>
-public sealed class AzureDevOpsSearch(HttpClient http, IOptions<AzureDevOpsOptions> options) : IAzureDevOpsSearch
+public sealed partial class AzureDevOpsSearch(HttpClient http, IOptions<AzureDevOpsOptions> options) : IAzureDevOpsSearch
 {
     public const int MaxTop = 50;
 
@@ -55,6 +55,104 @@ public sealed class AzureDevOpsSearch(HttpClient http, IOptions<AzureDevOpsOptio
             Branch(Text(p["sourceRefName"])), Branch(Text(p["targetRefName"])),
             DateTimeOffset.TryParse(Text(p["creationDate"]), CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var at) ? at : default))];
     }
+
+    public async Task<IReadOnlyList<PipelineHit>> ListPipelinesAsync(string? name, CancellationToken cancellationToken)
+    {
+        var filter = string.IsNullOrWhiteSpace(name) ? string.Empty : $"&name=*{Esc(name.Trim())}*";
+        var result = await AdoHttp.GetAsync(http, $"{Org}/{Project}/_apis/build/definitions?queryOrder=definitionNameAscending&$top=200{filter}&api-version={ApiVersion}", cancellationToken).ConfigureAwait(false);
+        return [.. (result?["value"]?.AsArray() ?? []).Select(d => d!).Select(d => new PipelineHit(d["id"]!.GetValue<int>(), Text(d["name"]) ?? "", Text(d["path"]) ?? "\\"))];
+    }
+
+    public async Task<IReadOnlyList<BuildHit>> ListBuildsAsync(string? pipeline, string? branch, string? result, int top, CancellationToken cancellationToken)
+    {
+        var query = new List<string> { "queryOrder=queueTimeDescending", $"$top={Math.Clamp(top, 1, MaxTop)}" };
+        if (!string.IsNullOrWhiteSpace(pipeline))
+        {
+            var ids = int.TryParse(pipeline.Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out var id)
+                ? [id]
+                : (await ListPipelinesAsync(pipeline, cancellationToken).ConfigureAwait(false)).Select(p => p.Id).ToList();
+            if (ids.Count == 0)
+            {
+                return [];
+            }
+
+            query.Add($"definitions={string.Join(',', ids.Take(20))}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(branch))
+        {
+            var b = branch.Trim();
+            query.Add($"branchName={Esc(b.StartsWith("refs/", StringComparison.Ordinal) ? b : "refs/heads/" + b)}");
+        }
+
+        var wanted = result?.Trim().ToLowerInvariant();
+        if (wanted is "succeeded" or "failed" or "canceled" or "partiallysucceeded")
+        {
+            query.Add($"resultFilter={(wanted == "partiallysucceeded" ? "partiallySucceeded" : wanted)}");
+        }
+
+        var builds = await AdoHttp.GetAsync(http, $"{Org}/{Project}/_apis/build/builds?{string.Join('&', query)}&api-version={ApiVersion}", cancellationToken).ConfigureAwait(false);
+        return [.. (builds?["value"]?.AsArray() ?? []).Select(b => Build(b!))];
+    }
+
+    public async Task<BuildDetail?> GetBuildAsync(int id, CancellationToken cancellationToken)
+    {
+        var build = await AdoHttp.GetAsync(http, $"{Org}/{Project}/_apis/build/builds/{id}?api-version={ApiVersion}", cancellationToken).ConfigureAwait(false);
+        if (build is null)
+        {
+            return null;
+        }
+
+        var timeline = await AdoHttp.GetAsync(http, $"{Org}/{Project}/_apis/build/builds/{id}/timeline?api-version={ApiVersion}", cancellationToken).ConfigureAwait(false);
+        var records = (timeline?["records"]?.AsArray() ?? []).Select(r => r!)
+            .Where(r => Text(r["result"]) is "failed" or "canceled" || (r["issues"]?.AsArray().Any(i => Text(i?["type"]) == "error") ?? false))
+            .OrderBy(r => Text(r["type"]) == "Task" ? 0 : 1)   // the steps first, then the jobs and stages they failed
+            .Take(MaxFailures)
+            .ToList();
+        var failures = new List<BuildFailure>();
+        foreach (var r in records)
+        {
+            var issues = (r["issues"]?.AsArray() ?? []).Select(i => i!).Where(i => Text(i["type"]) == "error")
+                .Select(i => (Text(i["message"]) ?? "").Trim()).Where(m => m.Length > 0).Take(10).ToList();
+            string? tail = null;
+            if (Text(r["type"]) == "Task" && r["log"]?["id"]?.GetValue<int>() is { } logId)
+            {
+                tail = Tail(await AdoHttp.GetTextAsync(http, $"{Org}/{Project}/_apis/build/builds/{id}/logs/{logId}?api-version={ApiVersion}", cancellationToken).ConfigureAwait(false));
+            }
+
+            failures.Add(new BuildFailure(Text(r["name"]) ?? "", Text(r["type"]) ?? "", Text(r["result"]) ?? "", issues, tail));
+        }
+
+        return new BuildDetail(Build(build), failures);
+    }
+
+    /// <summary>At most this many failed records per run, and log lines per failed step.</summary>
+    public const int MaxFailures = 5;
+
+    public const int LogTailLines = 40;
+
+    /// <summary>The last lines of a log, without the agent's timestamps (<c>2026-10-08T10:00:00.1234567Z </c>).</summary>
+    internal static string? Tail(string? log)
+    {
+        if (string.IsNullOrWhiteSpace(log))
+        {
+            return null;
+        }
+
+        var lines = log.ReplaceLineEndings("\n").TrimEnd().Split('\n');
+        return string.Join('\n', lines.TakeLast(LogTailLines).Select(l => LogTimestamp().Replace(l, string.Empty, 1)));
+    }
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"^\d{4}-\d\d-\d\dT[\d:.]+Z\s?")]
+    private static partial System.Text.RegularExpressions.Regex LogTimestamp();
+
+    private static BuildHit Build(JsonNode b) => new(
+        b["id"]!.GetValue<int>(), Text(b["definition"]?["name"]) ?? "", Text(b["buildNumber"]) ?? "", Text(b["status"]) ?? "", Text(b["result"]),
+        Branch(Text(b["sourceBranch"])), b["requestedFor"]?["displayName"]?.GetValue<string>(), Text(b["reason"]) ?? "", Text(b["sourceVersion"]),
+        Date(b["startTime"]), Date(b["finishTime"]));
+
+    private static DateTimeOffset? Date(JsonNode? node) =>
+        DateTimeOffset.TryParse(Text(node), CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var at) ? at : null;
 
     /// <summary>The WIQL for a search. Values are quoted with '' escaping; the macros @project and @CurrentIteration are the only raw parts.</summary>
     internal static string Wiql(WorkItemQuery q)

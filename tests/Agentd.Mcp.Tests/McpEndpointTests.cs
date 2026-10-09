@@ -83,7 +83,7 @@ public sealed class McpEndpointTests
         var chatTools = (await chat.ListToolsAsync()).Select(t => t.Name).ToList();
         var jobTools = (await job.ListToolsAsync()).Select(t => t.Name).ToList();
 
-        CollectionAssert.AreEquivalent(new[] { "ado_search_work_items", "ado_get_work_item", "ado_list_pull_requests", "ado_get_pull_request" }, chatTools);
+        CollectionAssert.AreEquivalent(new[] { "ado_search_work_items", "ado_get_work_item", "ado_list_pull_requests", "ado_get_pull_request", "ado_list_pipelines", "ado_list_builds", "ado_get_build" }, chatTools);
         Assert.IsFalse(jobTools.Any(t => t.StartsWith("ado_", StringComparison.Ordinal)), "a job agent gets no chat tools");
     }
 
@@ -109,6 +109,24 @@ public sealed class McpEndpointTests
 
         Assert.AreEqual("refused", finish, "a chat can't finish (or touch) a job");
         StringAssert.Contains(((TextContentBlock)search.Content[0]).Text, "#5617 [User Story] Active · Deploy to AKS (Active) · Dev One · tags: ai-workflow");
+    }
+
+    [TestMethod]
+    public async Task A_chat_reads_a_failed_run_with_its_errors_and_log_end()
+    {
+        await using var host = await McpTestHost.StartAsync();
+        await using var chat = await host.ClientAsync(host.Tokens.IssueChat(7));
+
+        var runs = await chat.CallToolAsync("ado_list_builds", Args(("result", "failed")));
+        var run = await chat.CallToolAsync("ado_get_build", Args(("id", 901)));
+        var missing = await chat.CallToolAsync("ado_get_build", Args(("id", 5)));
+
+        Assert.AreEqual("901 · sysmin-ci 20261008.3 · failed · develop · Dev One · individualCI · a1b2c3d · 2026-10-08 09:06Z", ((TextContentBlock)runs.Content[0]).Text);
+        var text = ((TextContentBlock)run.Content[0]).Text;
+        StringAssert.Contains(text, "✗ Task \"dotnet test\": failed");
+        StringAssert.Contains(text, "  error: Process completed with exit code 1.");
+        StringAssert.Contains(text, "    Failed Deploy_ready_probe [12 ms]");
+        StringAssert.Contains(((TextContentBlock)missing.Content[0]).Text, "doesn't exist");
     }
 
     [TestMethod]

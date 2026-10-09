@@ -63,16 +63,18 @@ agentd opens **💬 Chat: <your question>**, and a **read-only** agent answers t
 - **Model:** its default is `Jobs:Steps:chat` ([Configuration](configuration.md)); `--model` and `--effort` override it.
 
 **Azure DevOps** too: it can search **work items** (by words in the title, type, state, assignee, tag, area or
-`@CurrentIteration`) and read one with its comments; and list and read **pull requests** with their comment threads.
-For example:
+`@CurrentIteration`) and read one with its comments; list and read **pull requests** with their comment threads; and
+list **pipelines** and their **runs** (by pipeline, branch or result), and read a run: each failed step's errors and the
+last 40 lines of its log. For example:
 
 ```text
 !chat what's still open in the current sprint for sysmin, and who has it?
 !chat what did the reviewers say on PR !3944, and is it addressed?
+!chat why did the last sysmin-ci run on develop fail?
 ```
 
 It reads Azure DevOps through agentd's own read-only tools: agentd answers them with its credentials, so the agent
-never sees the access token. A chat's tools stop working when it's closed. Pipelines and the wiki come next.
+never sees the access token. A chat's tools stop working when it's closed. The wiki comes next.
 
 ## In an idea's or a review's thread
 
