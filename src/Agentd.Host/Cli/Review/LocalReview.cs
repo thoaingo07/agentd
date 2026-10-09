@@ -91,6 +91,40 @@ internal sealed class LocalReview(RunTool run, string claude = "claude")
             : new(root, label, files, result, null, baseCommit, diff);
     }
 
+    /// <summary>
+    /// <c>--fix</c>: the developer's claude edits the repository to fix <paramref name="feedback"/> (what they kept and
+    /// commented on the page). Edits only: it can't commit, push or run anything but read-only git.
+    /// </summary>
+    /// <returns>One line for the terminal: what it did, or "⚠️ …" when it couldn't.</returns>
+    public async Task<string> FixAsync(string root, string feedback, LocalReviewOptions options, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        List<string> args = ["-p", "Fix these review findings in this repository. Change only what they need; keep everything else as it is. " +
+            "Don't commit, push or create branches, and don't run `agentd review`: agentd reviews your edits again by itself, then the developer does.\n\n" + feedback,
+            "--output-format", "json", "--permission-mode", "acceptEdits",
+            "--allowedTools", "Read,Edit,Write,Glob,Grep,Bash(git diff:*),Bash(git status:*),Bash(git log:*),Bash(git show:*)"];
+        if (!string.IsNullOrWhiteSpace(options.Model))
+        {
+            args.AddRange(["--model", options.Model.Trim()]);
+        }
+
+        if (!string.IsNullOrWhiteSpace(options.Effort))
+        {
+            args.AddRange(["--effort", options.Effort.Trim()]);
+        }
+
+        var reply = await run(claude, args, root, ct).ConfigureAwait(false);
+        var (text, isError) = Result(reply.Output);
+        if (reply.ExitCode != 0 || isError || text is null)
+        {
+            var why = (string.IsNullOrWhiteSpace(text) ? reply.Error : text).Trim().ReplaceLineEndings(" ");
+            return $"⚠️ Your claude couldn't fix it: {why[..Math.Min(300, why.Length)]}";
+        }
+
+        var summary = text.Trim().ReplaceLineEndings(" ");
+        return $"🔧 {summary[..Math.Min(400, summary.Length)]}";
+    }
+
     /// <summary>The change against <paramref name="baseCommit"/> (staged and unstaged), plus untracked files when asked.</summary>
     private async Task<(string Diff, IReadOnlyList<string> Files)> DiffAsync(string root, string baseCommit, bool untracked, CancellationToken ct)
     {

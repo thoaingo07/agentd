@@ -184,7 +184,10 @@ with integration tests, including parallel callers for decisions and comments on
    - 4b: the local server and the embedded page, Send to `.agentd/review.md` (`LocalReviewServer`,
      `LocalReviewSession`, `ClientApps/review`: the dashboard's `ReviewView` plus a Send bar). One local session,
      id 1, in memory; the same JSON shapes as `/api/reviews`, so the page code is shared.
-5. **`--fix` rounds and `--share`**.
+5. **`--fix` rounds and `--share`**:
+   - 5a: `--fix [--rounds N]`: review → page → Send → your claude fixes (`--permission-mode acceptEdits`, edits and
+     read-only git only) → review again, a new page each round (`LocalReview.FixAsync`, the loop in `ReviewCommand`);
+   - 5b: `--share`.
 6. **Send on the server**: Post to the PR (under your name: the on-behalf-of part 3b), Fix it jobs, Send to the
    job's agent.
 

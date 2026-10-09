@@ -50,7 +50,11 @@ Then the **review page** opens in your browser, served by `agentd review` itself
 web UI's Reviews): keep, edit or drop findings, click a line number to comment, and **Send to my agent**. Send
 rewrites `.agentd/review.md` with only what you kept (edited ones in your words) and your comments. Only the link the
 command printed opens it. `--no-open` prints the link instead of opening the browser; `--no-page` skips the page;
-Ctrl+C stops (the file keeps every finding). `--fix` and `--share` come next.
+Ctrl+C stops (the file keeps every finding).
+
+**`agentd review --fix`**: after Send, your `claude` fixes what you kept (edits only: it never commits or pushes),
+then agentd reviews the result again and the page opens for round 2. It stops when nothing is left, when you keep
+nothing, or after `--rounds` (default 3). With `--no-page`, every finding goes to the fix. `--share` comes next.
 
 ## What the reviewer looks at
 

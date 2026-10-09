@@ -17,7 +17,10 @@ public sealed class ReviewCommandTests : IDisposable
     private readonly string _repo = Directory.CreateTempSubdirectory("agentd-review-").FullName;
     private readonly List<(IReadOnlyList<string> Args, string Cwd)> _claude = [];
     private string _reply = Findings;
+    private string? _secondReview;
     private int _claudeExit;
+    private int _fixExit;
+    private Action? _onFix;
 
     public ReviewCommandTests()
     {
@@ -92,6 +95,41 @@ public sealed class ReviewCommandTests : IDisposable
     }
 
     [TestMethod]
+    public async Task Fix_lets_your_claude_fix_the_findings_then_reviews_again_until_clean()
+    {
+        Write("src/Sync.cs", "class Sync {\n  var rows = ReadAll();\n}\n");
+        _onFix = () => Write("src/Sync.cs", "class Sync {\n  var rows = ReadPage(5000);\n}\n");
+        _secondReview = """{"result":"Clean now.\n\n```review-findings\n{\"summary\":\"Pages by key now.\",\"findings\":[]}\n```"}""";
+
+        var (code, _, error) = await RunAsync(["--fix"]);
+
+        Assert.AreEqual(ExitCodes.Ok, code, error);
+        CollectionAssert.AreEqual(new[] { "plan", "acceptEdits", "plan" }, _claude.Select(c => c.Args[c.Args.ToList().IndexOf("--permission-mode") + 1]).ToList(), "review, fix, review");
+        StringAssert.Contains(_claude[1].Args[1], "Fix these review findings");
+        StringAssert.Contains(_claude[1].Args[1], "don't run `agentd review`");
+        StringAssert.Contains(_claude[1].Args[1], "🔴 **Unbounded read**", "the findings go to the fix");
+        StringAssert.Contains(_claude[2].Args[1], "+  var rows = ReadPage(5000);", "round 2 reviews the fixed code");
+        StringAssert.Contains(error, "🔧 Fixed the loop.");
+        StringAssert.Contains(error, "Round 2");
+        StringAssert.Contains(error, "✅ Nothing that can break the app");
+    }
+
+    [TestMethod]
+    public async Task Fix_stops_after_the_rounds_and_reports_a_failed_fix()
+    {
+        Write("src/Sync.cs", "class Sync { }\n");
+
+        var (rounds, _, stopped) = await RunAsync(["--fix", "--rounds", "1"]);
+        _fixExit = 1;
+        _claude.Clear();
+        var (failed, _, why) = await RunAsync(["--fix"]);
+
+        Assert.AreEqual((ExitCodes.Ok, ExitCodes.Error), (rounds, failed));
+        StringAssert.Contains(stopped, "Stopped after 1 round(s)");
+        StringAssert.Contains(why, "⚠️ Your claude couldn't fix it");
+    }
+
+    [TestMethod]
     public void A_big_change_is_read_with_git_instead_of_pasted() =>
         StringAssert.Contains(LocalReview.Prompt("abc1234", "develop", new string('x', LocalReview.InlineDiffBytes + 1), false), "too big to paste: read it with `git diff abc1234`");
 
@@ -117,7 +155,14 @@ public sealed class ReviewCommandTests : IDisposable
         }
 
         _claude.Add((args, cwd));
-        return Task.FromResult(new ToolResult(_claudeExit, _reply, _claudeExit == 0 ? string.Empty : "claude failed"));
+        if (args.Contains("acceptEdits"))
+        {
+            _onFix?.Invoke();
+            return Task.FromResult(_fixExit == 0 ? new ToolResult(0, """{"result":"Fixed the loop."}""", string.Empty) : new ToolResult(1, string.Empty, "fix failed"));
+        }
+
+        var reply = _claude.Count(c => !c.Args.Contains("acceptEdits")) > 1 && _secondReview is not null ? _secondReview : _reply;
+        return Task.FromResult(new ToolResult(_claudeExit, reply, _claudeExit == 0 ? string.Empty : "claude failed"));
     }
 
     private void Write(string path, string content)
