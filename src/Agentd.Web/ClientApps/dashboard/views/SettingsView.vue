@@ -4,6 +4,7 @@ import { useConfigStore } from '../stores/config'
 import { useConnectionStore } from '../stores/connection'
 import { usePermissionsStore } from '../stores/permissions'
 import { useSessionStore } from '../stores/session'
+import AdoConnectionPanel from '../components/AdoConnectionPanel.vue'
 import HostPanel from '../components/HostPanel.vue'
 import ThemeToggle from '../components/ThemeToggle.vue'
 import { settingsAreas } from '../settingsAreas'
@@ -25,6 +26,7 @@ onMounted(() => {
       Settings
     </h1>
     <HostPanel />
+    <AdoConnectionPanel />
     <nav
       v-if="isAdmin"
       aria-labelledby="settings-areas"

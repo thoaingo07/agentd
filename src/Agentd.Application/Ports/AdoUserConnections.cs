@@ -46,3 +46,23 @@ public interface ITokenProtector
     /// <summary>The token, or null when it can't be decrypted (the keys changed): the person reconnects.</summary>
     string? Unprotect(byte[] protectedToken);
 }
+
+/// <summary>A completed delegated sign-in: who it is in Azure DevOps, and the refresh token (in clear, to be protected).</summary>
+public sealed record DelegatedSignIn(Guid IdentityId, string UniqueName, string DisplayName, string RefreshToken)
+{
+    /// <summary>Never print the token (records print every property).</summary>
+    public override string ToString() => $"DelegatedSignIn {{ IdentityId = {IdentityId}, UniqueName = {UniqueName} }}";
+}
+
+/// <summary>The Microsoft Entra sign-in that lets agentd act as a person in Azure DevOps (authorization code + PKCE).</summary>
+public interface IAdoDelegation
+{
+    /// <summary>The app (tenant, client id, client secret) is set up, so people can connect.</summary>
+    bool IsConfigured { get; }
+
+    /// <summary>Where to send the browser: Entra's sign-in and consent page.</summary>
+    Uri AuthorizeUrl(string state, string codeChallenge, Uri redirectUri);
+
+    /// <summary>Redeems the code and asks Azure DevOps who signed in. Throws with Entra's or Azure DevOps' reason.</summary>
+    Task<DelegatedSignIn> RedeemAsync(string code, string codeVerifier, Uri redirectUri, CancellationToken cancellationToken);
+}

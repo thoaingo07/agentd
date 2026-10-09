@@ -47,6 +47,7 @@ public static class DependencyInjection
         services.AddSingleton<Jobs.JobFollowUps>();
         services.AddSingleton<Reviews.ReviewService>();
         services.AddSingleton<Chats.ChatService>();
+        services.AddSingleton<AzureDevOps.AdoConnections>();
         services.AddSingleton<Setup.SetupService>();
         services.AddScoped<ICommandHandler<Permissions.PermissionAsk, Permissions.PermissionDecision>, Permissions.PermissionAskHandler>();
         services.AddScoped<ICommandHandler<Permissions.PermissionAnswer, bool>, Permissions.PermissionAnswerHandler>();

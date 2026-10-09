@@ -116,7 +116,7 @@ public static class BffModule
         endpoints.MapTestSeeding(endpoints.ServiceProvider.GetRequiredService<IHostEnvironment>());   // E2E environment only
         endpoints.MapCspReport();   // outside the groups: anonymous, no antiforgery (browsers send it)
         var api = endpoints.MapGroup("/api").RequireAuthorization().AddEndpointFilter<AntiforgeryFilter>();
-        endpoints.MapGroup("/bff").RequireAuthorization().AddEndpointFilter<AntiforgeryFilter>().MapSession();
+        endpoints.MapGroup("/bff").RequireAuthorization().AddEndpointFilter<AntiforgeryFilter>().MapSession().MapAdoConnect();
         endpoints.MapSetupSession().MapSetupSteps();   // GET /setup (the one-time link) and /api/setup (the setup session only)
         api.MapJobReads();
         api.MapJobActions();
@@ -124,6 +124,7 @@ public static class BffModule
         api.MapPermissions();
         api.MapIdeas();
         api.MapWorkItems();
+        api.MapMyAdoConnections();
         // Settings: the setup steps again, for Admins (antiforgery from the /api group), with Health instead of Finish.
         // Same shapes as /api/setup, so the contract (openapi.json) documents them once, there.
         api.MapGroup("/settings").RequireAuthorization(p => p.RequireRole("Admin")).MapSetupSteps("Settings", finish: false).ExcludeFromDescription();

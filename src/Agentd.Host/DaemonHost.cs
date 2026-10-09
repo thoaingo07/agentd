@@ -7,7 +7,6 @@ using Agentd.Infrastructure.Persistence;
 using Agentd.Mcp;
 using Agentd.Web;
 using Agentd.Web.Vite;
-using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Options;
 
 namespace Agentd.Host;
@@ -24,9 +23,6 @@ internal static class DaemonHost
 
         builder.AddServiceDefaults();
         var home = builder.AddAgentdCore(args);
-        // Cookies (antiforgery now, SSO later) stay valid across restarts and upgrades.
-        builder.Services.AddDataProtection().SetApplicationName(ConfigHome.ApplicationName).PersistKeysToFileSystem(new DirectoryInfo(home.Keys));
-        builder.Services.AddSingleton<Application.Ports.ITokenProtector, Configuration.DataProtectionTokenProtector>();
         HostUrls.ApplyDefault(builder, home);   // loopback only until setup is complete
         builder.Services.AddWebHosting(builder.Configuration);
         builder.Services.AddSingleton<IPostConfigureOptions<ClaudeOptions>, McpUrlFromServer>();

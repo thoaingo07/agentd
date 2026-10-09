@@ -125,6 +125,15 @@ them show an app (e.g. `agentd`) rather than a person, use a Microsoft Entra app
 
 Git pushes keep using agentd's SSH key, which stays registered on a user.
 
+**People's own names (optional).** With the same app, each person can let agentd act **as them**: a job's PR goes
+under its work item's Assigned To, and `!review` findings under whoever ran it. In the app registration, add:
+- under **Authentication**, a **Web** redirect URI: `<the URL you open agentd on>/bff/ado/callback`;
+- under **API permissions**, **Azure DevOps → Delegated → user_impersonation** (grant admin consent if your tenant
+  requires it).
+
+Then each person opens **Settings → Your Azure DevOps → Connect with Microsoft** once. See
+[the design](../architect/ado-user-delegation.md).
+
 ## 4. Git access and repositories
 
 agentd clones and manages repositories itself. For SSH remotes, give it its own key and add the public key to Azure
