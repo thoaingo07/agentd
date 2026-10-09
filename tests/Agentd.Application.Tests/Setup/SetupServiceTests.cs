@@ -404,7 +404,7 @@ public sealed class SetupServiceTests
         _config.Values["AzureDevOps:Project"] = "Portal";
     }
 
-    private static readonly ProfileInput s_deepseek = new("DeepSeek", "https://api.deepseek.com/anthropic/", "deepseek-flash[1m]", "deepseek-flash", "sk-SECRET-deepseek");
+    private static readonly ProfileInput s_deepseek = new("DeepSeek", "https://api.deepseek.com/anthropic/", "deepseek-flash", "deepseek-flash", "sk-SECRET-deepseek");
 
     [TestMethod]
     public async Task A_provider_is_saved_with_its_key_as_a_secret()
@@ -413,7 +413,7 @@ public sealed class SetupServiceTests
 
         Assert.IsTrue(result.IsSuccess, result.Error?.Message);
         Assert.AreEqual("https://api.deepseek.com/anthropic", _config.Values["Models:Profiles:deepseek:BaseUrl"], "a lowercase name, no trailing slash");
-        Assert.AreEqual(("deepseek-flash[1m]", "deepseek-flash", "AnthropicCompatible"),
+        Assert.AreEqual(("deepseek-flash", "deepseek-flash", "AnthropicCompatible"),
             (_config.Values["Models:Profiles:deepseek:Model"], _config.Values["Models:Profiles:deepseek:SmallModel"], _config.Values["Models:Profiles:deepseek:Kind"]));
         Assert.AreEqual("sk-SECRET-deepseek", _secrets.Values["Models:Profiles:deepseek:ApiKey"]);
         Assert.IsFalse(_config.Values.ContainsValue("sk-SECRET-deepseek"));
@@ -494,7 +494,7 @@ public sealed class SetupServiceTests
 
         Assert.IsTrue(check.Ok);
         var (name, profile) = _claude.Profiles.Single();
-        Assert.AreEqual(("deepseek", "sk-SECRET-deepseek", "deepseek-flash[1m]"), (name, profile.ApiKey, profile.Model));
+        Assert.AreEqual(("deepseek", "sk-SECRET-deepseek", "deepseek-flash"), (name, profile.ApiKey, profile.Model));
         Assert.IsEmpty(_claude.Tested, "not the Claude login test");
     }
 

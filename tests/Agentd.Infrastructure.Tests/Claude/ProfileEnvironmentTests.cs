@@ -13,14 +13,14 @@ public sealed class ProfileEnvironmentTests : IDisposable
     {
         var options = new ClaudeOptions { TranscriptRoot = Path.Combine(_home, "logs"), OAuthToken = "sk-ant-oat01-subscription" };
         var env = SafeEnvironment.Build(new Dictionary<string, string> { ["PATH"] = "/usr/bin", ["ANTHROPIC_API_KEY"] = "leak" }, options);
-        var profile = new ModelProfile { BaseUrl = "https://api.deepseek.com/anthropic", Model = "deepseek-flash[1m]", SmallModel = "deepseek-flash", ApiKey = "sk-deepseek" };
+        var profile = new ModelProfile { BaseUrl = "https://api.deepseek.com/anthropic", Model = "deepseek-flash", SmallModel = "deepseek-flash", ApiKey = "sk-deepseek" };
         profile.Environment["CLAUDE_CODE_AUTO_COMPACT_WINDOW"] = "786432";
 
         ProfileEnvironment.Apply(env, "deepseek", profile, options);
 
         Assert.AreEqual("https://api.deepseek.com/anthropic", env["ANTHROPIC_BASE_URL"]);
         Assert.AreEqual("sk-deepseek", env["ANTHROPIC_AUTH_TOKEN"]);
-        Assert.AreEqual(("deepseek-flash[1m]", "deepseek-flash[1m]", "deepseek-flash", "deepseek-flash"),
+        Assert.AreEqual(("deepseek-flash", "deepseek-flash", "deepseek-flash", "deepseek-flash"),
             (env["ANTHROPIC_MODEL"], env["ANTHROPIC_DEFAULT_SONNET_MODEL"], env["ANTHROPIC_DEFAULT_HAIKU_MODEL"], env["CLAUDE_CODE_SUBAGENT_MODEL"]));
         Assert.IsFalse(env.ContainsKey(options.OAuthTokenVariable), "no fallback to the Claude subscription");
         Assert.IsFalse(env.ContainsKey("ANTHROPIC_API_KEY"));

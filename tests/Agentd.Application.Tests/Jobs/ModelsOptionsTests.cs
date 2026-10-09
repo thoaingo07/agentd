@@ -41,7 +41,7 @@ public sealed class ModelsOptionsTests
     private static (ModelsOptions, JobOptions) Config()
     {
         var models = new ModelsOptions();
-        models.Profiles["DeepSeek"] = new ModelProfile { BaseUrl = "https://api.deepseek.com/anthropic", Model = "deepseek-flash[1m]", ApiKey = "sk-test" };
+        models.Profiles["DeepSeek"] = new ModelProfile { BaseUrl = "https://api.deepseek.com/anthropic", Model = "deepseek-flash", ApiKey = "sk-test" };
         var jobs = new JobOptions();
         jobs.Steps["implement"] = new StepModel { Profile = "deepseek" };
         return (models, jobs);
