@@ -2059,25 +2059,50 @@
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "description": "A name or URL."
           },
           "project": {
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "description": "The project name."
           },
           "auth": {
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "description": "\u0060Pat\u0060, \u0060AzCli\u0060 or \u0060ServicePrincipal\u0060."
           },
           "pat": {
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "description": "A new token; empty keeps the stored one."
+          },
+          "tenantId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The service principal\u0027s directory (tenant) id."
+          },
+          "clientId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The service principal\u0027s application (client) id."
+          },
+          "clientSecret": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "A new client secret; empty keeps the stored one."
           }
         },
         "description": "\u0060Auth\u0060 is \u0060Pat\u0060 or \u0060AzCli\u0060. An empty \u0060Pat\u0060 keeps the saved one."
@@ -2087,7 +2112,10 @@
           "organization",
           "project",
           "auth",
-          "pat"
+          "pat",
+          "tenantId",
+          "clientId",
+          "clientSecret"
         ],
         "type": "object",
         "properties": {
@@ -2108,9 +2136,24 @@
           },
           "pat": {
             "$ref": "#/components/schemas/SecretStatusVm"
+          },
+          "tenantId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "clientId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "clientSecret": {
+            "$ref": "#/components/schemas/SecretStatusVm"
           }
         },
-        "description": "\u0060Auth\u0060 is \u0060Pat\u0060 or \u0060AzCli\u0060."
+        "description": "\u0060Auth\u0060 is \u0060Pat\u0060, \u0060AzCli\u0060 or \u0060ServicePrincipal\u0060 (tenant and client ids; the client secret as a status only)."
       },
       "ChatRequest": {
         "required": [

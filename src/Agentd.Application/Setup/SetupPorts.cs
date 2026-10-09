@@ -58,7 +58,18 @@ public interface IDatabaseProbe
 /// <param name="Project">The project name.</param>
 /// <param name="UsePat">A personal access token; otherwise the server's <c>az login</c>.</param>
 /// <param name="Pat">The token, when <paramref name="UsePat"/>.</param>
-public sealed record AzureDevOpsConnection(string Organization, string Project, bool UsePat, string? Pat);
+/// <param name="Principal">A Microsoft Entra service principal instead of a PAT or <c>az login</c>.</param>
+public sealed record AzureDevOpsConnection(string Organization, string Project, bool UsePat, string? Pat, ServicePrincipal? Principal = null);
+
+/// <summary>A Microsoft Entra app registration that signs in to Azure DevOps with a client secret.</summary>
+/// <param name="TenantId">The directory (tenant) id, or its domain (<c>contoso.onmicrosoft.com</c>).</param>
+/// <param name="ClientId">The application (client) id.</param>
+/// <param name="ClientSecret">The client secret's value.</param>
+public sealed record ServicePrincipal(string TenantId, string ClientId, string ClientSecret)
+{
+    /// <summary>Never print the secret (records print every property).</summary>
+    public override string ToString() => $"ServicePrincipal {{ TenantId = {TenantId}, ClientId = {ClientId} }}";
+}
 
 public interface IAzureDevOpsProbe
 {

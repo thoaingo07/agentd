@@ -9,14 +9,17 @@ namespace Agentd.Application.Setup;
 /// <summary>The database step: the connection string is a secret, so only its status is shown.</summary>
 public sealed record DatabaseStep(SecretStatus ConnectionString);
 
-/// <summary>The Azure DevOps step. <see cref="Auth"/> is <c>Pat</c> or <c>AzCli</c>.</summary>
-public sealed record AzureDevOpsStep(string? Organization, string? Project, string Auth, SecretStatus Pat);
+/// <summary>The Azure DevOps step. <see cref="Auth"/> is <c>Pat</c>, <c>AzCli</c> or <c>ServicePrincipal</c>.</summary>
+public sealed record AzureDevOpsStep(string? Organization, string? Project, string Auth, SecretStatus Pat, string? TenantId = null, string? ClientId = null, SecretStatus? ClientSecret = null);
 
 /// <param name="Organization">A name or URL (<c>https://dev.azure.com/myorg</c>, <c>https://myorg.visualstudio.com</c>).</param>
 /// <param name="Project">The project name.</param>
-/// <param name="Auth"><c>Pat</c> or <c>AzCli</c>.</param>
+/// <param name="Auth"><c>Pat</c>, <c>AzCli</c> or <c>ServicePrincipal</c>.</param>
 /// <param name="Pat">A new token; null keeps the stored one.</param>
-public sealed record AzureDevOpsInput(string Organization, string Project, string Auth, string? Pat);
+/// <param name="TenantId">The service principal's tenant (<c>ServicePrincipal</c>).</param>
+/// <param name="ClientId">The service principal's application (client) id.</param>
+/// <param name="ClientSecret">A new client secret; null keeps the stored one.</param>
+public sealed record AzureDevOpsInput(string Organization, string Project, string Auth, string? Pat, string? TenantId = null, string? ClientId = null, string? ClientSecret = null);
 
 /// <summary>The git step: agentd's public key, when it has one.</summary>
 public sealed record GitKeyStep(bool Exists, string? PublicKey, string? Fingerprint, string? Path)
@@ -97,11 +100,13 @@ public sealed class SetupService(
 {
     public const string ConnectionStringSecret = "ConnectionStrings:agentd";
     public const string PatSecret = "AzureDevOps:Pat";
+    public const string ClientSecretSecret = "AzureDevOps:ClientSecret";
     public const string ClaudeTokenSecret = "Claude:OAuthToken";
     public const string DiscordTokenSecret = "Messaging:Providers:Discord:BotToken";
     private const string Discord = "Messaging:Providers:Discord";
     public const string PatAuth = "Pat";
     public const string AzCliAuth = "AzCli";
+    public const string ServicePrincipalAuth = "ServicePrincipal";
 
     public DatabaseStep GetDatabase() => new(secrets.Status(ConnectionStringSecret));
 
@@ -156,8 +161,11 @@ public sealed class SetupService(
     public AzureDevOpsStep GetAzureDevOps() => new(
         config.Read("AzureDevOps:Organization"),
         config.Read("AzureDevOps:Project"),
-        string.Equals(config.Read("AzureDevOps:Auth"), PatAuth, StringComparison.OrdinalIgnoreCase) ? PatAuth : AzCliAuth,
-        secrets.Status(PatSecret));
+        AuthOf(config.Read("AzureDevOps:Auth")) ?? AzCliAuth,
+        secrets.Status(PatSecret),
+        config.Read("AzureDevOps:TenantId"),
+        config.Read("AzureDevOps:ClientId"),
+        secrets.Status(ClientSecretSecret));
 
     public async Task<Result<SaveResult>> SaveAzureDevOpsAsync(AzureDevOpsInput input, string by, CancellationToken cancellationToken)
     {
@@ -174,18 +182,35 @@ public sealed class SetupService(
             return DomainError.Validation("Enter a personal access token, or choose az login.");
         }
 
+        if (c.Principal is not null && string.IsNullOrWhiteSpace(input.ClientSecret) && !secrets.Status(ClientSecretSecret).Set)
+        {
+            return DomainError.Validation("Enter the app's client secret (Certificates & secrets in its app registration).");
+        }
+
         var values = new Dictionary<string, string?>(StringComparer.Ordinal)
         {
             ["AzureDevOps:Organization"] = c.Organization,
             ["AzureDevOps:Project"] = c.Project,
-            ["AzureDevOps:Auth"] = c.UsePat ? PatAuth : AzCliAuth,
+            ["AzureDevOps:Auth"] = c.UsePat ? PatAuth : c.Principal is null ? AzCliAuth : ServicePrincipalAuth,
         };
+        if (c.Principal is { } principal)
+        {
+            values["AzureDevOps:TenantId"] = principal.TenantId;
+            values["AzureDevOps:ClientId"] = principal.ClientId;
+        }
+
         await config.SetAsync(values, cancellationToken).ConfigureAwait(false);
         var changes = values.Keys.Select(k => Change(k, "config", "set", by)).ToList();
         if (!string.IsNullOrWhiteSpace(input.Pat))
         {
             secrets.Store(PatSecret, input.Pat.Trim(), by);
             changes.Add(Change(PatSecret, "secret", "set", by));
+        }
+
+        if (c.Principal is not null && !string.IsNullOrWhiteSpace(input.ClientSecret))
+        {
+            secrets.Store(ClientSecretSecret, input.ClientSecret.Trim(), by);
+            changes.Add(Change(ClientSecretSecret, "secret", "set", by));
         }
 
         await audit.RecordAsync(changes, cancellationToken).ConfigureAwait(false);
@@ -196,7 +221,7 @@ public sealed class SetupService(
     public async Task<StepCheck> TestAzureDevOpsAsync(AzureDevOpsInput? input, CancellationToken cancellationToken)
     {
         var saved = GetAzureDevOps();
-        input ??= new AzureDevOpsInput(saved.Organization ?? string.Empty, saved.Project ?? string.Empty, saved.Auth, null);
+        input ??= new AzureDevOpsInput(saved.Organization ?? string.Empty, saved.Project ?? string.Empty, saved.Auth, null, saved.TenantId, saved.ClientId);
         var connection = Validate(input);
         if (!connection.IsSuccess)
         {
@@ -211,6 +236,17 @@ public sealed class SetupService(
             {
                 return new StepCheck(false, "No personal access token given or saved.", "create one with Work Items (read & write), Code (read & write) and Build (read)");
             }
+        }
+
+        if (c.Principal is { } principal)
+        {
+            var secret = string.IsNullOrWhiteSpace(input.ClientSecret) ? secrets.TryGet(ClientSecretSecret) : input.ClientSecret.Trim();
+            if (string.IsNullOrWhiteSpace(secret))
+            {
+                return new StepCheck(false, "No client secret given or saved.", "create one under Certificates & secrets in the app registration");
+            }
+
+            c = c with { Principal = principal with { ClientSecret = secret } };
         }
 
         return await azureDevOps.TestAsync(c, jobs.Value, cancellationToken).ConfigureAwait(false);
@@ -697,14 +733,37 @@ public sealed class SetupService(
             return DomainError.Validation("Enter the project name.");
         }
 
-        var usePat = string.Equals(input.Auth, PatAuth, StringComparison.OrdinalIgnoreCase);
-        if (!usePat && !string.Equals(input.Auth, AzCliAuth, StringComparison.OrdinalIgnoreCase))
+        switch (AuthOf(input.Auth))
         {
-            return DomainError.Validation("Auth is Pat or AzCli.");
-        }
+            case PatAuth:
+                return new AzureDevOpsConnection(organization, input.Project.Trim(), true, null);
+            case AzCliAuth:
+                return new AzureDevOpsConnection(organization, input.Project.Trim(), false, null);
+            case ServicePrincipalAuth:
+                var tenant = input.TenantId?.Trim() ?? string.Empty;
+                var client = input.ClientId?.Trim() ?? string.Empty;
+                if (!Guid.TryParse(tenant, out _) && !IsDomain(tenant))
+                {
+                    return DomainError.Validation("Enter the tenant: the Directory (tenant) ID from the app registration's Overview.");
+                }
 
-        return new AzureDevOpsConnection(organization, input.Project.Trim(), usePat, null);
+                if (!Guid.TryParse(client, out _))
+                {
+                    return DomainError.Validation("Enter the Application (client) ID from the app registration's Overview.");
+                }
+
+                return new AzureDevOpsConnection(organization, input.Project.Trim(), false, null, new ServicePrincipal(tenant, client, string.Empty));
+            default:
+                return DomainError.Validation("Auth is Pat, AzCli or ServicePrincipal.");
+        }
     }
+
+    private static string? AuthOf(string? value) =>
+        new[] { PatAuth, AzCliAuth, ServicePrincipalAuth }.FirstOrDefault(a => string.Equals(a, value?.Trim(), StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>A tenant's domain, e.g. <c>contoso.onmicrosoft.com</c>: letters, digits, dots and hyphens.</summary>
+    private static bool IsDomain(string value) =>
+        value.Length is > 3 and <= 253 && value.Contains('.', StringComparison.Ordinal) && value.All(ch => char.IsAsciiLetterOrDigit(ch) || ch is '.' or '-');
 
     private SettingsChange Change(string key, string kind, string action, string by) => new(key, kind, action, by, time.GetUtcNow());
 }

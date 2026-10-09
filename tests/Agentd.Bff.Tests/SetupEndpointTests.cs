@@ -74,6 +74,38 @@ public sealed class SetupEndpointTests : IDisposable
     }
 
     [TestMethod]
+    public async Task A_service_principals_secret_goes_in_but_never_comes_back_out()
+    {
+        await using var app = await StartAsync();
+        var client = await SetupClient.SignInAsync(app);
+        var principal = new
+        {
+            organization = "myorg",
+            project = "Portal",
+            auth = "ServicePrincipal",
+            tenantId = "11111111-1111-1111-1111-111111111111",
+            clientId = "22222222-2222-2222-2222-222222222222",
+            clientSecret = "app-SECRET",
+        };
+
+        using var save = await client.SendAsync(HttpMethod.Put, "/api/setup/azure-devops", principal);
+        using var test = await client.SendAsync(HttpMethod.Post, "/api/setup/azure-devops/test", principal with { clientSecret = string.Empty });
+        using var get = await client.SendAsync(HttpMethod.Get, "/api/setup/azure-devops");
+
+        foreach (var response in new[] { save, test, get })
+        {
+            var body = await response.Content.ReadAsStringAsync();
+            Assert.AreEqual(HttpStatusCode.OK, response.StatusCode, body);
+            Assert.DoesNotContain("SECRET", body);
+        }
+
+        Assert.AreEqual("app-SECRET", _secrets[SetupService.ClientSecretSecret]);
+        var step = JsonDocument.Parse(await get.Content.ReadAsStringAsync()).RootElement;
+        Assert.AreEqual(("ServicePrincipal", "22222222-2222-2222-2222-222222222222"), (step.GetProperty("auth").GetString(), step.GetProperty("clientId").GetString()));
+        Assert.IsTrue(step.GetProperty("clientSecret").GetProperty("set").GetBoolean());
+    }
+
+    [TestMethod]
     public async Task Every_step_needs_the_setup_session()
     {
         await using var app = await StartAsync();

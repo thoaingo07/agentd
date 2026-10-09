@@ -135,6 +135,47 @@ public sealed class SetupServiceTests
         Assert.AreEqual(new AzureDevOpsConnection("myorg", "Portal", true, Pat), _azureDevOps.Tested.Single());
     }
 
+    private const string Tenant = "11111111-1111-1111-1111-111111111111";
+    private const string Client = "22222222-2222-2222-2222-222222222222";
+
+    [TestMethod]
+    public async Task A_service_principal_is_saved_with_its_secret_kept_as_a_secret()
+    {
+        var first = await Service().SaveAzureDevOpsAsync(new AzureDevOpsInput("myorg", "Portal", "ServicePrincipal", null, Tenant, Client, null), "setup", CancellationToken.None);
+        var saved = await Service().SaveAzureDevOpsAsync(new AzureDevOpsInput("myorg", "Portal", "serviceprincipal", null, $" {Tenant} ", Client, "app-SECRET"), "setup", CancellationToken.None);
+        var kept = await Service().SaveAzureDevOpsAsync(new AzureDevOpsInput("myorg", "Portal", "ServicePrincipal", null, Tenant, Client, " "), "setup", CancellationToken.None);
+
+        StringAssert.Contains(first.Error!.Message, "client secret", "required the first time");
+        Assert.IsTrue(saved.IsSuccess && kept.IsSuccess);
+        Assert.AreEqual(("ServicePrincipal", Tenant, Client), (_config.Values["AzureDevOps:Auth"], _config.Values["AzureDevOps:TenantId"], _config.Values["AzureDevOps:ClientId"]));
+        Assert.AreEqual("app-SECRET", _secrets.Values[SetupService.ClientSecretSecret]);
+        Assert.IsFalse(_config.Values.ContainsValue("app-SECRET"));
+        var step = Service().GetAzureDevOps();
+        Assert.AreEqual(("ServicePrincipal", Tenant, true), (step.Auth, step.TenantId, step.ClientSecret!.Set));
+    }
+
+    [TestMethod]
+    [DataRow("not a tenant", Client, "tenant")]
+    [DataRow("contoso.onmicrosoft.com", "agentd", "client")]
+    public async Task A_service_principal_needs_real_ids(string tenant, string client, string expected)
+    {
+        var result = await Service().SaveAzureDevOpsAsync(new AzureDevOpsInput("myorg", "Portal", "ServicePrincipal", null, tenant, client, "s"), "setup", CancellationToken.None);
+
+        Assert.AreEqual("validation", result.Error?.Code);
+        StringAssert.Contains(result.Error!.Message, expected);
+    }
+
+    [TestMethod]
+    public async Task Testing_a_saved_service_principal_uses_its_stored_secret()
+    {
+        await Service().SaveAzureDevOpsAsync(new AzureDevOpsInput("myorg", "Portal", "ServicePrincipal", null, Tenant, Client, "app-SECRET"), "setup", CancellationToken.None);
+
+        var check = await Service().TestAzureDevOpsAsync(null, CancellationToken.None);
+
+        Assert.IsTrue(check.Ok);
+        Assert.AreEqual(new AzureDevOpsConnection("myorg", "Portal", false, null, new ServicePrincipal(Tenant, Client, "app-SECRET")), _azureDevOps.Tested.Single());
+    }
+
     [TestMethod]
     public async Task Test_azure_devops_without_input_tests_the_saved_settings()
     {

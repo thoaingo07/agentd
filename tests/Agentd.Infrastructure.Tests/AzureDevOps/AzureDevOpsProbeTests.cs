@@ -50,9 +50,49 @@ public sealed class AzureDevOpsProbeTests : IDisposable
         Assert.AreEqual("Bearer from-az", _ado.Requests.Single().Auth);
     }
 
+    [TestMethod]
+    public async Task A_service_principal_signs_in_with_its_own_credential_and_a_failure_names_what_to_check()
+    {
+        _ado.On(HttpMethod.Post, "/myorg/Portal/_apis/wit/wiql", HttpStatusCode.OK, """{"workItems":[]}""");
+        ServicePrincipal? used = null;
+        var probe = new AzureDevOpsProbe(() => _ado, new FixedAuth(), sp =>
+        {
+            used = sp;
+            return new BearerAuth("from-app");
+        });
+        var app = new ServicePrincipal("11111111-1111-1111-1111-111111111111", "22222222-2222-2222-2222-222222222222", "app-SECRET");
+
+        var ok = await probe.TestAsync(new AzureDevOpsConnection("myorg", "Portal", false, null, app), new JobOptions(), CancellationToken.None);
+        _ado.On(HttpMethod.Post, "/myorg/Portal/_apis/wit/wiql", HttpStatusCode.Unauthorized);
+        var refused = await probe.TestAsync(new AzureDevOpsConnection("myorg", "Portal", false, null, app), new JobOptions(), CancellationToken.None);
+
+        Assert.IsTrue(ok.Ok, ok.Message);
+        Assert.AreEqual(("Bearer from-app", app), (_ado.Requests[0].Auth, used));
+        Assert.IsFalse(refused.Ok);
+        Assert.Contains("connected to this Entra tenant", refused.Fix!);
+        Assert.DoesNotContain("SECRET", app.ToString(), "a logged record never prints the secret");
+    }
+
+    [TestMethod]
+    public async Task A_service_principal_without_its_settings_fails_on_use_and_says_what_to_set()
+    {
+        var auth = AzCliAuthProvider.ForServicePrincipal("tenant", "  ", "secret");
+
+        var error = await Assert.ThrowsExactlyAsync<AdoException>(async () => await auth.GetAsync(false, CancellationToken.None));
+
+        Assert.Contains("ClientId", error.Message);
+        Assert.IsInstanceOfType<AzCliAuthProvider>(AzCliAuthProvider.ForServicePrincipal("contoso.onmicrosoft.com", "22222222-2222-2222-2222-222222222222", "s"));
+    }
+
     public void Dispose() => _ado.Dispose();
 
     private AzureDevOpsProbe Probe() => new(() => _ado, new FixedAuth());
+
+    private sealed class BearerAuth(string token) : IAdoAuthProvider
+    {
+        public ValueTask<System.Net.Http.Headers.AuthenticationHeaderValue> GetAsync(bool forceRefresh, CancellationToken cancellationToken) =>
+            ValueTask.FromResult(new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token));
+    }
 
     private sealed class FixedAuth : IAdoAuthProvider
     {

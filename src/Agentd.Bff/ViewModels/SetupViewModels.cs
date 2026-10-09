@@ -15,8 +15,8 @@ public sealed record SecretStatusVm(bool Set, DateTimeOffset? UpdatedAt, string?
 
 public sealed record DatabaseStepVm(SecretStatusVm ConnectionString);
 
-/// <summary><c>Auth</c> is <c>Pat</c> or <c>AzCli</c>.</summary>
-public sealed record AzureDevOpsStepVm(string? Organization, string? Project, string Auth, SecretStatusVm Pat);
+/// <summary><c>Auth</c> is <c>Pat</c>, <c>AzCli</c> or <c>ServicePrincipal</c> (tenant and client ids; the client secret as a status only).</summary>
+public sealed record AzureDevOpsStepVm(string? Organization, string? Project, string Auth, SecretStatusVm Pat, string? TenantId, string? ClientId, SecretStatusVm ClientSecret);
 
 /// <summary>A step's "Test" result; <see cref="Fix"/> says what to do when it failed.</summary>
 public sealed record StepCheckVm(bool Ok, string Message, string? Fix);

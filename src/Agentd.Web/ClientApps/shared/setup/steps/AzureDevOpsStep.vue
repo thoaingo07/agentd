@@ -8,7 +8,7 @@ import SecretField from '../components/SecretField.vue'
 import { useSetupStore } from '../stores/setup'
 
 const setup = useSetupStore()
-const form = reactive({ organization: '', project: '', auth: 'Pat', pat: '' })
+const form = reactive({ organization: '', project: '', auth: 'Pat', pat: '', tenantId: '', clientId: '', clientSecret: '' })
 const busy = ref<'test' | 'save' | null>(null)
 const check = ref<StepCheck | null>(null)
 const error = ref<string | null>(null)
@@ -18,18 +18,25 @@ watch(() => setup.azureDevOps, (step) => {
   form.organization ||= step.organization ?? ''
   form.project ||= step.project ?? ''
   form.auth = step.auth
+  form.tenantId ||= step.tenantId ?? ''
+  form.clientId ||= step.clientId ?? ''
 }, { immediate: true })
 
 async function run(action: 'test' | 'save'): Promise<void> {
   busy.value = action
   check.value = null
   error.value = null
-  const input = { organization: form.organization, project: form.project, auth: form.auth, pat: form.auth === 'Pat' ? form.pat : null }
+  const principal = form.auth === 'ServicePrincipal'
+  const input = {
+    organization: form.organization, project: form.project, auth: form.auth, pat: form.auth === 'Pat' ? form.pat : null,
+    tenantId: principal ? form.tenantId.trim() : null, clientId: principal ? form.clientId.trim() : null, clientSecret: principal ? form.clientSecret : null,
+  }
   try {
     if (action === 'test') check.value = await setup.testAzureDevOps(input)
     else {
       await setup.saveAzureDevOps(input)
-      form.pat = ''   // write-only: the token isn't kept in the page
+      form.pat = ''   // write-only: the token and the secret aren't kept in the page
+      form.clientSecret = ''
       check.value = { ok: true, message: 'Azure DevOps settings saved.', fix: null }
     }
   } catch (err) {
@@ -87,7 +94,46 @@ async function run(action: 'test' | 'save'): Promise<void> {
         >
         <span><code>az login</code> on this server</span>
       </label>
+      <label class="flex items-center gap-2 text-sm">
+        <input
+          v-model="form.auth"
+          type="radio"
+          value="ServicePrincipal"
+          class="radio radio-sm"
+        >
+        A service principal (Microsoft Entra app): PRs and comments show the app, not a person
+      </label>
     </fieldset>
+    <template v-if="form.auth === 'ServicePrincipal'">
+      <p class="text-xs text-muted">
+        From the app registration's <strong>Overview</strong>. The organization must be connected to that Entra tenant, and
+        the app added to it (Organization settings → Users) with a Basic license and access to the project.
+      </p>
+      <div class="grid gap-4 sm:grid-cols-2">
+        <label class="grid gap-1">
+          <span class="text-sm font-medium">Directory (tenant) ID</span>
+          <input
+            v-model="form.tenantId"
+            class="input w-full font-mono"
+            autocomplete="off"
+          >
+        </label>
+        <label class="grid gap-1">
+          <span class="text-sm font-medium">Application (client) ID</span>
+          <input
+            v-model="form.clientId"
+            class="input w-full font-mono"
+            autocomplete="off"
+          >
+        </label>
+      </div>
+      <SecretField
+        v-model="form.clientSecret"
+        label="Client secret"
+        :status="setup.azureDevOps?.clientSecret ?? null"
+        hint="The secret's Value (not its ID), from Certificates &amp; secrets. Leave it empty to keep the saved one."
+      />
+    </template>
     <SecretField
       v-if="form.auth === 'Pat'"
       v-model="form.pat"

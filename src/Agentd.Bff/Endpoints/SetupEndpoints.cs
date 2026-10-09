@@ -40,14 +40,15 @@ public static class SetupEndpoints
         setup.MapGet("/azure-devops", ([FromServices] SetupService service) =>
             {
                 var step = service.GetAzureDevOps();
-                return TypedResults.Ok(new AzureDevOpsStepVm(step.Organization, step.Project, step.Auth, SecretStatusVm.From(step.Pat)));
+                return TypedResults.Ok(new AzureDevOpsStepVm(step.Organization, step.Project, step.Auth, SecretStatusVm.From(step.Pat),
+                    step.TenantId, step.ClientId, SecretStatusVm.From(step.ClientSecret ?? SecretStatus.Missing)));
             })
             .WithName($"Get{prefix}AzureDevOps");
         setup.MapPut("/azure-devops", async (AzureDevOpsRequest? body, ClaimsPrincipal user, [FromServices] SetupService service, CancellationToken ct) =>
-            TooLong(body?.Pat) ?? (await service.SaveAzureDevOpsAsync(Input(body), By(user), ct).ConfigureAwait(false)).ToHttpResult(Saved))
+            TooLong(body?.Pat) ?? TooLong(body?.ClientSecret) ?? (await service.SaveAzureDevOpsAsync(Input(body), By(user), ct).ConfigureAwait(false)).ToHttpResult(Saved))
             .WithName($"Save{prefix}AzureDevOps").Accepts<AzureDevOpsRequest>("application/json").Produces<SaveResultVm>().ProducesProblem(StatusCodes.Status400BadRequest);
         setup.MapPost("/azure-devops/test", async (AzureDevOpsRequest? body, [FromServices] SetupService service, CancellationToken ct) =>
-            TooLong(body?.Pat) ?? Check(await service.TestAzureDevOpsAsync(body is null ? null : Input(body), ct).ConfigureAwait(false)))
+            TooLong(body?.Pat) ?? TooLong(body?.ClientSecret) ?? Check(await service.TestAzureDevOpsAsync(body is null ? null : Input(body), ct).ConfigureAwait(false)))
             .WithName($"Test{prefix}AzureDevOps").Accepts<AzureDevOpsRequest>("application/json").Produces<StepCheckVm>().ProducesProblem(StatusCodes.Status400BadRequest);
 
         setup.MapGet("/git-key", ([FromServices] SetupService service) => TypedResults.Ok(GitKeyStepVm.From(service.GetGitKey())))
@@ -127,7 +128,14 @@ public static class SetupEndpoints
     public sealed record DatabaseRequest(string? ConnectionString);
 
     /// <summary><c>Auth</c> is <c>Pat</c> or <c>AzCli</c>. An empty <c>Pat</c> keeps the saved one.</summary>
-    public sealed record AzureDevOpsRequest(string? Organization, string? Project, string? Auth, string? Pat);
+    /// <param name="Organization">A name or URL.</param>
+    /// <param name="Project">The project name.</param>
+    /// <param name="Auth"><c>Pat</c>, <c>AzCli</c> or <c>ServicePrincipal</c>.</param>
+    /// <param name="Pat">A new token; empty keeps the stored one.</param>
+    /// <param name="TenantId">The service principal's directory (tenant) id.</param>
+    /// <param name="ClientId">The service principal's application (client) id.</param>
+    /// <param name="ClientSecret">A new client secret; empty keeps the stored one.</param>
+    public sealed record AzureDevOpsRequest(string? Organization, string? Project, string? Auth, string? Pat, string? TenantId = null, string? ClientId = null, string? ClientSecret = null);
 
     /// <summary>A token from <c>claude setup-token</c>. On Test, empty means "the saved one, else the server's login".</summary>
     public sealed record ClaudeTokenRequest(string? Token);
@@ -145,7 +153,7 @@ public static class SetupEndpoints
     public sealed record GitTestRequest(string? Url);
 
     private static AzureDevOpsInput Input(AzureDevOpsRequest? body) =>
-        new(body?.Organization ?? string.Empty, body?.Project ?? string.Empty, body?.Auth ?? SetupService.AzCliAuth, body?.Pat);
+        new(body?.Organization ?? string.Empty, body?.Project ?? string.Empty, body?.Auth ?? SetupService.AzCliAuth, body?.Pat, body?.TenantId, body?.ClientId, body?.ClientSecret);
 
     private static ProfileInput Profile(ProfileRequest? body) =>
         new(body?.Name ?? string.Empty, body?.BaseUrl, body?.Model, body?.SmallModel, body?.ApiKey);
