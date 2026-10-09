@@ -18,7 +18,9 @@ real-time view of every session: live transcripts, tool calls, state and cost.
 **Goals**
 
 - Poll Azure DevOps for work items carrying a configurable tag (default `ai-workflow`).
-- Authenticate with either the **Azure CLI** (`az login`) or a **Personal Access Token**.
+- Authenticate with the **Azure CLI** (`az login`), a **Personal Access Token** or a **service principal**, and act
+  **on behalf of a person** (a job's PR under its work item's Assigned To) with their delegated sign-in
+  ([ado-user-delegation.md](ado-user-delegation.md)).
 - Run **multiple agents concurrently**, each isolated in its own **git worktree**, with its
   own **Claude Code process and session**.
 - Route agent ↔ developer conversation through **one chat conversation per work item**, using
