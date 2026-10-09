@@ -15,7 +15,8 @@ The design lives in [`docs/architect`](docs/architect/README.md), and the phased
 - **Assertions:** use MSTest's built-in `Assert`, `CollectionAssert` and `StringAssert` only. No
   third-party assertion libraries.
 - Categories:
-  - `[TestCategory("Integration")]`: needs Docker (Testcontainers PostgreSQL).
+  - `[TestCategory("Integration")]`: needs a container runtime (Testcontainers PostgreSQL): Docker, or rootless
+    **podman** with `DOCKER_HOST=unix:///run/user/$(id -u)/podman/podman.sock` (the dev machine's default).
   - `[TestCategory("Aspire")]`: starts the Aspire AppHost, and is excluded in CI.
 - Common commands:
   ```bash
@@ -47,7 +48,8 @@ The design lives in [`docs/architect`](docs/architect/README.md), and the phased
 - **Clean Architecture + BFF:** dependencies point inward only (Domain ← Application ← Infrastructure /
   Presentation). The architecture tests in `tests/Agentd.ArchitectureTests` enforce this; never
   weaken them to make a build pass.
-- **Local dev:** .NET Aspire (`dotnet run --project src/Agentd.AppHost`). Aspire is for development
+- **Local dev:** .NET Aspire (`dotnet run --project src/Agentd.AppHost`); with podman, also set
+  `DOTNET_ASPIRE_CONTAINER_RUNTIME=podman`. Aspire is for development
   only; the Host must also run without it.
 - **CI:** GitHub Actions. **Node 24**, **npm** (`npm ci`; `package-lock.json` committed).
 - **Web UI:**
