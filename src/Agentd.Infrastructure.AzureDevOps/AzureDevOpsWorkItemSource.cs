@@ -66,7 +66,9 @@ public sealed class AzureDevOpsWorkItemSource(HttpClient http, IOptions<AzureDev
                     DateTimeOffset.Parse(c["createdDate"]!.GetValue<string>(), CultureInfo.InvariantCulture),
                     HtmlText.ToText(c["text"]?.GetValue<string>()) ?? string.Empty))
                 .ToList() ?? [],
-            item["_links"]?["html"]?["href"]?.GetValue<string>() is { } href ? new Uri(href) : null);
+            item["_links"]?["html"]?["href"]?.GetValue<string>() is { } href ? new Uri(href) : null,
+            Guid.TryParse(fields["System.AssignedTo"]?["id"]?.GetValue<string>(), out var assignee) ? assignee : null,
+            fields["System.AssignedTo"]?["displayName"]?.GetValue<string>());
     }
 
     public async Task<CreatedWorkItem> CreateAsync(NewWorkItem item, CancellationToken cancellationToken)

@@ -26,7 +26,9 @@ public sealed class PublishPullRequestHandler(
     JobActivity activity,
     IClock clock,
     IOptions<JobOptions> options,
-    ICommandHandler<StartHandoff, Unit>? handoff = null) : ICommandHandler<PublishPullRequest, PullRequestRef>
+    ICommandHandler<StartHandoff, Unit>? handoff = null,
+    AzureDevOps.AdoOnBehalf? onBehalf = null,
+    AzureDevOps.AdoActor? actor = null) : ICommandHandler<PublishPullRequest, PullRequestRef>
 {
     public async Task<Result<PullRequestRef>> Handle(PublishPullRequest command, CancellationToken cancellationToken)
     {
@@ -48,6 +50,12 @@ public sealed class PublishPullRequestHandler(
             return await FailAsync(job, $"Repository '{job.Repository}' is no longer registered.", cancellationToken).ConfigureAwait(false);
         }
 
+        // Everything below for the job (the PR, its replies, the work item's comments) goes under the work item's Assigned To
+        // when they've connected their Azure DevOps; otherwise agentd's own, said once in the thread.
+        var assignee = onBehalf is null || await workItems.GetAsync(job.WorkItemId.Value, cancellationToken).ConfigureAwait(false) is not { } item
+            ? null
+            : await onBehalf.ResolveAsync(item.AssignedToId, item.AssignedTo, job.Id, cancellationToken).ConfigureAwait(false);
+        using var asAssignee = actor?.Begin(assignee);
         try
         {
             // The job's PR may have been merged or abandoned while the agent was still working (a fix round, a question):

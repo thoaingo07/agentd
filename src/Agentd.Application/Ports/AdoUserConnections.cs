@@ -65,4 +65,17 @@ public interface IAdoDelegation
 
     /// <summary>Redeems the code and asks Azure DevOps who signed in. Throws with Entra's or Azure DevOps' reason.</summary>
     Task<DelegatedSignIn> RedeemAsync(string code, string codeVerifier, Uri redirectUri, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// A fresh access token from a refresh token. Throws <see cref="InvalidOperationException"/> with Entra's reason when
+    /// the sign-in is refused (revoked, expired), and <see cref="HttpRequestException"/> when Entra can't be reached.
+    /// </summary>
+    Task<DelegatedToken> RefreshAsync(string refreshToken, CancellationToken cancellationToken);
+}
+
+/// <summary>An access token for Azure DevOps as a person, and the rotated refresh token when Entra sent one.</summary>
+public sealed record DelegatedToken(string AccessToken, string? RefreshToken, TimeSpan ExpiresIn)
+{
+    /// <summary>Never print the tokens.</summary>
+    public override string ToString() => $"DelegatedToken {{ ExpiresIn = {ExpiresIn} }}";
 }

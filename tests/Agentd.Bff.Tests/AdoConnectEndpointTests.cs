@@ -116,6 +116,8 @@ public sealed class AdoConnectEndpointTests
 
         public Task<DelegatedSignIn> RedeemAsync(string code, string codeVerifier, Uri redirectUri, CancellationToken cancellationToken) =>
             Task.FromResult(new DelegatedSignIn(s_dev, "dev.one@example.com", "Dev One", "refresh-SECRET"));
+
+        public Task<DelegatedToken> RefreshAsync(string refreshToken, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 
     private sealed class Protector : ITokenProtector

@@ -39,27 +39,28 @@ public sealed class AdoDelegation(HttpClient http, IOptions<AzureDevOpsOptions> 
         return new Uri(Authority, $"{Uri.EscapeDataString(O.TenantId!.Trim())}/oauth2/v2.0/authorize?{query}");
     }
 
+    public async Task<DelegatedToken> RefreshAsync(string refreshToken, CancellationToken cancellationToken)
+    {
+        var token = await TokenAsync(new Dictionary<string, string>
+        {
+            ["grant_type"] = "refresh_token",
+            ["refresh_token"] = refreshToken,
+        }, cancellationToken).ConfigureAwait(false);
+        return new DelegatedToken(token["access_token"]!.GetValue<string>(), token["refresh_token"]?.GetValue<string>(),
+            TimeSpan.FromSeconds(token["expires_in"]?.GetValue<int>() ?? 3600));
+    }
+
     public async Task<DelegatedSignIn> RedeemAsync(string code, string codeVerifier, Uri redirectUri, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(redirectUri);
-        using var form = new FormUrlEncodedContent(new Dictionary<string, string>
+        var token = await TokenAsync(new Dictionary<string, string>
         {
-            ["client_id"] = O.ClientId!.Trim(),
-            ["client_secret"] = O.ClientSecret!.Trim(),
             ["grant_type"] = "authorization_code",
             ["code"] = code,
             ["redirect_uri"] = redirectUri.ToString(),
             ["code_verifier"] = codeVerifier,
-            ["scope"] = Scopes,
-        });
-        using var tokenResponse = await http.PostAsync(new Uri(Authority, $"{Uri.EscapeDataString(O.TenantId!.Trim())}/oauth2/v2.0/token"), form, cancellationToken).ConfigureAwait(false);
-        var token = JsonNode.Parse(await tokenResponse.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false));
-        if (!tokenResponse.IsSuccessStatusCode || token?["access_token"]?.GetValue<string>() is not { } access)
-        {
-            // "AADSTS65001: The user or administrator has not consented …": the first line is the reason; never the request.
-            throw new InvalidOperationException(token?["error_description"]?.GetValue<string>()?.Split('\n')[0].Trim() ?? $"Microsoft Entra answered {(int)tokenResponse.StatusCode}.");
-        }
-
+        }, cancellationToken).ConfigureAwait(false);
+        var access = token["access_token"]!.GetValue<string>();
         var refresh = token["refresh_token"]?.GetValue<string>()
             ?? throw new InvalidOperationException("Microsoft Entra didn't return a refresh token (the app needs offline_access).");
 
@@ -77,5 +78,29 @@ public sealed class AdoDelegation(HttpClient http, IOptions<AzureDevOpsOptions> 
         var name = user["providerDisplayName"]?.GetValue<string>() ?? user["customDisplayName"]?.GetValue<string>() ?? "";
         var unique = user["properties"]?["Account"]?["$value"]?.GetValue<string>() ?? name;
         return new DelegatedSignIn(identity, unique, name.Length > 0 ? name : unique, refresh);
+    }
+
+    /// <summary>The token endpoint as the app (a confidential client). Entra's refusal becomes its reason, never the request.</summary>
+    private async Task<JsonNode> TokenAsync(Dictionary<string, string> grant, CancellationToken cancellationToken)
+    {
+        grant["client_id"] = O.ClientId!.Trim();
+        grant["client_secret"] = O.ClientSecret!.Trim();
+        grant["scope"] = Scopes;
+        using var form = new FormUrlEncodedContent(grant);
+        using var response = await http.PostAsync(new Uri(Authority, $"{Uri.EscapeDataString(O.TenantId!.Trim())}/oauth2/v2.0/token"), form, cancellationToken).ConfigureAwait(false);
+        var text = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+        if ((int)response.StatusCode >= 500)
+        {
+            throw new HttpRequestException($"Microsoft Entra answered {(int)response.StatusCode}.");
+        }
+
+        var token = text.Length > 0 ? JsonNode.Parse(text) : null;
+        if (!response.IsSuccessStatusCode || token?["access_token"] is null)
+        {
+            // "AADSTS65001: The user or administrator has not consented …": the first line is the reason.
+            throw new InvalidOperationException(token?["error_description"]?.GetValue<string>()?.Split('\n')[0].Trim() ?? $"Microsoft Entra answered {(int)response.StatusCode}.");
+        }
+
+        return token;
     }
 }

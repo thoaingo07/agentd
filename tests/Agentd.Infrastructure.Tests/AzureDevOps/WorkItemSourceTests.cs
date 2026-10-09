@@ -16,6 +16,7 @@ public sealed class WorkItemSourceTests
             "System.State": "Active",
             "System.AreaPath": "Portal\\Platform",
             "System.Tags": "ai-workflow; repo:sysmin",
+            "System.AssignedTo": { "displayName": "Dev One", "id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", "uniqueName": "dev@example.com" },
             "System.Description": "<div>The login <b>redirect</b> loops.</div><ul><li>Step one</li></ul>",
             "Microsoft.VSTS.Common.AcceptanceCriteria": "<p>Redirects once &amp; lands on /home</p>"
           },
@@ -72,6 +73,7 @@ public sealed class WorkItemSourceTests
         Assert.AreEqual("Redirects once & lands on /home", item.AcceptanceCriteria);
         Assert.AreEqual("tngo", item.Comments.Single().Author);
         Assert.AreEqual("Keep it simple", item.Comments.Single().Text);
+        Assert.AreEqual((Guid.Parse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"), "Dev One"), (item.AssignedToId, item.AssignedTo), "whose name the job's actions go under");
     }
 
     [TestMethod]

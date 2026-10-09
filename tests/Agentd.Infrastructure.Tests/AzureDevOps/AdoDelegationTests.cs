@@ -61,10 +61,107 @@ public sealed class AdoDelegationTests : IDisposable
     }
 
     [TestMethod]
+    public async Task A_refresh_rotates_the_token_and_tells_refused_from_unreachable()
+    {
+        _http.On(HttpMethod.Post, $"/{Tenant}/oauth2/v2.0/token", HttpStatusCode.OK, """{"access_token":"at2","refresh_token":"rt2","expires_in":4000}""");
+        var token = await Delegation().RefreshAsync("rt1", default);
+        var form = HttpUtility.ParseQueryString(_http.Requests[0].Body!);
+
+        _http.On(HttpMethod.Post, $"/{Tenant}/oauth2/v2.0/token", HttpStatusCode.BadRequest, """{"error":"invalid_grant","error_description":"AADSTS700082: The refresh token has expired.\r\nTrace"}""");
+        var refused = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => Delegation().RefreshAsync("rt2", default));
+        _http.On(HttpMethod.Post, $"/{Tenant}/oauth2/v2.0/token", HttpStatusCode.ServiceUnavailable);
+        await Assert.ThrowsExactlyAsync<HttpRequestException>(() => Delegation().RefreshAsync("rt2", default));
+
+        Assert.AreEqual(("at2", "rt2", TimeSpan.FromSeconds(4000)), (token.AccessToken, token.RefreshToken, token.ExpiresIn));
+        Assert.AreEqual(("refresh_token", "rt1", "shh"), (form["grant_type"], form["refresh_token"], form["client_secret"]));
+        Assert.AreEqual("AADSTS700082: The refresh token has expired.", refused.Message);
+        Assert.DoesNotContain("at2", token.ToString());
+    }
+
+    [TestMethod]
+    public async Task Inside_an_acting_scope_requests_carry_the_persons_token_and_never_fall_back()
+    {
+        var actor = new Application.AzureDevOps.AdoActor();
+        var store = new Store();
+        var delegation = new Refresher();
+        var tokens = new Application.AzureDevOps.AdoUserTokens(store, new Protector(), delegation, new Clock());
+        var provider = new ActingAsAuthProvider(new Own(), actor, tokens);
+
+        var own = await provider.GetAsync(false, default);
+        string person;
+        using (actor.Begin(store.Id))
+        {
+            person = (await provider.GetAsync(false, default)).ToString();
+        }
+
+        store.Failed = true;
+        using (actor.Begin(store.Id))
+        {
+            await Assert.ThrowsExactlyAsync<AdoException>(async () => await provider.GetAsync(true, default));
+        }
+
+        Assert.AreEqual(("Basic agentd", "Bearer person-token"), (own.ToString(), person));
+    }
+
+    [TestMethod]
     public void Its_configured_only_with_the_apps_tenant_client_and_secret() =>
         Assert.IsFalse(new AdoDelegation(new HttpClient(), Options.Create(new AzureDevOpsOptions { TenantId = Tenant, ClientId = Client })).IsConfigured);
 
     public void Dispose() => _http.Dispose();
+
+    private sealed class Own : IAdoAuthProvider
+    {
+        public ValueTask<System.Net.Http.Headers.AuthenticationHeaderValue> GetAsync(bool forceRefresh, CancellationToken cancellationToken) =>
+            ValueTask.FromResult(new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", "agentd"));
+    }
+
+    private sealed class Clock : Domain.Common.IClock
+    {
+        public DateTimeOffset UtcNow => DateTimeOffset.UtcNow;
+    }
+
+    private sealed class Protector : Application.Ports.ITokenProtector
+    {
+        public byte[] Protect(string token) => System.Text.Encoding.UTF8.GetBytes(token);
+
+        public string? Unprotect(byte[] protectedToken) => System.Text.Encoding.UTF8.GetString(protectedToken);
+    }
+
+    private sealed class Refresher : Application.Ports.IAdoDelegation
+    {
+        public bool IsConfigured => true;
+
+        public Uri AuthorizeUrl(string state, string codeChallenge, Uri redirectUri) => throw new NotSupportedException();
+
+        public Task<Application.Ports.DelegatedSignIn> RedeemAsync(string code, string codeVerifier, Uri redirectUri, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<Application.Ports.DelegatedToken> RefreshAsync(string refreshToken, CancellationToken cancellationToken) =>
+            Task.FromResult(new Application.Ports.DelegatedToken("person-token", null, TimeSpan.FromHours(1)));
+    }
+
+    /// <summary>One connected person; <see cref="Failed"/> makes their sign-in unusable.</summary>
+    private sealed class Store : Application.Ports.IAdoUserConnections
+    {
+        public Guid Id { get; } = Guid.NewGuid();
+
+        public bool Failed { get; set; }
+
+        public Task<Application.Ports.AdoUserConnection?> FindByIdentityAsync(Guid identityId, CancellationToken cancellationToken) =>
+            Task.FromResult<Application.Ports.AdoUserConnection?>(identityId == Id ? new(Id, "dev@example.com", "Dev", "dev@example.com", [1], Failed, null, default, default) : null);
+
+        public Task UpsertAsync(Guid identityId, string uniqueName, string displayName, string webLogin, byte[] refreshToken, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task<Application.Ports.AdoUserConnection?> FindByUniqueNameAsync(string uniqueName, CancellationToken cancellationToken) => Task.FromResult<Application.Ports.AdoUserConnection?>(null);
+
+        public Task<IReadOnlyList<Application.Ports.AdoUserConnection>> ListByWebLoginAsync(string webLogin, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<Application.Ports.AdoUserConnection>>([]);
+
+        public Task<bool> StoreTokenAsync(Guid identityId, byte[] refreshToken, CancellationToken cancellationToken) => Task.FromResult(true);
+
+        public Task MarkFailedAsync(Guid identityId, string reason, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task<bool> DeleteAsync(Guid identityId, string webLogin, CancellationToken cancellationToken) => Task.FromResult(false);
+    }
 
     private AdoDelegation Delegation() => new(new HttpClient(_http, disposeHandler: false),
         Options.Create(new AzureDevOpsOptions { Organization = "myorg", TenantId = Tenant, ClientId = Client, ClientSecret = "shh" }));
