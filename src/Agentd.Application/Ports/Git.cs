@@ -56,6 +56,18 @@ public interface IWorktreeManager
     /// Over <paramref name="maxBytes"/> the diff text is left out and only the file list is returned.
     /// </summary>
     Task<BranchDiff?> DiffAsync(Repository repository, BranchName branch, WorktreePath? worktree, int maxBytes, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The full commit id of <paramref name="reference"/> in the managed clone (call <see cref="EnsureCloneAsync"/> first to
+    /// fetch): a remote branch (<c>develop</c>, <c>feature/x</c>), or a commit (full or abbreviated). Null when it doesn't exist.
+    /// </summary>
+    Task<string?> ResolveCommitAsync(Repository repository, string reference, CancellationToken cancellationToken);
+
+    /// <summary>Where two commits' histories meet (what a branch is compared with); null when they share none.</summary>
+    Task<string?> MergeBaseAsync(Repository repository, string first, string second, CancellationToken cancellationToken);
+
+    /// <summary>What changes from <paramref name="baseCommit"/> to <paramref name="headCommit"/> in the managed clone; over <paramref name="maxBytes"/>, only the file list.</summary>
+    Task<BranchDiff> DiffCommitsAsync(Repository repository, string baseCommit, string headCommit, int maxBytes, CancellationToken cancellationToken);
 }
 
 /// <summary>A checkout folder: its name (e.g. <c>wi-5617</c>) and full path.</summary>

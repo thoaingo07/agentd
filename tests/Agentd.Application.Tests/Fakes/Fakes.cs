@@ -303,6 +303,25 @@ internal sealed class FakeWorktrees : IWorktreeManager
         return Task.FromResult($"/home/agentd/.agentd/worktrees/{repository.Name}/{name}");
     }
 
+    /// <summary>References and their commits (branches or commit ids) for review sessions.</summary>
+    public Dictionary<string, string> Commits { get; } = [];
+
+    public Dictionary<(string, string), string> MergeBases { get; } = [];
+
+    public List<(string Base, string Head)> CommitDiffs { get; } = [];
+
+    public Task<string?> ResolveCommitAsync(Repository repository, string reference, CancellationToken cancellationToken) =>
+        Task.FromResult(Commits.TryGetValue(reference, out var c) ? c : null);
+
+    public Task<string?> MergeBaseAsync(Repository repository, string first, string second, CancellationToken cancellationToken) =>
+        Task.FromResult(MergeBases.TryGetValue((first, second), out var b) ? b : null);
+
+    public Task<BranchDiff> DiffCommitsAsync(Repository repository, string baseCommit, string headCommit, int maxBytes, CancellationToken cancellationToken)
+    {
+        CommitDiffs.Add((baseCommit, headCommit));
+        return Task.FromResult(new BranchDiff(baseCommit, headCommit, ["src/A.cs"], "diff --git a/src/A.cs b/src/A.cs\n", false));
+    }
+
     public Task<BranchDiff?> DiffAsync(Repository repository, BranchName branch, WorktreePath? worktree, int maxBytes, CancellationToken cancellationToken)
     {
         Diffed.Add((branch.Value, worktree?.Value, maxBytes));

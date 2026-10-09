@@ -39,6 +39,40 @@ public sealed class GitWorktreeManagerTests
     }
 
     [TestMethod]
+    public async Task A_pushed_branch_resolves_to_its_commit_and_diffs_from_where_it_left_the_base()
+    {
+        using var box = new GitSandbox();
+        // A colleague's branch, pushed from another clone, while develop moves on.
+        var other = Path.Combine(box.Root, "colleague");
+        GitSandbox.Run(box.Root, "clone", box.RemotePath, other);
+        GitSandbox.Run(other, "checkout", "-b", "feature/keyset");
+        File.WriteAllText(Path.Combine(other, "Sync.cs"), "class Sync {}\n");
+        GitSandbox.Run(other, "add", ".");
+        GitSandbox.Run(other, "-c", "user.name=c", "-c", "user.email=c@x", "commit", "-m", "keyset");
+        GitSandbox.Run(other, "push", "origin", "feature/keyset");
+        GitSandbox.Run(other, "checkout", "develop");
+        File.WriteAllText(Path.Combine(other, "Later.cs"), "class Later {}\n");
+        GitSandbox.Run(other, "add", ".");
+        GitSandbox.Run(other, "-c", "user.name=c", "-c", "user.email=c@x", "commit", "-m", "later on develop");
+        GitSandbox.Run(other, "push", "origin", "develop");
+
+        await box.Manager.EnsureCloneAsync(box.Repository, default);
+        var head = await box.Manager.ResolveCommitAsync(box.Repository, "feature/keyset", default);
+        var develop = await box.Manager.ResolveCommitAsync(box.Repository, "develop", default);
+        var mergeBase = await box.Manager.MergeBaseAsync(box.Repository, develop!, head!, default);
+        var diff = await box.Manager.DiffCommitsAsync(box.Repository, mergeBase!, head!, 1 << 20, default);
+
+        Assert.AreEqual(GitSandbox.Run(other, "rev-parse", "feature/keyset"), head);
+        Assert.AreEqual(head, await box.Manager.ResolveCommitAsync(box.Repository, head![..8], default), "an abbreviated commit too");
+        CollectionAssert.AreEqual(new[] { "Sync.cs" }, diff.Files.ToList(), "develop's later commit isn't part of the branch's change");
+        StringAssert.Contains(diff.UnifiedDiff, "+class Sync {}");
+        Assert.IsNull(await box.Manager.ResolveCommitAsync(box.Repository, "no-such-branch", default));
+        Assert.IsNull(await box.Manager.ResolveCommitAsync(box.Repository, "--output=/tmp/x", default), "never an option");
+        Assert.IsNull(await box.Manager.ResolveCommitAsync(box.Repository, "develop..feature/keyset", default), "never a range");
+        Assert.IsTrue((await box.Manager.DiffCommitsAsync(box.Repository, mergeBase!, head!, 10, default)).Truncated, "over the cap: the file list only");
+    }
+
+    [TestMethod]
     public async Task Creating_again_reuses_the_existing_worktree()
     {
         using var box = new GitSandbox();

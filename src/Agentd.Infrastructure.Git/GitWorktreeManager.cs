@@ -163,18 +163,61 @@ public sealed partial class GitWorktreeManager(GitCli git, IOptions<GitOptions> 
             range = [$"{baseRef}...{branch.Value}"];
         }
 
+        return await DiffRangeAsync(cwd, range, baseRef, branch.Value, maxBytes, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<string?> ResolveCommitAsync(Repository repository, string reference, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(repository);
+        ArgumentException.ThrowIfNullOrWhiteSpace(reference);
+        var clone = ClonePathFor(repository);
+        var name = reference.Trim();
+        if (name.StartsWith('-') || name.Contains("..", StringComparison.Ordinal))
+        {
+            return null;   // never an option or a range, only a name
+        }
+
+        // A remote branch first (the clone mirrors the remote as origin/*), then a commit id.
+        foreach (var candidate in new[] { "refs/remotes/origin/" + name.Replace("refs/heads/", string.Empty, StringComparison.Ordinal), name })
+        {
+            var result = await git.RunAsync(clone, ["rev-parse", "--verify", "--quiet", "--end-of-options", candidate + "^{commit}"], cancellationToken, throwOnError: false).ConfigureAwait(false);
+            if (result.ExitCode == 0 && result.StandardOutput.Length > 0)
+            {
+                return result.StandardOutput;
+            }
+        }
+
+        return null;
+    }
+
+    public async Task<string?> MergeBaseAsync(Repository repository, string first, string second, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(repository);
+        var result = await git.RunAsync(ClonePathFor(repository), ["merge-base", "--end-of-options", first, second], cancellationToken, throwOnError: false).ConfigureAwait(false);
+        return result.ExitCode == 0 && result.StandardOutput.Length > 0 ? result.StandardOutput : null;
+    }
+
+    public Task<BranchDiff> DiffCommitsAsync(Repository repository, string baseCommit, string headCommit, int maxBytes, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(repository);
+        return DiffRangeAsync(ClonePathFor(repository), [baseCommit, headCommit], baseCommit, headCommit, maxBytes, cancellationToken);
+    }
+
+    /// <summary>The file list, then the diff text unless it's over <paramref name="maxBytes"/> (estimated first, then measured).</summary>
+    private async Task<BranchDiff> DiffRangeAsync(string cwd, string[] range, string baseLabel, string headLabel, int maxBytes, CancellationToken cancellationToken)
+    {
         var names = await git.RunAsync(cwd, ["diff", "--name-only", .. range], cancellationToken).ConfigureAwait(false);
         var files = names.StandardOutput.Split('\n', StringSplitOptions.RemoveEmptyEntries);
         var stat = await git.RunAsync(cwd, ["diff", "--numstat", .. range], cancellationToken).ConfigureAwait(false);
         if (EstimateBytes(stat.StandardOutput) > maxBytes)
         {
-            return new BranchDiff(baseRef, branch.Value, files, null, Truncated: true);
+            return new BranchDiff(baseLabel, headLabel, files, null, Truncated: true);
         }
 
         var diff = await git.RunAsync(cwd, ["diff", "--no-color", "--no-ext-diff", .. range], cancellationToken).ConfigureAwait(false);
         return System.Text.Encoding.UTF8.GetByteCount(diff.StandardOutput) > maxBytes
-            ? new BranchDiff(baseRef, branch.Value, files, null, Truncated: true)
-            : new BranchDiff(baseRef, branch.Value, files, diff.StandardOutput.Length == 0 ? string.Empty : diff.StandardOutput + "\n", Truncated: false);
+            ? new BranchDiff(baseLabel, headLabel, files, null, Truncated: true)
+            : new BranchDiff(baseLabel, headLabel, files, diff.StandardOutput.Length == 0 ? string.Empty : diff.StandardOutput + "\n", Truncated: false);
     }
 
     /// <summary>A lower bound on the diff size from <c>--numstat</c> (assume 10 bytes a changed line), to skip huge diffs early.</summary>
