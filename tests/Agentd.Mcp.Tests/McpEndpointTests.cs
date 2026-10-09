@@ -83,7 +83,7 @@ public sealed class McpEndpointTests
         var chatTools = (await chat.ListToolsAsync()).Select(t => t.Name).ToList();
         var jobTools = (await job.ListToolsAsync()).Select(t => t.Name).ToList();
 
-        CollectionAssert.AreEquivalent(new[] { "ado_search_work_items", "ado_get_work_item", "ado_list_pull_requests", "ado_get_pull_request", "ado_list_pipelines", "ado_list_builds", "ado_get_build" }, chatTools);
+        CollectionAssert.AreEquivalent(new[] { "ado_search_work_items", "ado_get_work_item", "ado_list_pull_requests", "ado_get_pull_request", "ado_list_pipelines", "ado_list_builds", "ado_get_build", "ado_search_wiki", "ado_get_wiki_page" }, chatTools);
         Assert.IsFalse(jobTools.Any(t => t.StartsWith("ado_", StringComparison.Ordinal)), "a job agent gets no chat tools");
     }
 
@@ -127,6 +127,24 @@ public sealed class McpEndpointTests
         StringAssert.Contains(text, "  error: Process completed with exit code 1.");
         StringAssert.Contains(text, "    Failed Deploy_ready_probe [12 ms]");
         StringAssert.Contains(((TextContentBlock)missing.Content[0]).Text, "doesn't exist");
+    }
+
+    [TestMethod]
+    public async Task A_chat_searches_the_wiki_then_reads_the_page()
+    {
+        await using var host = await McpTestHost.StartAsync();
+        await using var chat = await host.ClientAsync(host.Tokens.IssueChat(7));
+
+        var hits = await chat.CallToolAsync("ado_search_wiki", Args(("text", "deploy")));
+        var page = await chat.CallToolAsync("ado_get_wiki_page", Args(("path", "/Runbooks/Deploy")));
+        var missing = await chat.CallToolAsync("ado_get_wiki_page", Args(("path", "/Nope")));
+
+        Assert.AreEqual("[Portal.wiki] /Runbooks/Deploy · …run the helm upgrade with --atomic…", Text(hits));
+        var text = Text(page);
+        StringAssert.Contains(text, "Wikis: Portal.wiki, sysmin docs");
+        StringAssert.Contains(text, "Sub-pages: /Runbooks/Deploy/Rollback");
+        StringAssert.Contains(text, "Run `helm upgrade --atomic`.");
+        StringAssert.Contains(Text(missing), "ado_search_wiki");
     }
 
     [TestMethod]

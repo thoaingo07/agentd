@@ -42,7 +42,7 @@ agentd secrets list
 
 | Secret | For |
 |---|---|
-| `AzureDevOps:Pat` | Azure DevOps with `"Auth": "Pat"` (scopes: Work Items read & write, Code read & write, Build read) |
+| `AzureDevOps:Pat` | Azure DevOps with `"Auth": "Pat"` (scopes: Work Items read & write, Code read & write, Build read, Wiki read for `!chat`) |
 | `Claude:OAuthToken` | a token from `claude setup-token`, instead of logging in on the server |
 | `Messaging:Providers:Discord:BotToken` | the Discord bot |
 | `ConnectionStrings:agentd` | the PostgreSQL connection string (it holds the password) |

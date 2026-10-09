@@ -36,9 +36,10 @@ internal static class AdoHttp
         return response.IsSuccessStatusCode ? text : throw new AdoException($"Azure DevOps returned {(int)response.StatusCode}: {TryMessage(text) ?? response.ReasonPhrase}", (int)response.StatusCode);
     }
 
+    /// <summary>A JSON request; the URL is relative to the client's base address, or an absolute Azure DevOps URL (the search host).</summary>
     public static async Task<JsonNode?> SendAsync(HttpClient http, HttpMethod method, string url, JsonNode body, string mediaType, CancellationToken ct)
     {
-        using var request = new HttpRequestMessage(method, new Uri(url, UriKind.Relative))
+        using var request = new HttpRequestMessage(method, new Uri(url, UriKind.RelativeOrAbsolute))
         {
             Content = new StringContent(body.ToJsonString(), Encoding.UTF8, mediaType),
         };

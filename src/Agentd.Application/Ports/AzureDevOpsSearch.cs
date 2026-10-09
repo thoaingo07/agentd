@@ -27,6 +27,12 @@ public sealed record BuildFailure(string Step, string Kind, string Result, IRead
 
 public sealed record BuildDetail(BuildHit Build, IReadOnlyList<BuildFailure> Failures);
 
+/// <summary>A wiki search hit: the page and the matched snippets (search highlights, without markup).</summary>
+public sealed record WikiHit(string Wiki, string Path, IReadOnlyList<string> Snippets);
+
+/// <summary>A wiki page's markdown and its direct sub-pages; <paramref name="Wikis"/>: every wiki in the project.</summary>
+public sealed record WikiPage(string Wiki, string Path, string? Content, IReadOnlyList<string> SubPages, IReadOnlyList<string> Wikis);
+
 /// <summary>Read-only searches across the Azure DevOps project, for <c>!chat</c>'s tools (implemented in Infrastructure.AzureDevOps).</summary>
 public interface IAzureDevOpsSearch
 {
@@ -43,4 +49,10 @@ public interface IAzureDevOpsSearch
 
     /// <summary>One run, with each failed step's errors and the last lines of its log; null when it doesn't exist.</summary>
     Task<BuildDetail?> GetBuildAsync(int id, CancellationToken cancellationToken);
+
+    /// <summary>Full-text search of the project's wikis (Azure DevOps Search), best match first.</summary>
+    Task<IReadOnlyList<WikiHit>> SearchWikiAsync(string text, int top, CancellationToken cancellationToken);
+
+    /// <summary>A page by path (the wiki's root when empty) of <paramref name="wiki"/> (the project wiki when empty); null when there's no such page.</summary>
+    Task<WikiPage?> GetWikiPageAsync(string? wiki, string? path, CancellationToken cancellationToken);
 }
