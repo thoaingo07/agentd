@@ -181,7 +181,9 @@ with integration tests, including parallel callers for decisions and comments on
 4. **`agentd review`**:
    - 4a: collect, your `claude` reviewer, the findings printed and written to `.agentd/review.md`
      (`Host/Cli/Review/LocalReview.cs`, `ReviewCommand`);
-   - 4b: the local server and the embedded page, Send to `.agentd/review.md`.
+   - 4b: the local server and the embedded page, Send to `.agentd/review.md` (`LocalReviewServer`,
+     `LocalReviewSession`, `ClientApps/review`: the dashboard's `ReviewView` plus a Send bar). One local session,
+     id 1, in memory; the same JSON shapes as `/api/reviews`, so the page code is shared.
 5. **`--fix` rounds and `--share`**.
 6. **Send on the server**: Post to the PR (under your name: the on-behalf-of part 3b), Fix it jobs, Send to the
    job's agent.
