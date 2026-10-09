@@ -50,6 +50,7 @@ internal static class AgentdServices
 
         // Use cases and their adapters: Azure DevOps (az login by default), git worktrees, Claude Code (subscription).
         builder.Services.AddOptions<JobOptions>().BindConfiguration(JobOptions.Section);
+        builder.Services.AddOptions<Application.Reviews.WebLinkOptions>().BindConfiguration(Application.Reviews.WebLinkOptions.Section);
         builder.Services.AddOptions<ModelsOptions>().BindConfiguration(ModelsOptions.Section).ValidateOnStart();
         builder.Services.AddSingleton<IValidateOptions<ModelsOptions>, ModelsOptionsValidator>();
         builder.Services.AddOptions<SchedulerOptions>().BindConfiguration(SchedulerOptions.Section);

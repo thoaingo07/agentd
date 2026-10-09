@@ -18,7 +18,8 @@ public sealed partial class ReviewSessionReviewer(
     IRepositoryRegistry repositories,
     IWorktreeManager worktrees,
     IBrainstormAgent agent,
-    ILogger<ReviewSessionReviewer>? logger = null) : IDisposable
+    ILogger<ReviewSessionReviewer>? logger = null,
+    IServiceProvider? services = null) : IDisposable
 {
     /// <summary>Reviews running at once (each is a Claude Code process).</summary>
     public const int MaxConcurrent = 2;
@@ -92,6 +93,7 @@ public sealed partial class ReviewSessionReviewer(
 
             await store.AddFindingsAsync(id, [.. result.Findings.Select(SessionFinding.From)], result.Summary, cancellationToken).ConfigureAwait(false);
             await store.SetStatusAsync(id, ReviewSessionStatus.Ready, null, null, cancellationToken).ConfigureAwait(false);
+            await NotifyAsync(id).ConfigureAwait(false);
         }
 #pragma warning disable CA1031 // any failure is the session's, shown on its page
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -120,7 +122,34 @@ public sealed partial class ReviewSessionReviewer(
 
     public void Dispose() => _slots.Dispose();
 
-    private Task FailAsync(long id, string reason, CancellationToken ct) => store.SetStatusAsync(id, ReviewSessionStatus.Failed, reason, null, ct);
+    private async Task FailAsync(long id, string reason, CancellationToken ct)
+    {
+        await store.SetStatusAsync(id, ReviewSessionStatus.Failed, reason, null, ct).ConfigureAwait(false);
+        await NotifyAsync(id).ConfigureAwait(false);
+    }
+
+    /// <summary>A chat that started the review hears how it went (resolved lazily: <see cref="BranchReviews"/> depends on the service that depends on this).</summary>
+    private async Task NotifyAsync(long id)
+    {
+        if (services?.GetService(typeof(BranchReviews)) is not BranchReviews chat || await store.GetAsync(id, CancellationToken.None).ConfigureAwait(false) is not { } session)
+        {
+            return;
+        }
+
+        try
+        {
+            await chat.NotifyAsync(session, CancellationToken.None).ConfigureAwait(false);
+        }
+#pragma warning disable CA1031 // a lost chat notice never fails the review
+        catch (Exception ex) when (ex is not OperationCanceledException)
+#pragma warning restore CA1031
+        {
+            LogNoticeFailed(_logger, ex, id);
+        }
+    }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Telling the chat about review session {Id} failed")]
+    private static partial void LogNoticeFailed(ILogger logger, Exception exception, long id);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Review session {Id} failed")]
     private static partial void LogFailed(ILogger logger, Exception exception, long id);
