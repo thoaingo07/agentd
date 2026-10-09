@@ -178,8 +178,10 @@ with integration tests, including parallel callers for decisions and comments on
 2. **The reviewer and the page**: the reviewer turn streaming findings; `ClientApps/review` (files, diff, inline
    findings, keep/edit/drop, comments, live).
 3. **Ask, chat entry and Reviews list**: Ask on a selection, `!review branch:…`, Web UI → Reviews.
-4. **`agentd review`**: collect, your `claude` reviewer, the local server and the embedded page, Send to
-   `.agentd/review.md`.
+4. **`agentd review`**:
+   - 4a: collect, your `claude` reviewer, the findings printed and written to `.agentd/review.md`
+     (`Host/Cli/Review/LocalReview.cs`, `ReviewCommand`);
+   - 4b: the local server and the embedded page, Send to `.agentd/review.md`.
 5. **`--fix` rounds and `--share`**.
 6. **Send on the server**: Post to the PR (under your name: the on-behalf-of part 3b), Fix it jobs, Send to the
    job's agent.
