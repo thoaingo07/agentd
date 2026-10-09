@@ -25,7 +25,8 @@ public sealed class PublishPullRequestHandler(
     IOutbox outbox,
     JobActivity activity,
     IClock clock,
-    IOptions<JobOptions> options) : ICommandHandler<PublishPullRequest, PullRequestRef>
+    IOptions<JobOptions> options,
+    ICommandHandler<StartHandoff, Unit>? handoff = null) : ICommandHandler<PublishPullRequest, PullRequestRef>
 {
     public async Task<Result<PullRequestRef>> Handle(PublishPullRequest command, CancellationToken cancellationToken)
     {
@@ -56,7 +57,15 @@ public sealed class PublishPullRequestHandler(
                 switch (await pullRequests.GetStatusAsync(repository, previousId, cancellationToken).ConfigureAwait(false))
                 {
                     case PullRequestStatus.Completed:
-                        return await EndWithoutPublishAsync(job, job.MergedBeforePublish(), MessageCatalog.MergedBeforePublish(previous.Value, branch.Value), cancellationToken).ConfigureAwait(false);
+                        // Merged like any other PR, so the hand-off follows, as it does from the review loop.
+                        var handoffNext = options.Value.Handoff && handoff is not null && job.Handoff == HandoffStatus.None;
+                        var ended = await EndWithoutPublishAsync(job, job.MergedBeforePublish(), MessageCatalog.MergedBeforePublish(previous.Value, branch.Value, handoffNext), cancellationToken).ConfigureAwait(false);
+                        if (handoffNext && ended.Error?.Code == NotPublished)
+                        {
+                            await handoff!.Handle(new StartHandoff(job.Id), cancellationToken).ConfigureAwait(false);
+                        }
+
+                        return ended;
                     case PullRequestStatus.Abandoned:
                         return await EndWithoutPublishAsync(job, job.Cancel("PR abandoned"), MessageCatalog.AbandonedBeforePublish(previous.Value), cancellationToken).ConfigureAwait(false);
                 }
@@ -150,6 +159,9 @@ public sealed class PublishPullRequestHandler(
         }
     }
 
+    /// <summary>The error code of a finish that ended the job without publishing (merged or abandoned meanwhile).</summary>
+    public const string NotPublished = "not_published";
+
     private async Task<Result<PullRequestRef>> EndWithoutPublishAsync(Job job, Result ended, OutboundMessage message, CancellationToken ct)
     {
         if (!ended.IsSuccess)
@@ -164,7 +176,7 @@ public sealed class PublishPullRequestHandler(
         }
 
         await outbox.TryEnqueueAsync(job.Id, message, ct).ConfigureAwait(false);
-        return new DomainError("not_published", message.Markdown);
+        return new DomainError(NotPublished, message.Markdown);
     }
 
     private async Task<Result<PullRequestRef>> FailAsync(Job job, string reason, CancellationToken ct)
