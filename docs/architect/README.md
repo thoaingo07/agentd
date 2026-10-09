@@ -27,6 +27,9 @@ real-time view of every session: live transcripts, tool calls, state and cost.
   **pluggable messaging providers** (Discord and Telegram first).
 - On completion, **push the branch, create a PR** linked to the work item, and announce it
   in chat.
+- **Review any change, anywhere.** A review page (the diff, findings inline, your comments, Ask, Send) for any branch,
+  PR or commit range on the server, and for uncommitted work on a laptop with `agentd review` and the developer's own
+  Claude ([review-sessions.md](review-sessions.md)).
 - **Keep PRs moving after they open.** PR Reviewer runs the repo's predefined reviewers on any open
   PR, PR Monitor keeps fixing review comments, CI failures and conflicts, and hotfixes get an
   expedited flow with an automatic backport ([pr-reviewer-and-monitor.md](pr-reviewer-and-monitor.md)).
