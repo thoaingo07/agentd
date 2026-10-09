@@ -6,7 +6,7 @@ It updates live; the dot in the header shows whether it's connected.
 
 ## The header
 
-- **The navigation:** Dashboard · History · Ideas · Settings.
+- **The navigation:** Dashboard · History · Ideas · Reviews · Settings.
 - **"N waiting":** jobs waiting for you. Click it to see them.
 - **The machine's CPU, free RAM and free disk** (on phones, CPU and free RAM). It's marked ⚠️ when disk or memory
   runs low. Click it for the **Host** panel at the top of Settings: CPU with cores and load, RAM, swap, every disk
@@ -58,6 +58,21 @@ If the work item came from an idea, the header links to it ("💡 born from idea
 Every `!idea`: its status, repository, author, message and draft counts, and the work items it created. An idea's
 page shows its model and effort, the latest drafts as stories with their tasks, and the whole conversation.
 Brainstorming itself happens in chat.
+
+## Reviews
+
+**Reviews → New review**: pick a repository, then a **pull request**, a **pushed branch** (against its base, or
+another branch you name) or **two commits**. agentd fetches it with its own access, pins the commits, and its
+reviewer (the `review` step's model) looks for what can break the app or slow it down, with a fix for each.
+
+The review page:
+- the **files** on the left, the **diff** in the middle, and each **finding at its line** (🔴 can break the app,
+  🟠 performance) with **Keep**, **Edit** (your wording) or **Drop**;
+- **click a line number** to comment there; a comment on the whole change goes at the side;
+- "Reviewing…" while the reviewer works: the findings appear when it's done, and you can read and comment meanwhile.
+
+**My reviews** lists the ones you started. Sending the review (to the PR under your name, or to an agent to fix)
+comes next.
 
 ## Settings
 

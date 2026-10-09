@@ -47,6 +47,11 @@ export type ModelProfile = Schemas['ProfileVm']
 export type ProfileRequest = Schemas['ProfileRequest']
 export type StepModel = Schemas['StepModelVm']
 export type AdoConnections = Schemas['AdoConnectionsVm']
+export type ReviewSession = Schemas['ReviewSessionVm']
+export type ReviewDetail = Schemas['ReviewSessionDetailVm']
+export type ReviewFinding = Schemas['ReviewFindingVm']
+export type ReviewComment = Schemas['ReviewCommentVm']
+export type ReviewDiff = Schemas['ReviewDiffVm']
 
 /** Every BFF error is ProblemDetails; agentd adds a machine-readable `code` (not_found, invalid_transition, …). */
 export type Problem = Schemas['ProblemDetails'] & { code?: string }
