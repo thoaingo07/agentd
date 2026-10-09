@@ -62,8 +62,9 @@ Diff · Findings), and the inline cards in the diff.
   findings.
 - **Ask**: select code and ask ("why is this here?", "explain this flow"). The answer appears in the side panel and is
   kept with the session. On the server it has the repo and Azure DevOps context (like `!chat`); locally, your repo.
-- **Live**: while the reviewer works, findings appear as they come ("Reviewing… 2 findings so far"). On the server
-  over the existing SignalR hub (a `review:<id>` stream); locally over the CLI's own server-sent events.
+- **Live**: while the reviewer works the page says "Reviewing…" and checks the session every few seconds; the findings
+  arrive together when the reviewer finishes (its review-findings block). The diff and comments work meanwhile.
+  (Streaming findings one by one, over the SignalR hub, can come later if reviews get long.)
 - **Send ▾** lists the destinations for where the session runs (§4), with a preview of the exact text that goes.
 - Keyboard: `j`/`k` next/previous finding, `c` comment, `a` ask, `x` drop, `e` edit.
 
@@ -84,6 +85,10 @@ server, the CLI's `/api/review` locally).
 3. The reviewer turn: the server's Claude with `ReviewRules`, the diff, and the repo's `AGENTS.md` / `.agentd/`
    rules. Findings arrive as JSON (today's format) and stream into the session.
 4. `Ready`. The checkout stays until the session is Sent or Closed (Ask uses it), then it's removed.
+
+At most two reviews run at once (`ReviewSessionReviewer.MaxConcurrent`). A session left `Reviewing` by a restart is
+started again by the review monitor's next pass. A usage limit, an unreadable reply or an error makes it `Failed`
+with the reason shown on the page.
 
 Who may start one: anyone signed in to the web UI (or allowed in chat), for registered repositories.
 

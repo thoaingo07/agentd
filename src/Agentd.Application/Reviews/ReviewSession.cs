@@ -90,6 +90,9 @@ public interface IReviewSessionStore
     /// <summary>Someone's recent sessions, newest first.</summary>
     Task<IReadOnlyList<ReviewSession>> ListAsync(string createdBy, int limit, CancellationToken cancellationToken);
 
+    /// <summary>Sessions in <paramref name="status"/>, oldest first (the reviews to resume after a restart).</summary>
+    Task<IReadOnlyList<ReviewSession>> ListByStatusAsync(string status, CancellationToken cancellationToken);
+
     Task PinAsync(long id, string baseCommit, string headCommit, string? worktree, CancellationToken cancellationToken);
 
     /// <param name="id">The session.</param>

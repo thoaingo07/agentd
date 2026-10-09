@@ -113,6 +113,9 @@ public sealed class ReviewSessionServiceTests
         public Task<IReadOnlyList<ReviewSession>> ListAsync(string createdBy, int limit, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<ReviewSession>>([.. Sessions.Values.Where(s => s.CreatedBy == createdBy).OrderByDescending(s => s.Id).Take(limit)]);
 
+        public Task<IReadOnlyList<ReviewSession>> ListByStatusAsync(string status, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<ReviewSession>>([.. Sessions.Values.Where(s => s.Status == status).OrderBy(s => s.Id)]);
+
         public Task PinAsync(long id, string baseCommit, string headCommit, string? worktree, CancellationToken cancellationToken)
         {
             Sessions[id] = Sessions[id] with { BaseCommit = baseCommit, HeadCommit = headCommit, Worktree = worktree };

@@ -26,7 +26,8 @@ public sealed class ReviewSessionService(
     IRepositoryRegistry repositories,
     IWorktreeManager worktrees,
     IPullRequestService pullRequests,
-    IOptions<JobOptions>? jobs = null)
+    IOptions<JobOptions>? jobs = null,
+    ReviewSessionReviewer? reviewer = null)
 {
     /// <summary>The same cap as a job's Diff tab: past it, only the file list.</summary>
     public const int MaxDiffBytes = 2 * 1024 * 1024;
@@ -61,8 +62,15 @@ public sealed class ReviewSessionService(
         var id = await store.InsertAsync(repo.Name.Value, target, request.PullRequestId, headRef, baseRef, createdBy,
             Blank(defaults?.Model), Blank(defaults?.Effort)?.ToLowerInvariant(), cancellationToken).ConfigureAwait(false);
         await store.PinAsync(id, baseCommit, headCommit, null, cancellationToken).ConfigureAwait(false);
-        await store.SetStatusAsync(id, ReviewSessionStatus.Ready, null, null, cancellationToken).ConfigureAwait(false);
-        return (await store.GetAsync(id, cancellationToken).ConfigureAwait(false))!;
+        if (reviewer is null)
+        {
+            // No reviewer here: the change is ready to read and comment on as it is.
+            await store.SetStatusAsync(id, ReviewSessionStatus.Ready, null, null, cancellationToken).ConfigureAwait(false);
+        }
+
+        var started = (await store.GetAsync(id, cancellationToken).ConfigureAwait(false))!;
+        _ = reviewer?.Start(id);   // Reviewing: findings arrive when it's done
+        return started;
     }
 
     public async Task<ReviewSessionView?> GetAsync(long id, CancellationToken cancellationToken) =>

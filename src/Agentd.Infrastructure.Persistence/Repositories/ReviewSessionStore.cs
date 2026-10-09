@@ -18,6 +18,9 @@ public sealed class ReviewSessionStore(NpgsqlDataSource dataSource) : IReviewSes
     public Task<IReadOnlyList<ReviewSession>> ListAsync(string createdBy, int limit, CancellationToken cancellationToken) =>
         SessionsAsync("SELECT * FROM agentd.review_session_list($1, $2)", cancellationToken, T(createdBy), P(limit, NpgsqlDbType.Integer));
 
+    public Task<IReadOnlyList<ReviewSession>> ListByStatusAsync(string status, CancellationToken cancellationToken) =>
+        SessionsAsync("SELECT * FROM agentd.review_session_list_by_status($1)", cancellationToken, T(status));
+
     public Task PinAsync(long id, string baseCommit, string headCommit, string? worktree, CancellationToken cancellationToken) =>
         ExecuteAsync("SELECT agentd.review_session_pin($1, $2, $3, $4)", cancellationToken, P(id, NpgsqlDbType.Bigint), T(baseCommit), T(headCommit), T(worktree));
 
