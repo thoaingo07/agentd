@@ -123,6 +123,62 @@ public sealed class ChatTools(IAzureDevOpsSearch search, IWorkItemSource workIte
         return Cap(sb.ToString());
     }
 
+    [McpServerTool(Name = "ado_list_pipelines"), Description("The project's pipelines (build definitions): id, name and folder.")]
+    public async Task<string> ListPipelines([Description("Only names containing this; empty for all.")] string? name = null, CancellationToken cancellationToken = default)
+    {
+        var hits = await Ado(() => search.ListPipelinesAsync(name, cancellationToken)).ConfigureAwait(false);
+        return hits.Count == 0
+            ? "No pipelines match."
+            : Cap(string.Join('\n', hits.Select(p => string.Create(CultureInfo.InvariantCulture, $"{p.Id} · {p.Name} · {p.Folder}"))));
+    }
+
+    [McpServerTool(Name = "ado_list_builds"), Description("Pipeline runs (builds), newest first: result, branch, who and when. Every filter is optional.")]
+    public async Task<string> ListBuilds(
+        [Description("A pipeline name (or part of it) or id.")] string? pipeline = null,
+        [Description("A branch, e.g. develop or ai/5617-deploy.")] string? branch = null,
+        [Description("succeeded, failed, canceled, partiallySucceeded; empty for any.")] string? result = null,
+        [Description("How many (1–50, default 10).")] int top = 10,
+        CancellationToken cancellationToken = default)
+    {
+        var hits = await Ado(() => search.ListBuildsAsync(pipeline, branch, result, top, cancellationToken)).ConfigureAwait(false);
+        return hits.Count == 0 ? "No runs match." : Cap(string.Join('\n', hits.Select(Run)));
+    }
+
+    [McpServerTool(Name = "ado_get_build"), Description("One pipeline run: its result, and each failed step's errors and the last lines of its log.")]
+    public async Task<string> GetBuild([Description("The run (build) id.")] int id, CancellationToken cancellationToken = default)
+    {
+        var detail = await Ado(() => search.GetBuildAsync(id, cancellationToken)).ConfigureAwait(false);
+        if (detail is null)
+        {
+            return $"Run {id} doesn't exist (or isn't visible).";
+        }
+
+        var sb = new StringBuilder().AppendLine(Run(detail.Build));
+        if (detail.Failures.Count == 0)
+        {
+            sb.AppendLine(detail.Build.Result is null ? "Still running: no failed steps so far." : "No failed steps.");
+        }
+
+        foreach (var f in detail.Failures)
+        {
+            sb.AppendLine().AppendLine(CultureInfo.InvariantCulture, $"✗ {f.Kind} \"{f.Step}\": {f.Result}");
+            foreach (var issue in f.Issues)
+            {
+                sb.AppendLine(CultureInfo.InvariantCulture, $"  error: {issue.ReplaceLineEndings(" ")}");
+            }
+
+            if (f.LogTail is { } tail)
+            {
+                sb.AppendLine("  log (end):").AppendLine(string.Join('\n', tail.Split('\n').Select(l => "    " + l)));
+            }
+        }
+
+        return Cap(sb.ToString());
+    }
+
+    private static string Run(BuildHit b) => string.Create(CultureInfo.InvariantCulture,
+        $"{b.Id} · {b.Pipeline} {b.Number} · {b.Result ?? b.Status} · {b.Branch}{(b.RequestedFor is null ? string.Empty : $" · {b.RequestedFor}")} · {b.Reason}{(b.Commit is { Length: >= 7 } c ? $" · {c[..7]}" : string.Empty)}{((b.FinishedAt ?? b.StartedAt) is { } at ? $" · {at:yyyy-MM-dd HH:mm}Z" : string.Empty)}");
+
     private static void Section(StringBuilder sb, string title, string? text)
     {
         if (!string.IsNullOrWhiteSpace(text))

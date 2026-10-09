@@ -52,6 +52,62 @@ public sealed class AzureDevOpsSearchTests : IDisposable
         StringAssert.Contains(_ado.Requests[0].Url, "searchCriteria.status=active", "an unknown status means active");
     }
 
+    [TestMethod]
+    public async Task Runs_of_a_pipeline_by_name_are_listed_with_branch_and_result_filters()
+    {
+        _ado.On(HttpMethod.Get, "/ermsystem/Portal/_apis/build/definitions", HttpStatusCode.OK, """{"value":[{"id":12,"name":"sysmin-ci","path":"\\ci"}]}""")
+            .On(HttpMethod.Get, "/ermsystem/Portal/_apis/build/builds", HttpStatusCode.OK, """
+                {"value":[{"id":901,"definition":{"name":"sysmin-ci"},"buildNumber":"20261008.3","status":"completed","result":"failed","sourceBranch":"refs/heads/develop",
+                  "requestedFor":{"displayName":"Dev One"},"reason":"individualCI","sourceVersion":"a1b2c3d4e5","startTime":"2026-10-08T09:00:00Z","finishTime":"2026-10-08T09:06:00Z"}]}
+                """);
+
+        var runs = await Search().ListBuildsAsync("sysmin", "develop", "Failed", 500, default);
+
+        Assert.AreEqual(("sysmin-ci", "failed", "develop", "Dev One"), (runs.Single().Pipeline, runs[0].Result, runs[0].Branch, runs[0].RequestedFor));
+        StringAssert.Contains(_ado.Requests[0].Url, "name=%2Asysmin%2A".Replace("%2A", "*", StringComparison.Ordinal));
+        var url = _ado.Requests[1].Url;
+        foreach (var part in new[] { "definitions=12", "branchName=refs%2Fheads%2Fdevelop", "resultFilter=failed", "$top=50" })
+        {
+            StringAssert.Contains(url, part);
+        }
+    }
+
+    [TestMethod]
+    public async Task An_unknown_pipeline_has_no_runs_instead_of_every_run()
+    {
+        _ado.On(HttpMethod.Get, "/ermsystem/Portal/_apis/build/definitions", HttpStatusCode.OK, """{"value":[]}""");
+
+        var runs = await Search().ListBuildsAsync("nope", null, null, 10, default);
+
+        Assert.IsEmpty(runs);
+        Assert.HasCount(1, _ado.Requests, "no build query without a pipeline");
+    }
+
+    [TestMethod]
+    public async Task A_failed_run_has_its_failed_steps_errors_and_the_end_of_their_logs()
+    {
+        var log = string.Join('\n', Enumerable.Range(1, 100).Select(i => $"2026-10-08T09:05:{i % 60:00}.1234567Z line {i}"));
+        _ado.On(HttpMethod.Get, "/ermsystem/Portal/_apis/build/builds/901", HttpStatusCode.OK, """
+                {"id":901,"definition":{"name":"sysmin-ci"},"buildNumber":"20261008.3","status":"completed","result":"failed","sourceBranch":"refs/heads/develop","reason":"manual"}
+                """)
+            .On(HttpMethod.Get, "/ermsystem/Portal/_apis/build/builds/901/timeline", HttpStatusCode.OK, """
+                {"records":[
+                  {"name":"Build","type":"Job","result":"failed","issues":[]},
+                  {"name":"restore","type":"Task","result":"succeeded"},
+                  {"name":"dotnet test","type":"Task","result":"failed","log":{"id":7},"issues":[{"type":"error","message":"Process completed with exit code 1."},{"type":"warning","message":"slow"}]}]}
+                """)
+            .On(HttpMethod.Get, "/ermsystem/Portal/_apis/build/builds/901/logs/7", HttpStatusCode.OK, log);
+
+        var detail = (await Search().GetBuildAsync(901, default))!;
+
+        Assert.AreEqual(("dotnet test", "Build"), (detail.Failures[0].Step, detail.Failures[1].Step), "the step first, then its job");
+        CollectionAssert.AreEqual(new[] { "Process completed with exit code 1." }, detail.Failures[0].Issues.ToList(), "errors only");
+        var tail = detail.Failures[0].LogTail!.Split('\n');
+        Assert.AreEqual((AzureDevOpsSearch.LogTailLines, "line 61", "line 100"), (tail.Length, tail[0], tail[^1]), "the last lines, without timestamps");
+        Assert.IsNull(detail.Failures[1].LogTail, "a job's log is all its steps; only steps get one");
+        Assert.IsNull(await Search().GetBuildAsync(5, default));
+    }
+
     public void Dispose() => _ado.Dispose();
 
     private AzureDevOpsSearch Search() =>

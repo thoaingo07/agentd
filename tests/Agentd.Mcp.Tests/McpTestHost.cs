@@ -121,6 +121,18 @@ internal sealed class McpTestHost : IAsyncDisposable
 
         public Task<IReadOnlyList<PullRequestHit>> ListPullRequestsAsync(string? repository, string status, int top, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<PullRequestHit>>([]);
+
+        public Task<IReadOnlyList<PipelineHit>> ListPipelinesAsync(string? name, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<PipelineHit>>([new PipelineHit(12, "sysmin-ci", "\\")]);
+
+        public Task<IReadOnlyList<BuildHit>> ListBuildsAsync(string? pipeline, string? branch, string? result, int top, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<BuildHit>>([s_failed]);
+
+        public Task<BuildDetail?> GetBuildAsync(int id, CancellationToken cancellationToken) => Task.FromResult<BuildDetail?>(id != s_failed.Id ? null : new BuildDetail(s_failed,
+            [new BuildFailure("dotnet test", "Task", "failed", ["Process completed with exit code 1."], "Failed Deploy_ready_probe [12 ms]\nTotal tests: 40, failed: 1")]));
+
+        private static readonly BuildHit s_failed = new(901, "sysmin-ci", "20261008.3", "completed", "failed", "develop", "Dev One", "individualCI", "a1b2c3d4e5",
+            new DateTimeOffset(2026, 10, 8, 9, 0, 0, TimeSpan.Zero), new DateTimeOffset(2026, 10, 8, 9, 6, 0, TimeSpan.Zero));
     }
 
     internal sealed class Clock : IClock
