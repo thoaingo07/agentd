@@ -57,6 +57,9 @@ USER agentd
 
 In Docker, run the CLI commands below through the container, e.g. `docker compose exec -it agentd agentd doctor`.
 
+**Podman works too,** rootless, with the same `compose.yaml`: `podman compose up -d` (or `docker compose` with
+`DOCKER_HOST=unix:///run/user/$(id -u)/podman/podman.sock`), and `podman compose exec -it agentd agentd doctor`.
+
 ### C. From source (development)
 
 ```bash
