@@ -1065,6 +1065,357 @@
         }
       }
     },
+    "/api/reviews": {
+      "post": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "StartReview",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/StartReviewRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewSessionVm"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "ListReviews",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ReviewSessionVm"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reviews/{id}": {
+      "get": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "GetReview",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewSessionDetailVm"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/reviews/{id}/diff": {
+      "get": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "GetReviewDiff",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewDiffVm"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reviews/{id}/findings/{number}": {
+      "put": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "DecideReviewFinding",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/DecisionRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reviews/{id}/comments": {
+      "post": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "AddReviewComment",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/CommentRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewCommentVm"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reviews/{id}/comments/{commentId}": {
+      "delete": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "DeleteReviewComment",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "commentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/bff/antiforgery": {
       "get": {
         "tags": [
@@ -2422,6 +2773,47 @@
         },
         "description": "A token from \u0060claude setup-token\u0060. On Test, empty means \u0022the saved one, else the server\u0027s login\u0022."
       },
+      "CommentRequest": {
+        "required": [
+          "file",
+          "line",
+          "endLine",
+          "text"
+        ],
+        "type": "object",
+        "properties": {
+          "file": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The file (none: the whole change)."
+          },
+          "line": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "description": "The first line.",
+            "format": "int32"
+          },
+          "endLine": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "description": "The last line.",
+            "format": "int32"
+          },
+          "text": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The comment."
+          }
+        }
+      },
       "ConfigVm": {
         "required": [
           "tag",
@@ -2608,6 +3000,29 @@
         "properties": {
           "connectionString": {
             "$ref": "#/components/schemas/SecretStatusVm"
+          }
+        }
+      },
+      "DecisionRequest": {
+        "required": [
+          "decision",
+          "text"
+        ],
+        "type": "object",
+        "properties": {
+          "decision": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "kept, dropped or edited."
+          },
+          "text": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The new text, for edited."
           }
         }
       },
@@ -3763,6 +4178,204 @@
           }
         }
       },
+      "ReviewAskVm": {
+        "required": [
+          "id",
+          "file",
+          "line",
+          "endLine",
+          "question",
+          "answer",
+          "author",
+          "askedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "file": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "line": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "endLine": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "question": {
+            "type": "string"
+          },
+          "answer": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "author": {
+            "type": "string"
+          },
+          "askedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ReviewCommentVm": {
+        "required": [
+          "id",
+          "file",
+          "line",
+          "endLine",
+          "text",
+          "author",
+          "createdAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "file": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "line": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "endLine": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "text": {
+            "type": "string"
+          },
+          "author": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ReviewDiffVm": {
+        "required": [
+          "baseCommit",
+          "headCommit",
+          "files",
+          "unifiedDiff",
+          "truncated"
+        ],
+        "type": "object",
+        "properties": {
+          "baseCommit": {
+            "type": "string"
+          },
+          "headCommit": {
+            "type": "string"
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "unifiedDiff": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "description": "The pinned change; \u0060unifiedDiff\u0060 is null when it\u0027s too big (only the file list)."
+      },
+      "ReviewFindingVm": {
+        "required": [
+          "number",
+          "severity",
+          "file",
+          "line",
+          "title",
+          "detail",
+          "suggestion",
+          "decision",
+          "edited"
+        ],
+        "type": "object",
+        "properties": {
+          "number": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "severity": {
+            "type": "string"
+          },
+          "file": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "line": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "title": {
+            "type": "string"
+          },
+          "detail": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "suggestion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "decision": {
+            "type": "string"
+          },
+          "edited": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "A finding and the person\u0027s decision about it."
+      },
       "ReviewItemVm": {
         "required": [
           "step",
@@ -3786,6 +4399,144 @@
           }
         },
         "description": "One review line: a step, whether finishing needs it, and its check."
+      },
+      "ReviewSessionDetailVm": {
+        "required": [
+          "session",
+          "comments",
+          "asks"
+        ],
+        "type": "object",
+        "properties": {
+          "session": {
+            "$ref": "#/components/schemas/ReviewSessionVm"
+          },
+          "comments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReviewCommentVm"
+            }
+          },
+          "asks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReviewAskVm"
+            }
+          }
+        },
+        "description": "A session with its comments and questions, as the review page shows it."
+      },
+      "ReviewSessionVm": {
+        "required": [
+          "id",
+          "repo",
+          "target",
+          "pullRequestId",
+          "headRef",
+          "baseRef",
+          "baseCommit",
+          "headCommit",
+          "status",
+          "error",
+          "model",
+          "effort",
+          "summary",
+          "findings",
+          "createdBy",
+          "sentTo",
+          "createdAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "repo": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          },
+          "pullRequestId": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "headRef": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "baseRef": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "baseCommit": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "headCommit": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "error": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "model": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "effort": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "summary": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "findings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReviewFindingVm"
+            }
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "sentTo": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "A review session: what it looks at (pinned commits), its state, the reviewer\u0027s summary and findings."
       },
       "RunAcceptedVm": {
         "required": [
@@ -3853,6 +4604,54 @@
           }
         },
         "description": "The setup session (the one-time link\u0027s cookie): when it ends unless used again (it slides)."
+      },
+      "StartReviewRequest": {
+        "required": [
+          "repo",
+          "pullRequestId",
+          "branch",
+          "base",
+          "head"
+        ],
+        "type": "object",
+        "properties": {
+          "repo": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "A registered repository."
+          },
+          "pullRequestId": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "description": "Review this PR\u2026",
+            "format": "int32"
+          },
+          "branch": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "\u2026or this branch (against its base, or Base)\u2026"
+          },
+          "base": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "\u2026or from this commit (with Head); for a branch, what it\u0027s compared with."
+          },
+          "head": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "\u2026to this commit."
+          }
+        }
       },
       "StepCheckVm": {
         "required": [

@@ -125,6 +125,7 @@ public static class BffModule
         api.MapIdeas();
         api.MapWorkItems();
         api.MapMyAdoConnections();
+        api.MapReviewSessions();
         // Settings: the setup steps again, for Admins (antiforgery from the /api group), with Health instead of Finish.
         // Same shapes as /api/setup, so the contract (openapi.json) documents them once, there.
         api.MapGroup("/settings").RequireAuthorization(p => p.RequireRole("Admin")).MapSetupSteps("Settings", finish: false).ExcludeFromDescription();
