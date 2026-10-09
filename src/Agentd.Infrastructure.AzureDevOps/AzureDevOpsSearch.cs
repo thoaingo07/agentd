@@ -126,6 +126,56 @@ public sealed partial class AzureDevOpsSearch(HttpClient http, IOptions<AzureDev
         return new BuildDetail(Build(build), failures);
     }
 
+    public async Task<IReadOnlyList<WikiHit>> SearchWikiAsync(string text, int top, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(text);
+        var body = new JsonObject
+        {
+            ["searchText"] = text.Trim(),
+            ["$top"] = Math.Clamp(top, 1, MaxTop),
+            ["$skip"] = 0,
+            ["filters"] = new JsonObject { [ProjectFilter] = new JsonArray(options.Value.Project) },
+        };
+        var result = await SendAsync(http, HttpMethod.Post, $"{SearchHost(options.Value.BaseUrl)}{Org}/{Project}/_apis/search/wikisearchresults?api-version={ApiVersion}",
+            body, "application/json", cancellationToken).ConfigureAwait(false);
+        return [.. (result?["results"]?.AsArray() ?? []).Select(r => r!).Select(r => new WikiHit(
+            Text(r["wiki"]?["name"]) ?? "", Text(r["path"]) ?? Text(r["fileName"]) ?? "",
+            [.. (r["hits"]?.AsArray() ?? []).SelectMany(h => h?["highlights"]?.AsArray() ?? []).Select(x => Unmark(Text(x))).Where(x => x.Length > 0).Take(3)]))];
+    }
+
+    public async Task<WikiPage?> GetWikiPageAsync(string? wiki, string? path, CancellationToken cancellationToken)
+    {
+        var wikis = (await AdoHttp.GetAsync(http, $"{Org}/{Project}/_apis/wiki/wikis?api-version={ApiVersion}", cancellationToken).ConfigureAwait(false))?["value"]?.AsArray()
+            .Select(w => w!).ToList() ?? [];
+        var chosen = string.IsNullOrWhiteSpace(wiki)
+            ? wikis.FirstOrDefault(w => Text(w["type"]) == "projectWiki") ?? wikis.FirstOrDefault()
+            : wikis.FirstOrDefault(w => string.Equals(Text(w["name"]), wiki.Trim(), StringComparison.OrdinalIgnoreCase));
+        if (chosen is null)
+        {
+            return null;
+        }
+
+        var name = Text(chosen["name"]) ?? "";
+        var page = string.IsNullOrWhiteSpace(path) ? "/" : "/" + path.Trim().TrimStart('/');
+        var node = await AdoHttp.GetAsync(http,
+            $"{Org}/{Project}/_apis/wiki/wikis/{Esc(Text(chosen["id"]) ?? name)}/pages?path={Esc(page)}&recursionLevel=oneLevel&includeContent=true&api-version={ApiVersion}",
+            cancellationToken).ConfigureAwait(false);
+        return node is null ? null : new WikiPage(name, Text(node["path"]) ?? page, Text(node["content"]),
+            [.. (node["subPages"]?.AsArray() ?? []).Select(p => Text(p?["path"])).OfType<string>()],
+            [.. wikis.Select(w => Text(w["name"])).OfType<string>()]);
+    }
+
+    /// <summary>The search API's filter name for the project.</summary>
+    private const string ProjectFilter = "Project";
+
+    /// <summary>Azure DevOps Services serves search from <c>almsearch.dev.azure.com</c>; a server (or another base) serves it itself.</summary>
+    internal static Uri SearchHost(Uri baseUrl) =>
+        string.Equals(baseUrl.Host, "dev.azure.com", StringComparison.OrdinalIgnoreCase) ? new Uri("https://almsearch.dev.azure.com/") : baseUrl;
+
+    /// <summary>Search highlights wrap matches in <c>&lt;highlighthit&gt;</c>; the agent gets plain text.</summary>
+    private static string Unmark(string? highlight) =>
+        (highlight ?? "").Replace("<highlighthit>", "", StringComparison.Ordinal).Replace("</highlighthit>", "", StringComparison.Ordinal).ReplaceLineEndings(" ").Trim();
+
     /// <summary>At most this many failed records per run, and log lines per failed step.</summary>
     public const int MaxFailures = 5;
 

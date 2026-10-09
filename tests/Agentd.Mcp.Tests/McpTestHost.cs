@@ -131,6 +131,13 @@ internal sealed class McpTestHost : IAsyncDisposable
         public Task<BuildDetail?> GetBuildAsync(int id, CancellationToken cancellationToken) => Task.FromResult<BuildDetail?>(id != s_failed.Id ? null : new BuildDetail(s_failed,
             [new BuildFailure("dotnet test", "Task", "failed", ["Process completed with exit code 1."], "Failed Deploy_ready_probe [12 ms]\nTotal tests: 40, failed: 1")]));
 
+        public Task<IReadOnlyList<WikiHit>> SearchWikiAsync(string text, int top, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<WikiHit>>([new WikiHit("Portal.wiki", "/Runbooks/Deploy", ["run the helm upgrade with --atomic"])]);
+
+        public Task<WikiPage?> GetWikiPageAsync(string? wiki, string? path, CancellationToken cancellationToken) => Task.FromResult(path == "/Runbooks/Deploy"
+            ? new WikiPage("Portal.wiki", "/Runbooks/Deploy", "# Deploy\nRun `helm upgrade --atomic`.", ["/Runbooks/Deploy/Rollback"], ["Portal.wiki", "sysmin docs"])
+            : null);
+
         private static readonly BuildHit s_failed = new(901, "sysmin-ci", "20261008.3", "completed", "failed", "develop", "Dev One", "individualCI", "a1b2c3d4e5",
             new DateTimeOffset(2026, 10, 8, 9, 0, 0, TimeSpan.Zero), new DateTimeOffset(2026, 10, 8, 9, 6, 0, TimeSpan.Zero));
     }

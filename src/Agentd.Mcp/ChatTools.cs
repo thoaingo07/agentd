@@ -176,6 +176,50 @@ public sealed class ChatTools(IAzureDevOpsSearch search, IWorkItemSource workIte
         return Cap(sb.ToString());
     }
 
+    [McpServerTool(Name = "ado_search_wiki"), Description("Full-text search of the project's wikis, best match first: page paths and matched snippets.")]
+    public async Task<string> SearchWiki(
+        [Description("What to look for.")] string text,
+        [Description("How many (1–50, default 10).")] int top = 10,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return "Say what to search for.";
+        }
+
+        var hits = await Ado(() => search.SearchWikiAsync(text, top, cancellationToken)).ConfigureAwait(false);
+        return hits.Count == 0
+            ? "No wiki pages match."
+            : Cap(string.Join('\n', hits.Select(h => $"[{h.Wiki}] {h.Path}{(h.Snippets.Count == 0 ? string.Empty : $" · …{string.Join(" … ", h.Snippets)}…")}")));
+    }
+
+    [McpServerTool(Name = "ado_get_wiki_page"), Description("A wiki page's markdown and its sub-pages; without a path, the wiki's top pages.")]
+    public async Task<string> GetWikiPage(
+        [Description("The page path, e.g. /Runbooks/Deploy; empty for the top.")] string? path = null,
+        [Description("The wiki's name; empty for the project wiki.")] string? wiki = null,
+        CancellationToken cancellationToken = default)
+    {
+        var page = await Ado(() => search.GetWikiPageAsync(wiki, path, cancellationToken)).ConfigureAwait(false);
+        if (page is null)
+        {
+            return string.IsNullOrWhiteSpace(path) ? "The project has no such wiki." : $"No page {path} (search with ado_search_wiki for the right path).";
+        }
+
+        var sb = new StringBuilder().AppendLine(CultureInfo.InvariantCulture, $"[{page.Wiki}] {page.Path}");
+        if (page.Wikis.Count > 1)
+        {
+            sb.AppendLine(CultureInfo.InvariantCulture, $"Wikis: {string.Join(", ", page.Wikis)}");
+        }
+
+        if (page.SubPages.Count > 0)
+        {
+            sb.AppendLine(CultureInfo.InvariantCulture, $"Sub-pages: {string.Join(", ", page.SubPages)}");
+        }
+
+        Section(sb, "Content", page.Content);
+        return Cap(sb.ToString());
+    }
+
     private static string Run(BuildHit b) => string.Create(CultureInfo.InvariantCulture,
         $"{b.Id} · {b.Pipeline} {b.Number} · {b.Result ?? b.Status} · {b.Branch}{(b.RequestedFor is null ? string.Empty : $" · {b.RequestedFor}")} · {b.Reason}{(b.Commit is { Length: >= 7 } c ? $" · {c[..7]}" : string.Empty)}{((b.FinishedAt ?? b.StartedAt) is { } at ? $" · {at:yyyy-MM-dd HH:mm}Z" : string.Empty)}");
 

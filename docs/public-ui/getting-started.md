@@ -106,7 +106,7 @@ Create `~/.agentd/config/agentd.json` (see [Configuration](configuration.md) for
 ```
 
 Then store a personal access token as a secret. It needs the scopes **Work Items (Read & write)**, **Code (Read &
-write)** and **Build (Read)**:
+write)**, **Build (Read)** and, for `!chat`, **Wiki (Read)**:
 
 ```bash
 agentd secrets set AzureDevOps:Pat          # prompts for the value; it never goes on the command line

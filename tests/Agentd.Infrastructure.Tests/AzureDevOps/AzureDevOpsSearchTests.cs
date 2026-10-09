@@ -108,6 +108,51 @@ public sealed class AzureDevOpsSearchTests : IDisposable
         Assert.IsNull(await Search().GetBuildAsync(5, default));
     }
 
+    [TestMethod]
+    public void Wiki_search_goes_to_the_search_host_on_azure_devops_services_only()
+    {
+        Assert.AreEqual(new Uri("https://almsearch.dev.azure.com/"), AzureDevOpsSearch.SearchHost(new Uri("https://dev.azure.com/")));
+        Assert.AreEqual(new Uri("https://tfs.example.com/tfs/"), AzureDevOpsSearch.SearchHost(new Uri("https://tfs.example.com/tfs/")));
+    }
+
+    [TestMethod]
+    public async Task Wiki_search_sends_the_text_as_a_value_and_returns_plain_snippets()
+    {
+        _ado.On(HttpMethod.Post, "/ermsystem/Portal/_apis/search/wikisearchresults", HttpStatusCode.OK, """
+            {"count":1,"results":[{"fileName":"Deploy.md","path":"/Runbooks/Deploy","wiki":{"name":"Portal.wiki"},
+              "hits":[{"field":"content","highlights":["run the <highlighthit>helm</highlighthit> upgrade\nwith --atomic"]}]}]}
+            """);
+
+        var hits = await Search().SearchWikiAsync("helm \" OR 1=1", 500, default);
+
+        Assert.AreEqual(("Portal.wiki", "/Runbooks/Deploy", "run the helm upgrade with --atomic"), (hits.Single().Wiki, hits[0].Path, hits[0].Snippets.Single()));
+        var body = JsonNode.Parse(_ado.Requests[0].Body!)!;
+        Assert.AreEqual(("helm \" OR 1=1", 50, "Portal"), (body["searchText"]!.GetValue<string>(), body["$top"]!.GetValue<int>(), body["filters"]!["Project"]![0]!.GetValue<string>()));
+    }
+
+    [TestMethod]
+    public async Task A_wiki_page_comes_from_the_project_wiki_unless_another_is_named()
+    {
+        _ado.On(HttpMethod.Get, "/ermsystem/Portal/_apis/wiki/wikis", HttpStatusCode.OK, """
+                {"value":[{"id":"w-code","name":"sysmin docs","type":"codeWiki"},{"id":"w-proj","name":"Portal.wiki","type":"projectWiki"}]}
+                """)
+            .On(HttpMethod.Get, "/ermsystem/Portal/_apis/wiki/wikis/w-proj/pages", HttpStatusCode.OK, """
+                {"path":"/Runbooks/Deploy","content":"# Deploy","subPages":[{"path":"/Runbooks/Deploy/Rollback"}]}
+                """)
+            .On(HttpMethod.Get, "/ermsystem/Portal/_apis/wiki/wikis/w-code/pages", HttpStatusCode.NotFound);
+
+        var page = (await Search().GetWikiPageAsync(null, "Runbooks/Deploy", default))!;
+        var other = await Search().GetWikiPageAsync("SYSMIN DOCS", null, default);
+
+        Assert.AreEqual(("Portal.wiki", "/Runbooks/Deploy", "# Deploy"), (page.Wiki, page.Path, page.Content));
+        CollectionAssert.AreEqual(new[] { "/Runbooks/Deploy/Rollback" }, page.SubPages.ToList());
+        CollectionAssert.AreEqual(new[] { "sysmin docs", "Portal.wiki" }, page.Wikis.ToList());
+        StringAssert.Contains(_ado.Requests[1].Url, "path=%2FRunbooks%2FDeploy");
+        Assert.IsNull(other, "no such page in the code wiki");
+        StringAssert.Contains(_ado.Requests[3].Url, "/wikis/w-code/pages?path=%2F&");
+        Assert.IsNull(await Search().GetWikiPageAsync("nope", null, default));
+    }
+
     public void Dispose() => _ado.Dispose();
 
     private AzureDevOpsSearch Search() =>
