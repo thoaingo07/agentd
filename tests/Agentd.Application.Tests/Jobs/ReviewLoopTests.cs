@@ -136,6 +136,24 @@ public sealed class ReviewLoopTests
     }
 
     [TestMethod]
+    public async Task A_pr_merged_during_a_fix_round_still_gets_its_hand_off()
+    {
+        _t.Options.Value.Handoff = true;
+        var job = await InReviewAsync();
+        _t.PullRequests.Comments.Add(Comment(thread: 10, id: 1, "One more thing"));
+        await Review();
+        await new ResumeJobTurnHandler(_t.Jobs, _t.Outbox).Handle(new ResumeJobTurn([]), default);
+        _t.PullRequests.Status = PullRequestStatus.Completed;   // merged while the agent works on the round
+
+        var finished = await _t.Finish().Handle(new FinishWork(job, "T", "D", "S"), default);
+
+        Assert.AreEqual(PublishPullRequestHandler.NotPublished, finished.Error!.Code);
+        Assert.HasCount(1, _t.PullRequests.Created, "still no second PR");
+        Assert.AreEqual(HandoffStatus.Requested, _t.Jobs.Get(job).Handoff, "the hand-off follows, as after a merge seen in review");
+        StringAssert.Contains(_t.Outbox.Enqueued.Select(e => e.Message.Message.Markdown).Last(m => m.Contains("already merged", StringComparison.Ordinal)), "Next: the knowledge hand-off");
+    }
+
+    [TestMethod]
     public async Task A_pr_abandoned_during_a_fix_round_cancels_the_job_and_says_so()
     {
         var job = await InReviewAsync();

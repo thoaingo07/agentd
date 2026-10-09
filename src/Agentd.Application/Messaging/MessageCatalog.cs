@@ -52,10 +52,16 @@ public static class MessageCatalog
     public static OutboundMessage Pushed(string branch) => new(MessageKind.Info, $"📤 **Pushed** `{branch}`.");
 
     /// <summary>The agent finished again, but the job's PR was already merged: nothing is published and no new PR is opened.</summary>
-    public static OutboundMessage MergedBeforePublish(Uri pr, string branch) => new(MessageKind.Result,
+    /// <param name="pr">The merged PR.</param>
+    /// <param name="branch">The job's branch.</param>
+    /// <param name="handoffNext">The knowledge hand-off starts next (<c>Jobs:Handoff</c>).</param>
+    public static OutboundMessage MergedBeforePublish(Uri pr, string branch, bool handoffNext = false) => new(MessageKind.Result,
         $"✅ **The PR was already merged** ({pr}), so I didn't push or open another one. Anything committed after the merge stays on " +
-        $"`{branch}` only.\n\nThis thread stays open: ask me about the work and I'll answer (no more code changes here). For new changes, " +
-        "use `!run <work item id>` or create a work item.");
+        $"`{branch}` only.\n\n" +
+        (handoffNext
+            ? "🎓 **Next: the knowledge hand-off.** I'll propose what to keep in the repository from this work."
+            : "This thread stays open: ask me about the work and I'll answer (no more code changes here). For new changes, " +
+              "use `!run <work item id>` or create a work item."));
 
     /// <summary>The job's PR was abandoned while the agent worked: no new PR; the developer decides what's next.</summary>
     public static OutboundMessage AbandonedBeforePublish(Uri pr) => new(MessageKind.Info,

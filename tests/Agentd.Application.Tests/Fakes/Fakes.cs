@@ -584,7 +584,7 @@ internal sealed class TestContext
 
     public HandleAgentExitHandler AgentExit() => new(Jobs, Registry, Worktrees, Clock, Options);
 
-    public PublishPullRequestHandler Publish() => new(Jobs, Registry, Worktrees, PullRequests, WorkItems, Outbox, Activity, Clock, Options);
+    public PublishPullRequestHandler Publish() => new(Jobs, Registry, Worktrees, PullRequests, WorkItems, Outbox, Activity, Clock, Options, StartHandoff());
 
     public FinishWorkHandler Finish() => new(Jobs, Publish());
 
