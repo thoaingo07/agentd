@@ -104,7 +104,7 @@ public sealed class ReviewCommandTests : IDisposable
         await using var context = new CliContext(output, error, () => throw new InvalidOperationException("agentd review needs no services"));
         var command = ReviewCommand.Create(context, Tools, () => Path.Combine(_repo, "src"));
         var root = new RootCommand { command };
-        var code = await root.Parse(["review", .. args]).InvokeAsync();
+        var code = await root.Parse(["review", "--no-page", .. args]).InvokeAsync();
         return (code, output.ToString(), error.ToString());
     }
 

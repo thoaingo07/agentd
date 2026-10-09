@@ -45,7 +45,12 @@ agentd review --model opus --effort high
 It runs **your own `claude`** (your login, your subscription) in your repository, **read-only**, with the same rules
 as the server's reviewer. It doesn't need the agentd server. The findings are printed and saved to
 **`.agentd/review.md`**, so you can tell your agent "fix what's in `.agentd/review.md`" (keep that file out of git).
-The review page on your laptop, `--fix` and `--share` come next.
+
+Then the **review page** opens in your browser, served by `agentd review` itself on `127.0.0.1` (the same page as the
+web UI's Reviews): keep, edit or drop findings, click a line number to comment, and **Send to my agent**. Send
+rewrites `.agentd/review.md` with only what you kept (edited ones in your words) and your comments. Only the link the
+command printed opens it. `--no-open` prints the link instead of opening the browser; `--no-page` skips the page;
+Ctrl+C stops (the file keeps every finding). `--fix` and `--share` come next.
 
 ## What the reviewer looks at
 

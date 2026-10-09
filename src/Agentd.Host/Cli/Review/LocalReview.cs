@@ -17,7 +17,7 @@ internal delegate Task<ToolResult> RunTool(string file, IReadOnlyList<string> ar
 internal sealed record LocalReviewOptions(string? Base = null, bool Untracked = false, string? Model = null, string? Effort = null);
 
 /// <summary>The outcome: the repository, what it was compared with, the diff's files, and the reviewer's result (or why there's none).</summary>
-internal sealed record LocalReviewResult(string Root, string BaseLabel, IReadOnlyList<string> Files, ReviewResult? Result, string? Problem);
+internal sealed record LocalReviewResult(string Root, string BaseLabel, IReadOnlyList<string> Files, ReviewResult? Result, string? Problem, string BaseCommit = "HEAD", string Diff = "");
 
 /// <summary>
 /// <c>agentd review</c> (docs/architect/review-sessions.md §5): the uncommitted (or unpushed) change in the current repository,
@@ -88,7 +88,7 @@ internal sealed class LocalReview(RunTool run, string claude = "claude")
         var (_, result, problem) = ReviewFindings.Extract(text);
         return result is null
             ? new(root, label, files, null, $"Your claude's findings couldn't be read: {problem ?? "no review-findings block"}.")
-            : new(root, label, files, result, null);
+            : new(root, label, files, result, null, baseCommit, diff);
     }
 
     /// <summary>The change against <paramref name="baseCommit"/> (staged and unstaged), plus untracked files when asked.</summary>
