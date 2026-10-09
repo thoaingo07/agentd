@@ -356,6 +356,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/me/ado-connections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetMyAdoConnections"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/me/ado-connections/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["DisconnectMyAdoConnection"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/bff/antiforgery": {
         parameters: {
             query?: never;
@@ -760,6 +792,22 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** @description A person's Azure DevOps connection (never the token). `failed`: reconnect (`lastError` says why). */
+        AdoConnectionVm: {
+            /** Format: uuid */
+            identityId: string;
+            uniqueName: string;
+            displayName: string;
+            failed: boolean;
+            lastError: null | string;
+            /** Format: date-time */
+            connectedAt: string;
+        };
+        /** @description `available`: the Entra app is set up (Settings → Azure DevOps → Service principal), so people can connect. */
+        AdoConnectionsVm: {
+            available: boolean;
+            connections: components["schemas"]["AdoConnectionVm"][];
+        };
         AntiforgeryTokenVm: {
             token: string;
         };
@@ -1996,6 +2044,46 @@ export interface operations {
                 content: {
                     "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
                 };
+            };
+        };
+    };
+    GetMyAdoConnections: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdoConnectionsVm"];
+                };
+            };
+        };
+    };
+    DisconnectMyAdoConnection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

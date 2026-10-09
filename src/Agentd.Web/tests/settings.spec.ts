@@ -6,8 +6,10 @@ import { setAntiforgeryUrl } from '../ClientApps/shared/api/http'
 import { useSessionStore } from '../ClientApps/dashboard/stores/session'
 import SettingsAreaView from '../ClientApps/dashboard/views/SettingsAreaView.vue'
 import SettingsView from '../ClientApps/dashboard/views/SettingsView.vue'
+import AdoConnectionPanel from '../ClientApps/dashboard/components/AdoConnectionPanel.vue'
 
 let paths: string[]
+let adoConnections: object[]
 const json = (body: unknown) => new Response(JSON.stringify(body))
 const router = () => createRouter({
   history: createMemoryHistory(),
@@ -21,11 +23,17 @@ beforeEach(() => {
   setActivePinia(createPinia())
   setAntiforgeryUrl('/bff/antiforgery')
   paths = []
+  adoConnections = [{ identityId: 'aaaa', uniqueName: 'dev@example.com', displayName: 'Dev One', failed: false, lastError: null, connectedAt: '2026-10-09T10:00:00Z' }]
   vi.stubGlobal('fetch', vi.fn(async (req: Request) => {
     const path = new URL(req.url).pathname
     paths.push(`${req.method} ${path}`)
     if (path === '/bff/antiforgery') return json({ token: 'admin-xsrf' })
     if (path === '/api/settings/review') return json([{ step: 'database', title: 'Database', required: true, check: { ok: true, message: 'Connected.', fix: null } }])
+    if (path === '/api/me/ado-connections' && req.method === 'GET') return json({ available: true, connections: adoConnections })
+    if (path.startsWith('/api/me/ado-connections/') && req.method === 'DELETE') {
+      adoConnections = []
+      return new Response(null, { status: 204 })
+    }
     if (path === '/api/settings/database') return json({ connectionString: { set: true, updatedAt: '2026-10-07T10:00:00Z', updatedBy: 'local' } })
     return new Response(JSON.stringify({ title: 'Not found' }), { status: 404 })
   }))
@@ -61,5 +69,22 @@ describe('Settings', () => {
     session.user = { name: 'local', roles: ['Admin'], provider: 'local' }
     await flushPromises()
     expect(view.findAll('a').map((a) => a.text())).toEqual(expect.arrayContaining(['Health', 'Database', 'Azure DevOps', 'Models', 'Repositories']))
+  })
+
+  it('your Azure DevOps: shows the result of the sign-in, who you are connected as, and disconnects', async () => {
+    const r = router()
+    await r.push('/settings?ado=connected')
+    const view = mount(AdoConnectionPanel, { global: { plugins: [r] } })
+    await flushPromises()
+
+    expect(view.get('[role=status]').text()).toContain('Connected. agentd will act as you')
+    expect(view.get('[data-testid=ado-connection]').text()).toContain('Connected as Dev One (dev@example.com)')
+    expect(view.get('a[href="/bff/ado/connect"]').text()).toBe('Reconnect with Microsoft')
+
+    await view.findAll('button').find((b) => b.text() === 'Disconnect')!.trigger('click')
+    await flushPromises()
+    expect(paths).toContain('DELETE /api/me/ado-connections/aaaa')
+    expect(view.find('[data-testid=ado-connection]').exists()).toBe(false)
+    expect(view.get('a[href="/bff/ado/connect"]').text()).toBe('Connect with Microsoft')
   })
 })

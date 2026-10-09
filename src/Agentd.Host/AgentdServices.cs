@@ -12,6 +12,7 @@ using Agentd.Infrastructure.Git;
 using Agentd.Infrastructure.Messaging.Discord;
 using Agentd.Infrastructure.Persistence;
 using Agentd.Mcp;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
@@ -25,6 +26,10 @@ internal static class AgentdServices
         var home = ConfigHome.Resolve().EnsureCreated();
         builder.Configuration.AddConfigHome(home, args);
         builder.Services.AddSingleton(home);
+        // Cookies (antiforgery, the Azure DevOps sign-in) and people's delegated tokens stay readable across restarts and
+        // upgrades, and the CLI uses the same keys as the daemon.
+        builder.Services.AddDataProtection().SetApplicationName(ConfigHome.ApplicationName).PersistKeysToFileSystem(new DirectoryInfo(home.Keys));
+        builder.Services.AddSingleton<Application.Ports.ITokenProtector, Configuration.DataProtectionTokenProtector>();
         builder.Services.AddSingleton<Application.Setup.ISetupState>(sp => new Configuration.SetupState(home, sp.GetRequiredService<IConfiguration>()));
         builder.Services.AddSingleton(new Bff.Setup.SetupToken(home.SetupTokenFile));
         builder.Services.AddSingleton<Application.Setup.ISetupLink>(sp => sp.GetRequiredService<Bff.Setup.SetupToken>());

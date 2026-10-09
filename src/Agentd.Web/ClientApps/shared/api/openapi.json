@@ -1021,6 +1021,50 @@
         }
       }
     },
+    "/api/me/ado-connections": {
+      "get": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "GetMyAdoConnections",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdoConnectionsVm"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/me/ado-connections/{id}": {
+      "delete": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "DisconnectMyAdoConnection",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/bff/antiforgery": {
       "get": {
         "tags": [
@@ -2035,6 +2079,62 @@
   },
   "components": {
     "schemas": {
+      "AdoConnectionVm": {
+        "required": [
+          "identityId",
+          "uniqueName",
+          "displayName",
+          "failed",
+          "lastError",
+          "connectedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "identityId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "uniqueName": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "failed": {
+            "type": "boolean"
+          },
+          "lastError": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "connectedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "A person\u0027s Azure DevOps connection (never the token). \u0060failed\u0060: reconnect (\u0060lastError\u0060 says why)."
+      },
+      "AdoConnectionsVm": {
+        "required": [
+          "available",
+          "connections"
+        ],
+        "type": "object",
+        "properties": {
+          "available": {
+            "type": "boolean"
+          },
+          "connections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdoConnectionVm"
+            }
+          }
+        },
+        "description": "\u0060available\u0060: the Entra app is set up (Settings \u2192 Azure DevOps \u2192 Service principal), so people can connect."
+      },
       "AntiforgeryTokenVm": {
         "required": [
           "token"

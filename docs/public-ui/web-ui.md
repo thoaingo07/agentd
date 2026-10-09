@@ -65,6 +65,10 @@ Brainstorming itself happens in chat.
   **Test** button, and secrets show only "set · updated … by …". Saved changes apply after `agentd daemon restart`.
   - **Health**: every area checked with its saved settings (including a tiny Claude test prompt).
   - **Database**, **Azure DevOps**, **Git access** (agentd's SSH key), **Claude**, **Chat**, **Repositories**.
+- **Your Azure DevOps** (everyone): **Connect with Microsoft** once, and agentd acts as you in Azure DevOps: PRs,
+  comments and updates for work items assigned to you, and the `!review` findings you post, show your name instead of
+  agentd's. It shows who you're connected as, flags a sign-in that needs reconnecting, and **Disconnect** removes it.
+  It needs the Entra app an Admin sets up (see [Getting started](getting-started.md#3-azure-devops)).
 - the theme;
 - your session and the live connection;
 - the daemon's configuration (read-only: tag, poll interval, concurrency, plan approval, review loop, chat,
