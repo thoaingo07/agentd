@@ -12,9 +12,16 @@ public static class DependencyInjection
     public static IServiceCollection AddAzureDevOps(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddOptions<AzureDevOpsOptions>().Bind(configuration.GetSection(AzureDevOpsOptions.Section));
-        services.AddSingleton<IAdoAuthProvider>(sp => sp.GetRequiredService<IOptions<AzureDevOpsOptions>>().Value.Auth == AzureDevOpsAuth.Pat
-            ? new PatAuthProvider(sp.GetRequiredService<IOptions<AzureDevOpsOptions>>())
-            : new AzCliAuthProvider());
+        services.AddSingleton<IAdoAuthProvider>(sp =>
+        {
+            var options = sp.GetRequiredService<IOptions<AzureDevOpsOptions>>();
+            return options.Value.Auth switch
+            {
+                AzureDevOpsAuth.Pat => new PatAuthProvider(options),
+                AzureDevOpsAuth.ServicePrincipal => AzCliAuthProvider.ForServicePrincipal(options.Value.TenantId, options.Value.ClientId, options.Value.ClientSecret),
+                _ => new AzCliAuthProvider(),
+            };
+        });
         services.AddTransient<AdoAuthHandler>();
         services.AddSingleton<Application.Setup.IAzureDevOpsProbe>(new AzureDevOpsProbe());
 

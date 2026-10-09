@@ -114,6 +114,17 @@ agentd secrets set AzureDevOps:Pat          # prompts for the value; it never go
 
 On a workstation where you're signed in with the Azure CLI, `"Auth": "AzCli"` uses `az login` instead.
 
+**A service principal instead of your account.** PRs and comments are created as whoever owns the credential. To make
+them show an app (e.g. `agentd`) rather than a person, use a Microsoft Entra app:
+1. In Entra ID, create an **app registration** and, under **Certificates & secrets**, a **client secret**.
+2. In Azure DevOps, the organization must be connected to that Entra tenant. Add the app under **Organization
+   settings → Users** with a **Basic** license and access to the project.
+3. In **Settings → Azure DevOps**, choose **Service principal**, enter the **Directory (tenant) ID** and the
+   **Application (client) ID** from the app's Overview, paste the secret's **Value**, then **Test** and **Save**.
+4. `agentd daemon restart`. When the secret expires (Entra allows up to 2 years), paste a new one in the same place.
+
+Git pushes keep using agentd's SSH key, which stays registered on a user.
+
 ## 4. Git access and repositories
 
 agentd clones and manages repositories itself. For SSH remotes, give it its own key and add the public key to Azure

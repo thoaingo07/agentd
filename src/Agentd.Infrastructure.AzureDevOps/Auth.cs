@@ -13,7 +13,10 @@ public interface IAdoAuthProvider
     ValueTask<AuthenticationHeaderValue> GetAsync(bool forceRefresh, CancellationToken cancellationToken);
 }
 
-/// <summary>Bearer token from the machine's <c>az login</c>, cached until 5 minutes before expiry.</summary>
+/// <summary>
+/// A Microsoft Entra bearer token, cached until 5 minutes before expiry: the machine's <c>az login</c> by default, or
+/// any <see cref="TokenCredential"/> (a service principal, <see cref="ForServicePrincipal"/>).
+/// </summary>
 public sealed class AzCliAuthProvider(TokenCredential credential) : IAdoAuthProvider, IDisposable
 {
     /// <summary>The Azure DevOps resource (application) id.</summary>
@@ -26,6 +29,12 @@ public sealed class AzCliAuthProvider(TokenCredential credential) : IAdoAuthProv
         : this(new AzureCliCredential())
     {
     }
+
+    /// <summary>A service principal's client-secret sign-in; missing settings fail on first use with what to set.</summary>
+    public static IAdoAuthProvider ForServicePrincipal(string? tenantId, string? clientId, string? clientSecret) =>
+        string.IsNullOrWhiteSpace(tenantId) || string.IsNullOrWhiteSpace(clientId) || string.IsNullOrWhiteSpace(clientSecret)
+            ? new MissingAuthProvider("Azure DevOps auth is 'ServicePrincipal' but Agentd:AzureDevOps:TenantId, ClientId or the secret ClientSecret isn't set.")
+            : new AzCliAuthProvider(new ClientSecretCredential(tenantId.Trim(), clientId.Trim(), clientSecret.Trim()));
 
     public async ValueTask<AuthenticationHeaderValue> GetAsync(bool forceRefresh, CancellationToken cancellationToken)
     {
@@ -46,6 +55,12 @@ public sealed class AzCliAuthProvider(TokenCredential credential) : IAdoAuthProv
     }
 
     public void Dispose() => _lock.Dispose();
+}
+
+/// <summary>Auth that isn't configured: every request fails with <paramref name="message"/>.</summary>
+internal sealed class MissingAuthProvider(string message) : IAdoAuthProvider
+{
+    public ValueTask<AuthenticationHeaderValue> GetAsync(bool forceRefresh, CancellationToken cancellationToken) => throw new AdoException(message);
 }
 
 /// <summary>Basic auth with a personal access token (empty user name).</summary>

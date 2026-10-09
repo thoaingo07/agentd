@@ -765,17 +765,30 @@ export interface components {
         };
         /** @description `Auth` is `Pat` or `AzCli`. An empty `Pat` keeps the saved one. */
         AzureDevOpsRequest: {
+            /** @description A name or URL. */
             organization: null | string;
+            /** @description The project name. */
             project: null | string;
+            /** @description `Pat`, `AzCli` or `ServicePrincipal`. */
             auth: null | string;
+            /** @description A new token; empty keeps the stored one. */
             pat: null | string;
+            /** @description The service principal's directory (tenant) id. */
+            tenantId?: null | string;
+            /** @description The service principal's application (client) id. */
+            clientId?: null | string;
+            /** @description A new client secret; empty keeps the stored one. */
+            clientSecret?: null | string;
         };
-        /** @description `Auth` is `Pat` or `AzCli`. */
+        /** @description `Auth` is `Pat`, `AzCli` or `ServicePrincipal` (tenant and client ids; the client secret as a status only). */
         AzureDevOpsStepVm: {
             organization: null | string;
             project: null | string;
             auth: string;
             pat: components["schemas"]["SecretStatusVm"];
+            tenantId: null | string;
+            clientId: null | string;
+            clientSecret: components["schemas"]["SecretStatusVm"];
         };
         /** @description Discord settings. An empty `BotToken` keeps the saved one; `UserName` + `UserDiscordId` add you as a user. */
         ChatRequest: {

@@ -10,7 +10,8 @@ namespace Agentd.Infrastructure.AzureDevOps;
 /// </summary>
 /// <param name="primary">The transport (tests); default: sockets without redirects.</param>
 /// <param name="azCli">The <c>az login</c> credential (tests); default: the machine's az CLI.</param>
-public sealed class AzureDevOpsProbe(Func<HttpMessageHandler>? primary = null, IAdoAuthProvider? azCli = null) : IAzureDevOpsProbe
+/// <param name="principal">Signs a service principal in (tests); default: Entra with its client secret.</param>
+public sealed class AzureDevOpsProbe(Func<HttpMessageHandler>? primary = null, IAdoAuthProvider? azCli = null, Func<ServicePrincipal, IAdoAuthProvider>? principal = null) : IAzureDevOpsProbe
 {
     public static readonly TimeSpan Timeout = TimeSpan.FromSeconds(20);
 
@@ -22,10 +23,15 @@ public sealed class AzureDevOpsProbe(Func<HttpMessageHandler>? primary = null, I
         {
             Organization = connection.Organization,
             Project = connection.Project,
-            Auth = connection.UsePat ? AzureDevOpsAuth.Pat : AzureDevOpsAuth.AzCli,
+            Auth = connection.UsePat ? AzureDevOpsAuth.Pat : connection.Principal is null ? AzureDevOpsAuth.AzCli : AzureDevOpsAuth.ServicePrincipal,
             Pat = connection.Pat,
         };
-        var auth = connection.UsePat ? new PatAuthProvider(Options.Create(options)) : azCli ?? new AzCliAuthProvider();
+        var auth = connection switch
+        {
+            { UsePat: true } => new PatAuthProvider(Options.Create(options)),
+            { Principal: { } sp } => principal?.Invoke(sp) ?? AzCliAuthProvider.ForServicePrincipal(sp.TenantId, sp.ClientId, sp.ClientSecret),
+            _ => azCli ?? new AzCliAuthProvider(),
+        };
         try
         {
             using var handler = new AdoAuthHandler(auth) { InnerHandler = primary?.Invoke() ?? new SocketsHttpHandler { AllowAutoRedirect = false } };
@@ -37,9 +43,13 @@ public sealed class AzureDevOpsProbe(Func<HttpMessageHandler>? primary = null, I
         catch (Exception ex) when (ex is AdoException or HttpRequestException or TaskCanceledException or Azure.Identity.CredentialUnavailableException or Azure.Identity.AuthenticationFailedException
                                    && !cancellationToken.IsCancellationRequested)
         {
-            return new StepCheck(false, ex is TaskCanceledException ? "Azure DevOps didn't answer in time." : ex.Message, connection.UsePat
-                ? "check the organization and project names, and that the token has Work Items (read & write), Code (read & write) and Build (read)"
-                : "run `az login` on the server as the user agentd runs as, and check the organization and project names");
+            return new StepCheck(false, ex is TaskCanceledException ? "Azure DevOps didn't answer in time." : ex.Message, connection switch
+            {
+                { UsePat: true } => "check the organization and project names, and that the token has Work Items (read & write), Code (read & write) and Build (read)",
+                { Principal: not null } => "check the tenant, client id and secret (not the secret's id), that the organization is connected to this Entra tenant, " +
+                    "and that the app is added to the organization (Users) with a Basic license and project access",
+                _ => "run `az login` on the server as the user agentd runs as, and check the organization and project names",
+            });
         }
         finally
         {

@@ -43,6 +43,7 @@ agentd secrets list
 | Secret | For |
 |---|---|
 | `AzureDevOps:Pat` | Azure DevOps with `"Auth": "Pat"` (scopes: Work Items read & write, Code read & write, Build read, Wiki read for `!chat`) |
+| `AzureDevOps:ClientSecret` | Azure DevOps with `"Auth": "ServicePrincipal"` (with `TenantId` and `ClientId` in `agentd.json`; set from Settings → Azure DevOps) |
 | `Claude:OAuthToken` | a token from `claude setup-token`, instead of logging in on the server |
 | `Messaging:Providers:Discord:BotToken` | the Discord bot |
 | `ConnectionStrings:agentd` | the PostgreSQL connection string (it holds the password) |

@@ -34,7 +34,7 @@ beforeEach(() => {
     'PUT /api/setup/database': json({ restartRequired: true }),
     'POST /api/setup/database/test': json({ ok: false, message: 'password authentication failed', fix: 'check the password' }),
     'POST /api/setup/database/migrate': json({ ok: true, message: 'Applied 17 migration(s).', fix: null }),
-    'GET /api/setup/azure-devops': json({ organization: 'myorg', project: 'Portal', auth: 'Pat', pat: set }),
+    'GET /api/setup/azure-devops': json({ organization: 'myorg', project: 'Portal', auth: 'Pat', pat: set, tenantId: null, clientId: null, clientSecret: unset }),
     'PUT /api/setup/azure-devops': json({ restartRequired: true }),
     'POST /api/setup/azure-devops/test': json({ ok: true, message: 'Signed in to myorg/Portal.', fix: null }),
     'GET /api/setup/git-key': json({ exists: false, publicKey: null, fingerprint: null, path: null }),
@@ -157,8 +157,32 @@ describe('steps', () => {
     expect(step.text()).not.toContain('Personal access token')
     await step.findAll('button').find((b) => b.text() === 'Test')!.trigger('click')
     await flushPromises()
-    expect(calls.find((c) => c.path === '/api/setup/azure-devops/test')?.body).toEqual({ organization: 'myorg', project: 'Portal', auth: 'AzCli', pat: null })
+    expect(calls.find((c) => c.path === '/api/setup/azure-devops/test')?.body).toEqual({ organization: 'myorg', project: 'Portal', auth: 'AzCli', pat: null, tenantId: null, clientId: null, clientSecret: null })
     expect(step.text()).toContain('Signed in to myorg/Portal.')
+  })
+
+  it('azure devops: a service principal sends its ids and a write-only secret', async () => {
+    const step = mount(AzureDevOpsStep, { global: { plugins: [router()] } })
+    await flushPromises()
+
+    await step.get('input[value="ServicePrincipal"]').setValue(true)
+    expect(step.text()).not.toContain('Personal access token')
+    const [, , tenant, client] = step.findAll('input:not([type="radio"])')
+    await tenant!.setValue(' 11111111-1111-1111-1111-111111111111 ')
+    await client!.setValue('22222222-2222-2222-2222-222222222222')
+    await step.get('input[type="password"]').setValue('app-SECRET')
+    routes['GET /api/setup/azure-devops'] = json({ organization: 'myorg', project: 'Portal', auth: 'ServicePrincipal', pat: set,
+      tenantId: '11111111-1111-1111-1111-111111111111', clientId: '22222222-2222-2222-2222-222222222222', clientSecret: set })
+    await step.findAll('button').find((b) => b.text() === 'Save')!.trigger('click')
+    await flushPromises()
+
+    expect(calls.find((c) => c.method === 'PUT' && c.path === '/api/setup/azure-devops')?.body).toEqual({
+      organization: 'myorg', project: 'Portal', auth: 'ServicePrincipal', pat: null,
+      tenantId: '11111111-1111-1111-1111-111111111111', clientId: '22222222-2222-2222-2222-222222222222', clientSecret: 'app-SECRET',
+    })
+    expect(step.find('input[type="password"]').exists()).toBe(false)   // saved: only its status shows
+    expect(step.text()).toContain('Client secret')
+    expect(JSON.stringify(useSetupStore().$state)).not.toContain('SECRET')
   })
 
   it('git: generates the key, shows the public half with a link to add it, and tests a clone URL', async () => {

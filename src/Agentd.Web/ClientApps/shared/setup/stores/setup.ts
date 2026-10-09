@@ -67,14 +67,14 @@ export const useSetupStore = defineStore('setup', () => {
   }
 
   async function saveAzureDevOps(input: AzureDevOpsRequest): Promise<SaveResult> {
-    const result = await send<SaveResult>('PUT', `${base.value}/azure-devops`, { ...input, pat: input.pat?.trim() || null })
+    const result = await send<SaveResult>('PUT', `${base.value}/azure-devops`, { ...input, pat: input.pat?.trim() || null, clientSecret: input.clientSecret?.trim() || null })
     await loadAzureDevOps()
     return saved(result)
   }
 
-  /** Tests the given values (an empty PAT: the saved one). Nothing is saved. */
+  /** Tests the given values (an empty PAT or client secret: the saved one). Nothing is saved. */
   function testAzureDevOps(input: AzureDevOpsRequest): Promise<StepCheck> {
-    return send<StepCheck>('POST', `${base.value}/azure-devops/test`, { ...input, pat: input.pat?.trim() || null })
+    return send<StepCheck>('POST', `${base.value}/azure-devops/test`, { ...input, pat: input.pat?.trim() || null, clientSecret: input.clientSecret?.trim() || null })
   }
 
   async function loadGitKey(): Promise<void> {
