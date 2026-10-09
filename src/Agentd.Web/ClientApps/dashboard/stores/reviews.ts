@@ -1,0 +1,82 @@
+import { defineStore } from 'pinia'
+import { ref } from 'vue'
+import { get, send } from '../../shared/api/http'
+import type { ReviewComment, ReviewDetail, ReviewDiff, ReviewSession } from '../../shared/api/types'
+import { parseDiff, type DiffFile } from '../../shared/utils/diff'
+
+/** While the reviewer works, the page checks the session this often (docs/architect/review-sessions.md §2). */
+export const reviewPollMs = 3000
+
+/** What to review: a PR, a branch (against its base or a chosen one), or two commits. */
+export interface StartReview { repo: string; pullRequestId?: number | null; branch?: string | null; base?: string | null; head?: string | null }
+
+/** Review sessions: my recent ones, and the one open on the page (its detail and pinned diff). */
+export const useReviewsStore = defineStore('reviews', () => {
+  const mine = ref<ReviewSession[]>([])
+  const current = ref<ReviewDetail | null>(null)
+  const diff = ref<ReviewDiff | null>(null)
+  const files = ref<DiffFile[]>([])
+  let timer: ReturnType<typeof setTimeout> | undefined
+
+  async function loadMine(): Promise<void> {
+    mine.value = await get<ReviewSession[]>('/api/reviews')
+  }
+
+  function start(input: StartReview): Promise<ReviewSession> {
+    return send<ReviewSession>('POST', '/api/reviews', input)
+  }
+
+  /** Opens a session: its detail and diff, then re-reads it every few seconds until the reviewer is done. */
+  async function open(id: number): Promise<void> {
+    close()
+    const [detail, change] = await Promise.all([get<ReviewDetail>(`/api/reviews/${id}`), get<ReviewDiff>(`/api/reviews/${id}/diff`)])
+    current.value = detail
+    diff.value = change
+    files.value = change.unifiedDiff ? parseDiff(change.unifiedDiff) : []
+    poll(id)
+  }
+
+  function poll(id: number): void {
+    if (current.value?.session.status !== 'Reviewing') return
+    timer = setTimeout(() => {
+      void get<ReviewDetail>(`/api/reviews/${id}`).then((d) => {
+        if (current.value?.session.id !== id) return
+        current.value = d
+        poll(id)
+      }).catch(() => poll(id))
+    }, reviewPollMs)
+  }
+
+  function close(): void {
+    clearTimeout(timer)
+    current.value = null
+    diff.value = null
+    files.value = []
+  }
+
+  async function refresh(): Promise<void> {
+    if (current.value) current.value = await get<ReviewDetail>(`/api/reviews/${current.value.session.id}`)
+  }
+
+  /** Keep, drop, or edit (with text) finding <paramref name="n"/> (1-based). */
+  async function decide(n: number, decision: 'kept' | 'dropped' | 'edited', text?: string): Promise<void> {
+    if (!current.value) return
+    await send<void>('PUT', `/api/reviews/${current.value.session.id}/findings/${n}`, { decision, text: text ?? null })
+    await refresh()
+  }
+
+  async function comment(input: { file?: string | null; line?: number | null; endLine?: number | null; text: string }): Promise<ReviewComment | null> {
+    if (!current.value) return null
+    const added = await send<ReviewComment>('POST', `/api/reviews/${current.value.session.id}/comments`, input)
+    await refresh()
+    return added
+  }
+
+  async function removeComment(id: number): Promise<void> {
+    if (!current.value) return
+    await send<void>('DELETE', `/api/reviews/${current.value.session.id}/comments/${id}`)
+    await refresh()
+  }
+
+  return { mine, current, diff, files, loadMine, start, open, close, decide, comment, removeComment }
+})
