@@ -120,13 +120,14 @@ and pick `deepseek` for a step under **Models per step**. Or by hand:
    agentd secrets set Models:Profiles:deepseek:ApiKey
    ```
 2. Add the profile, and pick it for a step. Copy the endpoint and model IDs from
-   [DeepSeek's Claude Code guide](https://api-docs.deepseek.com/quick_start/agent_integrations/claude_code); providers
+   [DeepSeek's Claude Code guide](https://api-docs.deepseek.com/quick_start/agent_integrations/claude_code) and
+   [models & pricing](https://api-docs.deepseek.com/quick_start/pricing/) (`deepseek-flash`, `deepseek-v4-pro`); providers
    rename models.
    ```json
    "Models": { "Profiles": {
      "deepseek": {
        "BaseUrl": "https://api.deepseek.com/anthropic",
-       "Model": "deepseek-flash[1m]",
+       "Model": "deepseek-flash",
        "SmallModel": "deepseek-flash",
        "Environment": { "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "786432" }
      } } },

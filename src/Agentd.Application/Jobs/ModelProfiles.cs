@@ -22,7 +22,7 @@ public sealed class ModelProfile
     /// <summary>The provider's Anthropic-compatible endpoint, e.g. <c>https://api.deepseek.com/anthropic</c>.</summary>
     public string? BaseUrl { get; set; }
 
-    /// <summary>The model ID at the provider (its docs name the current ones), e.g. <c>deepseek-flash[1m]</c>.</summary>
+    /// <summary>The model ID at the provider (its docs name the current ones), e.g. <c>deepseek-flash</c>.</summary>
     public string? Model { get; set; }
 
     /// <summary>The cheaper model for background tasks and subagents; default: <see cref="Model"/>.</summary>

@@ -9,7 +9,7 @@ import { useSetupStore } from '../stores/setup'
 
 /** Ready-made providers: they fill in the endpoint and models; the API key is still yours to paste. */
 const presets: Record<string, { name: string; baseUrl: string; model: string; smallModel: string }> = {
-  deepseek: { name: 'deepseek', baseUrl: 'https://api.deepseek.com/anthropic', model: 'deepseek-flash[1m]', smallModel: 'deepseek-flash' },
+  deepseek: { name: 'deepseek', baseUrl: 'https://api.deepseek.com/anthropic', model: 'deepseek-flash', smallModel: 'deepseek-flash' },
 }
 const stepInfo: Record<string, { title: string; hint: string; claudeOnly?: boolean }> = {
   plan: { title: 'Plan', hint: 'clarifies and writes the plan, before approval' },

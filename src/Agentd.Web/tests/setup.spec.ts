@@ -48,7 +48,7 @@ beforeEach(() => {
     'POST /api/setup/chat/test': json({ ok: true, message: 'agentd posted a test message in #agentd.', fix: null }),
     'GET /api/setup/models': json({ profiles: [], steps: ['plan', 'implement', 'fix', 'handoff', 'review', 'chat'].map((step) => ({ step, model: null, effort: null, profile: null })) }),
     'PUT /api/setup/models/profiles': json({ restartRequired: true }),
-    'POST /api/setup/models/profiles/test': json({ ok: true, message: 'deepseek-flash[1m] answered a test prompt in 1.2 s.', fix: null }),
+    'POST /api/setup/models/profiles/test': json({ ok: true, message: 'deepseek-flash answered a test prompt in 1.2 s.', fix: null }),
     'PUT /api/setup/models/steps': json({ restartRequired: true }),
     'GET /api/setup/repositories': json([]),
     'POST /api/setup/repositories': json({ url: 'git@ssh.dev.azure.com:v3/myorg/Portal/sysmin', name: 'sysmin', baseBranch: 'develop', matchTag: 'repo:sysmin', matchAreaPaths: [] }),
@@ -232,13 +232,13 @@ describe('steps', () => {
 
     await step.findAll('button').find((b) => b.text() === 'Add DeepSeek')!.trigger('click')
     const inputs = step.findAll('form input')
-    expect(inputs.slice(0, 4).map((i) => (i.element as HTMLInputElement).value)).toEqual(['deepseek', 'https://api.deepseek.com/anthropic', 'deepseek-flash[1m]', 'deepseek-flash'])
+    expect(inputs.slice(0, 4).map((i) => (i.element as HTMLInputElement).value)).toEqual(['deepseek', 'https://api.deepseek.com/anthropic', 'deepseek-flash', 'deepseek-flash'])
     await step.get('form input[type="password"]').setValue('sk-SECRET')
     await step.findAll('button').find((b) => b.text() === 'Send a test prompt')!.trigger('click')
     await flushPromises()
-    expect(step.text()).toContain('deepseek-flash[1m] answered')
+    expect(step.text()).toContain('deepseek-flash answered')
 
-    const deepseek = { name: 'deepseek', baseUrl: 'https://api.deepseek.com/anthropic', model: 'deepseek-flash[1m]', smallModel: 'deepseek-flash' }
+    const deepseek = { name: 'deepseek', baseUrl: 'https://api.deepseek.com/anthropic', model: 'deepseek-flash', smallModel: 'deepseek-flash' }
     routes['GET /api/setup/models'] = json({ profiles: [{ ...deepseek, apiKey: set }], steps: ['plan', 'implement', 'fix', 'handoff', 'review', 'chat'].map((step) => ({ step, model: null, effort: null, profile: null })) })
     await step.get('form').trigger('submit')
     await flushPromises()

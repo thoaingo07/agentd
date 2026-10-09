@@ -119,7 +119,7 @@ public sealed class ClaudeCliProbeTests : IDisposable
             Assert.Inconclusive("The fake CLI is a shell script.");
         }
 
-        var profile = new Application.Jobs.ModelProfile { BaseUrl = "https://api.deepseek.com/anthropic", Model = "deepseek-flash[1m]", SmallModel = "deepseek-flash", ApiKey = "sk-good-provider-key" };
+        var profile = new Application.Jobs.ModelProfile { BaseUrl = "https://api.deepseek.com/anthropic", Model = "deepseek-flash", SmallModel = "deepseek-flash", ApiKey = "sk-good-provider-key" };
         Environment.SetEnvironmentVariable("CLAUDE_CODE_OAUTH_TOKEN", GoodToken);
         Application.Setup.StepCheck good, bad;
         try
@@ -127,7 +127,7 @@ public sealed class ClaudeCliProbeTests : IDisposable
             good = await _probe.TestProfileAsync("deepseek", profile, CancellationToken.None);
             var env = File.ReadAllText(Path.Combine(_dir, "env.txt"));
             Assert.Contains("ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic", env);
-            Assert.Contains("ANTHROPIC_MODEL=deepseek-flash[1m]", env);
+            Assert.Contains("ANTHROPIC_MODEL=deepseek-flash", env);
             Assert.DoesNotContain("CLAUDE_CODE_OAUTH_TOKEN", env);
             profile.ApiKey = "sk-wrong";
             bad = await _probe.TestProfileAsync("deepseek", profile, CancellationToken.None);
@@ -138,7 +138,7 @@ public sealed class ClaudeCliProbeTests : IDisposable
         }
 
         Assert.IsTrue(good.Ok, good.Message);
-        Assert.Contains("deepseek-flash[1m] answered", good.Message);
+        Assert.Contains("deepseek-flash answered", good.Message);
         Assert.IsFalse(bad.Ok);
         Assert.Contains("API key", bad.Fix!);
     }

@@ -51,7 +51,7 @@ public sealed class SetupEndpointTests : IDisposable
     {
         await using var app = await StartAsync();
         var client = await SetupClient.SignInAsync(app);
-        var deepseek = new { name = "deepseek", baseUrl = "https://api.deepseek.com/anthropic", model = "deepseek-flash[1m]", smallModel = "deepseek-flash", apiKey = "sk-SECRET-deepseek" };
+        var deepseek = new { name = "deepseek", baseUrl = "https://api.deepseek.com/anthropic", model = "deepseek-flash", smallModel = "deepseek-flash", apiKey = "sk-SECRET-deepseek" };
 
         using var save = await client.SendAsync(HttpMethod.Put, "/api/setup/models/profiles", deepseek);
         using var test = await client.SendAsync(HttpMethod.Post, "/api/setup/models/profiles/test", new { deepseek.name, deepseek.baseUrl, deepseek.model, deepseek.smallModel });
