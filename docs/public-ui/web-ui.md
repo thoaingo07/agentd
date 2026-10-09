@@ -8,7 +8,9 @@ It updates live; the dot in the header shows whether it's connected.
 
 - **The navigation:** Dashboard · History · Ideas · Settings.
 - **"N waiting":** jobs waiting for you. Click it to see them.
-- **The machine's CPU, free RAM and free disk.** It's marked ⚠️ when disk or memory runs low.
+- **The machine's CPU, free RAM and free disk** (on phones, CPU and free RAM). It's marked ⚠️ when disk or memory
+  runs low. Click it for the **Host** panel at the top of Settings: CPU with cores and load, RAM, swap, every disk
+  (and which holds agentd's home), and uptime.
 - **Live / Reconnecting:** the connection; it catches up by itself after a drop.
 - **The theme toggle:** system, light or dark.
 

@@ -255,8 +255,11 @@ after the chat thread is deleted, because the history lives in agentd's database
 
 ### 4.5a Resource use (2026-10-06)
 
-- **Header (lg+):** "CPU 35% · RAM 6 GB free · disk 120 GB free". When disk or memory is low it gets ⚠️ and bold text,
-  not just colour.
+- **Header:** "CPU 35% · RAM 6 GB free · disk 120 GB free" (lg+), "CPU 35% · 6 GB" below. When disk or memory is low
+  it gets ⚠️ and bold text, not just colour. It links to the Host panel.
+- **Host panel (Settings, everyone):** meters for CPU (cores, 1/5/15-minute load), RAM, swap and each real disk
+  (ext4/xfs/btrfs/zfs/…, one per device; tmpfs, overlay and snaps left out; agentd's home marked), plus uptime. From
+  `machine.details`; off Linux it's null and the panel falls back to agentd's home disk.
 - **Session header:** "CPU 180% · RAM 2.1 GB · disk 450 MB" for the job's agent process tree and worktree.
 - **Dashboard table:** a CPU / RAM column (xl+).
 - **Data:** `GET /api/resources`, polled every 10 s by the `resources` store while a component `watch()`es it. Samples come

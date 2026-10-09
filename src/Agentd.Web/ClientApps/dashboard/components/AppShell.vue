@@ -74,15 +74,20 @@ const links = [
         >
           {{ jobs.waitingCount }} waiting
         </RouterLink>
-        <span
+        <RouterLink
           v-if="resources.machine"
-          class="hidden items-center gap-2 text-xs tabular-nums lg:flex"
+          :to="{ name: 'settings' }"
+          class="flex items-center gap-2 text-xs tabular-nums hover:text-base-content"
           :class="resources.machine.lowDisk || resources.machine.lowMemory ? 'font-semibold text-base-content' : 'text-muted'"
           data-testid="machine"
           :title="`Machine: CPU ${resources.machine.cpuPercent}% · RAM ${bytes(resources.machine.memoryAvailable)} free of ${bytes(resources.machine.memoryTotal)} · disk ${bytes(resources.machine.diskFree)} free of ${bytes(resources.machine.diskTotal)}`"
+          :aria-label="`Host: CPU ${resources.machine.cpuPercent}%, RAM ${bytes(resources.machine.memoryAvailable)} free, disk ${bytes(resources.machine.diskFree)} free`"
         >
-          <template v-if="resources.machine.lowDisk || resources.machine.lowMemory">⚠️ </template>CPU {{ resources.machine.cpuPercent }}% · RAM {{ bytes(resources.machine.memoryAvailable) }} free · disk {{ bytes(resources.machine.diskFree) }} free
-        </span>
+          {{ resources.machine.lowDisk || resources.machine.lowMemory ? '⚠️' : '' }}
+          <!-- Phones: the short form; the Host panel in Settings has the rest. -->
+          <span class="lg:hidden">CPU {{ resources.machine.cpuPercent }}% · {{ bytes(resources.machine.memoryAvailable) }}</span>
+          <span class="hidden lg:inline">CPU {{ resources.machine.cpuPercent }}% · RAM {{ bytes(resources.machine.memoryAvailable) }} free · disk {{ bytes(resources.machine.diskFree) }} free</span>
+        </RouterLink>
         <ConnectionIndicator />
         <ThemeToggle class="hidden sm:inline-flex" />
       </div>

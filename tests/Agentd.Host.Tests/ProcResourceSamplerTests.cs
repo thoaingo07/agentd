@@ -44,6 +44,48 @@ public sealed class ProcResourceSamplerTests : IDisposable
     }
 
     [TestMethod]
+    public void The_machine_has_cores_load_swap_uptime_and_each_real_disk_once()
+    {
+        if (!OperatingSystem.IsLinux())
+        {
+            Assert.Inconclusive("Linux only");
+        }
+
+        WriteMachine(busy: 1000, idle: 9000);
+        File.AppendAllText(Path.Combine(_proc, "stat"), "cpu1 1 0 0 1 0 0 0 0 0 0\nintr 5\n");
+        File.AppendAllText(Path.Combine(_proc, "meminfo"), "SwapTotal:       8388608 kB\nSwapFree:        8000000 kB\n");
+        File.WriteAllText(Path.Combine(_proc, "loadavg"), "0.77 1.43 0.90 2/1234 5678\n");
+        File.WriteAllText(Path.Combine(_proc, "uptime"), "130812.45 2000000.00\n");
+        File.WriteAllText(Path.Combine(_proc, "mounts"), """
+            /dev/nvme0n1p4 / ext4 rw,relatime 0 0
+            tmpfs /run tmpfs rw 0 0
+            /dev/nvme0n1p4 /var/snap ext4 rw 0 0
+            overlay /var/lib/docker/overlay2/x/merged overlay rw 0 0
+            """);
+
+        var details = new ProcResourceSampler(_proc).SampleMachine(_proc)!.Details!;
+
+        Assert.AreEqual(2, details.Cores, "cpu0 and cpu1, not the total line");
+        Assert.AreEqual((0.77, 1.43, 0.90), (details.Load1, details.Load5, details.Load15));
+        Assert.AreEqual((8L << 30, 8000000L * 1024), (details.SwapTotal, details.SwapFree));
+        Assert.AreEqual(TimeSpan.FromSeconds(130812), details.Uptime);
+        var disk = details.Disks.Single();
+        Assert.AreEqual(("/", true), (disk.Mount, disk.Home), "tmpfs and overlay left out, the second mount of the same device too");
+        Assert.IsGreaterThan(0, disk.Total);
+    }
+
+    [TestMethod]
+    public void Without_loadavg_uptime_or_mounts_the_details_are_unknown_not_an_error()
+    {
+        WriteMachine(busy: 1000, idle: 9000);
+
+        var details = new ProcResourceSampler(_proc).SampleMachine(_proc)!.Details!;
+
+        Assert.AreEqual((1, (double?)null, (TimeSpan?)null), (details.Cores, details.Load1, details.Uptime));
+        Assert.IsEmpty(details.Disks);
+    }
+
+    [TestMethod]
     public void On_linux_the_real_proc_reports_this_process()
     {
         if (!OperatingSystem.IsLinux())

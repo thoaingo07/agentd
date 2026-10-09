@@ -37,9 +37,18 @@ public sealed record MachineResources(double CpuPercent, long MemoryTotal, long 
     /// <summary>Under 5 GB or 5% free.</summary>
     public bool LowDisk => DiskTotal > 0 && (DiskFree < 5L * 1024 * 1024 * 1024 || DiskFree < DiskTotal / 20);
 
+    /// <summary>Cores, load, swap, uptime and every disk, for the Web UI's host panel (null: not sampled).</summary>
+    public MachineDetails? Details { get; init; }
+
     public string Describe() => string.Create(CultureInfo.InvariantCulture,
         $"CPU {CpuPercent:0}% · RAM {JobActivity.Bytes(MemoryAvailable)} free of {JobActivity.Bytes(MemoryTotal)} · disk {JobActivity.Bytes(DiskFree)} free of {JobActivity.Bytes(DiskTotal)}");
 }
+
+/// <summary>The rest of the machine's picture: load averages (null when unknown), swap, uptime, and each real disk.</summary>
+public sealed record MachineDetails(int Cores, double? Load1, double? Load5, double? Load15, long SwapTotal, long SwapFree, TimeSpan? Uptime, IReadOnlyList<DiskUse> Disks);
+
+/// <summary>A mounted disk; <paramref name="Home"/>: it holds agentd's home (worktrees, logs).</summary>
+public sealed record DiskUse(string Mount, long Total, long Free, bool Home);
 
 /// <summary>A running command's output file, as Claude Code writes it: <c>&lt;tmp&gt;/claude-&lt;uid&gt;/&lt;project&gt;/&lt;session&gt;/tasks/&lt;task&gt;.output</c>.</summary>
 public sealed record CommandOutput(string Session, string TaskId)

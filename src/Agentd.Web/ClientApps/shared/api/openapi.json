@@ -2502,6 +2502,32 @@
         },
         "description": "A job\u0027s changes; \u0060unifiedDiff\u0060 is null when \u0060truncated\u0060 (over 2 MB), leaving the file list."
       },
+      "DiskVm": {
+        "required": [
+          "mount",
+          "total",
+          "free",
+          "home"
+        ],
+        "type": "object",
+        "properties": {
+          "mount": {
+            "type": "string"
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "free": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "home": {
+            "type": "boolean"
+          }
+        },
+        "description": "A mounted disk; \u0060home\u0060: it holds agentd\u0027s home (worktrees, logs)."
+      },
       "EstimateVm": {
         "required": [
           "minutes",
@@ -3084,6 +3110,68 @@
         "description": "A job row (dashboard, history). State and statuses are strings for the UI."
       },
       "JsonElement": {},
+      "MachineDetailsVm": {
+        "required": [
+          "cores",
+          "load1",
+          "load5",
+          "load15",
+          "swapTotal",
+          "swapFree",
+          "uptimeSeconds",
+          "disks"
+        ],
+        "type": "object",
+        "properties": {
+          "cores": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "load1": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "load5": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "load15": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "swapTotal": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "swapFree": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "uptimeSeconds": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int64"
+          },
+          "disks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DiskVm"
+            }
+          }
+        },
+        "description": "Cores, load averages (null: unknown), swap, uptime in seconds, and each real disk."
+      },
       "MachineVm": {
         "required": [
           "cpuPercent",
@@ -3093,7 +3181,8 @@
           "diskFree",
           "lowMemory",
           "lowDisk",
-          "at"
+          "at",
+          "details"
         ],
         "type": "object",
         "properties": {
@@ -3126,6 +3215,16 @@
           "at": {
             "type": "string",
             "format": "date-time"
+          },
+          "details": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MachineDetailsVm"
+              }
+            ]
           }
         },
         "description": "The machine agentd runs on (null fields: not sampled, e.g. off Linux)."
