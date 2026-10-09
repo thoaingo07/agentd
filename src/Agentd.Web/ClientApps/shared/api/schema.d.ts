@@ -388,6 +388,102 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/reviews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ListReviews"];
+        put?: never;
+        post: operations["StartReview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reviews/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetReview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reviews/{id}/diff": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetReviewDiff"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reviews/{id}/findings/{number}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["DecideReviewFinding"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reviews/{id}/comments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AddReviewComment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reviews/{id}/comments/{commentId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["DeleteReviewComment"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/bff/antiforgery": {
         parameters: {
             query?: never;
@@ -876,6 +972,22 @@ export interface components {
         ClaudeTokenRequest: {
             token: null | string;
         };
+        CommentRequest: {
+            /** @description The file (none: the whole change). */
+            file: null | string;
+            /**
+             * Format: int32
+             * @description The first line.
+             */
+            line: null | number;
+            /**
+             * Format: int32
+             * @description The last line.
+             */
+            endLine: null | number;
+            /** @description The comment. */
+            text: null | string;
+        };
         /** @description Read-only settings. Explicit fields only: tokens, keys and secrets have no way in. */
         ConfigVm: {
             tag: string;
@@ -924,6 +1036,12 @@ export interface components {
         };
         DatabaseStepVm: {
             connectionString: components["schemas"]["SecretStatusVm"];
+        };
+        DecisionRequest: {
+            /** @description kept, dropped or edited. */
+            decision: null | string;
+            /** @description The new text, for edited. */
+            text: null | string;
         };
         /** @description A job's changes; `unifiedDiff` is null when `truncated` (over 2 MB), leaving the file list. */
         DiffVm: {
@@ -1227,12 +1345,90 @@ export interface components {
             machine: null | components["schemas"]["MachineVm"];
             jobs: components["schemas"]["JobResourcesVm"][];
         };
+        ReviewAskVm: {
+            /** Format: int64 */
+            id: number;
+            file: null | string;
+            /** Format: int32 */
+            line: null | number;
+            /** Format: int32 */
+            endLine: null | number;
+            question: string;
+            answer: null | string;
+            author: string;
+            /** Format: date-time */
+            askedAt: string;
+        };
+        ReviewCommentVm: {
+            /** Format: int64 */
+            id: number;
+            file: null | string;
+            /** Format: int32 */
+            line: null | number;
+            /** Format: int32 */
+            endLine: null | number;
+            text: string;
+            author: string;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        /** @description The pinned change; `unifiedDiff` is null when it's too big (only the file list). */
+        ReviewDiffVm: {
+            baseCommit: string;
+            headCommit: string;
+            files: string[];
+            unifiedDiff: null | string;
+            truncated: boolean;
+        };
+        /** @description A finding and the person's decision about it. */
+        ReviewFindingVm: {
+            /** Format: int32 */
+            number: number;
+            severity: string;
+            file: null | string;
+            /** Format: int32 */
+            line: null | number;
+            title: string;
+            detail: null | string;
+            suggestion: null | string;
+            decision: string;
+            edited: null | string;
+        };
         /** @description One review line: a step, whether finishing needs it, and its check. */
         ReviewItemVm: {
             step: string;
             title: string;
             required: boolean;
             check: components["schemas"]["StepCheckVm"];
+        };
+        /** @description A session with its comments and questions, as the review page shows it. */
+        ReviewSessionDetailVm: {
+            session: components["schemas"]["ReviewSessionVm"];
+            comments: components["schemas"]["ReviewCommentVm"][];
+            asks: components["schemas"]["ReviewAskVm"][];
+        };
+        /** @description A review session: what it looks at (pinned commits), its state, the reviewer's summary and findings. */
+        ReviewSessionVm: {
+            /** Format: int64 */
+            id: number;
+            repo: string;
+            target: string;
+            /** Format: int32 */
+            pullRequestId: null | number;
+            headRef: null | string;
+            baseRef: null | string;
+            baseCommit: null | string;
+            headCommit: null | string;
+            status: string;
+            error: null | string;
+            model: null | string;
+            effort: null | string;
+            summary: null | string;
+            findings: components["schemas"]["ReviewFindingVm"][];
+            createdBy: string;
+            sentTo: null | string;
+            /** Format: date-time */
+            createdAt: string;
         };
         RunAcceptedVm: {
             /** Format: int64 */
@@ -1253,6 +1449,21 @@ export interface components {
         SetupSessionVm: {
             /** Format: date-time */
             expiresAt: null | string;
+        };
+        StartReviewRequest: {
+            /** @description A registered repository. */
+            repo: null | string;
+            /**
+             * Format: int32
+             * @description Review this PR…
+             */
+            pullRequestId: null | number;
+            /** @description …or this branch (against its base, or Base)… */
+            branch: null | string;
+            /** @description …or from this commit (with Head); for a branch, what it's compared with. */
+            base: null | string;
+            /** @description …to this commit. */
+            head: null | string;
         };
         /** @description A step's "Test" result; string? StepCheckVm.Fix says what to do when it failed. */
         StepCheckVm: {
@@ -2084,6 +2295,263 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    ListReviews: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewSessionVm"][];
+                };
+            };
+        };
+    };
+    StartReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": null | components["schemas"]["StartReviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewSessionVm"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewSessionDetailVm"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    GetReviewDiff: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewDiffVm"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    DecideReviewFinding: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+                number: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": null | components["schemas"]["DecisionRequest"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    AddReviewComment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": null | components["schemas"]["CommentRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewCommentVm"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    DeleteReviewComment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+                commentId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
             };
         };
     };
