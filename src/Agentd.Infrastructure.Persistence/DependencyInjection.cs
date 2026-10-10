@@ -31,6 +31,7 @@ public static class DependencyInjection
         services.AddSingleton<Application.Chats.IChatStore, ChatStore>();
         services.AddSingleton<IAdoUserConnections, AdoUserConnectionStore>();
         services.AddSingleton<Application.Reviews.IReviewSessionStore, ReviewSessionStore>();
+        services.AddSingleton<Application.Monitor.IPrWatchStore, PrWatchStore>();
         services.AddSingleton<JobSessionStore>();
         services.AddSingleton<Application.Jobs.IJobSessions>(sp => sp.GetRequiredService<JobSessionStore>());
         services.AddSingleton<Application.Jobs.IJobPlans>(sp => sp.GetRequiredService<JobSessionStore>());
