@@ -161,6 +161,9 @@ agentd · ai/1234-fix-login · session 8f3c…      [Discord ↗][Telegram ↗] 
   - when an active run finishes, the stream stops and what's shown stays.
 - **Scrolling up** (both modes) loads the page before (`?before=<oldestSeq>&limit=100`) when the top comes within
   300 px (an `IntersectionObserver`), keeping the reader's place; **Load earlier** at the top does the same.
+- **Every page is readable:** a job's event pages skip `agent.other` (CLI lines agentd doesn't interpret, which the
+  transcript hides), and Claude Code's `system/thinking_tokens` progress ticks (many a second while it thinks) are
+  never stored at all (the raw transcript file keeps them). Otherwise a page of 100 could hold nothing to show.
 - **Windowing** (no virtual-list library):
   - events aren't deeply reactive (`markRaw`);
   - rows are rebuilt per change, but unchanged rows are reused as they were, so only new rows (and a tool call whose
@@ -210,7 +213,10 @@ after the chat thread is deleted, because the history lives in agentd's database
   - **Timeline:** every lifecycle step and message in order, with each **job as a section**
     ("Run 1", "Rework", "Hand-off"); a section's job link picks that run. Steps include claimed, worktree ready,
     each `set_phase` summary, plan and approval, questions and answers, pushes, PR opened, review comments and fix
-    rounds, ready to complete, merged, hand-off proposal and agreement, close-out.
+    rounds, ready to complete, merged, hand-off proposal and agreement, close-out. Its pages
+    (`/api/workitems/{id}/timeline`) carry only that story: everything but `agent.*`, plus each turn's
+    `agent.result` and the `agent.rate_limit` usage samples (the Plan tab's usage). Live events are filtered the
+    same way; the agent's output is each run's Transcript.
   - **Conversation:** the chat exactly as it happened, **both directions**: what agentd and the agent
     posted (from the outbox, with delivery status), your replies and commands, and mirrored messages.
     A composer sends a message to the active job (`SubmitDeveloperMessage`).

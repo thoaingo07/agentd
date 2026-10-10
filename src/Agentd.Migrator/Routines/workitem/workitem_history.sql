@@ -9,8 +9,9 @@ AS $$
     SELECT * FROM agentd.jobs WHERE jobs.work_item_id = p_work_item ORDER BY created_at, id
 $$;
 
--- Events of all the work item's jobs. Seq order is commit order (events_serialize), so keyset paging is
--- stable: after → ascending, before → newest first (the caller reverses).
+-- Events of all the work item's jobs: its story, so the steps (everything but agent.*) plus each agent turn's
+-- result and the usage samples, not the agent's raw output (each run's Transcript pages that). Seq order is commit
+-- order (events_serialize), so keyset paging is stable: after → ascending, before → newest first (the caller reverses).
 CREATE OR REPLACE FUNCTION agentd.event_list_by_work_item(p_work_item int, p_after bigint, p_before bigint, p_limit int)
 RETURNS SETOF agentd.events
 LANGUAGE sql STABLE
@@ -19,6 +20,7 @@ AS $$
      WHERE e.job_id IN (SELECT id FROM agentd.jobs WHERE work_item_id = p_work_item)
        AND (p_before IS NOT NULL OR e.seq > coalesce(p_after, 0))
        AND (p_before IS NULL OR e.seq < p_before)
+       AND (e.type NOT LIKE 'agent.%' OR e.type IN ('agent.result', 'agent.rate_limit'))
      ORDER BY CASE WHEN p_before IS NULL THEN e.seq END ASC,
               CASE WHEN p_before IS NOT NULL THEN e.seq END DESC
      LIMIT p_limit

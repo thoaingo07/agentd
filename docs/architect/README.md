@@ -473,7 +473,7 @@ and component styling rules are in **[docs/design-system](../design-system/READM
 | `GET /api/dashboard` | screen-shaped: stats + active jobs in one call |
 | `GET /api/history?state=&repo=&q=&page=` | finished, failed and cancelled jobs, paged |
 | `GET /api/jobs/{id}` | job detail, including links to the work item, chat conversations and PR |
-| `GET /api/jobs/{id}/events?after=<seq>` / `?before=<seq>&limit=<n>` | paged history: replay forward, or page back for "load earlier" |
+| `GET /api/jobs/{id}/events?after=<seq>` / `?before=<seq>&limit=<n>` | paged history: replay forward, or page back for "load earlier" (without `agent.other`, which the transcript never shows) |
 | SignalR `/hubs/events` → `Subscribe(jobId?, afterSeq)` | live events for the Vue UI; replays from `afterSeq` after a reconnect |
 | `GET /api/jobs/{id}/diff` | `git diff <base>...HEAD` for the worktree |
 | `POST /api/jobs/{id}/cancel` / `retry` / `messages` | same controls as the chat commands; a message is recorded and mirrored to all of the job's chat conversations so every channel keeps one history |

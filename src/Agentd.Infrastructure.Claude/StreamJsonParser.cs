@@ -30,6 +30,8 @@ public static class StreamJsonParser
                 "system" when subtype == "init" => [new AgentEvent.SessionStarted(Str(root, "session_id") ?? string.Empty, Str(root, "model"), Str(root, "cwd"))],
                 "system" when subtype == "task_started" && Str(root, "task_id") is { Length: > 0 } task =>
                     [new AgentEvent.TaskStarted(task, Str(root, "tool_use_id"), Str(root, "session_id"))],
+                // Progress ticks, many per second while the model thinks: never worth an event (the raw transcript keeps them).
+                "system" when subtype == "thinking_tokens" => [],
                 "assistant" => ContentBlocks(root, assistant: true),
                 "user" => ContentBlocks(root, assistant: false),
                 "rate_limit_event" => [ParseRateLimit(root)],

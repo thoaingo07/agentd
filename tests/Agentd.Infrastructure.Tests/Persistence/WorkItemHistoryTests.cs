@@ -59,6 +59,31 @@ public sealed class WorkItemHistoryTests
     }
 
     [TestMethod]
+    public async Task The_timeline_is_the_story_without_the_agents_raw_output()
+    {
+        await using var db = await Database.CreateMigratedAsync($"work_item_history_{Interlocked.Increment(ref s_next)}");
+        var clock = new Clock();
+        var jobs = new JobRepository(db, clock);
+        var events = new EventStore(db);
+        var history = new WorkItemHistoryStore(db, clock);
+        var job = Job.Create(WorkItemId.From(5614), RepositoryName.From("sysmin"), "Refine the AGENTS.md", clock);
+        await jobs.AddAsync(job, default);
+        var from = await events.LatestSeqAsync(default);   // after the job's own lifecycle events
+        foreach (var type in new[] { "step.started", "agent.session", "agent.text", "agent.tool_call", "agent.tool_result", "agent.other", "agent.rate_limit", "agent.result", "JobFinished" })
+        {
+            await events.AppendAsync(job.Id, type, "{}", default);
+        }
+
+        var story = await history.ReadEventsAsync(job.WorkItemId, from, null, 2, default);
+        var all = await history.ReadEventsAsync(job.WorkItemId, from, null, 100, default);
+        var back = (await history.ReadEventsAsync(job.WorkItemId, null, all[^1].Seq, 100, default)).Where(e => e.Seq > from);
+
+        CollectionAssert.AreEqual(new[] { "step.started", "agent.rate_limit", "agent.result", "JobFinished" }, all.Select(e => e.Type).ToArray());
+        CollectionAssert.AreEqual(new[] { "step.started", "agent.rate_limit" }, story.Select(e => e.Type).ToArray(), "a page counts only what the story shows");
+        CollectionAssert.AreEqual(all.SkipLast(1).Select(e => e.Seq).ToArray(), back.Select(e => e.Seq).ToArray());
+    }
+
+    [TestMethod]
     public async Task Posted_messages_keep_their_delivery_status_and_skip_heartbeats()
     {
         await using var db = await Database.CreateMigratedAsync($"work_item_history_{Interlocked.Increment(ref s_next)}");

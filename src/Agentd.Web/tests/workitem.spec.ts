@@ -85,7 +85,7 @@ describe('PlanTab', () => {
 })
 
 describe('workItems store', () => {
-  it('loads the story, subscribes the active job, and appends its live events', async () => {
+  it('loads the story, subscribes the active job, and appends its live steps (not the agent\'s raw output)', async () => {
     const subscribed: [string, number][] = []
     const fake: EventConnection = {
       start: async () => {}, stop: async () => {}, unsubscribe: async () => {},
@@ -108,8 +108,11 @@ describe('workItems store', () => {
     expect(subscribed).toEqual([['2', 9]])
 
     useConnectionStore().route('2', ev(10, 2, 'agent.text', { text: 'working' }))
-    useConnectionStore().route('2', ev(10, 2, 'agent.text', { text: 'duplicate' }))
-    expect(store.events.map((e) => e.seq)).toEqual([5, 9, 10])
+    useConnectionStore().route('2', ev(11, 2, 'agent.result', { turns: 3 }))
+    useConnectionStore().route('2', ev(11, 2, 'agent.result', { turns: 3 }))
+    useConnectionStore().route('2', ev(12, 2, 'agent.other'))
+    useConnectionStore().route('2', ev(13, 2, 'PhaseSet', { phase: 'Implement' }))
+    expect(store.events.map((e) => e.seq)).toEqual([5, 9, 11, 13])
   })
 
   it('streams the active job only once the timeline reached its end', async () => {
@@ -123,7 +126,7 @@ describe('workItems store', () => {
       const url = new URL(req.url)
       const first = url.searchParams.get('after') === '0'
       const body = url.pathname === '/api/workitems/5613' ? { workItemId: 5613, title: 'Refine', repo: 'sysmin', jobs: [job(2, 'Running')], pullRequests: [], conversations: [], firstSeenAt: '2026-10-03T16:00:00Z', lastActivityAt: '2026-10-03T18:00:00Z' }
-        : url.pathname.endsWith('/timeline') ? (first ? { events: [ev(5, 2, 'JobStarted')], oldestSeq: 5, newestSeq: 5, hasMore: true } : { events: [ev(900, 2, 'agent.text')], oldestSeq: 900, newestSeq: 900, hasMore: false })
+        : url.pathname.endsWith('/timeline') ? (first ? { events: [ev(5, 2, 'JobStarted')], oldestSeq: 5, newestSeq: 5, hasMore: true } : { events: [ev(900, 2, 'agent.result')], oldestSeq: 900, newestSeq: 900, hasMore: false })
           : url.pathname.endsWith('/conversation') ? [] : { job: job(2, 'Running'), estimate: null }
       return new Response(JSON.stringify(body))
     }))

@@ -48,6 +48,13 @@ public sealed class StreamJsonParserTests
     }
 
     [TestMethod]
+    public void Thinking_progress_ticks_are_dropped_and_other_system_lines_kept()
+    {
+        Assert.IsEmpty(StreamJsonParser.Parse("""{"type":"system","subtype":"thinking_tokens","tokens":812}"""));
+        Assert.AreEqual(new AgentEvent.Other("system", "status"), StreamJsonParser.Parse("""{"type":"system","subtype":"status"}""").Single());
+    }
+
+    [TestMethod]
     public void A_rejected_rate_limit_is_a_usage_limit_with_its_reset_time()
     {
         var events = StreamJsonParser.Parse("""{"type":"rate_limit_event","rate_limit_info":{"status":"rejected","resetsAt":1790752800,"rateLimitType":"five_hour","unifiedWindows":{"five_hour":{"utilization":1.0,"resetsAt":1790752800}}}}""");

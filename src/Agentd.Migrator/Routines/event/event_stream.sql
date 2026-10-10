@@ -68,25 +68,27 @@ LANGUAGE sql STABLE
 AS $$ SELECT * FROM agentd.events WHERE events.seq = p_seq $$;
 
 -- Events after p_after_seq, ascending. p_job_id null = all jobs, and then only summary types
--- (everything except the agent's raw output, agent.*), as the dashboard's "all" stream.
+-- (everything except the agent's raw output, agent.*), as the dashboard's "all" stream. A job's events skip
+-- agent.other (CLI lines agentd doesn't interpret, which the transcript never shows), so a page is all readable.
 CREATE OR REPLACE FUNCTION agentd.event_read_after(p_job_id bigint, p_after_seq bigint, p_limit int)
 RETURNS SETOF agentd.events
 LANGUAGE sql STABLE
 AS $$
     SELECT * FROM agentd.events AS e
      WHERE e.seq > p_after_seq
-       AND (CASE WHEN p_job_id IS NULL THEN e.type NOT LIKE 'agent.%' ELSE e.job_id = p_job_id END)
+       AND (CASE WHEN p_job_id IS NULL THEN e.type NOT LIKE 'agent.%' ELSE e.job_id = p_job_id AND e.type <> 'agent.other' END)
      ORDER BY e.seq
      LIMIT p_limit
 $$;
 
--- Events of a job before p_before_seq, newest first (the caller reverses them to ascending).
+-- Events of a job before p_before_seq, newest first (the caller reverses them to ascending); without agent.other,
+-- like event_read_after.
 CREATE OR REPLACE FUNCTION agentd.event_read_before(p_job_id bigint, p_before_seq bigint, p_limit int)
 RETURNS SETOF agentd.events
 LANGUAGE sql STABLE
 AS $$
     SELECT * FROM agentd.events AS e
-     WHERE e.job_id = p_job_id AND e.seq < p_before_seq
+     WHERE e.job_id = p_job_id AND e.seq < p_before_seq AND e.type <> 'agent.other'
      ORDER BY e.seq DESC
      LIMIT p_limit
 $$;
