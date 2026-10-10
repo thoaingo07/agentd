@@ -34,8 +34,8 @@ public sealed class ReviewLoopTests
         var running = _t.Jobs.Get(job);
         Assert.AreEqual((JobState.Running, 1), (running.State, running.FixRounds));
         CollectionAssert.AreEqual(new[] { "Reviewer on AGENTS.md:42 [PR thread 10]: Please mention the 02:00 CronJob." }, running.PendingMessages.ToArray());
-        StringAssert.Contains(_t.Outbox.Enqueued[^1].Message.Message.Markdown, "💬 **Review comments**");
-        StringAssert.Contains(JobEventMessages.For(_t.Jobs.SavedEvents.OfType<FixRoundStarted>().Single())!.Message.Markdown, "**Fix round 1:** 1 review comment(s)");
+        StringAssert.Contains(_t.Outbox.Enqueued[^1].Message.Message.Markdown, "💬 **1 new review comment(s)**: fix round 1");
+        StringAssert.Contains(JobEventMessages.For(_t.Jobs.SavedEvents.OfType<FixRoundStarted>().Single())!.Message.Markdown, "**Fix round 1:** 1 thing(s) to fix");
 
         var turn = (await new ResumeJobTurnHandler(_t.Jobs, _t.Outbox).Handle(new ResumeJobTurn([]), default)).Value!;
         StringAssert.Contains(turn.Prompt, "If these are PR review comments");
@@ -181,6 +181,98 @@ public sealed class ReviewLoopTests
 
         _t.PullRequests.Status = PullRequestStatus.Active;
         Assert.AreEqual(DeveloperMessageOutcome.FixRound, (await submit.Handle(new SubmitDeveloperMessage(job, "rename it", "tngo"), default)).Value, "an open PR still takes feedback");
+    }
+
+    [TestMethod]
+    public async Task A_failed_pr_build_starts_one_fix_round_with_its_errors_and_a_new_failed_run_another()
+    {
+        var search = new Builds();
+        _t.Search = search;
+        var job = await InReviewAsync();
+        search.Latest = Build(901, "failed");
+
+        Assert.AreEqual(1, (await Review()).Value);
+
+        var running = _t.Jobs.Get(job);
+        Assert.AreEqual((JobState.Running, 1), (running.State, running.FixRounds));
+        var feedback = running.PendingMessages.Single();
+        StringAssert.StartsWith(feedback, "The PR build failed (sysmin-ci, run 901).");
+        StringAssert.Contains(feedback, "- dotnet test: exit code 1\n```\nFailed X\n```");
+        StringAssert.Contains(_t.Outbox.Enqueued[^1].Message.Message.Markdown, "💬 **The PR build failed**: fix round 1");
+        await new ResumeJobTurnHandler(_t.Jobs, _t.Outbox).Handle(new ResumeJobTurn([]), default);
+        Assert.IsTrue((await _t.Finish().Handle(new FinishWork(job, "T", "D", "S"), default)).IsSuccess);
+
+        await Review();
+        Assert.AreEqual(1, _t.Jobs.Get(job).FixRounds, "the same run isn't handled twice");
+        search.Latest = Build(902, "succeeded");
+        await Review();
+        Assert.AreEqual(1, _t.Jobs.Get(job).FixRounds, "a passing run starts nothing");
+        search.Latest = Build(903, "failed");
+        await Review();
+        Assert.AreEqual(2, _t.Jobs.Get(job).FixRounds, "the next failed run is a new round");
+    }
+
+    [TestMethod]
+    public async Task Merge_conflicts_start_one_round_per_pr_head_telling_the_agent_to_merge_not_rebase()
+    {
+        var job = await InReviewAsync();
+        _t.PullRequests.Details[77] = new PullRequestDetails(77, "T", null, "agentd", "ai/5617-x", "develop", "h1", PullRequestStatus.Active, false, new Uri("https://x/pr/77"), MergeStatus: "conflicts");
+        _t.PullRequests.Comments.Add(Comment(thread: 10, id: 1, "Rename it"));
+
+        await Review();
+
+        var running = _t.Jobs.Get(job);
+        Assert.AreEqual(2, running.PendingMessages.Count, "the comment and the conflicts, one round");
+        StringAssert.Contains(running.PendingMessages[1], "`git merge origin/develop`");
+        StringAssert.Contains(running.PendingMessages[1], "Never rebase");
+        StringAssert.Contains(_t.Outbox.Enqueued[^1].Message.Message.Markdown, "💬 **1 new review comment(s), merge conflicts**: fix round 1");
+        await new ResumeJobTurnHandler(_t.Jobs, _t.Outbox).Handle(new ResumeJobTurn([]), default);
+        Assert.IsTrue((await _t.Finish().Handle(new FinishWork(job, "T", "D", "S"), default)).IsSuccess);
+
+        await Review();
+        Assert.AreEqual(1, _t.Jobs.Get(job).FixRounds, "the same head's conflicts aren't handled twice");
+        _t.PullRequests.Details[77] = _t.PullRequests.Details[77] with { SourceCommit = "h2" };
+        await Review();
+        Assert.AreEqual(2, _t.Jobs.Get(job).FixRounds, "still conflicting after a push: another round");
+    }
+
+    [TestMethod]
+    public async Task Past_the_round_limit_a_failed_build_asks_once_to_take_over()
+    {
+        _t.Options.Value.MaxFixRounds = 0;
+        var search = new Builds { Latest = Build(901, "failed") };
+        _t.Search = search;
+        var job = await InReviewAsync();
+
+        await Review();
+        await Review();
+
+        Assert.AreEqual(JobState.InReview, _t.Jobs.Get(job).State);
+        Assert.AreEqual(1, _t.Outbox.Enqueued.Count(e => e.Message.Message.Markdown.Contains("Please take over", StringComparison.Ordinal)));
+        StringAssert.Contains(_t.Outbox.Enqueued[^1].Message.Message.Markdown, "⚠️ **The PR build failed**, but the job already ran 0 fix rounds");
+    }
+
+    private static BuildHit Build(int id, string result) => new(id, "sysmin-ci", "1", "completed", result, "refs/pull/77/merge", null, "pullRequest", "h1", null, null);
+
+    private sealed class Builds : IAzureDevOpsSearch
+    {
+        public BuildHit? Latest { get; set; }
+
+        public Task<IReadOnlyList<BuildHit>> ListBuildsAsync(string? pipeline, string? branch, string? result, int top, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<BuildHit>>(Latest is null || branch != "refs/pull/77/merge" ? [] : [Latest]);
+
+        public Task<BuildDetail?> GetBuildAsync(int id, CancellationToken cancellationToken) =>
+            Task.FromResult<BuildDetail?>(new BuildDetail(Latest!, [new BuildFailure("dotnet test", "Task", "failed", ["exit code 1"], "Failed X")]));
+
+        public Task<IReadOnlyList<WorkItemHit>> SearchWorkItemsAsync(WorkItemQuery query, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<IReadOnlyList<PullRequestHit>> ListPullRequestsAsync(string? repository, string status, int top, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<IReadOnlyList<PipelineHit>> ListPipelinesAsync(string? name, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<IReadOnlyList<WikiHit>> SearchWikiAsync(string text, int top, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<WikiPage?> GetWikiPageAsync(string? wiki, string? path, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 
     private async Task<Domain.Jobs.ValueObjects.JobId> InReviewAsync()

@@ -210,6 +210,7 @@ public sealed class JobRepositoryTests
         running.Start(new WorktreePath("/wt/4"), BranchName.From("ai/4-x"), ClaudeSessionId.New());
         running.Finish(PullRequestDraft.Create("T", "D", "S").Value!);
         running.OpenForReview(new PullRequestUrl(new Uri("https://dev.azure.com/o/p/_git/r/pullrequest/9")));
+        running.MarkSignalsHandled(901, "h1");
         running.StartFixRound(["Rename X"], [11, 12]);
         Assert.IsTrue((await repo.SaveAsync(running, default)).IsSuccess);
 
@@ -217,6 +218,7 @@ public sealed class JobRepositoryTests
 
         Assert.AreEqual((JobState.Running, 1), (loaded.State, loaded.FixRounds));
         CollectionAssert.AreEqual(new[] { 11, 12 }, loaded.Review.SeenCommentIds.ToArray());
+        Assert.AreEqual(((int?)901, "h1"), (loaded.Review.LastBuildId, loaded.Review.ConflictCommit), "the handled build and conflicted head survive the round");
         Assert.AreEqual(loaded.Id, (await repo.FindActiveByWorkItemAsync(loaded.WorkItemId, default))?.Id);
     }
 

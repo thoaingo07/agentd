@@ -46,8 +46,10 @@ agentd claims the work item by adding **`ai-in-progress`**, so it's never picked
    doing, for example `🔧 dotnet test (running for 2 min) · CPU 180% · RAM 2.1 GB`.
 4. **Pull request.** It commits; agentd pushes the branch `ai/<id>-<title>` and opens the PR, linked to the work
    item. Agents can never push themselves.
-5. **Review loop.** New comments on the PR, or messages in the thread, start a **fix round** in the same session
-   (up to 5). The agent replies in the PR thread it fixed. When every comment is resolved, agentd says the PR is ready
+5. **Review loop.** New comments on the PR, messages in the thread, a **failed PR build** (its errors and log end go
+   to the agent) or **merge conflicts** with the target (the agent merges the target in, never rebases) start a
+   **fix round** in the same session (up to 5). Each failed build run and each conflicted PR head starts one round only.
+   The agent replies in the PR thread it fixed. When every comment is resolved, agentd says the PR is ready
    to complete.
 6. **Merge.** You complete the PR in Azure DevOps. agentd notices within 2 minutes.
 7. **Hand-off.** The agent proposes knowledge and learnings to keep in the repository (for example notes in
@@ -67,7 +69,7 @@ a second PR for a job whose PR was merged.
 | Running | the agent is working |
 | WaitingForHuman | it asked you something, or waits for plan approval |
 | Publishing | pushing and opening the pull request |
-| InReview | the PR is open; comments start fix rounds |
+| InReview | the PR is open; comments, a failed PR build or conflicts start fix rounds |
 | Paused | stopped by you (`!pause`); everything is kept for `!resume` |
 | Done | the PR is merged (or the job finished without one) |
 | Failed | something went wrong; see the last error, then `!retry` |

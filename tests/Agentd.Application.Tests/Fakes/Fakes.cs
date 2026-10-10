@@ -712,7 +712,10 @@ internal sealed class TestContext
         new(Jobs, Conversations, new MessagingProviderRegistry(Chats, Microsoft.Extensions.Options.Options.Create(Messaging)), Outbox, Clock,
             Microsoft.Extensions.Logging.Abstractions.NullLogger<AnswerCloseOutHandler>.Instance);
 
-    public ReviewPullRequestsHandler Review() => new(Jobs, Registry, PullRequests, Worktrees, Outbox, StartHandoff(), RequestCloseOut(), Options);
+    /// <summary>The PR builds the review loop sees (none when unset).</summary>
+    public IAzureDevOpsSearch? Search { get; set; }
+
+    public ReviewPullRequestsHandler Review() => new(Jobs, Registry, PullRequests, Worktrees, Outbox, StartHandoff(), RequestCloseOut(), Options, Search);
 
     public RecoverJobsOnStartupHandler Recover() => new(Jobs, Registry, Worktrees, Runner, Clock, Publish());
 

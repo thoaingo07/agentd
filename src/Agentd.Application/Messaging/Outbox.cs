@@ -82,7 +82,7 @@ public static class JobEventMessages
         DeveloperQuestionAsked e => new(MessageCatalog.Question(e.Question, Options(e.Options))),
         PlanApproved e => new(new OutboundMessage(MessageKind.Info, $"✅ **Plan approved** by {e.By}. Implementing…")),
         FixRoundStarted e => new(new OutboundMessage(MessageKind.Info, string.Create(CultureInfo.InvariantCulture,
-            $"🔁 **Fix round {e.Round}:** {e.Comments} review comment(s); the agent is on it."))),
+            $"🔁 **Fix round {e.Round}:** {e.Comments} thing(s) to fix; the agent is on it."))),
         ReadyToComplete => new(new OutboundMessage(MessageKind.Result,
             "✅ **Ready to complete:** every review thread is resolved. Complete the PR when you're happy; agentd never merges.")),
         PullRequestMerged e => new(new OutboundMessage(MessageKind.Result, $"🎉 **PR merged:** {e.Url.Value}")),
