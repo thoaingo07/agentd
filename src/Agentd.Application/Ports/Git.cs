@@ -104,6 +104,10 @@ public sealed record PullRequestDetails(
     int Id, string Title, string? Description, string Author, string SourceBranch, string TargetBranch, string SourceCommit,
     PullRequestStatus Status, bool IsDraft, Uri Url, IReadOnlyList<int>? WorkItems = null, string? MergeStatus = null);
 
+/// <summary>An active PR as a list shows it (the Reviews page).</summary>
+public sealed record PullRequestSummary(
+    int Id, string Title, string Author, string SourceBranch, string TargetBranch, bool IsDraft, DateTimeOffset CreatedAt, Uri Url);
+
 public enum PullRequestStatus
 {
     Active,
@@ -153,6 +157,9 @@ public interface IPullRequestService
 
     /// <summary>Replies in a thread; the text is prefixed with <see cref="PullRequestComment.AgentdMarker"/>.</summary>
     Task ReplyAsync(Repository repository, int pullRequestId, int threadId, string text, CancellationToken cancellationToken);
+
+    /// <summary>The repository's active PRs, newest first, at most <paramref name="top"/>.</summary>
+    Task<IReadOnlyList<PullRequestSummary>> ListActiveAsync(Repository repository, int top, CancellationToken cancellationToken);
 
     /// <summary>The PR, or null when it doesn't exist.</summary>
     Task<PullRequestDetails?> GetAsync(Repository repository, int pullRequestId, CancellationToken cancellationToken);

@@ -97,6 +97,27 @@ public sealed class AzureDevOpsPullRequests(HttpClient http) : IPullRequestServi
         await SendAsync(http, HttpMethod.Post, $"{Base(repository)}/pullrequests/{pullRequestId}/threads/{threadId}/comments?api-version={ApiVersion}", body, "application/json", cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task<IReadOnlyList<PullRequestSummary>> ListActiveAsync(Repository repository, int top, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(repository);
+        var list = await AdoHttp.GetAsync(http, $"{Base(repository)}/pullrequests?searchCriteria.status=active&$top={Math.Clamp(top, 1, 200)}&api-version={ApiVersion}", cancellationToken).ConfigureAwait(false);
+        return [.. (list?["value"]?.AsArray().OfType<JsonNode>() ?? [])
+            .Select(pr => (pr, id: pr["pullRequestId"]?.GetValue<int>() ?? 0))
+            .Where(p => p.id > 0)
+            .Select(p => new PullRequestSummary(
+                p.id,
+                p.pr["title"]?.GetValue<string>() ?? $"PR {p.id}",
+                p.pr["createdBy"]?["displayName"]?.GetValue<string>() ?? "someone",
+                Branch(p.pr["sourceRefName"]),
+                Branch(p.pr["targetRefName"]),
+                p.pr["isDraft"]?.GetValue<bool>() ?? false,
+                p.pr["creationDate"]?.GetValue<DateTimeOffset>() ?? DateTimeOffset.MinValue,
+                Ref(repository, p.id).Url))
+            .OrderByDescending(p => p.CreatedAt)];
+    }
+
+    private static string Branch(JsonNode? name) => (name?.GetValue<string>() ?? string.Empty).Replace("refs/heads/", string.Empty, StringComparison.Ordinal);
+
     public async Task<PullRequestDetails?> GetAsync(Repository repository, int pullRequestId, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(repository);
@@ -115,7 +136,6 @@ public sealed class AzureDevOpsPullRequests(HttpClient http) : IPullRequestServi
             return null;
         }
 
-        static string Branch(JsonNode? name) => (name?.GetValue<string>() ?? string.Empty).Replace("refs/heads/", string.Empty, StringComparison.Ordinal);
         return new PullRequestDetails(
             pullRequestId,
             pr["title"]?.GetValue<string>() ?? $"PR {pullRequestId}",

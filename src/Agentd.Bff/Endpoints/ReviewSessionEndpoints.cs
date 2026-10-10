@@ -24,6 +24,10 @@ public static class ReviewSessionEndpoints
             TypedResults.Ok((await service.ListAsync(AdoConnectEndpoints.Login(user), ct).ConfigureAwait(false)).Select(ReviewSessionVm.From).ToList()))
             .WithName("ListReviews");
 
+        reviews.MapGet("/pull-requests", async ([FromServices] OpenPullRequests open, CancellationToken ct) =>
+            TypedResults.Ok(OpenPullRequestsVm.From(await open.ListAsync(ct).ConfigureAwait(false))))
+            .WithName("ListOpenPullRequests");
+
         reviews.MapGet("/{id:long}", async Task<IResult> (long id, [FromServices] ReviewSessionService service, CancellationToken ct) =>
             await service.GetAsync(id, ct).ConfigureAwait(false) is { } view ? TypedResults.Ok(ReviewSessionDetailVm.From(view)) : TypedResults.NotFound())
             .WithName("GetReview").Produces<ReviewSessionDetailVm>().Produces(StatusCodes.Status404NotFound);
@@ -124,3 +128,19 @@ public sealed record ReviewSentVm(string Destination, string? Text, Uri? Url, in
 
 /// <summary>The pinned change; <c>unifiedDiff</c> is null when it's too big (only the file list).</summary>
 public sealed record ReviewDiffVm(string BaseCommit, string HeadCommit, IReadOnlyList<string> Files, string? UnifiedDiff, bool Truncated);
+
+/// <summary>The registered repositories' active PRs, newest first; <c>failed</c>: repositories that couldn't be read.</summary>
+public sealed record OpenPullRequestsVm(IReadOnlyList<OpenPullRequestVm> Items, IReadOnlyList<RepositoryProblemVm> Failed, DateTimeOffset FetchedAt)
+{
+    internal static OpenPullRequestsVm From(OpenPullRequestList list) => new(
+        [.. list.Items.Select(i => new OpenPullRequestVm(i.Repo, i.PullRequest.Id, i.PullRequest.Title, i.PullRequest.Author, i.PullRequest.SourceBranch,
+            i.PullRequest.TargetBranch, i.PullRequest.IsDraft, i.PullRequest.CreatedAt, i.PullRequest.Url))],
+        [.. list.Failed.Select(f => new RepositoryProblemVm(f.Repo, f.Reason))],
+        list.FetchedAt);
+}
+
+/// <summary>An active PR.</summary>
+public sealed record OpenPullRequestVm(string Repo, int Id, string Title, string Author, string SourceBranch, string TargetBranch, bool IsDraft, DateTimeOffset CreatedAt, Uri Url);
+
+/// <summary>A repository whose PRs couldn't be listed, and why.</summary>
+public sealed record RepositoryProblemVm(string Repo, string Reason);

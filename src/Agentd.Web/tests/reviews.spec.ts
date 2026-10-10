@@ -5,7 +5,7 @@ import { createMemoryHistory, createRouter } from 'vue-router'
 import { setAntiforgeryUrl } from '../ClientApps/shared/api/http'
 import ReviewView from '../ClientApps/dashboard/views/ReviewView.vue'
 import ReviewsView from '../ClientApps/dashboard/views/ReviewsView.vue'
-import { reviewPollMs } from '../ClientApps/dashboard/stores/reviews'
+import { openPrsPollMs, reviewPollMs } from '../ClientApps/dashboard/stores/reviews'
 
 type Call = { method: string; path: string; body: unknown }
 let calls: Call[]
@@ -34,6 +34,13 @@ beforeEach(() => {
     calls.push({ method: req.method, path, body })
     if (path === '/bff/antiforgery') return json({ token: 't' })
     if (path === '/api/config') return json({ repositories: [{ name: 'sysmin', organization: 'o', project: 'p' }] })
+    if (path === '/api/reviews/pull-requests') {
+      const n = calls.filter((c) => c.path === path).length
+      return json({ fetchedAt: '2026-10-10T10:00:00Z', failed: n > 1 ? [] : [{ repo: 'docs', reason: 'Azure DevOps answered 401.' }], items: [
+        { repo: 'sysmin', id: 3944, title: 'Keyset chunks', author: 'Bob', sourceBranch: 'feature/keyset', targetBranch: 'develop', isDraft: true, createdAt: '2026-10-09T10:00:00Z', url: 'https://dev.azure.com/o/p/_git/sysmin/pullrequest/3944' },
+        ...(n > 1 ? [{ repo: 'sysmin', id: 3950, title: 'New one', author: 'Ann', sourceBranch: 'feature/new', targetBranch: 'develop', isDraft: false, createdAt: '2026-10-10T09:00:00Z', url: 'https://dev.azure.com/o/p/_git/sysmin/pullrequest/3950' }] : []),
+      ] })
+    }
     if (path === '/api/reviews' && req.method === 'GET') return json([session])
     if (path === '/api/reviews' && req.method === 'POST') return json({ ...session, id: 9 }, 201)
     if (path === '/api/reviews/7/diff') return json({ baseCommit: 'a1b2c3d4', headCommit: 'f9e8d7c6', files: ['src/Sync.cs'], unifiedDiff: diff, truncated: false })
@@ -80,6 +87,35 @@ describe('reviews', () => {
     expect(calls.find((c) => c.method === 'POST')?.body).toEqual({ repo: 'sysmin', pullRequestId: null, branch: 'feature/keyset', base: 'release/1.2', head: null })
     expect(r.currentRoute.value.fullPath).toBe('/reviews/9')
     expect(view.text()).toContain('feature/keyset')
+  })
+
+  it('lists the open pull requests, keeps them fresh, and reviews one', async () => {
+    vi.useFakeTimers()
+    const r = router()
+    const view = mount(ReviewsView, { global: { plugins: [r] } })
+    await flushPromises()
+
+    const rows = view.findAll('[data-testid=open-pr]')
+    expect(rows).toHaveLength(1)
+    expect(rows[0]!.text()).toContain('!3944')
+    expect(rows[0]!.text()).toContain('Keyset chunks')
+    expect(rows[0]!.text()).toContain('draft')
+    expect(view.get('[data-testid=open-prs]').text()).toContain('docs: Azure DevOps answered 401.')
+
+    await vi.advanceTimersByTimeAsync(openPrsPollMs)
+    await flushPromises()
+    expect(view.findAll('[data-testid=open-pr]')).toHaveLength(2)
+    expect(view.get('[data-testid=open-prs]').text()).not.toContain('docs:')
+
+    await view.findAll('[data-testid=open-pr]')[0]!.findAll('button').find((b) => b.text() === 'Review')!.trigger('click')
+    await flushPromises()
+    expect(calls.find((c) => c.method === 'POST')?.body).toEqual({ repo: 'sysmin', pullRequestId: 3944 })
+    expect(r.currentRoute.value.fullPath).toBe('/reviews/9')
+
+    view.unmount()
+    const before = calls.filter((c) => c.path === '/api/reviews/pull-requests').length
+    await vi.advanceTimersByTimeAsync(openPrsPollMs * 2)
+    expect(calls.filter((c) => c.path === '/api/reviews/pull-requests')).toHaveLength(before)
   })
 
   it('shows findings at their line in the diff and keeps, edits and drops them', async () => {

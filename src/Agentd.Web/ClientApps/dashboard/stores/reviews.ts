@@ -1,11 +1,14 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { get, send } from '../../shared/api/http'
-import type { ReviewComment, ReviewDetail, ReviewDiff, ReviewSent, ReviewSession } from '../../shared/api/types'
+import type { OpenPullRequests, ReviewComment, ReviewDetail, ReviewDiff, ReviewSent, ReviewSession } from '../../shared/api/types'
 import { parseDiff, type DiffFile } from '../../shared/utils/diff'
 
 /** While the reviewer works, the page checks the session this often (docs/architect/review-sessions.md §2). */
 export const reviewPollMs = 3000
+
+/** The Reviews page re-reads the open PRs this often while it's shown (the server keeps each list a minute). */
+export const openPrsPollMs = 60_000
 
 /** What to review: a PR, a branch (against its base or a chosen one), or two commits. */
 export interface StartReview { repo: string; pullRequestId?: number | null; branch?: string | null; base?: string | null; head?: string | null }
@@ -17,6 +20,32 @@ export const useReviewsStore = defineStore('reviews', () => {
   const diff = ref<ReviewDiff | null>(null)
   const files = ref<DiffFile[]>([])
   let timer: ReturnType<typeof setTimeout> | undefined
+  const openPrs = ref<OpenPullRequests | null>(null)
+  const openPrsError = ref<string | null>(null)
+  let openPrsTimer: ReturnType<typeof setInterval> | undefined
+
+  async function loadOpenPrs(): Promise<void> {
+    try {
+      openPrs.value = await get<OpenPullRequests>('/api/reviews/pull-requests')
+      openPrsError.value = null
+    } catch {
+      openPrsError.value = 'Couldn\'t load the open pull requests.'
+    }
+  }
+
+  /** Loads the open PRs now and keeps them fresh until stopOpenPrs (skipping while the tab is hidden). */
+  function watchOpenPrs(): void {
+    stopOpenPrs()
+    void loadOpenPrs()
+    openPrsTimer = setInterval(() => {
+      if (document.visibilityState !== 'hidden') void loadOpenPrs()
+    }, openPrsPollMs)
+  }
+
+  function stopOpenPrs(): void {
+    clearInterval(openPrsTimer)
+    openPrsTimer = undefined
+  }
 
   async function loadMine(): Promise<void> {
     mine.value = await get<ReviewSession[]>('/api/reviews')
@@ -101,5 +130,5 @@ export const useReviewsStore = defineStore('reviews', () => {
     await refresh()
   }
 
-  return { mine, current, diff, files, loadMine, start, open, close, decide, comment, ask, removeComment, sendTo }
+  return { mine, current, diff, files, openPrs, openPrsError, loadMine, loadOpenPrs, watchOpenPrs, stopOpenPrs, start, open, close, decide, comment, ask, removeComment, sendTo }
 })
