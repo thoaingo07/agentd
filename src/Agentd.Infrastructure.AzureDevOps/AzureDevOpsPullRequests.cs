@@ -82,7 +82,8 @@ public sealed class AzureDevOpsPullRequests(HttpClient http) : IPullRequestServi
                     context?["filePath"]?.GetValue<string>(),
                     line,
                     thread["status"]?.GetValue<string>() ?? "active",
-                    comment["publishedDate"] is { } at ? DateTimeOffset.Parse(at.GetValue<string>(), CultureInfo.InvariantCulture) : DateTimeOffset.MinValue));
+                    comment["publishedDate"] is { } at ? DateTimeOffset.Parse(at.GetValue<string>(), CultureInfo.InvariantCulture) : DateTimeOffset.MinValue,
+                    comment["author"]?["uniqueName"]?.GetValue<string>()));
             }
         }
 
@@ -126,7 +127,8 @@ public sealed class AzureDevOpsPullRequests(HttpClient http) : IPullRequestServi
             pr["status"]?.GetValue<string>() switch { "completed" => PullRequestStatus.Completed, "abandoned" => PullRequestStatus.Abandoned, _ => PullRequestStatus.Active },
             pr["isDraft"]?.GetValue<bool>() ?? false,
             Ref(repository, pullRequestId).Url,
-            await LinkedWorkItemsAsync(repository, pullRequestId, cancellationToken).ConfigureAwait(false));
+            await LinkedWorkItemsAsync(repository, pullRequestId, cancellationToken).ConfigureAwait(false),
+            pr["mergeStatus"]?.GetValue<string>());
     }
 
     /// <summary>The PR's linked work items; best effort (a review works without them).</summary>

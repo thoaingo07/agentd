@@ -30,7 +30,7 @@ public sealed class PullRequestReviewTests
             { "value": [
               { "id": 10, "status": "active", "threadContext": { "filePath": "/AGENTS.md", "rightFileStart": { "line": 42 } },
                 "comments": [
-                  { "id": 1, "commentType": "text", "content": "Please mention the 02:00 CronJob.", "author": { "displayName": "Reviewer" }, "publishedDate": "2026-10-03T18:00:00Z" },
+                  { "id": 1, "commentType": "text", "content": "Please mention the 02:00 CronJob.", "author": { "displayName": "Reviewer", "uniqueName": "reviewer@example.com" }, "publishedDate": "2026-10-03T18:00:00Z" },
                   { "id": 2, "commentType": "text", "content": "🤖 agentd: Addressed in 7294aa4.", "author": { "displayName": "Thoai Ngo" }, "publishedDate": "2026-10-03T18:05:00Z" } ] },
               { "id": 11, "status": "fixed",
                 "comments": [ { "id": 3, "commentType": "text", "content": "Typo in the title", "author": { "displayName": "Reviewer" }, "publishedDate": "2026-10-03T17:00:00Z" } ] },
@@ -47,6 +47,7 @@ public sealed class PullRequestReviewTests
         Assert.AreEqual((11, "Typo in the title", false), (comments[0].ThreadId, comments[0].Content, comments[0].IsOpen), "oldest first; a fixed thread is closed");
         var open = comments[1];
         Assert.AreEqual((10, 1, "Reviewer", "/AGENTS.md", (int?)42, true), (open.ThreadId, open.CommentId, open.Author, open.FilePath, open.Line, open.IsOpen));
+        Assert.AreEqual("reviewer@example.com", open.AuthorUniqueName, "to tell people agentd knows");
     }
 
     [TestMethod]
@@ -68,7 +69,7 @@ public sealed class PullRequestReviewTests
             .On(HttpMethod.Get, PrPath, HttpStatusCode.OK, """
                 { "pullRequestId": 3935, "title": "Health checks", "description": "Adds /health", "status": "active", "isDraft": true,
                   "createdBy": { "displayName": "Dev One" }, "sourceRefName": "refs/heads/feature/health", "targetRefName": "refs/heads/develop",
-                  "lastMergeSourceCommit": { "commitId": "4c1e1a7b2d" } }
+                  "lastMergeSourceCommit": { "commitId": "4c1e1a7b2d" }, "mergeStatus": "conflicts" }
                 """)
             .On(HttpMethod.Get, "/ermsystem/Portal/_apis/git/repositories/sysmin/pullrequests/9", HttpStatusCode.NotFound, "{}")
             .On(HttpMethod.Get, PrPath + "/workitems", HttpStatusCode.OK, """{ "value": [ { "id": "5617" }, { "id": "5618" } ] }""");
@@ -79,6 +80,7 @@ public sealed class PullRequestReviewTests
         Assert.AreEqual(("Health checks", "Dev One", "feature/health", "develop", "4c1e1a7b2d", true), (pr.Title, pr.Author, pr.SourceBranch, pr.TargetBranch, pr.SourceCommit, pr.IsDraft));
         StringAssert.EndsWith(pr.Url.ToString(), "/ermsystem/Portal/_git/sysmin/pullrequest/3935");
         CollectionAssert.AreEqual(new[] { 5617, 5618 }, pr.WorkItems!.ToArray(), "the linked work items");
+        Assert.AreEqual("conflicts", pr.MergeStatus);
         Assert.IsNull(await prs.GetAsync(s_repo, 9, default));
     }
 
