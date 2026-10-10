@@ -66,6 +66,15 @@ public interface IWorktreeManager
     /// <summary>Where two commits' histories meet (what a branch is compared with); null when they share none.</summary>
     Task<string?> MergeBaseAsync(Repository repository, string first, string second, CancellationToken cancellationToken);
 
+    /// <summary>Commits everything changed in the checkout at <paramref name="path"/> as agentd; null when nothing changed.</summary>
+    Task<string?> CommitAllAsync(string path, string message, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Pushes the checkout's HEAD to <paramref name="branch"/> on origin. Never forced: when the branch moved on since the
+    /// checkout, the push is refused (and throws), so nobody's newer commits are overwritten.
+    /// </summary>
+    Task PushHeadAsync(string path, string branch, CancellationToken cancellationToken);
+
     /// <summary>What changes from <paramref name="baseCommit"/> to <paramref name="headCommit"/> in the managed clone; over <paramref name="maxBytes"/>, only the file list.</summary>
     Task<BranchDiff> DiffCommitsAsync(Repository repository, string baseCommit, string headCommit, int maxBytes, CancellationToken cancellationToken);
 }

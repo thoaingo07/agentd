@@ -40,7 +40,7 @@ beforeEach(() => {
     if (path === '/api/reviews/7') return json({ session, comments, asks })
     if (path === '/api/reviews/7/send') {
       const destination = (body as { destination: string }).destination
-      session = { ...session, status: 'Sent', sentTo: destination === 'pr' ? 'pr:3944' : 'text' }
+      session = { ...session, status: 'Sent', sentTo: destination === 'pr' ? 'pr:3944' : destination === 'fix' ? 'fix:running' : 'text' }
       return json(destination === 'pr'
         ? { destination, text: null, url: 'https://dev.azure.com/o/p/_git/sysmin/pullrequest/3944', posted: 3, asPerson: true }
         : { destination, text: '# Review findings (agentd review)\n1. 🔴 **Unbounded read**', url: null, posted: 0, asPerson: false })
@@ -177,5 +177,23 @@ describe('reviews', () => {
     const local = mount(ReviewView, { props: { id: 7, local: true }, global: { plugins: [router()] } })
     await flushPromises()
     expect(local.find('[data-testid=send]').exists()).toBe(false)
+  })
+
+  it('fixes on the branch after you confirm, and links round 2 when it is pushed', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('confirm', vi.fn(() => true))
+    const view = mount(ReviewView, { props: { id: 7 }, global: { plugins: [router()] } })
+    await flushPromises()
+
+    await view.get('[data-testid=send]').findAll('button').find((b) => b.text() === 'Fix it (push to feature/keyset)')!.trigger('click')
+    await flushPromises()
+    expect(calls.find((c) => c.path === '/api/reviews/7/send')?.body).toEqual({ destination: 'fix' })
+    expect(view.get('[data-testid=fix]').text()).toContain('Fixing on feature/keyset')
+
+    session = { ...session, sentTo: 'fix:9:c0ffee1' }
+    await vi.advanceTimersByTimeAsync(reviewPollMs + 1)
+    await flushPromises()
+    expect(view.get('[data-testid=fix]').text()).toContain('Pushed c0ffee1 to feature/keyset')
+    expect(view.get('[data-testid=fix] a').text()).toBe('Round 2: review #9')
   })
 })

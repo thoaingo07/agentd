@@ -273,6 +273,36 @@ public sealed partial class GitWorktreeManager(GitCli git, IOptions<GitOptions> 
         }, cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task<string?> CommitAllAsync(string path, string message, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        await git.RunAsync(path, ["add", "--all"], cancellationToken).ConfigureAwait(false);
+        var staged = await git.RunAsync(path, ["diff", "--cached", "--quiet"], cancellationToken, throwOnError: false).ConfigureAwait(false);
+        if (staged.ExitCode == 0)
+        {
+            return null;   // nothing changed
+        }
+
+        await git.RunAsync(path, ["commit", "--no-verify", "-m", message], cancellationToken).ConfigureAwait(false);
+        return (await git.RunAsync(path, ["rev-parse", "HEAD"], cancellationToken).ConfigureAwait(false)).StandardOutput;
+    }
+
+    public async Task PushHeadAsync(string path, string branch, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        var name = (branch ?? string.Empty).Trim().Replace("refs/heads/", string.Empty, StringComparison.Ordinal);
+        var valid = await git.RunAsync(path, ["check-ref-format", "--branch", name], cancellationToken, throwOnError: false).ConfigureAwait(false);
+        if (name.Length == 0 || name.StartsWith('-') || valid.ExitCode != 0)
+        {
+            throw new GitException($"'{branch}' isn't a branch name.");
+        }
+
+        await git.RunAsync(path, BuildPushHeadArgs(name), cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>HEAD onto an existing branch. Deliberately no force: a branch that moved on refuses it.</summary>
+    internal static IReadOnlyList<string> BuildPushHeadArgs(string branch) => ["push", "origin", $"HEAD:refs/heads/{branch}"];
+
     /// <summary>Push arguments. There is deliberately no way to request a force push.</summary>
     internal static IReadOnlyList<string> BuildPushArgs(BranchName branch) => ["push", "--set-upstream", "origin", branch.Value];
 

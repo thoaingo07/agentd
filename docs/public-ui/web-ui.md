@@ -77,9 +77,14 @@ The review page:
 - **Post to the PR** (a PR's review): one thread per finding at its line, one per comment, and a main message with
   the list. It's under **your name** when you've connected your Azure DevOps (Settings → Your Azure DevOps),
   otherwise agentd's.
+- **Fix it (push to `<branch>`)** (a PR's or a branch's review): after you confirm, an agent fixes what you kept on
+  the reviewed commit, and agentd commits (as agentd) and **pushes to that same branch**: the PR picks it up. Then it
+  reviews the new head, and the page links **round 2**, where you can keep fixing. The push is never forced: if
+  someone pushed to the branch meanwhile, it's refused and the page says to review again. On a PR, a short note says
+  what was fixed (under your name when you've connected your Azure DevOps).
 - **Copy as text**: the same list as text, e.g. for an agent or a message.
 
-**My reviews** lists the ones you started. "Fix it" (an agent fixes the branch) comes next.
+**My reviews** lists the ones you started.
 
 ## Settings
 

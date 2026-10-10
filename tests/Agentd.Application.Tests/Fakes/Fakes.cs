@@ -310,6 +310,32 @@ internal sealed class FakeWorktrees : IWorktreeManager
 
     public List<(string Base, string Head)> CommitDiffs { get; } = [];
 
+    public List<(string Path, string Message)> CommittedAll { get; } = [];
+
+    public List<(string Path, string Branch)> PushedHeads { get; } = [];
+
+    /// <summary>What CommitAllAsync answers (null: nothing changed).</summary>
+    public string? NextCommit { get; set; } = "c0ffee1";
+
+    public Exception? PushFailure { get; set; }
+
+    public Task<string?> CommitAllAsync(string path, string message, CancellationToken cancellationToken)
+    {
+        CommittedAll.Add((path, message));
+        return Task.FromResult(NextCommit);
+    }
+
+    public Task PushHeadAsync(string path, string branch, CancellationToken cancellationToken)
+    {
+        if (PushFailure is { } failure)
+        {
+            throw failure;
+        }
+
+        PushedHeads.Add((path, branch));
+        return Task.CompletedTask;
+    }
+
     public Task<string?> ResolveCommitAsync(Repository repository, string reference, CancellationToken cancellationToken) =>
         Task.FromResult(Commits.TryGetValue(reference, out var c) ? c : null);
 

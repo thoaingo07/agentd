@@ -72,6 +72,14 @@ public sealed class ClaudeBrainstormAgent(IOptions<ClaudeOptions> options) : IBr
         "why, naming files and lines (`path:line`). Never edit, build, commit or push. If you can't tell from the code, say so. Keep it " +
         "short (under ~200 words) unless asked for detail, in the developer's language.";
 
+    /// <summary>Instructions for Fix it (<see cref="ThreadTurnKind.ReviewFix"/>): the only thread turn that may edit files.</summary>
+    public const string ReviewFixRules =
+        "You are agentd's fixer for a code review. Your working directory is a checkout of the pull request's branch at the reviewed " +
+        "commit. Fix the review findings and comments in the prompt: change only what they need, in the code's own style, and keep " +
+        "everything else as it is. Read the code around each place first. Never commit, push, switch branches or run agentd: agentd " +
+        "commits your edits, pushes them to the branch and reviews them again. If a finding is wrong or can't be fixed safely, leave " +
+        "the code and say why. End with a short list of what you changed, one line per finding.";
+
     /// <summary>Instructions for a <c>!chat</c> turn (<see cref="ThreadTurnKind.Chat"/>).</summary>
     public const string ChatRules =
         "You are agentd's assistant in a chat thread, answering a developer's questions about the team's repositories. Your working " +
@@ -96,12 +104,14 @@ public sealed class ClaudeBrainstormAgent(IOptions<ClaudeOptions> options) : IBr
             turn.Resume ? "--resume" : "--session-id", turn.Session.ToString(),
             "--output-format", "stream-json", "--verbose",
             "--max-turns", MaxTurns.ToString(CultureInfo.InvariantCulture),
-            "--append-system-prompt", turn.Kind switch { ThreadTurnKind.Review or ThreadTurnKind.ReviewSession => ReviewRules, ThreadTurnKind.ReviewAsk => ReviewAskRules, ThreadTurnKind.FollowUp => FollowUpRules, ThreadTurnKind.Chat => ChatRules, _ => Rules },
+            "--append-system-prompt", turn.Kind switch { ThreadTurnKind.Review or ThreadTurnKind.ReviewSession => ReviewRules, ThreadTurnKind.ReviewAsk => ReviewAskRules, ThreadTurnKind.ReviewFix => ReviewFixRules, ThreadTurnKind.FollowUp => FollowUpRules, ThreadTurnKind.Chat => ChatRules, _ => Rules },
             "--strict-mcp-config",
             // agentd's tools only for a turn that brings its own token (a chat); the rest run with no MCP at all.
-            "--allowedTools", string.Join(",", o.ReadOnlyTools.Where(t => turn.McpToken is not null || !t.StartsWith("mcp__", StringComparison.Ordinal))),
-            "--disallowedTools", "Edit,Write,MultiEdit,NotebookEdit",
+            "--allowedTools", string.Join(",", o.ReadOnlyTools.Where(t => turn.McpToken is not null || !t.StartsWith("mcp__", StringComparison.Ordinal))
+                .Concat(turn.Kind == ThreadTurnKind.ReviewFix ? ["Edit", "Write", "MultiEdit"] : [])),
         };
+        // Every thread turn is read-only except Fix it, which edits its own checkout (agentd commits and pushes, never the agent).
+        args.AddRange(turn.Kind == ThreadTurnKind.ReviewFix ? ["--permission-mode", "acceptEdits"] : ["--disallowedTools", "Edit,Write,MultiEdit,NotebookEdit"]);
         if ((turn.Model ?? o.Model) is { Length: > 0 } model)
         {
             args.AddRange(["--model", model]);
@@ -130,7 +140,7 @@ public sealed class ClaudeBrainstormAgent(IOptions<ClaudeOptions> options) : IBr
     {
         ArgumentNullException.ThrowIfNull(turn);
         var o = options.Value;
-        var dir = Path.Combine(Paths.Expand(o.TranscriptRoot), $"{turn.Kind switch { ThreadTurnKind.Review => "review", ThreadTurnKind.ReviewSession => "review-session", ThreadTurnKind.ReviewAsk => "review-ask", ThreadTurnKind.FollowUp => "followup", ThreadTurnKind.Chat => "chat", _ => "idea" }}-{turn.IdeaId}");
+        var dir = Path.Combine(Paths.Expand(o.TranscriptRoot), $"{turn.Kind switch { ThreadTurnKind.Review => "review", ThreadTurnKind.ReviewSession => "review-session", ThreadTurnKind.ReviewAsk => "review-ask", ThreadTurnKind.ReviewFix => "review-fix", ThreadTurnKind.FollowUp => "followup", ThreadTurnKind.Chat => "chat", _ => "idea" }}-{turn.IdeaId}");
         Directory.CreateDirectory(dir);
         var psi = new ProcessStartInfo(o.Binary)
         {
