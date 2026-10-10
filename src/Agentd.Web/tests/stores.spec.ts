@@ -107,6 +107,25 @@ describe('connection store', () => {
   })
 })
 
+describe('shared streams', () => {
+  it('a stream shared by two consumers replays from the earlier seq and stays until the last one leaves', async () => {
+    respond({ '/api/jobs/7/events': { events: [ev(10)], oldestSeq: 10, newestSeq: 10, hasMore: false } })
+    const connection = useConnectionStore()
+    await connection.start()
+    await connection.subscribe('7', 4)   // the work item's timeline, behind
+    await useEventsStore().open(7)       // the run's transcript, at 10: no new subscription needed
+    expect(hub.subscribed).toEqual([['7', 4]])
+
+    useEventsStore().close(7)
+    expect(hub.unsubscribe).not.toHaveBeenCalled()
+    await useEventsStore().open(7)       // back to the run within the keep window: counted again
+    useEventsStore().close(7)
+    await connection.unsubscribe('7')
+    expect(hub.unsubscribe).toHaveBeenCalledTimes(1)
+    expect(connection.subscriptions.has('7')).toBe(false)
+  })
+})
+
 describe('jobs store', () => {
   it('sorts waiting jobs first, then by start time', async () => {
     respond({ '/api/dashboard': { stats: {}, latestSeq: 5, activeJobs: [job(1, 'Running', '2026-10-04T09:00:00Z'), job(2, 'WaitingForHuman'), job(3, 'Running', '2026-10-04T08:00:00Z')] } })

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Every lifecycle step and message, one section per job. Agent output lives in the Activity tab.
+// Every lifecycle step and message, one section per job. The agent's output is in the run's Transcript.
 import { computed } from 'vue'
 import type { AgentEvent, JobState, JobSummary } from '../../../shared/api/types'
 import { AgStateBadge } from '../../../shared/components/ui'
@@ -26,7 +26,8 @@ const groups = computed(() => sections(props.jobs, props.events).map((s) => ({ .
         {{ g.label }}
         <AgStateBadge :state="g.job.state as JobState" />
         <RouterLink
-          :to="{ name: 'job', params: { id: g.job.id } }"
+          :to="{ name: 'work-item', params: { id: g.job.workItemId }, query: { run: String(g.job.id) } }"
+          title="Show this run's transcript"
           class="link text-xs font-normal text-muted"
         >
           job #{{ g.job.id }} · {{ clock(g.job.startedAt) }}

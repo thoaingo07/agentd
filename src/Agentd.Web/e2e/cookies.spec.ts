@@ -5,7 +5,7 @@ test('no cookie is readable from JavaScript, and every agentd cookie is HttpOnly
   await page.goto(`/jobs/${job}`)
   await page.getByRole('button', { name: 'Cancel' }).click()
   await page.getByRole('button', { name: 'Cancel job' }).click()   // an unsafe request: the antiforgery cookie is set by now
-  await expect(page.locator('header').getByText('Cancelled')).toBeVisible()
+  await expect(page.locator('header').getByText('Cancelled', { exact: true })).toBeVisible()
 
   expect(await page.evaluate(() => document.cookie)).toBe('')
   const cookies = await context.cookies()

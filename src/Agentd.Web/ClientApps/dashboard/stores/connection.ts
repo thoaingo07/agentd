@@ -15,11 +15,14 @@ export const restartDelaysMs = [1000, 2000, 5000, 10000, 30000]
 /**
  * The live connection. Each stream ("all" or a job id) remembers the last seq it delivered; after a
  * reconnect every stream resubscribes from there, and the hub replays what was missed. Consumers
- * deduplicate against their own high-water marks; there is no global dedupe.
+ * deduplicate against their own high-water marks; there is no global dedupe. Several consumers can share a stream (the
+ * work item page's timeline and its run's transcript): it's counted, replayed from the earliest seq any of them needs,
+ * and only unsubscribed when the last one leaves.
  */
 export const useConnectionStore = defineStore('connection', () => {
   const status = ref<ConnectionStatus>('offline')
   const subscriptions = reactive(new Map<string, number>())
+  const holders = new Map<string, number>()
   let connection: EventConnection | null = null
   let restarts = 0
 
@@ -70,11 +73,22 @@ export const useConnectionStore = defineStore('connection', () => {
   }
 
   async function subscribe(stream: string, afterSeq: number): Promise<void> {
-    subscriptions.set(stream, Math.max(subscriptions.get(stream) ?? 0, afterSeq))
+    const held = holders.get(stream) ?? 0
+    holders.set(stream, held + 1)
+    const current = subscriptions.get(stream)
+    if (held > 0 && current !== undefined && current <= afterSeq) return   // already streaming from early enough
+    subscriptions.set(stream, held > 0 && current !== undefined ? Math.min(current, afterSeq) : afterSeq)
     if (status.value === 'live') await connection!.subscribe(stream, subscriptions.get(stream)!)
   }
 
   async function unsubscribe(stream: string): Promise<void> {
+    const held = (holders.get(stream) ?? 1) - 1
+    if (held > 0) {
+      holders.set(stream, held)
+      return
+    }
+
+    holders.delete(stream)
     subscriptions.delete(stream)
     if (status.value === 'live') await connection!.unsubscribe(stream)
   }

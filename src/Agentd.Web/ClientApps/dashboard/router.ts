@@ -5,7 +5,7 @@ export const router = createRouter({
   history: createWebHistory(),
   routes: [
     { path: '/', name: 'dashboard', component: DashboardView },
-    { path: '/jobs/:id(\\d+)', name: 'job', component: () => import('./views/SessionView.vue'), props: (r) => ({ id: Number(r.params.id) }) },
+    { path: '/jobs/:id(\\d+)', name: 'job', component: () => import('./views/JobView.vue'), props: (r) => ({ id: Number(r.params.id) }) },
     { path: '/workitems/:id(\\d+)', name: 'work-item', component: () => import('./views/WorkItemView.vue'), props: (r) => ({ id: Number(r.params.id) }) },
     { path: '/history', name: 'history', component: () => import('./views/HistoryView.vue') },
     { path: '/ideas', name: 'ideas', component: () => import('./views/IdeasView.vue') },

@@ -16,7 +16,7 @@ const job = (id: number, state = 'Done', handoff = 'None'): JobSummary => ({
   elapsedSeconds: 600, prUrl: null, waitingSince: null, planStatus: 'Approved', handoff, fixRounds: 0, lastError: null, completedAt: null, pendingPermissions: 0,
 })
 const ev = (seq: number, jobId: number, type: string, payload: object = {}): AgentEvent => ({ seq, jobId, ts: '2026-10-03T16:00:00Z', type, payload })
-const router = () => createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component: { template: '<div />' } }, { path: '/jobs/:id', name: 'job', component: { template: '<div />' } }] })
+const router = () => createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component: { template: '<div />' } }, { path: '/jobs/:id', name: 'job', component: { template: '<div />' } }, { path: '/workitems/:id', name: 'work-item', component: { template: '<div />' } }] })
 
 beforeEach(() => setActivePinia(createPinia()))
 afterEach(() => vi.unstubAllGlobals())

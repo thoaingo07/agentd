@@ -17,7 +17,7 @@ These run without asking:
 
 Add your own with `Claude:AllowedTools` ([Configuration](configuration.md)).
 
-Anything else becomes a **permission request** in the job's thread and on the web UI's session page:
+Anything else becomes a **permission request** in the job's thread and on the web UI's work item page:
 
 > Reply **1** allow once · **2** allow for this job · **3** always allow in `<repo>` · **4** deny
 

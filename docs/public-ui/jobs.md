@@ -34,7 +34,7 @@ agentd claims the work item by adding **`ai-in-progress`**, so it's never picked
    - **Risks and questions.**
 
    The implementer follows it step by step. If a step can't work as written, it asks you instead of improvising.
-   **Each step says what it runs on** when it starts, in the thread and on the session page:
+   **Each step says what it runs on** when it starts, in the thread and on the work item page:
    ```text
    📝 Plan · Claude · claude-opus-5-5 · effort high
    🔨 Implement · deepseek · deepseek-flash

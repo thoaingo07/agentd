@@ -26,7 +26,9 @@ export const useEventsStore = defineStore('events', () => {
     closing.delete(jobId)
     const existing = windows.get(jobId)
     if (existing) {
+      // Kept since it was closed (switching runs, coming back): stream again from where it stopped.
       existing.lastViewedAt = Date.now()
+      await useConnectionStore().subscribe(String(jobId), existing.newestSeq ?? 0)
       return
     }
 

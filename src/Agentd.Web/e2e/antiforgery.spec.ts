@@ -9,7 +9,7 @@ test('an unsafe request without the antiforgery token is refused', async ({ requ
   expect(((await res.json()) as { code?: string }).code).toBe('antiforgery_invalid')
 })
 
-test('the UI sends the token: cancelling from the session page works', async ({ page, request }) => {
+test('the UI sends the token: cancelling from the work item page works', async ({ page, request }) => {
   const job = await seed.job(request)
   await page.goto(`/jobs/${job}`)
 
@@ -21,7 +21,7 @@ test('the UI sends the token: cancelling from the session page works', async ({ 
 
   expect(cancel.headers()['x-xsrf-token']).toBeTruthy()
   expect((await cancel.response())?.status()).toBe(204)
-  await expect(page.locator('header').getByText('Cancelled')).toBeVisible()
+  await expect(page.locator('header').getByText('Cancelled', { exact: true })).toBeVisible()
 })
 
 test('a permission request is answered from the banner', async ({ page, request }) => {
