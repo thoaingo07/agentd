@@ -328,6 +328,22 @@ internal sealed class FakeWorktrees : IWorktreeManager
         return Task.CompletedTask;
     }
 
+    /// <summary>What MergeAsync answers (conflicted files), and what ConflictMarkersAsync finds afterwards.</summary>
+    public List<string> MergeConflicts { get; } = [];
+
+    public List<string> LeftMarkers { get; } = [];
+
+    public List<(string Path, string Reference)> Merged { get; } = [];
+
+    public Task<IReadOnlyList<string>> MergeAsync(string path, string reference, CancellationToken cancellationToken)
+    {
+        Merged.Add((path, reference));
+        return Task.FromResult<IReadOnlyList<string>>([.. MergeConflicts]);
+    }
+
+    public Task<IReadOnlyList<string>> ConflictMarkersAsync(string path, IReadOnlyList<string> files, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<string>>([.. LeftMarkers.Where(files.Contains)]);
+
     public Task<string?> CommitAllAsync(string path, string message, CancellationToken cancellationToken)
     {
         CommittedAll.Add((path, message));

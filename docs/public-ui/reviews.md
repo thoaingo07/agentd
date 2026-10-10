@@ -157,5 +157,13 @@ agentd **never votes or approves**.
 agentd opens a 👀 thread for the PR. It watches for **failed PR builds**, **merge conflicts** and **new comments**
 from people it knows (comments already on the PR when you start don't count). For each, it prepares a fix and asks
 in that thread before pushing anything: **1** push · **2** discard. Say **unwatch** in the thread to stop; a completed
-or abandoned PR stops by itself. (The monitor's fixes are being built: today watching opens the thread and records
-the PR.)
+or abandoned PR stops by itself.
+
+How a fix round goes:
+- agentd waits until nothing new happened for **5 minutes**, so one review pass is one round, and prepares at most
+  **5 rounds** per PR (then it asks you to take over).
+- It fixes a copy of the PR's latest commit. For conflicts it first **merges** the target branch in (never a rebase).
+- The thread shows what changed and asks. **1** pushes to the PR's branch, never forced: if someone pushed meanwhile,
+  the push is refused and the next change starts a new round. agentd then answers "Fixed in `abc1234`" on the comments
+  it addressed, marks them fixed, and leaves a short note on the PR saying who approved it. **2** throws the fix away.
+- A fix nobody answers is thrown away after **24 hours**.

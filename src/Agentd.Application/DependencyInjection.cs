@@ -53,6 +53,8 @@ public static class DependencyInjection
         services.AddSingleton<Reviews.ReviewSessionFixer>();
         services.AddSingleton<Reviews.ReviewSessionSend>();
         services.AddSingleton<Monitor.PrWatchService>();
+        services.AddSingleton<Monitor.PrFixRounds>();
+        services.AddSingleton<Monitor.IPrFixRounds>(sp => sp.GetRequiredService<Monitor.PrFixRounds>());
         services.AddSingleton<Monitor.PrMonitor>();
         services.AddSingleton<Chats.ChatService>();
         services.AddSingleton<AzureDevOps.AdoConnections>();

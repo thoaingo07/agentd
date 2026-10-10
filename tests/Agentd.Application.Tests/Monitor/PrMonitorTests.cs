@@ -22,7 +22,7 @@ public sealed class PrMonitorTests
 
     public PrMonitorTests()
     {
-        _rounds = new Rounds(_watches);
+        _rounds = new Rounds(_watches, _t.Clock);
         _t.Chats.Add(_chat);
         _t.Messaging.Providers["discord"] = new MessagingProviderSettings { Enabled = true };
         _t.PullRequests.Details[3944] = new PullRequestDetails(3944, "Deploy", null, "Dev", "feature/x", "develop", "h1", PullRequestStatus.Active, false, new Uri("https://x/pr/3944"));
@@ -49,6 +49,7 @@ public sealed class PrMonitorTests
 
         await Monitor().PassAsync(default);
         Assert.HasCount(1, _rounds.Requests, "nothing new while it waits for an answer, and the same build isn't handled twice");
+        Assert.IsEmpty(_rounds.Discarded);
     }
 
     [TestMethod]
@@ -108,6 +109,42 @@ public sealed class PrMonitorTests
         Assert.IsFalse(_watches.All.Single().Active);
     }
 
+    [TestMethod]
+    public async Task A_round_being_prepared_is_left_alone_and_an_unanswered_one_is_discarded_after_a_day()
+    {
+        _search.Latest = Build(901, "failed");
+        await Monitor().PassAsync(default);
+        _t.Clock.UtcNow += PrMonitor.Quiet;
+        await Monitor().PassAsync(default);
+        var pending = _watches.All.Single().Pending!;
+
+        _rounds.Busy = true;
+        _t.Clock.UtcNow = pending.ExpiresAt;
+        await Monitor().PassAsync(default);
+        Assert.IsEmpty(_rounds.Discarded, "never while a round prepares");
+
+        _rounds.Busy = false;
+        await Monitor().PassAsync(default);
+        Assert.AreEqual("nobody answered in 24 hours", _rounds.Discarded.Single());
+        Assert.IsNull(_watches.All.Single().Pending);
+        Assert.HasCount(1, _rounds.Requests);
+    }
+
+    [TestMethod]
+    public async Task A_pr_completed_while_a_fix_waits_discards_it_and_stops()
+    {
+        _search.Latest = Build(901, "failed");
+        await Monitor().PassAsync(default);
+        _t.Clock.UtcNow += PrMonitor.Quiet;
+        await Monitor().PassAsync(default);
+        _t.PullRequests.Details[3944] = _t.PullRequests.Details[3944] with { Status = PullRequestStatus.Completed };
+
+        await Monitor().PassAsync(default);
+
+        Assert.AreEqual("the PR is completed", _rounds.Discarded.Single());
+        Assert.IsFalse(_watches.All.Single().Active);
+    }
+
     private static PullRequestComment Comment(int id, string author, string status) =>
         new(7, id, author, $"comment {id}", "src/A.cs", 3, status, DateTimeOffset.UnixEpoch, author);
 
@@ -116,16 +153,32 @@ public sealed class PrMonitorTests
     private PrMonitor Monitor() => new(_watches, _t.Registry, _t.PullRequests, _search, _connections,
         new MessagingProviderRegistry(_t.Chats, Options.Create(_t.Messaging)), _t.Clock, _rounds);
 
-    private sealed class Rounds(MemoryWatches watches) : IPrFixRounds
+    private sealed class Rounds(MemoryWatches watches, Fakes.FakeClock clock) : IPrFixRounds
     {
         public List<PrFixRequest> Requests { get; } = [];
 
-        public async Task<bool> PrepareAsync(PrFixRequest request, CancellationToken cancellationToken)
+        public List<string> Discarded { get; } = [];
+
+        public bool Busy { get; set; }
+
+        public bool IsBusy(long watchId) => Busy;
+
+        /// <summary>Prepares at once: the pending fix expires a day later.</summary>
+        public Task Start(PrFixRequest request)
         {
             Requests.Add(request);
-            var w = request.Watch;
-            await watches.UpdateAsync(w.Id, w.FixRounds, w.SeenComments, w.LastBuildId, null, new PendingFix("/wt/x", "c0ffee1", "fixed", [], DateTimeOffset.MaxValue), cancellationToken);
-            return true;
+            var w = watches.GetAsync(request.Watch.Id, default).GetAwaiter().GetResult()!;
+            return watches.UpdateAsync(w.Id, w.FixRounds, w.SeenComments, w.LastBuildId, null,
+                new PendingFix("/wt/x", "c0ffee1", "fixed", [], clock.UtcNow + PrFixRounds.Expiry), default);
+        }
+
+        public Task<string> PushAsync(PrWatch watch, string by, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public async Task<string> DiscardAsync(PrWatch watch, string why, CancellationToken cancellationToken)
+        {
+            Discarded.Add(why);
+            await watches.UpdateAsync(watch.Id, watch.FixRounds, watch.SeenComments, watch.LastBuildId, null, null, cancellationToken);
+            return why;
         }
     }
 

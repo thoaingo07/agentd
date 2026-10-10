@@ -109,8 +109,9 @@ watched PR** (then it asks in the 👀 thread), and never two at once for the sa
 2. In the 👀 thread: what failed, what changed (files, `+/-`, the fixer's summary) and **1** push · **2** discard.
 3. **Push**: `HEAD:refs/heads/<branch>`, never forced (a branch that moved on refuses it: the round is dropped and
    the next signal starts a new one). Addressed comment threads get "Fixed in `abc1234`" and status fixed; a short note
-   goes on the PR (under the watcher's name when they connected their Azure DevOps). **Discard** drops the checkout.
-   A prepared round nobody answers expires after 24 hours.
+   goes on the PR naming who approved it in chat (with agentd's identity: a chat user isn't tied to an Azure DevOps
+   sign-in yet). **Discard** drops the checkout. A prepared round nobody answers expires after 24 hours; a PR that's
+   completed, or `unwatch`, discards it too.
 
 agentd's own PRs keep their job's flow: their fix rounds push as today.
 
@@ -118,8 +119,18 @@ agentd's own PRs keep their job's flow: their fix rounds push as today.
 PR (status, `mergeStatus`), its comments (with the author's `uniqueName`), and its latest PR build (the runs on
 `refs/pull/<id>/merge`). The first signal posts "🔔 … I'll prepare a fix after 5 quiet minutes" in the 👀 thread;
 after 5 minutes without new signals it hands a `PrFixRequest` (the failed run's errors and log end, conflicts, the
-comments) to `IPrFixRounds`, which prepares the round and asks. What was handled is remembered (`seen_comments`,
+comments) to `IPrFixRounds`, counting the round first. What was handled is remembered (`seen_comments`,
 `last_build_id`), so nothing starts two rounds.
+
+`PrFixRounds` prepares in the background (one round at a time across PRs: each runs an agent), so the monitor's pass,
+which also runs the job review rounds, never waits for it; the monitor leaves a watch alone while its round prepares
+(`IsBusy`) or waits (`pending`). The checkout is `worktrees/<repo>/pr-fix-<watch id>`; for conflicts
+`git merge --no-ff --no-commit origin/<target>` lists the conflicted files, and the round gives up if any still holds
+`<<<<<<<` after the fixer. The fixer runs as the `fix` step's model when that's a Claude one, otherwise Claude's
+default. The prepared fix (`pending`: checkout, commit, summary, the comment threads, expiry) is stored on the watch.
+Answers in the 👀 thread (**1** / push / yes, **2** / discard / no, from anyone allowed in chat) are serialized per PR
+and act on the latest state, so parallel answers push once. Whatever the outcome, the pending fix is cleared and its
+checkout removed.
 
 ### 2.1 What it watches
 

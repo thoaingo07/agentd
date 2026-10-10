@@ -97,6 +97,43 @@ public sealed class GitWorktreeManagerTests
     }
 
     [TestMethod]
+    public async Task Merging_the_target_lists_the_conflicts_and_a_resolved_merge_commits_and_pushes_without_force()
+    {
+        using var box = new GitSandbox();
+        var other = Path.Combine(box.Root, "colleague");
+        GitSandbox.Run(box.Root, "clone", box.RemotePath, other);
+        GitSandbox.Run(other, "checkout", "-b", "feature/x");
+        File.WriteAllText(Path.Combine(other, "C.cs"), "class C { int mine; }\n");
+        GitSandbox.Run(other, "add", ".");
+        GitSandbox.Run(other, "-c", "user.name=c", "-c", "user.email=c@x", "commit", "-m", "mine");
+        GitSandbox.Run(other, "push", "origin", "feature/x");
+        GitSandbox.Run(other, "checkout", "develop");
+        File.WriteAllText(Path.Combine(other, "C.cs"), "class C { int theirs; }\n");
+        File.WriteAllText(Path.Combine(other, "D.cs"), "class D {}\n");
+        GitSandbox.Run(other, "add", ".");
+        GitSandbox.Run(other, "-c", "user.name=c", "-c", "user.email=c@x", "commit", "-m", "theirs");
+        GitSandbox.Run(other, "push", "origin", "develop");
+        await box.Manager.EnsureCloneAsync(box.Repository, default);
+        var head = (await box.Manager.ResolveCommitAsync(box.Repository, "feature/x", default))!;
+        var path = await box.Manager.CheckoutCommitAsync(box.Repository, "pr-fix-1", head, default);
+
+        var conflicted = await box.Manager.MergeAsync(path, "origin/develop", default);
+        var markers = await box.Manager.ConflictMarkersAsync(path, conflicted, default);
+        File.WriteAllText(Path.Combine(path, "C.cs"), "class C { int mine; int theirs; }\n");
+        var resolved = await box.Manager.ConflictMarkersAsync(path, conflicted, default);
+        var commit = (await box.Manager.CommitAllAsync(path, "fix: conflicts with develop", default))!;
+        await box.Manager.PushHeadAsync(path, "feature/x", default);
+
+        CollectionAssert.AreEqual(new[] { "C.cs" }, conflicted.ToList());
+        CollectionAssert.AreEqual(new[] { "C.cs" }, markers.ToList());
+        Assert.IsEmpty(resolved);
+        Assert.AreEqual(commit, GitSandbox.Run(box.Root, "--git-dir", box.RemotePath, "rev-parse", "feature/x"));
+        Assert.AreEqual(2, GitSandbox.Run(path, "log", "-1", "--format=%P").Split(' ').Length, "a merge commit, not a rebase");
+        Assert.IsTrue(File.Exists(Path.Combine(path, "D.cs")), "the target's other changes came along");
+        await Assert.ThrowsAsync<Exception>(() => box.Manager.MergeAsync(path, "--abort", default));
+    }
+
+    [TestMethod]
     public async Task A_fix_commits_as_agentd_pushes_onto_the_branch_and_a_branch_that_moved_refuses_it()
     {
         using var box = new GitSandbox();

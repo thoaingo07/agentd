@@ -76,8 +76,8 @@ public sealed class PrWatchServiceTests
         await Service().WatchAsync(s_discord, "tngo", ["!3944"], default);
         var watch = _store.All.Single();
 
-        await Service().HandleThreadMessageAsync(watch, "what now?", default);
-        await Service().HandleThreadMessageAsync(watch, "Unwatch.", default);
+        await Service().HandleThreadMessageAsync(watch, "what now?", "tngo", default);
+        await Service().HandleThreadMessageAsync(watch, "Unwatch.", "tngo", default);
 
         StringAssert.Contains(_chat.SentText[0], "Say **unwatch** to stop");
         Assert.AreEqual("🛑 Stopped watching PR !3944.", _chat.SentText[1]);
