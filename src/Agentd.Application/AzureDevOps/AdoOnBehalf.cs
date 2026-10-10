@@ -13,6 +13,20 @@ public sealed class AdoOnBehalf(IAdoUserConnections connections, AdoUserTokens t
 {
     private readonly ConcurrentDictionary<long, byte> _told = new();
 
+    /// <summary>The identity of whoever connected from this agentd web login, while their sign-in works; else null (agentd's own).</summary>
+    public async Task<Guid?> ForWebLoginAsync(string webLogin, CancellationToken cancellationToken)
+    {
+        foreach (var c in await connections.ListByWebLoginAsync(webLogin, cancellationToken).ConfigureAwait(false))
+        {
+            if (!c.Failed && await tokens.GetAccessTokenAsync(c.IdentityId, forceRefresh: false, cancellationToken).ConfigureAwait(false) is not null)
+            {
+                return c.IdentityId;
+            }
+        }
+
+        return null;
+    }
+
     /// <param name="assigneeId">The work item's Assigned To (null: nobody, so agentd's own without a note).</param>
     /// <param name="assignee">Their name, for the note.</param>
     /// <param name="job">The job whose thread gets the note when the person can't be used; null for none.</param>

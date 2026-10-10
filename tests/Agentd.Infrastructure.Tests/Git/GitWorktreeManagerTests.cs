@@ -73,6 +73,44 @@ public sealed class GitWorktreeManagerTests
     }
 
     [TestMethod]
+    public async Task A_fix_commits_as_agentd_pushes_onto_the_branch_and_a_branch_that_moved_refuses_it()
+    {
+        using var box = new GitSandbox();
+        var other = Path.Combine(box.Root, "colleague");
+        GitSandbox.Run(box.Root, "clone", box.RemotePath, other);
+        GitSandbox.Run(other, "checkout", "-b", "feature/x");
+        File.WriteAllText(Path.Combine(other, "A.cs"), "class A {}\n");
+        GitSandbox.Run(other, "add", ".");
+        GitSandbox.Run(other, "-c", "user.name=c", "-c", "user.email=c@x", "commit", "-m", "a");
+        GitSandbox.Run(other, "push", "origin", "feature/x");
+        await box.Manager.EnsureCloneAsync(box.Repository, default);
+        var head = (await box.Manager.ResolveCommitAsync(box.Repository, "feature/x", default))!;
+
+        var path = await box.Manager.CheckoutCommitAsync(box.Repository, "review-fix-1", head, default);
+        var nothing = await box.Manager.CommitAllAsync(path, "fix: nothing", default);
+        File.WriteAllText(Path.Combine(path, "A.cs"), "class A { int fixedIt; }\n");
+        var commit = await box.Manager.CommitAllAsync(path, "fix: address review findings", default);
+        await box.Manager.PushHeadAsync(path, "feature/x", default);
+
+        Assert.IsNull(nothing, "no changes, no commit");
+        Assert.AreEqual(commit, GitSandbox.Run(box.Root, "--git-dir", box.RemotePath, "rev-parse", "feature/x"), "the branch now has the fix");
+        Assert.AreEqual("agentd", GitSandbox.Run(path, "log", "-1", "--format=%an"));
+
+        // The colleague pushes meanwhile; a second fix from the stale checkout must not overwrite it.
+        GitSandbox.Run(other, "pull", "-q", "origin", "feature/x");
+        File.WriteAllText(Path.Combine(other, "B.cs"), "class B {}\n");
+        GitSandbox.Run(other, "add", ".");
+        GitSandbox.Run(other, "-c", "user.name=c", "-c", "user.email=c@x", "commit", "-m", "b");
+        GitSandbox.Run(other, "push", "origin", "feature/x");
+        File.WriteAllText(Path.Combine(path, "A.cs"), "class A { int again; }\n");
+        await box.Manager.CommitAllAsync(path, "fix: again", default);
+
+        await Assert.ThrowsAsync<Exception>(() => box.Manager.PushHeadAsync(path, "feature/x", default));
+        await Assert.ThrowsAsync<Exception>(() => box.Manager.PushHeadAsync(path, "--force", default));
+        CollectionAssert.DoesNotContain(GitWorktreeManager.BuildPushHeadArgs("feature/x").ToList(), "--force");
+    }
+
+    [TestMethod]
     public async Task Creating_again_reuses_the_existing_worktree()
     {
         using var box = new GitSandbox();

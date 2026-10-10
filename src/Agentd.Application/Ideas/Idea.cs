@@ -97,6 +97,9 @@ public enum ThreadTurnKind
 
     /// <summary>A question asked on a review page (Ask): explain the code, read-only, in the review's checkout.</summary>
     ReviewAsk,
+
+    /// <summary>Fix it (a review's Send): edits the review's checkout to fix the kept findings; agentd commits and pushes.</summary>
+    ReviewFix,
 }
 
 /// <summary>The model and effort people may pick for an idea (passed to the CLI's <c>--model</c> / <c>--effort</c>).</summary>

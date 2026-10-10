@@ -95,5 +95,5 @@ public sealed class ReviewSessionSendTests
     }
 
     private ReviewSessionSend Send() =>
-        new(_store, _t.Registry, _t.PullRequests, _connections, new AdoUserTokens(_connections, new FakeProtector(), new FakeDelegation(), _t.Clock), _actor);
+        new(_store, _t.Registry, _t.PullRequests, new AdoOnBehalf(_connections, new AdoUserTokens(_connections, new FakeProtector(), new FakeDelegation(), _t.Clock), _t.Outbox), _actor);
 }

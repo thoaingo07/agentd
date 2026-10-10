@@ -106,6 +106,24 @@ public sealed class ClaudeOptionsTests
     }
 
     [TestMethod]
+    public void Only_fix_it_may_edit_and_it_still_never_commits_or_pushes()
+    {
+        var fix = ClaudeBrainstormAgent.Args(new Agentd.Application.Ideas.BrainstormTurn(1, "/wt/sysmin/review-fix-1", Guid.NewGuid(), false, "fix",
+            Kind: Agentd.Application.Ideas.ThreadTurnKind.ReviewFix), new ClaudeOptions()).ToList();
+        var review = ClaudeBrainstormAgent.Args(new Agentd.Application.Ideas.BrainstormTurn(1, "/wt/sysmin/review-session-1", Guid.NewGuid(), false, "review",
+            Kind: Agentd.Application.Ideas.ThreadTurnKind.ReviewSession), new ClaudeOptions()).ToList();
+
+        Assert.AreEqual(ClaudeBrainstormAgent.ReviewFixRules, fix[fix.IndexOf("--append-system-prompt") + 1]);
+        Assert.AreEqual("acceptEdits", fix[fix.IndexOf("--permission-mode") + 1]);
+        var tools = fix[fix.IndexOf("--allowedTools") + 1].Split(',');
+        CollectionAssert.IsSubsetOf(new[] { "Edit", "Write", "Read" }, tools);
+        Assert.IsFalse(tools.Any(t => t.Contains("git commit", StringComparison.Ordinal) || t.Contains("git push", StringComparison.Ordinal)), "agentd commits and pushes, never the agent");
+        CollectionAssert.DoesNotContain(fix, "Edit,Write,MultiEdit,NotebookEdit");
+        CollectionAssert.Contains(review, "Edit,Write,MultiEdit,NotebookEdit", "every other turn stays read-only");
+        CollectionAssert.DoesNotContain(review, "acceptEdits");
+    }
+
+    [TestMethod]
     public void Only_a_turn_with_a_token_gets_agentds_tools()
     {
         var chat = new Agentd.Application.Ideas.BrainstormTurn(1, "/wt", Guid.NewGuid(), false, "q", Kind: Agentd.Application.Ideas.ThreadTurnKind.Chat, McpToken: "chat-token");

@@ -6,7 +6,7 @@ using Agentd.Domain.Jobs.ValueObjects;
 namespace Agentd.Application.Reviews;
 
 /// <summary>Where a review was sent and what came of it.</summary>
-/// <param name="Destination"><c>pr</c> or <c>text</c>.</param>
+/// <param name="Destination"><c>pr</c>, <c>fix</c> or <c>text</c>.</param>
 /// <param name="Text">For <c>text</c>: what to copy.</param>
 /// <param name="Url">For <c>pr</c>: the pull request.</param>
 /// <param name="Posted">For <c>pr</c>: threads opened (findings and comments, plus the main message).</param>
@@ -22,12 +22,13 @@ public sealed class ReviewSessionSend(
     IReviewSessionStore store,
     IRepositoryRegistry repositories,
     IPullRequestService pullRequests,
-    IAdoUserConnections? connections = null,
-    AdoUserTokens? tokens = null,
-    AdoActor? actor = null)
+    AdoOnBehalf? onBehalf = null,
+    AdoActor? actor = null,
+    ReviewSessionFixer? fixer = null)
 {
     public const string ToPullRequest = "pr";
     public const string AsText = "text";
+    public const string FixIt = "fix";
 
     public async Task<Result<ReviewSent>> SendAsync(long id, string destination, CancellationToken cancellationToken)
     {
@@ -52,8 +53,14 @@ public sealed class ReviewSessionSend(
                 return await PostAsync(session, pr, comments, cancellationToken).ConfigureAwait(false);
             case ToPullRequest:
                 return DomainError.Validation("Only a pull request's review can be posted to a PR.");
+            case FixIt when fixer is not null && session is { Target: ReviewTargets.PullRequest or ReviewTargets.Branch, HeadRef: { Length: > 0 } }:
+                await store.SetStatusAsync(id, ReviewSessionStatus.Sent, null, ReviewSessionFixer.Running, cancellationToken).ConfigureAwait(false);
+                _ = fixer.Start(id);
+                return new ReviewSent(FixIt, null, null, 0, false);
+            case FixIt:
+                return DomainError.Validation("Fix it works on a pull request's or a branch's review.");
             default:
-                return DomainError.Validation("Send it to `pr` or as `text`.");
+                return DomainError.Validation("Send it to `pr`, `fix`, or as `text`.");
         }
     }
 
@@ -102,21 +109,6 @@ public sealed class ReviewSessionSend(
     }
 
     /// <summary>The reviewer's own Azure DevOps identity when they connected it from this web login and it still works.</summary>
-    private async Task<Guid?> PersonAsync(string webLogin, CancellationToken ct)
-    {
-        if (connections is null || tokens is null || actor is null)
-        {
-            return null;
-        }
-
-        foreach (var c in await connections.ListByWebLoginAsync(webLogin, ct).ConfigureAwait(false))
-        {
-            if (!c.Failed && await tokens.GetAccessTokenAsync(c.IdentityId, forceRefresh: false, ct).ConfigureAwait(false) is not null)
-            {
-                return c.IdentityId;
-            }
-        }
-
-        return null;
-    }
+    private async Task<Guid?> PersonAsync(string webLogin, CancellationToken ct) =>
+        onBehalf is null || actor is null ? null : await onBehalf.ForWebLoginAsync(webLogin, ct).ConfigureAwait(false);
 }

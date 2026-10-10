@@ -52,7 +52,16 @@ const overallSend = (kind: 'comment' | 'ask') => act(async () => {
   else await reviews.ask({ text: overall.value.trim() })
   overall.value = ''
 })
-async function sendTo(destination: 'pr' | 'text'): Promise<void> {
+/** Fix it's progress, from the session's sentTo: fix:running, fix:<next review>:<commit>, fix:nochange, fix:failed. */
+const fix = computed(() => {
+  const to = s.value?.sentTo ?? ''
+  if (!to.startsWith('fix:')) return null
+  const [, state, commit] = to.split(':')
+  return { state, next: Number(state) || null, commit }
+})
+
+async function sendTo(destination: 'pr' | 'text' | 'fix'): Promise<void> {
+  if (destination === 'fix' && !window.confirm(`Fix it: an agent fixes what you kept, then agentd commits and pushes to ${s.value?.headRef}. Go ahead?`)) return
   sending.value = true
   await act(async () => (sent.value = await reviews.sendTo(destination)))
   sending.value = false
@@ -139,6 +148,14 @@ const where = (a: { file?: string | null; line?: number | null; endLine?: number
             Post to the PR
           </AgButton>
           <AgButton
+            v-if="s.target === 'pr' || s.target === 'branch'"
+            variant="outline"
+            :loading="sending"
+            @click="sendTo('fix')"
+          >
+            Fix it (push to {{ s.headRef }})
+          </AgButton>
+          <AgButton
             variant="outline"
             :loading="sending"
             @click="sendTo('text')"
@@ -162,6 +179,32 @@ const where = (a: { file?: string | null; line?: number | null; endLine?: number
             rel="noopener noreferrer"
             class="link"
           >Open it</a>
+        </p>
+        <p
+          v-if="fix"
+          :class="fix.state === 'failed' ? 'alert alert-warning text-sm' : fix.state === 'running' ? 'alert alert-info text-sm' : 'alert alert-success text-sm'"
+          role="status"
+          data-testid="fix"
+        >
+          <template v-if="fix.state === 'running'">
+            <span class="loading loading-spinner loading-xs" /> 🔧 Fixing on <code>{{ s.headRef }}</code>… agentd pushes the fix and reviews it again.
+          </template>
+          <template v-else-if="fix.state === 'failed'">
+            ⚠️ {{ s.error }}
+          </template>
+          <template v-else-if="fix.state === 'nochange'">
+            Nothing changed: {{ s.error }}
+          </template>
+          <template v-else>
+            ✅ Pushed {{ fix.commit }} to <code>{{ s.headRef }}</code>.
+            <RouterLink
+              v-if="fix.next"
+              :to="{ name: 'review', params: { id: fix.next } }"
+              class="link"
+            >
+              Round 2: review #{{ fix.next }}
+            </RouterLink>
+          </template>
         </p>
         <div
           v-if="sent?.destination === 'text' && sent.text"

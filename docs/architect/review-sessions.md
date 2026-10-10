@@ -96,8 +96,9 @@ Who may start one: anyone signed in to the web UI (or allowed in chat), for regi
 
 | Session | Destinations |
 |---|---|
-| a **PR** | **Post to the PR**: the kept findings and comments as PR threads plus the main message (today's `!review` posting), under **your name** when you've connected your Azure DevOps (`ado-user-delegation.md`); **Fix it**: an agentd job that pushes fixes to the PR's branch |
-| a **branch** or **range** | **Fix it**: an agentd job on that branch (a fix PR into it, or pushes when it's an agentd branch); **Copy as text** |
+| a **PR** | **Post to the PR**: the kept findings and comments as PR threads plus the main message (today's `!review` posting), under **your name** when you've connected your Azure DevOps (`ado-user-delegation.md`); **Fix it**: fixes pushed to the PR's own branch, then round 2 |
+| a **branch** | **Fix it**: fixes pushed to that branch, then round 2; **Copy as text** |
+| a **range** | **Copy as text** |
 | an **agentd job's branch** | **Send to the job's agent**: a fix round in its session (today's flow for PR comments) |
 | an **upload** (`--share`) | **Back to my laptop**: the CLI that shared it picks it up (§5); **Copy as text** |
 
@@ -191,6 +192,11 @@ with integration tests, including parallel callers for decisions and comments on
 6. **Send on the server**:
    - 6a: Post to the PR (under the reviewer's name when connected: the on-behalf-of part 3b; `ReviewSessionSend`)
      and Copy as text; the shared text is `ReviewFeedback`, also what `agentd review` sends;
-   - 6b: Fix it jobs, Send to the job's agent.
+   - 6b: Fix it (`ReviewSessionFixer`): a `ReviewFix` turn (the only thread turn that may edit: `acceptEdits`, no commit
+     or push tools) on a checkout of the reviewed commit, agentd commits as agentd and pushes `HEAD:refs/heads/<branch>`
+     (never forced, so a branch that moved on refuses it), then starts the next review of the PR or branch. Progress
+     is the session's `sent_to`: `fix:running`, `fix:<next review>:<commit>`, `fix:nochange`, `fix:failed` (+ error).
+     Decided 2026-10-10: fixes go to the PR's own branch, round after round, not to a separate fix PR.
+   - later: Send to an agentd job's agent (a fix round in its session).
 
 The PR Monitor and the system monitor come after, opening sessions for the fixes they propose.

@@ -38,7 +38,7 @@ export const useReviewsStore = defineStore('reviews', () => {
 
   /** Keep checking while the reviewer works or a question waits for its answer. */
   function poll(id: number): void {
-    const waiting = current.value?.session.status === 'Reviewing' || current.value?.asks.some((a) => a.answer == null)
+    const waiting = current.value?.session.status === 'Reviewing' || current.value?.session.sentTo === 'fix:running' || current.value?.asks.some((a) => a.answer == null)
     if (!waiting) return
     timer = setTimeout(() => {
       void get<ReviewDetail>(`/api/reviews/${id}`).then((d) => {
@@ -85,10 +85,13 @@ export const useReviewsStore = defineStore('reviews', () => {
   }
 
   /** Post a PR's review to the PR, or get it as text to copy. */
-  async function sendTo(destination: 'pr' | 'text'): Promise<ReviewSent | null> {
+  async function sendTo(destination: 'pr' | 'text' | 'fix'): Promise<ReviewSent | null> {
     if (!current.value) return null
-    const sent = await send<ReviewSent>('POST', `/api/reviews/${current.value.session.id}/send`, { destination })
+    const id = current.value.session.id
+    const sent = await send<ReviewSent>('POST', `/api/reviews/${id}/send`, { destination })
     await refresh()
+    clearTimeout(timer)
+    poll(id)   // Fix it runs in the background
     return sent
   }
 
