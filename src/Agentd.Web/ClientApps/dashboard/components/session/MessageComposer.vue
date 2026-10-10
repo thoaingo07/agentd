@@ -1,36 +1,33 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { ApiError, send } from '../../../shared/api/http'
 import { AgButton } from '../../../shared/components/ui'
-import { useUiStore } from '../../stores/ui'
+import { useJobsStore } from '../../stores/jobs'
 
 const props = defineProps<{ jobId: number; state: string }>()
 const emit = defineEmits<{ sent: [text: string] }>()
 const text = ref('')
 const busy = ref(false)
-const ui = useUiStore()
-const enabled = computed(() => props.state === 'WaitingForHuman' || props.state === 'Running')
-const hint = computed(() =>
-  props.state === 'WaitingForHuman' ? 'The agent is waiting for you.' : props.state === 'Running'
-        ? 'Delivered at the agent’s next step.'
-        : ['Done', 'Failed', 'Cancelled'].includes(props.state)
-          ? 'Job finished.'
-          : 'This job isn’t taking messages.',
-)
+const jobs = useJobsStore()
+// As in the job's chat thread: in review a message starts a fix round; once done it asks the job's agent (talk only).
+const hints: Record<string, string> = {
+  WaitingForHuman: 'The agent is waiting for you.',
+  Running: 'Delivered at the agent’s next step.',
+  InReview: 'Starts a fix round on the PR: the agent addresses it and pushes.',
+  Done: 'Ask the job’s agent about the finished work: it answers under Conversation, and nothing is pushed.',
+}
+const enabled = computed(() => props.state in hints)
+const hint = computed(() => hints[props.state] ?? (['Failed', 'Cancelled'].includes(props.state) ? 'Job finished.' : 'This job isn’t taking messages.'))
 
 async function submit(): Promise<void> {
   const message = text.value.trim()
   if (!enabled.value || !message || busy.value) return
   busy.value = true
-  try {
-    await send('POST', `/api/jobs/${props.jobId}/messages`, { text: message })
-    emit('sent', message)
-    text.value = ''
-  } catch (err) {
-    ui.toast(err instanceof ApiError ? err.message : 'The message wasn’t sent.', 'error')
-  } finally {
-    busy.value = false
-  }
+  const outcome = await jobs.message(props.jobId, message)
+  busy.value = false
+  if (outcome === null) return
+  // Only a reply or a next turn shows up in the transcript (as DeveloperReplied), replacing the pending bubble.
+  if (outcome === 'resumed' || outcome === 'queued') emit('sent', message)
+  text.value = ''
 }
 </script>
 
@@ -64,7 +61,7 @@ async function submit(): Promise<void> {
       </AgButton>
     </div>
     <p class="text-xs text-muted">
-      {{ hint }}<template v-if="enabled">
+      {{ hint }}<template v-if="state === 'WaitingForHuman' || state === 'Running'">
         It's also posted to the job's chat thread.
       </template>
     </p>

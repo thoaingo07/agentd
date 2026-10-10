@@ -85,6 +85,7 @@ public static class DependencyInjection
         services.AddScoped<MessagingService>();
         services.AddSingleton<OutboxDispatcher>();
         services.AddScoped<ICommandHandler<SubmitDeveloperMessage, DeveloperMessageOutcome>, SubmitDeveloperMessageHandler>();
+        services.AddScoped<JobMessages>();
         services.AddScoped<ICommandHandler<RetryJob, int>, RetryJobHandler>();
         services.AddScoped<ICommandHandler<AskDeveloper, Unit>, AskDeveloperHandler>();
         services.AddScoped<ICommandHandler<ReportProgress, Unit>, ReportProgressHandler>();

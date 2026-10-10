@@ -170,8 +170,14 @@ agentd · ai/1234-fix-login · session 8f3c…      [Discord ↗][Telegram ↗] 
     result just came) render again;
   - past **1000** events, the oldest are dropped from the rendered set and scrolling up brings them back;
   - large tool outputs are truncated to 200 lines, with a **Show all** link.
-- **Composer:** enabled in `WaitingForHuman` and `Running`. When the job is running, the message
-  is queued as the next turn, and the composer says so.
+- **Composer:** routed like a reply in the job's chat thread (`JobMessages`, shared with chat): enabled in
+  `WaitingForHuman` (an answer), `Running` (queued as the next turn), `InReview` (a fix round, like a review comment)
+  and `Done` (a talk-only follow-up the job's session answers under Conversation; refused when the job has no PR or
+  session). The hint says which. The text also answers an open permission request or the close-out question, as in
+  chat.
+- **Answer buttons:** while the job is `WaitingForHuman`, the newest question's options are buttons that send the
+  option like typing it (plan approval, hand-off proposal, close-out, the agent's own choices). Older questions show
+  their options as a list.
 
 **Diff tab**
 

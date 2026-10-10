@@ -14,7 +14,7 @@ using Microsoft.AspNetCore.Routing;
 
 namespace Agentd.Bff.Endpoints;
 
-/// <summary>Job actions from the Web UI (cancel, retry, message, run) and the job diff. Unsafe methods only, under <c>/api</c>.</summary>
+/// <summary>Job actions from the Web UI (cancel, retry, message, hand-off, run) and the job diff. Unsafe methods only, under <c>/api</c>.</summary>
 public static class JobActionEndpoints
 {
     public const int MaxMessageLength = 8_000;
@@ -37,20 +37,25 @@ public static class JobActionEndpoints
             (await handler.Handle(new RetryJob(new JobId(id)), ct).ConfigureAwait(false)).ToHttpResult(_ => TypedResults.NoContent()))
             .WithName("RetryJob").Produces(StatusCodes.Status204NoContent).ProducesProblem(StatusCodes.Status404NotFound).ProducesProblem(StatusCodes.Status409Conflict);
 
-        api.MapPost("/jobs/{id:long}/messages", async (long id, MessageRequest? body, ClaimsPrincipal user, [FromServices] ICommandHandler<SubmitDeveloperMessage, DeveloperMessageOutcome> handler, CancellationToken ct) =>
+        api.MapPost("/jobs/{id:long}/messages", async (long id, MessageRequest? body, ClaimsPrincipal user, [FromServices] JobMessages messages, CancellationToken ct) =>
         {
             if (string.IsNullOrWhiteSpace(body?.Text) || body.Text.Length > MaxMessageLength)
             {
                 return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["text"] = [$"text must be 1 to {MaxMessageLength} characters."] });
             }
 
+            // Routed like a reply in the job's chat thread (permission, close-out, the job, a follow-up after the merge).
             // No provider (Via = null): the message came from the Web UI, so it is mirrored to every chat thread.
-            var outcome = await handler.Handle(new SubmitDeveloperMessage(new JobId(id), body.Text.Trim(), UserName(user)), ct).ConfigureAwait(false);
-            return outcome.ToHttpResult(o => o == DeveloperMessageOutcome.NotAccepted
+            var outcome = await messages.RouteAsync(new JobId(id), body.Text.Trim(), UserName(user), null, ct).ConfigureAwait(false);
+            return outcome.ToHttpResult(o => o == JobMessageOutcomes.NotAccepted
                 ? new DomainError("not_accepted", $"Job {id} doesn't take messages in its current state.").ToProblem()
-                : TypedResults.Accepted((string?)null, new MessageAcceptedVm(o.ToString())));
+                : TypedResults.Accepted((string?)null, new MessageAcceptedVm(o)));
         }).WithName("SendJobMessage").Accepts<MessageRequest>("application/json").Produces<MessageAcceptedVm>(StatusCodes.Status202Accepted)
             .ProducesValidationProblem().ProducesProblem(StatusCodes.Status404NotFound).ProducesProblem(StatusCodes.Status409Conflict);
+
+        api.MapPost("/jobs/{id:long}/handoff", async (long id, [FromServices] ICommandHandler<StartHandoff, Unit> handler, CancellationToken ct) =>
+            (await handler.Handle(new StartHandoff(new JobId(id)), ct).ConfigureAwait(false)).ToHttpResult(_ => TypedResults.Accepted((string?)null)))
+            .WithName("StartHandoff").Produces(StatusCodes.Status202Accepted).ProducesProblem(StatusCodes.Status400BadRequest).ProducesProblem(StatusCodes.Status404NotFound);
 
         api.MapPost("/workitems/{id:int}/run", async (int id, [FromServices] ICommandHandler<ClaimWorkItem, JobId> handler, CancellationToken ct) =>
             id <= 0

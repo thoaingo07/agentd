@@ -4,7 +4,7 @@ import type { JobSummary } from '../../../shared/api/types'
 import { AgButton, AgModal } from '../../../shared/components/ui'
 import { useJobsStore } from '../../stores/jobs'
 
-// Retry / Resume / Pause / Cancel for one run, with a confirmation for Retry and Cancel.
+// Retry / Resume / Pause / Hand-off / Cancel for one run, with a confirmation for Retry and Cancel.
 const props = defineProps<{ job: JobSummary }>()
 const jobs = useJobsStore()
 const confirming = ref<'cancel' | 'retry' | null>(null)
@@ -46,6 +46,15 @@ async function act(): Promise<void> {
       @click="jobs.pause(job.id)"
     >
       Pause
+    </AgButton>
+    <AgButton
+      v-if="(job.state === 'InReview' || job.state === 'Done') && job.prUrl && job.handoff === 'None'"
+      size="sm"
+      variant="outline"
+      :loading="jobs.pending.has(job.id)"
+      @click="jobs.handoff(job.id)"
+    >
+      Hand-off
     </AgButton>
     <AgButton
       v-if="!final()"

@@ -8,7 +8,9 @@ import type { EventCategory } from '../../stores/ui'
 import EventRow from './EventRow.vue'
 import { categoryOf, toRows, type Row } from './transcript'
 
-const props = defineProps<{ events: readonly AgentEvent[]; hasMore: boolean; loadEarlier: () => Promise<void> }>()
+// `waiting`: the job waits for an answer, so the newest question's options answer it.
+const props = defineProps<{ events: readonly AgentEvent[]; hasMore: boolean; loadEarlier: () => Promise<void>; waiting?: boolean }>()
+const emit = defineEmits<{ answer: [option: string] }>()
 const categories = defineModel<string[]>('categories', { default: () => ['text', 'tools', 'messages', 'state', 'errors'] })
 const follow = defineModel<boolean>('follow', { default: true })
 
@@ -22,6 +24,7 @@ const allRows = computed(() => {
   previous = new Map(rows.map((r) => [r.key, r]))
   return rows
 })
+const openQuestion = computed(() => (props.waiting ? allRows.value.findLast((r) => r.kind === 'question')?.key : undefined))
 const rows = computed(() => allRows.value.filter((r) => categories.value.includes(categoryOf[r.kind] as EventCategory)))
 const reducedMotion = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
@@ -136,6 +139,8 @@ defineExpose({ resume, onScroll, earlier, unseen })
           :key="row.key"
           :row="row"
           :data-seq="row.key"
+          :answerable="row.key === openQuestion"
+          @answer="(o: string) => emit('answer', o)"
         />
         <p
           v-if="!rows.length"

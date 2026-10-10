@@ -95,8 +95,9 @@ public sealed class ApiActionEndpointTests
         using var response = await PostAsync(app, "/api/jobs/7/messages", new { text = "  use v2  " });
 
         Assert.AreEqual(HttpStatusCode.Accepted, response.StatusCode);
-        Assert.AreEqual("Resumed", (await ProblemAsync(response)).GetProperty("outcome").GetString());
-        Assert.AreEqual(new SubmitDeveloperMessage(new JobId(7), "use v2", "local"), _commands.Single(), "Via = null mirrors it to every chat thread");
+        Assert.AreEqual("resumed", (await ProblemAsync(response)).GetProperty("outcome").GetString());
+        Assert.AreEqual(new SubmitDeveloperMessage(new JobId(7), "use v2", "local"), _commands.OfType<SubmitDeveloperMessage>().Single(), "Via = null mirrors it to every chat thread");
+        Assert.AreEqual(new AnswerCloseOut(new JobId(7), "use v2"), _commands.OfType<AnswerCloseOut>().Single(), "routed like a chat reply: the close-out question first");
     }
 
     [TestMethod]
@@ -112,6 +113,19 @@ public sealed class ApiActionEndpointTests
         Assert.AreEqual(HttpStatusCode.BadRequest, huge.StatusCode);
         Assert.AreEqual(HttpStatusCode.Conflict, finished.StatusCode);
         Assert.AreEqual("not_accepted", (await ProblemAsync(finished)).GetProperty("code").GetString());
+    }
+
+    [TestMethod]
+    public async Task The_hand_off_starts_like_the_handoff_command()
+    {
+        await using var app = await StartAsync();
+
+        using var started = await PostAsync(app, "/api/jobs/7/handoff");
+        using var tooEarly = await PostAsync(app, "/api/jobs/8/handoff");
+
+        Assert.AreEqual((HttpStatusCode.Accepted, HttpStatusCode.BadRequest), (started.StatusCode, tooEarly.StatusCode));
+        Assert.AreEqual(new StartHandoff(new JobId(7)), _commands[0]);
+        Assert.AreEqual("The hand-off starts after the PR is merged.", (await ProblemAsync(tooEarly)).GetProperty("detail").GetString());
     }
 
     [TestMethod]
@@ -157,6 +171,10 @@ public sealed class ApiActionEndpointTests
         builder.Services.AddSingleton<ICommandHandler<RetryJob, int>>(Handler<RetryJob, int>(c => DomainError.InvalidTransition("Done", "retry")));
         builder.Services.AddSingleton<ICommandHandler<SubmitDeveloperMessage, DeveloperMessageOutcome>>(Handler<SubmitDeveloperMessage, DeveloperMessageOutcome>(c =>
             c.JobId.Value == 7 ? DeveloperMessageOutcome.Resumed : DeveloperMessageOutcome.NotAccepted));
+        builder.Services.AddSingleton<ICommandHandler<AnswerCloseOut, bool>>(Handler<AnswerCloseOut, bool>(_ => false));
+        builder.Services.AddSingleton<ICommandHandler<StartHandoff, Unit>>(Handler<StartHandoff, Unit>(c =>
+            c.JobId.Value == 7 ? Unit.Value : DomainError.Validation("The hand-off starts after the PR is merged.")));
+        builder.Services.AddSingleton<JobMessages>();
         builder.Services.AddSingleton<ICommandHandler<ClaimWorkItem, JobId>>(Handler<ClaimWorkItem, JobId>(c =>
             c.WorkItemId.Value == 1 ? DomainError.Conflict("Work item 1 already has active job 3.") : new JobId(42)));
         builder.Services.AddSingleton<ICommandHandler<PermissionAnswer, bool>>(Handler<PermissionAnswer, bool>(c => c.RequestId == 3));

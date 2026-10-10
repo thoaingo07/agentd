@@ -9,7 +9,9 @@ import { toRows, toolSummary } from '../ClientApps/dashboard/components/session/
 import EventList from '../ClientApps/dashboard/components/session/EventList.vue'
 import ToolCallCard from '../ClientApps/dashboard/components/session/ToolCallCard.vue'
 import MessageComposer from '../ClientApps/dashboard/components/session/MessageComposer.vue'
+import RunActions from '../ClientApps/dashboard/components/run/RunActions.vue'
 import PermissionBanner from '../ClientApps/dashboard/components/session/PermissionBanner.vue'
+import { useUiStore } from '../ClientApps/dashboard/stores/ui'
 
 const ev = (seq: number, type: string, payload: object = {}): AgentEvent => ({ seq, jobId: 7, ts: '2026-10-04T10:00:00Z', type, payload })
 const md = (text: string) => mount(defineComponent({ render: () => h('div', renderMarkdown(text)) }))
@@ -142,6 +144,24 @@ describe('EventList', () => {
     w.unmount()
   })
 
+  it('while the job waits, the newest question\'s options answer it; older questions stay a list', async () => {
+    const events = [
+      ev(1, 'DeveloperQuestionAsked', { question: 'Which table?', options: ['users', 'orders'] }),
+      ev(2, 'DeveloperReplied', { reply: 'users', from: 'tngo' }),
+      ev(3, 'DeveloperQuestionAsked', { question: '📝 **Plan for your approval**', options: ['✅ Approve plan', '✏️ Request changes'] }),
+    ]
+    const w = mount(EventList, { props: { events, hasMore: false, loadEarlier: async () => {}, waiting: true } })
+
+    const answers = w.findAll('[aria-label="Answer"] button')
+    expect(answers.map((b) => b.text())).toEqual(['✅ Approve plan', '✏️ Request changes'])
+    expect(w.findAll('li').map((l) => l.text())).toEqual(['users', 'orders'])
+    await answers[0]!.trigger('click')
+    expect(w.emitted('answer')).toEqual([['✅ Approve plan']])
+
+    await w.setProps({ waiting: false })
+    expect(w.find('[aria-label="Answer"]').exists()).toBe(false)
+  })
+
   it('earlier events loaded at the top are not counted as new', async () => {
     const w = mount(EventList, { props: { events: [ev(5, 'agent.text', { text: 'x' })], hasMore: true, loadEarlier: async () => {}, follow: false }, attachTo: document.body })
     await w.setProps({ events: [ev(3, 'agent.text', { text: 'a' }), ev(4, 'agent.text', { text: 'b' }), ev(5, 'agent.text', { text: 'x' })] })
@@ -171,11 +191,12 @@ describe('EventList', () => {
 })
 
 describe('MessageComposer', () => {
-  it('posts the message (Ctrl+Enter) and is disabled for finished jobs', async () => {
+  it('posts the message (Ctrl+Enter) and is disabled for cancelled jobs', async () => {
     const calls: Request[] = []
     vi.stubGlobal('fetch', vi.fn(async (req: Request) => {
       calls.push(req)
-      return req.url.endsWith('/bff/antiforgery') ? new Response(JSON.stringify({ token: 't' })) : new Response(JSON.stringify({ outcome: 'Resumed' }), { status: 202 })
+      return req.url.endsWith('/bff/antiforgery') ? new Response(JSON.stringify({ token: 't' }))
+        : req.method === 'GET' ? new Response('{}', { status: 404 }) : new Response(JSON.stringify({ outcome: 'resumed' }), { status: 202 })
     }))
     const w = mount(MessageComposer, { props: { jobId: 7, state: 'WaitingForHuman' } })
     await w.get('textarea').setValue('  use v2  ')
@@ -187,8 +208,55 @@ describe('MessageComposer', () => {
     expect(await post.clone().json()).toEqual({ text: 'use v2' })
     expect(w.emitted('sent')).toEqual([['use v2']])
 
-    await w.setProps({ state: 'Done' })
+    await w.setProps({ state: 'Cancelled' })
     expect(w.get('textarea').attributes('disabled')).toBeDefined()
+  })
+
+  it('in review starts a fix round, and once done asks the job\'s agent, as in the chat thread', async () => {
+    let outcome = 'fix_round'
+    vi.stubGlobal('fetch', vi.fn(async (req: Request) =>
+      req.url.endsWith('/bff/antiforgery') ? new Response(JSON.stringify({ token: 't' }))
+        : req.method === 'GET' ? new Response('{}', { status: 404 }) : new Response(JSON.stringify({ outcome }), { status: 202 })))
+    const w = mount(MessageComposer, { props: { jobId: 7, state: 'InReview' } })
+    expect(w.text()).toContain('Starts a fix round on the PR')
+
+    await w.get('textarea').setValue('rename it')
+    await w.get('form').trigger('submit')
+    await flushPromises()
+    expect(w.emitted('sent')).toBeUndefined()   // a fix round isn't a reply: no pending bubble
+    expect(useUiStore().toasts.at(-1)?.message).toContain('Fix round started')
+
+    outcome = 'follow_up'
+    await w.setProps({ state: 'Done' })
+    expect(w.get('textarea').attributes('disabled')).toBeUndefined()
+    await w.get('textarea').setValue('when does it run?')
+    await w.get('form').trigger('submit')
+    await flushPromises()
+    expect(useUiStore().toasts.at(-1)?.message).toContain('answers under Conversation')
+    expect((w.get('textarea').element as HTMLTextAreaElement).value).toBe('')
+  })
+})
+
+describe('RunActions', () => {
+  it('offers the hand-off once the PR is in review or merged, until it ran', async () => {
+    const calls: Request[] = []
+    vi.stubGlobal('fetch', vi.fn(async (req: Request) => {
+      calls.push(req)
+      return req.url.endsWith('/bff/antiforgery') ? new Response(JSON.stringify({ token: 't' }))
+        : req.method === 'GET' ? new Response('{}', { status: 404 }) : new Response(null, { status: 202 })
+    }))
+    const base = { id: 7, workItemId: 5613, repo: 'sysmin', title: 'Refine', state: 'Done', phase: null, startedAt: '2026-10-04T10:00:00Z', elapsedSeconds: 60,
+      prUrl: 'https://x/pr/1', waitingSince: null, planStatus: 'Approved', handoff: 'None', fixRounds: 0, lastError: null, completedAt: null }
+    const w = mount(RunActions, { props: { job: base as never } })
+
+    await w.findAll('button').find((b) => b.text() === 'Hand-off')!.trigger('click')
+    await flushPromises()
+    expect(calls.some((c) => c.method === 'POST' && new URL(c.url).pathname === '/api/jobs/7/handoff')).toBe(true)
+
+    await w.setProps({ job: { ...base, handoff: 'Done' } as never })
+    expect(w.findAll('button').some((b) => b.text() === 'Hand-off')).toBe(false)
+    await w.setProps({ job: { ...base, state: 'Running', prUrl: null } as never })
+    expect(w.findAll('button').some((b) => b.text() === 'Hand-off')).toBe(false)
   })
 })
 

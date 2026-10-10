@@ -121,6 +121,7 @@ public sealed record HistoryPageVm(IReadOnlyList<JobSummaryVm> Items, long Total
     }
 }
 
+/// <param name="Outcome">permission, close_out, follow_up (answered in the thread and Conversation), resumed, queued, fix_round or handoff_declined.</param>
 public sealed record MessageAcceptedVm(string Outcome);
 
 public sealed record RunAcceptedVm(long JobId);
