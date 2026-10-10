@@ -13,6 +13,6 @@ Task index for [Phase 8 — PR Monitor (fix rounds) + hotfix & backport](../READ
 | T8.5 | The triage agent (MAF, structured output) + tests on recorded thread sets. | ☐ detail pending |
 | T8.6 | The `PrFollowUp` workflow + `fix_rounds` table; push rules (a guard that rejects force-push); merge-based conflict resolution. | ☐ detail pending |
 | T8.7 | Thread replies and status updates; round report to the PR and chat; round and loop limits → escalate. | ☐ detail pending |
-| T8.8 | Hotfix workflow + backport (cherry-pick, conflict → fix round) + templates. | ☐ detail pending |
+| T8.8 | ~~Hotfix workflow + backport (cherry-pick, conflict → fix round) + templates.~~ | ✖ dropped 2026-10-10: a hotfix is a Task or Bug run with `!run` |
 | T8.9 | BFF endpoints (`…/fix`, `…/monitor`, `/api/hotfixes`) + UI actions + the Fix rounds tab. | ☐ detail pending |
 | T8.10 | Chat commands. | ☐ detail pending |
