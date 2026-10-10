@@ -59,6 +59,8 @@ public sealed partial class InboundMessageHandler(
     /// <summary>The role a stranger gets on a provider that allows everyone (enforced from Phase 5).</summary>
     public const string GuestRole = "Operator";
 
+    private readonly JobMessages _messages = new(submit, closeOut, permissions, followUps, jobs);
+
     public Task HandleAsync(InboundMessage message, CancellationToken cancellationToken) => ProcessAsync(message, cancellationToken);
 
     public async Task<InboundOutcome> ProcessAsync(InboundMessage message, CancellationToken cancellationToken)
@@ -134,43 +136,22 @@ public sealed partial class InboundMessageHandler(
             return new InboundOutcome("ignored_empty", conversation.JobId);
         }
 
-        // "1"–"4" / allow / always / deny answer an open permission request first (the agent is waiting on it).
-        if (permissions is not null
-            && (await permissions.Handle(new Permissions.PermissionAnswer(conversation.JobId, message.Text, user.Name), ct).ConfigureAwait(false)) is { IsSuccess: true, Value: true })
-        {
-            return new InboundOutcome("permission", conversation.JobId);
-        }
-
-        if ((await closeOut.Handle(new AnswerCloseOut(conversation.JobId, message.Text), ct).ConfigureAwait(false)) is { IsSuccess: true, Value: true })
-        {
-            return new InboundOutcome("close_out", conversation.JobId);
-        }
-
-        var result = await submit.Handle(new SubmitDeveloperMessage(conversation.JobId, message.Text, user.Name, message.Provider), ct).ConfigureAwait(false);
+        var result = await _messages.RouteAsync(conversation.JobId, message.Text, user.Name, message.Provider, ct).ConfigureAwait(false);
         if (!result.IsSuccess)
         {
             return new InboundOutcome($"rejected:{result.Error.Code}", conversation.JobId);
         }
 
-        if (result.Value is DeveloperMessageOutcome.Merged or DeveloperMessageOutcome.NotAccepted
-            && followUps is not null && await jobs.GetAsync(conversation.JobId, ct).ConfigureAwait(false) is { } finished
-            && Jobs.JobFollowUps.Accepts(finished) && (result.Value == DeveloperMessageOutcome.Merged || finished.State == JobState.Done))
-        {
-            // After the merge: talk only (no fix round, no new PR). The job's session answers read-only.
-            followUps.Ask(finished, user.Name, message.Text);
-            return new InboundOutcome("follow_up", conversation.JobId);
-        }
-
-        if (result.Value == DeveloperMessageOutcome.NotAccepted)
+        if (result.Value == JobMessageOutcomes.NotAccepted)
         {
             var state = (await jobs.GetAsync(conversation.JobId, ct).ConfigureAwait(false))?.State;
             await outbox.EnqueueAsync(conversation.JobId,
                 [new OutboxMessage(new OutboundMessage(MessageKind.Info, NotAcceptedText(state)), new EnqueueOptions(OnlyProviders: [message.Provider]))],
                 ct).ConfigureAwait(false);
-            return new InboundOutcome("not_accepted", conversation.JobId);
+            return new InboundOutcome(JobMessageOutcomes.NotAccepted, conversation.JobId);
         }
 
-        if (result.Value == DeveloperMessageOutcome.Queued
+        if (result.Value == JobMessageOutcomes.Queued
             && await jobs.GetAsync(conversation.JobId, ct).ConfigureAwait(false) is { } job)
         {
             // "What's the progress?" mid-task: answer now with the live status; the agent gets the message at its next step.
@@ -180,13 +161,7 @@ public sealed partial class InboundMessageHandler(
                 ct).ConfigureAwait(false);
         }
 
-        return new InboundOutcome(result.Value switch
-        {
-            DeveloperMessageOutcome.Resumed => "resumed",
-            DeveloperMessageOutcome.HandoffDeclined => "handoff_declined",
-            DeveloperMessageOutcome.FixRound => "fix_round",
-            _ => "queued",
-        }, conversation.JobId);
+        return new InboundOutcome(result.Value, conversation.JobId);
     }
 
     /// <summary>Why the message wasn't delivered, and what to do instead.</summary>

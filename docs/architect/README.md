@@ -476,7 +476,8 @@ and component styling rules are in **[docs/design-system](../design-system/READM
 | `GET /api/jobs/{id}/events?after=<seq>` / `?before=<seq>&limit=<n>` | paged history: replay forward, or page back for "load earlier" (without `agent.other`, which the transcript never shows) |
 | SignalR `/hubs/events` → `Subscribe(jobId?, afterSeq)` | live events for the Vue UI; replays from `afterSeq` after a reconnect |
 | `GET /api/jobs/{id}/diff` | `git diff <base>...HEAD` for the worktree |
-| `POST /api/jobs/{id}/cancel` / `retry` / `messages` | same controls as the chat commands; a message is recorded and mirrored to all of the job's chat conversations so every channel keeps one history |
+| `POST /api/jobs/{id}/cancel` / `retry` / `messages` | same controls as the chat commands; a message is routed exactly like a reply in the job's thread (`JobMessages`: permission → close-out → the job, incl. fix rounds in review → follow-up after the merge), returns its `outcome`, and is mirrored to all of the job's chat conversations so every channel keeps one history |
+| `POST /api/jobs/{id}/handoff` | starts the knowledge hand-off, like `!handoff` (202; 400 before the PR is in review or merged, or when it already ran) |
 | `POST /api/workitems/{id}/run` | start a work item immediately |
 | `GET /api/prs?repo=&filter=` / `GET /api/prs/{repo}/{id}` | PR dashboard: open PRs with CI, votes, conflicts, threads, agentd status |
 | `POST /api/prs/{repo}/{id}/reviews` `{ reviewers[], post }` / `…/fix` `{ instruction? }` / `…/monitor` `{ enabled }` | run predefined reviewers, fix now, toggle monitoring (Operator) |

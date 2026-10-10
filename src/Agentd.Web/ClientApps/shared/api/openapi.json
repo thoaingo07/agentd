@@ -519,6 +519,50 @@
         }
       }
     },
+    "/api/jobs/{id}/handoff": {
+      "post": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "StartHandoff",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Accepted"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/workitems/{id}/run": {
       "post": {
         "tags": [
@@ -4328,7 +4372,8 @@
         "type": "object",
         "properties": {
           "outcome": {
-            "type": "string"
+            "type": "string",
+            "description": "permission, close_out, follow_up (answered in the thread and Conversation), resumed, queued, fix_round or handoff_declined."
           }
         }
       },

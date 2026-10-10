@@ -4,7 +4,9 @@ import { clock } from '../../../shared/utils/format'
 import ToolCallCard from './ToolCallCard.vue'
 import type { Row } from './transcript'
 
-defineProps<{ row: Row }>()
+// `answerable`: the question the job is waiting on; its options become buttons that answer it (like chat's buttons).
+defineProps<{ row: Row; answerable?: boolean }>()
+const emit = defineEmits<{ answer: [option: string] }>()
 </script>
 
 <template>
@@ -27,8 +29,24 @@ defineProps<{ row: Row }>()
   >
     <div class="chat-bubble border-l-4 border-warning bg-warning/15 text-base-content">
       <MarkdownText :text="row.question" />
+      <div
+        v-if="answerable && row.options.length"
+        class="mt-2 flex flex-wrap gap-2"
+        role="group"
+        aria-label="Answer"
+      >
+        <button
+          v-for="o in row.options"
+          :key="o"
+          type="button"
+          class="btn btn-sm btn-outline"
+          @click="emit('answer', o)"
+        >
+          {{ o }}
+        </button>
+      </div>
       <ol
-        v-if="row.options.length"
+        v-else-if="row.options.length"
         class="mt-1 list-decimal pl-5 text-sm"
       >
         <li

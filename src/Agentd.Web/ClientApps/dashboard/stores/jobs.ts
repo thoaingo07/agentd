@@ -9,6 +9,13 @@ const order: JobState[] = ['WaitingForHuman', 'Running', 'Preparing', 'Queued', 
 
 /** Debounce for re-reading a job after its events (a burst of events → one request). */
 export const refreshDelayMs = 250
+/** What the server did with a message, when it's not just "the agent has it". */
+export const outcomeNotes: Record<string, string> = {
+  fix_round: 'Fix round started: the agent addresses your message on the PR and pushes.',
+  follow_up: 'The job’s agent answers under Conversation (talk only: nothing is pushed).',
+  close_out: 'Done: the job’s chat threads are cleaned up as you chose.',
+  handoff_declined: 'No hand-off: the job is done.',
+}
 
 /**
  * Jobs as the dashboard shows them. Loaded from /api/dashboard; kept fresh from the "all" stream: a
@@ -93,10 +100,41 @@ export const useJobsStore = defineStore('jobs', () => {
     }
   }
 
+  /**
+   * A message to a job, routed like a reply in its chat thread: an answer, the next turn, a fix round in review, the
+   * close-out answer, or after the merge a follow-up (answered under Conversation). Null when it wasn't taken (toasted).
+   */
+  async function message(id: number, text: string): Promise<string | null> {
+    try {
+      const { outcome } = await send<{ outcome: string }>('POST', `/api/jobs/${id}/messages`, { text })
+      const note = outcomeNotes[outcome]
+      if (note) useUiStore().toast(note, 'info')
+      void refresh(id).catch(() => {})
+      return outcome
+    } catch (err) {
+      useUiStore().toast(err instanceof ApiError ? err.message : 'The message wasn’t sent.', 'error')
+      return null
+    }
+  }
+
+  /** The knowledge hand-off (like !handoff): the agent proposes what to add to AGENTS.md, in the job's thread. */
+  async function handoff(id: number): Promise<void> {
+    pending.add(id)
+    try {
+      await send('POST', `/api/jobs/${id}/handoff`)
+      useUiStore().toast('Hand-off started: the agent proposes what to keep, then asks you here.', 'info')
+    } catch (err) {
+      useUiStore().toast(err instanceof ApiError ? err.message : `Couldn't start the hand-off for job #${id}.`, 'error')
+    } finally {
+      pending.delete(id)
+      await refresh(id).catch(() => {})
+    }
+  }
+
   const cancel = (id: number) => act(id, 'cancel', 'Cancelled')
   const retry = (id: number) => act(id, 'retry', 'Queued')
   const pause = (id: number) => act(id, 'pause', 'Paused')
   const resume = (id: number) => act(id, 'resume', 'Queued')
 
-  return { byId, details, pending, active, waitingCount, stats, load, refresh, apply, cancel, retry, pause, resume, answerPermission }
+  return { byId, details, pending, active, waitingCount, stats, load, refresh, apply, cancel, retry, pause, resume, answerPermission, message, handoff }
 })
