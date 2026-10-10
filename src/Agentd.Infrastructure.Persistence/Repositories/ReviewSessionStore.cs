@@ -57,23 +57,26 @@ public sealed class ReviewSessionStore(NpgsqlDataSource dataSource) : IReviewSes
         return rows;
     }
 
-    public async Task<long> AddAskAsync(long sessionId, string? file, int? line, int? endLine, string question, string author, CancellationToken cancellationToken) =>
-        await ScalarAsync<long>("SELECT agentd.review_ask_add($1, $2, $3, $4, $5, $6)", cancellationToken,
-            P(sessionId, NpgsqlDbType.Bigint), T(file), P(line, NpgsqlDbType.Integer), P(endLine, NpgsqlDbType.Integer), T(question), T(author)).ConfigureAwait(false);
+    public async Task<long> AddAskAsync(long sessionId, string? file, int? line, int? endLine, string question, string author, long? threadId, CancellationToken cancellationToken) =>
+        await ScalarAsync<long>("SELECT agentd.review_ask_add($1, $2, $3, $4, $5, $6, $7)", cancellationToken,
+            P(sessionId, NpgsqlDbType.Bigint), T(file), P(line, NpgsqlDbType.Integer), P(endLine, NpgsqlDbType.Integer), T(question), T(author), P(threadId, NpgsqlDbType.Bigint)).ConfigureAwait(false);
+
+    public Task SetAskSessionAsync(long threadId, Guid session, CancellationToken cancellationToken) =>
+        ExecuteAsync("SELECT agentd.review_ask_set_session($1, $2)", cancellationToken, P(threadId, NpgsqlDbType.Bigint), P(session, NpgsqlDbType.Uuid));
 
     public Task AnswerAsync(long askId, string answer, CancellationToken cancellationToken) =>
         ExecuteAsync("SELECT agentd.review_ask_answer($1, $2)", cancellationToken, P(askId, NpgsqlDbType.Bigint), T(answer));
 
     public async Task<IReadOnlyList<ReviewAsk>> ListAsksAsync(long sessionId, CancellationToken cancellationToken)
     {
-        await using var cmd = dataSource.CreateCommand("SELECT id, file, line, end_line, question, answer, author, asked_at, answered_at FROM agentd.review_ask_list($1)");
+        await using var cmd = dataSource.CreateCommand("SELECT id, file, line, end_line, question, answer, author, asked_at, answered_at, thread_id, agent_session FROM agentd.review_ask_list($1)");
         cmd.Parameters.Add(P(sessionId, NpgsqlDbType.Bigint));
         await using var r = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         var rows = new List<ReviewAsk>();
         while (await r.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
             rows.Add(new ReviewAsk(r.GetInt64(0), Str(r, 1), Int(r, 2), Int(r, 3), r.GetString(4), Str(r, 5), r.GetString(6),
-                r.GetFieldValue<DateTimeOffset>(7), r.IsDBNull(8) ? null : r.GetFieldValue<DateTimeOffset>(8)));
+                r.GetFieldValue<DateTimeOffset>(7), r.IsDBNull(8) ? null : r.GetFieldValue<DateTimeOffset>(8), r.IsDBNull(9) ? null : r.GetInt64(9), r.IsDBNull(10) ? null : r.GetGuid(10)));
         }
 
         return rows;

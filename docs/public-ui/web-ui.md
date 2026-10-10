@@ -78,7 +78,8 @@ The review page:
   🟠 performance) with **Keep**, **Edit** (your wording) or **Drop**;
 - **click a line number** to comment there, or **Ask** about that code ("why is this here?"); the whole change has
   its own comment and Ask box at the side. Answers come from the code at the review's head, naming files and lines,
-  and show under **Questions** ("thinking…" until then);
+  and show under **Questions** ("thinking…" until then). Each question is a conversation: **Ask a follow-up** under
+  its answer, and the agent remembers what you discussed;
 - "Reviewing…" while the reviewer works: the findings appear when it's done, and you can read and comment meanwhile.
 
 **Send** (when it's Ready): only the findings you kept (edited ones in your words) and your comments go.

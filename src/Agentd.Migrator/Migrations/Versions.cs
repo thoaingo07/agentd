@@ -73,3 +73,6 @@ public sealed class PrWatches : SqlMigration;
 
 [Migration(2026_10_20_0001, "Azure DevOps connections by personal access token, and each person's commit name and email")]
 public sealed class AdoUserPat : SqlMigration;
+
+[Migration(2026_10_21_0001, "Review page questions become threads: follow-ups resume the first question's agent session")]
+public sealed class ReviewAskThreads : SqlMigration;

@@ -548,6 +548,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/reviews/{id}/asks/{threadId}/follow-ups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["FollowUpReviewAsk"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/reviews/{id}/send": {
         parameters: {
             query?: never;
@@ -1472,6 +1488,7 @@ export interface components {
             machine: null | components["schemas"]["MachineVm"];
             jobs: components["schemas"]["JobResourcesVm"][];
         };
+        /** @description A question and its answer; `threadId` names the thread's first question (none: this one starts a thread). */
         ReviewAskVm: {
             /** Format: int64 */
             id: number;
@@ -1485,6 +1502,8 @@ export interface components {
             author: string;
             /** Format: date-time */
             askedAt: string;
+            /** Format: int64 */
+            threadId: null | number;
         };
         ReviewCommentVm: {
             /** Format: int64 */
@@ -2797,6 +2816,60 @@ export interface operations {
             };
             /** @description Not Found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    FollowUpReviewAsk: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+                threadId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": null | components["schemas"]["CommentRequest"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewAskVm"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

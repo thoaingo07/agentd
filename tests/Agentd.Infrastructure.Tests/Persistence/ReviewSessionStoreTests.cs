@@ -74,7 +74,7 @@ public sealed class ReviewSessionStoreTests
         var notMine = await store.DeleteCommentAsync(id, whole, "dev@example.com", default);
         var wrongSession = await store.DeleteCommentAsync(other, whole, "lead@example.com", default);
         var mine = await store.DeleteCommentAsync(id, whole, "lead@example.com", default);
-        var ask = await store.AddAskAsync(id, "src/A.cs", 3, 5, "why a loop here?", "dev@example.com", default);
+        var ask = await store.AddAskAsync(id, "src/A.cs", 3, 5, "why a loop here?", "dev@example.com", null, default);
         await store.AnswerAsync(ask, "It pages by key.", default);
 
         var comments = await store.ListCommentsAsync(id, default);
@@ -84,5 +84,31 @@ public sealed class ReviewSessionStoreTests
         var q = (await store.ListAsksAsync(id, default)).Single();
         Assert.AreEqual(("why a loop here?", "It pages by key.", 3, 5), (q.Question, q.Answer, q.Line, q.EndLine));
         Assert.IsNotNull(q.AnsweredAt);
+    }
+
+    [TestMethod]
+    public async Task A_follow_up_joins_its_thread_at_its_place_only_after_the_last_answer_and_one_of_parallel_follow_ups_wins()
+    {
+        await using var db = await Database.CreateMigratedAsync("review_ask_threads");
+        var store = new ReviewSessionStore(db);
+        var id = await store.InsertAsync("sysmin", ReviewTargets.Branch, null, "x", "develop", "dev@example.com", null, null, default);
+        var other = await store.InsertAsync("sysmin", ReviewTargets.Branch, null, "y", "develop", "dev@example.com", null, null, default);
+        var root = await store.AddAskAsync(id, "src/A.cs", 3, 5, "why a loop here?", "dev@example.com", null, default);
+
+        var tooSoon = await store.AddAskAsync(id, null, null, null, "and if it's empty?", "dev@example.com", root, default);
+        await store.AnswerAsync(root, "It pages by key.", default);
+        var wrongSession = await store.AddAskAsync(other, null, null, null, "?", "dev@example.com", root, default);
+        var parallel = await Task.WhenAll(Enumerable.Range(0, 8).Select(i => Task.Run(() => store.AddAskAsync(id, null, null, null, $"follow-up {i}", "dev@example.com", root, default))));
+        var followUpOfFollowUp = await store.AddAskAsync(id, null, null, null, "?", "dev@example.com", parallel.Max(), default);
+        var fresh = Guid.NewGuid();
+        await store.SetAskSessionAsync(root, fresh, default);
+
+        Assert.AreEqual((IReviewSessionStore.ThreadBusy, IReviewSessionStore.NoThread, IReviewSessionStore.NoThread), (tooSoon, wrongSession, followUpOfFollowUp));
+        Assert.HasCount(1, parallel.Where(a => a > 0), "one follow-up lands; the others wait for its answer");
+        Assert.HasCount(7, parallel.Where(a => a == IReviewSessionStore.ThreadBusy));
+        var asks = await store.ListAsksAsync(id, default);
+        Assert.HasCount(2, asks);
+        Assert.AreEqual((null, fresh), (asks[0].ThreadId, asks[0].AgentSession));
+        Assert.AreEqual((root, "src/A.cs", 3, 5, (Guid?)null), (asks[1].ThreadId, asks[1].File, asks[1].Line, asks[1].EndLine, asks[1].AgentSession));
     }
 }

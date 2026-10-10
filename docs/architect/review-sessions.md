@@ -62,6 +62,10 @@ Diff · Findings), and the inline cards in the diff.
   findings.
 - **Ask**: select code and ask ("why is this here?", "explain this flow"). The answer appears in the side panel and is
   kept with the session. On the server it has the repo and Azure DevOps context (like `!chat`); locally, your repo.
+  Each question starts a **thread** (decided 2026-10-10): **Ask a follow-up** continues it at the same place, and the
+  agent keeps the conversation (the thread's first question holds a Claude session that follow-ups `--resume`; if it
+  can't be resumed, the follow-up starts a new session with the conversation so far in its prompt, and the thread
+  keeps that one). One question per thread at a time: a follow-up waits until the last answer is in.
 - **Live**: while the reviewer works the page says "Reviewing…" and checks the session every few seconds; the findings
   arrive together when the reviewer finishes (its review-findings block). The diff and comments work meanwhile.
   (Streaming findings one by one, over the SignalR hub, can come later if reviews get long.)
@@ -157,6 +161,7 @@ Server (`/api`, signed in, antiforgery on writes):
 | `PUT /api/reviews/{id}/findings/{n}` | `{ decision: kept | dropped | edited, text? }` |
 | `POST /api/reviews/{id}/comments` · `DELETE …/comments/{c}` | `{ file?, line?, endLine?, text }` |
 | `POST /api/reviews/{id}/asks` | `{ file?, line?, endLine?, question }` → the answer (streamed on the hub) |
+| `POST /api/reviews/{id}/asks/{threadId}/follow-ups` | `{ text }` → a follow-up in that thread (202); 409 while its last question waits for the answer |
 | `POST /api/reviews/{id}/send` | `{ destination }` → what happened |
 | `POST /api/reviews/uploads` | `agentd review --share`: `{ repo?, base, diff, files[], findings, comments }` |
 

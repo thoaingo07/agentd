@@ -46,6 +46,50 @@ public sealed class ReviewSessionAsksTests
     }
 
     [TestMethod]
+    public async Task A_follow_up_resumes_the_threads_session_after_the_answer()
+    {
+        var id = await SessionAsync();
+        _agent.Reply = new BrainstormReply("It pages by key.", null, null);
+        _agent.Gate = new TaskCompletionSource();
+        using var asks = Asks();
+        var first = (await asks.AskAsync(id, "src/Sync.cs", 41, null, "why a loop here?", "dev@example.com", default)).Value!;
+
+        var tooSoon = await asks.FollowUpAsync(id, first.Id, "and if it's empty?", "dev@example.com", default);
+        _agent.Gate.SetResult();
+        await asks.Answer(id, first);
+        var follow = (await asks.FollowUpAsync(id, first.Id, " and if it's empty? ", "lead@example.com", default)).Value!;
+        await asks.Answer(id, follow);
+        var missing = await asks.FollowUpAsync(id, 999, "?", "dev@example.com", default);
+
+        Assert.AreEqual(("conflict", "not_found"), (tooSoon.Error!.Code, missing.Error!.Code));
+        Assert.AreEqual((first.Id, "src/Sync.cs", 41), (follow.ThreadId, follow.File, follow.Line), "a follow-up is at its thread's place");
+        var (start, resume) = (_agent.Turns[0], _agent.Turns[1]);
+        Assert.AreEqual((false, true, start.Session, first.Id), (start.Resume, resume.Resume, resume.Session, resume.IdeaId));
+        Assert.AreEqual("lead@example.com follows up:\n\nand if it's empty?", resume.Prompt);
+        Assert.AreEqual("It pages by key.", (await _store.ListAsksAsync(id, default)).Single(a => a.Id == follow.Id).Answer);
+    }
+
+    [TestMethod]
+    public async Task A_follow_up_whose_session_is_gone_starts_over_with_the_conversation_so_far()
+    {
+        var id = await SessionAsync();
+        _agent.Reply = new BrainstormReply("It pages by key.", null, null);
+        using var asks = Asks();
+        var first = (await asks.AskAsync(id, null, null, null, "what does this change do?", "dev@example.com", default)).Value!;
+        await asks.Answer(id, first);
+        var follow = (await asks.FollowUpAsync(id, first.Id, "is it safe?", "dev@example.com", default)).Value!;
+        _agent.Replies.Enqueue(new BrainstormReply(null, null, "No conversation found with session ID"));
+
+        await asks.Answer(id, follow);
+
+        var retry = _agent.Turns[^1];
+        Assert.IsFalse(retry.Resume);
+        StringAssert.Contains(retry.Prompt, "asks:\n\nwhat does this change do?\n\nYou answered:\n\nIt pages by key.\n\ndev@example.com follows up:\n\nis it safe?");
+        Assert.AreEqual(retry.Session, (await _store.ListAsksAsync(id, default)).Single(a => a.Id == first.Id).AgentSession, "later follow-ups resume the new session");
+        Assert.AreEqual("It pages by key.", (await _store.ListAsksAsync(id, default)).Single(a => a.Id == follow.Id).Answer);
+    }
+
+    [TestMethod]
     public async Task A_question_needs_text_real_lines_and_an_open_review()
     {
         var id = await SessionAsync();
@@ -75,16 +119,26 @@ public sealed class ReviewSessionAsksTests
     {
         public BrainstormReply Reply { get; set; } = new(null, null, null);
 
+        /// <summary>Replies used once each, before <see cref="Reply"/>.</summary>
+        public Queue<BrainstormReply> Replies { get; } = [];
+
         public List<BrainstormTurn> Turns { get; } = [];
 
-        public Task<BrainstormReply> RunAsync(BrainstormTurn turn, CancellationToken cancellationToken)
+        /// <summary>Turns wait for this, when set.</summary>
+        public TaskCompletionSource? Gate { get; set; }
+
+        public async Task<BrainstormReply> RunAsync(BrainstormTurn turn, CancellationToken cancellationToken)
         {
+            if (Gate is { } gate)
+            {
+                await gate.Task;
+            }
+
             lock (Turns)
             {
                 Turns.Add(turn);
+                return Replies.TryDequeue(out var next) ? next : Reply;
             }
-
-            return Task.FromResult(Reply);
         }
     }
 }
