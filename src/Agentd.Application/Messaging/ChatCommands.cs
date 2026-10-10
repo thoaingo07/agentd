@@ -48,7 +48,8 @@ public sealed partial class ChatCommands(
     JobActivity? activity = null,
     Domain.Common.IClock? clock = null,
     Chats.ChatService? chats = null,
-    Reviews.BranchReviews? branchReviews = null)
+    Reviews.BranchReviews? branchReviews = null,
+    Monitor.PrWatchService? watches = null)
 {
     /// <summary>Commands typed in a job's thread are recorded, so the work item conversation shows both directions.</summary>
     public const string CommandEventType = "chat.command";
@@ -71,22 +72,23 @@ public sealed partial class ChatCommands(
         "**Commands** (start with `!` on Discord)",
         "In a job's thread:",
         "• `status`: phase, activity, time and usage",
-        "• `logs`: the agent's recent transcript",
+        "• `logs`: recent transcript",
         "• `pause` / `resume`: stop for now, continue later (`cancel` ends it)",
         "• `retry`: run a failed or cancelled job again",
-        "• `handoff`: start the knowledge hand-off (after the PR is merged)",
+        "• `handoff`: start the knowledge hand-off (after the merge)",
         "• `approve [job|always]` / `deny`: answer a permission request",
         "Anywhere:",
         "• `list`: active jobs",
-        "• `run <work item id>`: start a work item now, even without the tag",
+        "• `run <work item id>`: start it now, even untagged",
         "• `idea <text>`: brainstorm into work items",
         "• `review <PR> [instructions]`: review a PR; you pick what's posted (or `branch:<name>`)",
         "• `chat <question>`: ask about the code (`close` ends it)",
+        "• `watch <PR>`: fix its builds, conflicts, comments (asks first)",
         "• `repo list|add <url>|remove <name>`: repositories (Admins change them)",
         "• `help`: this message",
         "",
         "**Talking to the agent** (in a job's thread)",
-        "• Any other message goes to the agent (it reads it at its next step).",
+        "• Other messages go to the agent (read at its next step).",
         "• Ask \"what's the progress?\" anytime.",
         "• Answer a question with its number (`1`, `2`, …) or in your own words.",
         "• 🔐 Permissions: `1` once, `2` this job, `3` always (repo), `4` deny (no answer in 10 min = deny).",
@@ -96,11 +98,11 @@ public sealed partial class ChatCommands(
         "2. Clarify, then **plan** with an estimate. Reply `1` to approve or say what to change (`ai-auto` skips this).",
         "3. Implement and verify, then open a **pull request**.",
         "4. **Review loop:** I fix PR comments, or your messages here, until the PR is ready to complete.",
-        "5. After the merge, **hand-off:** I propose knowledge to sync into the repo; then I only answer questions.",
+        "5. After the merge, **hand-off:** I propose knowledge for the repo; then I only answer questions.",
         "6. **Close-out:** I ask whether to delete this thread (`1` delete, `2` keep).",
         "",
         "**Along the way**",
-        "• A heartbeat every minute, usage warnings at 80%, reminders while I wait for you",
+        "• A heartbeat every minute, usage warnings at 80%, reminders when I wait",
         "• `model` / `effort`: change the model in an idea or review thread",
         "• Everything is also on the web dashboard.");
 
@@ -194,6 +196,12 @@ public sealed partial class ChatCommands(
                         ? new(MessageKind.Info, startedReview.Value)
                         : new(MessageKind.Info, startedReview.Error.Message);
                 break;
+            case "watch" or "unwatch":
+                reply = watches is null
+                    ? new(MessageKind.Info, "The PR monitor isn't enabled.")
+                    : (name == "watch" ? await watches.WatchAsync(message.Provider, user.Name, command.Args, ct).ConfigureAwait(false) : await watches.UnwatchAsync(command.Args, ct).ConfigureAwait(false))
+                        is var watched && watched.IsSuccess ? new(MessageKind.Info, watched.Value) : new(MessageKind.Info, watched.Error.Message);
+                break;
             case "repo":
                 reply = await RepoAsync(command.Args, user, ct).ConfigureAwait(false);
                 break;
@@ -206,7 +214,7 @@ public sealed partial class ChatCommands(
         }
 
         await ReplyAsync(message, job, reply, ct).ConfigureAwait(false);
-        return new InboundOutcome($"command:{(name is "list" or "run" or "status" or "cancel" or "retry" or "logs" or "handoff" or "approve" or "deny" or "idea" or "review" or "chat" or "model" or "effort" or "repo" or "pause" or "resume" or "help" ? name : "unknown")}", job);
+        return new InboundOutcome($"command:{(name is "list" or "run" or "status" or "cancel" or "retry" or "logs" or "handoff" or "approve" or "deny" or "idea" or "review" or "chat" or "watch" or "unwatch" or "model" or "effort" or "repo" or "pause" or "resume" or "help" ? name : "unknown")}", job);
     }
 
     /// <summary><c>approve [request] [once|job|always]</c> or <c>deny [request]</c>; null when it was decided (announced in the thread).</summary>

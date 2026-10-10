@@ -145,3 +145,17 @@ The main message is edited in place: `x open, y fixed · checked at <commit>`. T
 ```
 
 agentd **never votes or approves**.
+
+## Watching a PR
+
+```text
+!watch !3944
+!watch https://dev.azure.com/myorg/MyProject/_git/my-repo/pullrequest/3944
+!unwatch !3944
+```
+
+agentd opens a 👀 thread for the PR. It watches for **failed PR builds**, **merge conflicts** and **new comments**
+from people it knows (comments already on the PR when you start don't count). For each, it prepares a fix and asks
+in that thread before pushing anything: **1** push · **2** discard. Say **unwatch** in the thread to stop; a completed
+or abandoned PR stops by itself. (The monitor's fixes are being built: today watching opens the thread and records
+the PR.)

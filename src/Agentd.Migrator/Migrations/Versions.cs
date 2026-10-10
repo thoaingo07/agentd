@@ -67,3 +67,6 @@ public sealed class AdoUserConnections : SqlMigration;
 
 [Migration(2026_10_18_0001, "Review sessions: findings with decisions, comments and questions")]
 public sealed class ReviewSessions : SqlMigration;
+
+[Migration(2026_10_19_0001, "The PR Monitor's watch list")]
+public sealed class PrWatches : SqlMigration;

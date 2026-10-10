@@ -80,6 +80,40 @@ That means one set of reviewer definitions for both agent PRs and human PRs.
 
 ## 2. PR Monitor
 
+### 2.0 First version (decided 2026-10-10)
+
+Built before the MAF workflows (Phase 4), on what agentd already has: the review loop for its own PRs, and review
+sessions' Fix it (a checkout of the PR head, an edit-only agent, a commit as agentd, a push that's never forced).
+The rest of §2 is the longer-term design.
+
+**Which PRs.** agentd's own PRs, plus PRs someone **watches**:
+- `!watch !3944 [--repo r]` in chat, or **Watch** on a PR's review page. Watching opens a 👀 thread for the PR, where
+  reports and approvals happen; `!unwatch !3944` (or `unwatch` in that thread) stops it.
+- A PR that's completed or abandoned stops being watched.
+
+**Signals and what they start.**
+
+| Signal | On a watched PR | On agentd's own PR |
+|---|---|---|
+| A PR build (build validation) **failed** | a fix round with the failed steps' errors and log end | a fix round in the job's session (its review loop) |
+| **Merge conflicts** with the target | a fix round: merge the target into the source, resolve, never rebase | the same, in the job's session |
+| A **new active comment** from someone agentd knows (an agentd user's email, or a connected Azure DevOps identity) | a fix round with the comment (no mention needed) | today's review loop |
+| **Completed / abandoned** | stop watching | today's handling |
+
+Rounds are **debounced** (5 minutes without new signals, so one review pass is one round), at most **5 fix rounds per
+watched PR** (then it asks in the 👀 thread), and never two at once for the same PR. agentd ignores its own comments.
+
+**Ask first.** On a watched PR a round **prepares** the fix and asks before anything is pushed:
+1. A checkout of the PR head (for conflicts, `git merge origin/<target>` first); the fixer (the review sessions'
+   `ReviewFix` turn: edits only, no commit or push tools) fixes the build errors, conflicts or comments; agentd commits.
+2. In the 👀 thread: what failed, what changed (files, `+/-`, the fixer's summary) and **1** push · **2** discard.
+3. **Push**: `HEAD:refs/heads/<branch>`, never forced (a branch that moved on refuses it: the round is dropped and
+   the next signal starts a new one). Addressed comment threads get "Fixed in `abc1234`" and status fixed; a short note
+   goes on the PR (under the watcher's name when they connected their Azure DevOps). **Discard** drops the checkout.
+   A prepared round nobody answers expires after 24 hours.
+
+agentd's own PRs keep their job's flow: their fix rounds push as today.
+
 ### 2.1 What it watches
 
 `PullRequestMonitorWorker` polls every registered repo (default every 60 s, with per-repo ETags or
