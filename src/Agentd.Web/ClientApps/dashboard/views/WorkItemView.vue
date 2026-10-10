@@ -99,8 +99,12 @@ watch(() => props.id, (id) => {
 watch(runId, (id, before) => {
   if (before !== undefined) events.close(before)
   if (id === undefined) return
-  void events.open(id).catch(() => {})
+  // A finished run's transcript is read page by page; an active one also streams what comes next.
+  void events.open(id, !runFinal.value).catch(() => {})
   void jobs.refresh(id).catch(() => {})
+})
+watch(runFinal, (final) => {
+  if (final && runId.value !== undefined) events.settle(runId.value)
 })
 onMounted(() => {
   globalThis.addEventListener('keydown', onKey)

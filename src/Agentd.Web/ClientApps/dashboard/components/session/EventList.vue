@@ -1,21 +1,28 @@
 <script setup lang="ts">
-// The transcript: follow mode (stick to the bottom), "N new events ↓" when scrolled up, and
-// "Load earlier" that keeps the reader's place.
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+// The transcript: follow mode (stick to the bottom), "N new events ↓" when scrolled up, and earlier events loading as
+// the reader scrolls up (or "Load earlier"), keeping their place.
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { AgentEvent } from '../../../shared/api/types'
 import { AgToggleGroup } from '../../../shared/components/ui'
 import type { EventCategory } from '../../stores/ui'
 import EventRow from './EventRow.vue'
-import { categoryOf, toRows } from './transcript'
+import { categoryOf, toRows, type Row } from './transcript'
 
-const props = defineProps<{ events: AgentEvent[]; hasMore: boolean; loadEarlier: () => Promise<void> }>()
+const props = defineProps<{ events: readonly AgentEvent[]; hasMore: boolean; loadEarlier: () => Promise<void> }>()
 const categories = defineModel<string[]>('categories', { default: () => ['text', 'tools', 'messages', 'state', 'errors'] })
 const follow = defineModel<boolean>('follow', { default: true })
 
 const scroller = ref<HTMLElement | null>(null)
+const top = ref<HTMLElement | null>(null)
 const unseen = ref(0)
 const loading = ref(false)
-const rows = computed(() => toRows(props.events).filter((r) => categories.value.includes(categoryOf[r.kind] as EventCategory)))
+let previous = new Map<number, Row>()
+const allRows = computed(() => {
+  const rows = toRows(props.events, previous)
+  previous = new Map(rows.map((r) => [r.key, r]))
+  return rows
+})
+const rows = computed(() => allRows.value.filter((r) => categories.value.includes(categoryOf[r.kind] as EventCategory)))
 const reducedMotion = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
 const filterOptions = [
@@ -26,10 +33,11 @@ const filterOptions = [
   { value: 'errors', label: 'Errors' },
 ]
 
-function toBottom(): void {
+/** Live events jump (smooth scrolling can't keep up with a busy agent); going back down from the button glides. */
+function toBottom(smooth = false): void {
   const el = scroller.value
   if (!el) return
-  if (reducedMotion || typeof el.scrollTo !== 'function') el.scrollTop = el.scrollHeight
+  if (!smooth || reducedMotion || typeof el.scrollTo !== 'function') el.scrollTop = el.scrollHeight
   else el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
 }
 
@@ -44,17 +52,22 @@ function onScroll(): void {
 function resume(): void {
   follow.value = true
   unseen.value = 0
-  void nextTick(toBottom)
+  void nextTick(() => toBottom(true))
 }
 
+/** New events at the end (not earlier ones loaded at the top): follow them, or count them. */
 watch(
-  () => props.events.length,
+  () => props.events,
   async (now, before) => {
+    const last = before.at(-1)?.seq ?? 0
+    let added = 0
+    for (let i = now.length - 1; i >= 0 && now[i]!.seq > last; i--) added++
+    if (!added) return
     if (follow.value) {
       await nextTick()
       toBottom()
-    } else if (now > before) {
-      unseen.value += now - before
+    } else {
+      unseen.value += added
     }
   },
 )
@@ -62,6 +75,7 @@ watch(
 /** Prepending changes scrollHeight; shift scrollTop by the same amount so the view doesn't jump. */
 async function earlier(): Promise<void> {
   const el = scroller.value!
+  if (loading.value || !props.hasMore) return
   const before = el.scrollHeight
   loading.value = true
   try {
@@ -73,7 +87,17 @@ async function earlier(): Promise<void> {
   }
 }
 
-onMounted(() => void nextTick(toBottom))
+/** Scrolling near the top loads the page before it. */
+let observer: IntersectionObserver | undefined
+onMounted(() => {
+  void nextTick(() => toBottom())
+  if (typeof IntersectionObserver !== 'function' || !top.value) return
+  observer = new IntersectionObserver((entries) => {
+    if (entries.some((e) => e.isIntersecting)) void earlier()
+  }, { root: scroller.value, rootMargin: '300px 0px 0px 0px' })
+  observer.observe(top.value)
+})
+onBeforeUnmount(() => observer?.disconnect())
 defineExpose({ resume, onScroll, earlier, unseen })
 </script>
 
@@ -93,15 +117,20 @@ defineExpose({ resume, onScroll, earlier, unseen })
         @scroll="onScroll"
         @keydown.end.prevent="resume"
       >
-        <button
-          v-if="hasMore"
-          type="button"
-          class="btn btn-ghost btn-xs justify-self-center"
-          :disabled="loading"
-          @click="earlier"
+        <div
+          ref="top"
+          class="justify-self-center"
         >
-          Load earlier
-        </button>
+          <button
+            v-if="hasMore"
+            type="button"
+            class="btn btn-ghost btn-xs"
+            :disabled="loading"
+            @click="earlier"
+          >
+            {{ loading ? 'Loading earlier…' : 'Load earlier' }}
+          </button>
+        </div>
         <EventRow
           v-for="row in rows"
           :key="row.key"

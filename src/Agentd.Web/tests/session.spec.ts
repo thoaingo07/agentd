@@ -80,6 +80,19 @@ describe('step rows', () => {
   })
 })
 
+describe('live rows', () => {
+  it('reuses unchanged rows, so only new ones (and a call whose result came) render again', () => {
+    const call = ev(1, 'agent.tool_call', { id: 't1', name: 'Bash' })
+    const text = ev(2, 'agent.text', { text: 'hi' })
+    const before = toRows([call, text])
+    const after = toRows([call, text, ev(3, 'agent.tool_result', { toolUseId: 't1', content: 'ok' }), ev(4, 'agent.text', { text: 'more' })], new Map(before.map((r) => [r.key, r])))
+
+    expect(after[1]).toBe(before[1])
+    expect(after[0]).not.toBe(before[0])
+    expect(after.map((r) => r.key)).toEqual([1, 2, 4])
+  })
+})
+
 describe('ToolCallCard', () => {
   it('starts expanded when the result failed', async () => {
     const w = mount(ToolCallCard, {
@@ -126,6 +139,15 @@ describe('EventList', () => {
 
     await w.findAll('button').find((b) => b.text().includes('new events'))!.trigger('click')
     expect(w.emitted('update:follow')?.at(-1)).toEqual([true])
+    w.unmount()
+  })
+
+  it('earlier events loaded at the top are not counted as new', async () => {
+    const w = mount(EventList, { props: { events: [ev(5, 'agent.text', { text: 'x' })], hasMore: true, loadEarlier: async () => {}, follow: false }, attachTo: document.body })
+    await w.setProps({ events: [ev(3, 'agent.text', { text: 'a' }), ev(4, 'agent.text', { text: 'b' }), ev(5, 'agent.text', { text: 'x' })] })
+    expect(w.text()).not.toContain('new event')
+    await w.setProps({ events: [ev(3, 'agent.text', { text: 'a' }), ev(4, 'agent.text', { text: 'b' }), ev(5, 'agent.text', { text: 'x' }), ev(6, 'agent.text', { text: 'y' })] })
+    expect(w.text()).toContain('1 new event ↓')
     w.unmount()
   })
 

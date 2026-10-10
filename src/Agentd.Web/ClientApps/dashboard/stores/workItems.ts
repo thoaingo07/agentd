@@ -38,12 +38,6 @@ export const useWorkItemsStore = defineStore('workItems', () => {
       return
     }
     await Promise.all([loadMore(), loadConversation(), ...summary.value.jobs.map(async (j) => details.value.set(j.id, await get<JobDetail>(`/api/jobs/${j.id}`)))])
-    // Stream the active jobs from where the timeline is; the hub replays anything newer.
-    const connection = useConnectionStore()
-    for (const job of summary.value.jobs.filter((j) => !finalStates.includes(j.state))) {
-      live.add(String(job.id))
-      await connection.subscribe(String(job.id), newest())
-    }
   }
 
   /** The story is read from the beginning; this fetches the next page. */
@@ -52,6 +46,19 @@ export const useWorkItemsStore = defineStore('workItems', () => {
     const page = await get<EventPage>(`/api/workitems/${id.value}/timeline?after=${newest()}&limit=${timelinePage}`)
     events.value.push(...page.events)
     hasMore.value = page.hasMore
+    if (!page.hasMore) await goLive()
+  }
+
+  /**
+   * Streams the active jobs once the timeline has reached the end: the hub only replays what's newer. (Subscribing
+   * from a page in the middle would replay the rest of a long run one event at a time.)
+   */
+  async function goLive(): Promise<void> {
+    const connection = useConnectionStore()
+    for (const job of summary.value?.jobs.filter((j) => !finalStates.includes(j.state) && !live.has(String(j.id))) ?? []) {
+      live.add(String(job.id))
+      await connection.subscribe(String(job.id), newest())
+    }
   }
 
   async function loadConversation(): Promise<void> {

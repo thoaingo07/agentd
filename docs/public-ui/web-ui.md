@@ -47,7 +47,8 @@ All jobs, newest first. Search by title or `WI-1234`, and filter by state, repos
 Everything about one work item on one page (the dashboard and History open it; an old `/jobs/<id>` link lands here
 with that run picked). The header has the run's **Pause / Resume / Cancel / Retry**; with several runs, pick one
 ("Run 1", "Run 2 (rework)") and the run tabs follow it. Tabs (keys 1–6):
-- **Transcript:** the run live: the agent's text and tool calls, steps, questions, and a box to message the agent;
+- **Transcript:** the agent's text and tool calls, steps, questions, and a box to message the agent. It opens on the
+  newest part, live while the run is active; scroll up for earlier parts;
 - **Diff:** the run's branch against its base;
 - **Timeline:** every step of every run;
 - **Conversation:** chat both ways, with the provider;
