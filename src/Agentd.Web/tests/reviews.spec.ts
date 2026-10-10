@@ -53,7 +53,12 @@ beforeEach(() => {
         : { destination, text: '# Review findings (agentd review)\n1. 🔴 **Unbounded read**', url: null, posted: 0, asPerson: false })
     }
     if (path === '/api/reviews/7/asks') {
-      const a = { id: 5, author: 'local', askedAt: '2026-10-09T10:02:00Z', endLine: null, answer: null, question: (body as { text: string }).text, file: (body as { file?: string }).file ?? null, line: (body as { line?: number }).line ?? null }
+      const a = { id: 5, author: 'local', askedAt: '2026-10-09T10:02:00Z', endLine: null, answer: null, question: (body as { text: string }).text, file: (body as { file?: string }).file ?? null, line: (body as { line?: number }).line ?? null, threadId: null }
+      asks = [...asks, a]
+      return json(a, 202)
+    }
+    if (path === '/api/reviews/7/asks/5/follow-ups') {
+      const a = { ...asks[0], id: 6, answer: null, question: (body as { text: string }).text, threadId: 5 }
       asks = [...asks, a]
       return json(a, 202)
     }
@@ -183,8 +188,19 @@ describe('reviews', () => {
     await vi.advanceTimersByTimeAsync(reviewPollMs + 1)
     await flushPromises()
     const answer = view.get('[data-testid=ask]')
-    expect(answer.text()).toContain('src/Sync.cs:41 why a loop here?')
+    expect(answer.text()).toContain('src/Sync.cs:41')
+    expect(answer.text()).toContain('why a loop here?')
     expect(answer.find('strong').text()).toBe('key')
+
+    await answer.get('input[aria-label="Ask a follow-up"]').setValue('and if the table is empty?')
+    await answer.get('form').trigger('submit')
+    await flushPromises()
+    expect(calls.find((c) => c.path === '/api/reviews/7/asks/5/follow-ups')?.body).toEqual({ text: 'and if the table is empty?' })
+    const thread = view.findAll('[data-testid=ask]')
+    expect(thread).toHaveLength(1)
+    expect(thread[0]!.text()).toContain('and if the table is empty?')
+    expect(thread[0]!.text()).toContain('thinking…')
+    expect((thread[0]!.get('input[aria-label="Ask a follow-up"]').element as HTMLInputElement).disabled).toBe(true)
   })
 
   it('posts a PR review to the PR under your name', async () => {

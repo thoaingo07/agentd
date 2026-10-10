@@ -77,8 +77,12 @@ public sealed record ReviewSession(
 /// <summary>A person's note on a file and lines (no file: the whole change).</summary>
 public sealed record ReviewComment(long Id, string? File, int? Line, int? EndLine, string Text, string Author, DateTimeOffset CreatedAt);
 
-/// <summary>A question about the code (on a selection or the whole change) and, once answered, the answer.</summary>
-public sealed record ReviewAsk(long Id, string? File, int? Line, int? EndLine, string Question, string? Answer, string Author, DateTimeOffset AskedAt, DateTimeOffset? AnsweredAt);
+/// <summary>
+/// A question about the code (on a selection or the whole change) and, once answered, the answer. A thread's first question
+/// has no <see cref="ThreadId"/> and holds the agent's session (<see cref="AgentSession"/>); follow-ups name the first question.
+/// </summary>
+public sealed record ReviewAsk(long Id, string? File, int? Line, int? EndLine, string Question, string? Answer, string Author, DateTimeOffset AskedAt, DateTimeOffset? AnsweredAt,
+    long? ThreadId = null, Guid? AgentSession = null);
 
 /// <summary>Review sessions via <c>agentd.review_session_*</c>, <c>review_comment_*</c> and <c>review_ask_*</c> routines.</summary>
 public interface IReviewSessionStore
@@ -115,7 +119,18 @@ public interface IReviewSessionStore
 
     Task<IReadOnlyList<ReviewComment>> ListCommentsAsync(long sessionId, CancellationToken cancellationToken);
 
-    Task<long> AddAskAsync(long sessionId, string? file, int? line, int? endLine, string question, string author, CancellationToken cancellationToken);
+    /// <summary>
+    /// A new thread, or with <paramref name="threadId"/> a follow-up in it: the new id, or <see cref="NoThread"/> /
+    /// <see cref="ThreadBusy"/> (its last question waits for the answer).
+    /// </summary>
+    Task<long> AddAskAsync(long sessionId, string? file, int? line, int? endLine, string question, string author, long? threadId, CancellationToken cancellationToken);
+
+    /// <summary>The thread's agent session started over.</summary>
+    Task SetAskSessionAsync(long threadId, Guid session, CancellationToken cancellationToken);
+
+    public const long NoThread = 0;
+
+    public const long ThreadBusy = -1;
 
     Task AnswerAsync(long askId, string answer, CancellationToken cancellationToken);
 

@@ -98,14 +98,50 @@ RETURNS SETOF agentd.review_comments
 LANGUAGE sql STABLE
 AS $$ SELECT * FROM agentd.review_comments WHERE session_id = p_session_id ORDER BY id $$;
 
-CREATE OR REPLACE FUNCTION agentd.review_ask_add(p_session_id bigint, p_file text, p_line int, p_end_line int, p_question text, p_author text)
+DROP FUNCTION IF EXISTS agentd.review_ask_add(bigint, text, int, int, text, text);
+
+-- A new question starts a thread (it gets the agent session its follow-ups resume). With p_thread_id it's a follow-up
+-- at the thread's place: 0 when there's no such thread in the session, -1 while the thread's last question still waits
+-- for its answer (the thread's first question is locked, so parallel follow-ups add one and refuse the others).
+CREATE OR REPLACE FUNCTION agentd.review_ask_add(p_session_id bigint, p_file text, p_line int, p_end_line int, p_question text, p_author text,
+                                                 p_thread_id bigint DEFAULT NULL)
 RETURNS bigint
-LANGUAGE sql
+LANGUAGE plpgsql
 AS $$
-    INSERT INTO agentd.review_asks (session_id, file, line, end_line, question, author)
-    VALUES (p_session_id, p_file, p_line, p_end_line, p_question, p_author)
-    RETURNING id
+DECLARE
+    v_root agentd.review_asks;
+    v_id   bigint;
+BEGIN
+    IF p_thread_id IS NULL THEN
+        INSERT INTO agentd.review_asks (session_id, file, line, end_line, question, author, agent_session)
+        VALUES (p_session_id, p_file, p_line, p_end_line, p_question, p_author, gen_random_uuid())
+        RETURNING id INTO v_id;
+        RETURN v_id;
+    END IF;
+
+    SELECT * INTO v_root FROM agentd.review_asks
+    WHERE id = p_thread_id AND session_id = p_session_id AND thread_id IS NULL
+    FOR UPDATE;
+    IF NOT FOUND THEN
+        RETURN 0;
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM agentd.review_asks WHERE (id = p_thread_id OR thread_id = p_thread_id) AND answer IS NULL) THEN
+        RETURN -1;
+    END IF;
+
+    INSERT INTO agentd.review_asks (session_id, file, line, end_line, question, author, thread_id)
+    VALUES (p_session_id, v_root.file, v_root.line, v_root.end_line, p_question, p_author, p_thread_id)
+    RETURNING id INTO v_id;
+    RETURN v_id;
+END
 $$;
+
+-- The thread's agent session started over (its old one couldn't be resumed).
+CREATE OR REPLACE FUNCTION agentd.review_ask_set_session(p_thread_id bigint, p_session uuid)
+RETURNS void
+LANGUAGE sql
+AS $$ UPDATE agentd.review_asks SET agent_session = p_session WHERE id = p_thread_id AND thread_id IS NULL $$;
 
 CREATE OR REPLACE FUNCTION agentd.review_ask_answer(p_id bigint, p_answer text)
 RETURNS void

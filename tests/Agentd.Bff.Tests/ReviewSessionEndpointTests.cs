@@ -173,7 +173,9 @@ public sealed class ReviewSessionEndpointTests
 
         public Task<IReadOnlyList<ReviewComment>> ListCommentsAsync(long sessionId, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<ReviewComment>>([.. _comments]);
 
-        public Task<long> AddAskAsync(long sessionId, string? file, int? line, int? endLine, string question, string author, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<long> AddAskAsync(long sessionId, string? file, int? line, int? endLine, string question, string author, long? threadId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task SetAskSessionAsync(long threadId, Guid session, CancellationToken cancellationToken) => throw new NotSupportedException();
 
         public Task AnswerAsync(long askId, string answer, CancellationToken cancellationToken) => throw new NotSupportedException();
 

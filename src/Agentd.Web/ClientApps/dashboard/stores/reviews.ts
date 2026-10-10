@@ -113,6 +113,16 @@ export const useReviewsStore = defineStore('reviews', () => {
     poll(id)
   }
 
+  /** A follow-up in a question's thread (the agent keeps the conversation); refused while the last one waits. */
+  async function followUp(threadId: number, text: string): Promise<void> {
+    if (!current.value) return
+    const id = current.value.session.id
+    await send<unknown>('POST', `/api/reviews/${id}/asks/${threadId}/follow-ups`, { text })
+    await refresh()
+    clearTimeout(timer)
+    poll(id)
+  }
+
   /** Post a PR's review to the PR, or get it as text to copy. */
   async function sendTo(destination: 'pr' | 'text' | 'fix'): Promise<ReviewSent | null> {
     if (!current.value) return null
@@ -130,5 +140,5 @@ export const useReviewsStore = defineStore('reviews', () => {
     await refresh()
   }
 
-  return { mine, current, diff, files, openPrs, openPrsError, loadMine, loadOpenPrs, watchOpenPrs, stopOpenPrs, start, open, close, decide, comment, ask, removeComment, sendTo }
+  return { mine, current, diff, files, openPrs, openPrsError, loadMine, loadOpenPrs, watchOpenPrs, stopOpenPrs, start, open, close, decide, comment, ask, followUp, removeComment, sendTo }
 })

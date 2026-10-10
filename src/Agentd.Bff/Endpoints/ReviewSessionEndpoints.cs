@@ -51,8 +51,14 @@ public static class ReviewSessionEndpoints
 
         reviews.MapPost("/{id:long}/asks", async (long id, CommentRequest? body, ClaimsPrincipal user, [FromServices] ReviewSessionAsks asks, CancellationToken ct) =>
             (await asks.AskAsync(id, body?.File, body?.Line, body?.EndLine, body?.Text ?? string.Empty, AdoConnectEndpoints.Login(user), ct).ConfigureAwait(false))
-                .ToHttpResult(a => TypedResults.Accepted($"/api/reviews/{id}", new ReviewAskVm(a.Id, a.File, a.Line, a.EndLine, a.Question, a.Answer, a.Author, a.AskedAt))))
+                .ToHttpResult(a => TypedResults.Accepted($"/api/reviews/{id}", ReviewAskVm.From(a))))
             .WithName("AskAboutReview").Produces<ReviewAskVm>(StatusCodes.Status202Accepted).ProducesProblem(StatusCodes.Status400BadRequest).ProducesProblem(StatusCodes.Status404NotFound);
+
+        reviews.MapPost("/{id:long}/asks/{threadId:long}/follow-ups", async (long id, long threadId, CommentRequest? body, ClaimsPrincipal user, [FromServices] ReviewSessionAsks asks, CancellationToken ct) =>
+            (await asks.FollowUpAsync(id, threadId, body?.Text ?? string.Empty, AdoConnectEndpoints.Login(user), ct).ConfigureAwait(false))
+                .ToHttpResult(a => TypedResults.Accepted($"/api/reviews/{id}", ReviewAskVm.From(a))))
+            .WithName("FollowUpReviewAsk").Produces<ReviewAskVm>(StatusCodes.Status202Accepted).ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status404NotFound).ProducesProblem(StatusCodes.Status409Conflict);
 
         reviews.MapPost("/{id:long}/send", async (long id, SendRequest? body, [FromServices] ReviewSessionSend send, CancellationToken ct) =>
             (await send.SendAsync(id, body?.Destination ?? string.Empty, ct).ConfigureAwait(false))
@@ -110,7 +116,15 @@ public sealed record ReviewCommentVm(long Id, string? File, int? Line, int? EndL
     }
 }
 
-public sealed record ReviewAskVm(long Id, string? File, int? Line, int? EndLine, string Question, string? Answer, string Author, DateTimeOffset AskedAt);
+/// <summary>A question and its answer; <c>threadId</c> names the thread's first question (none: this one starts a thread).</summary>
+public sealed record ReviewAskVm(long Id, string? File, int? Line, int? EndLine, string Question, string? Answer, string Author, DateTimeOffset AskedAt, long? ThreadId)
+{
+    public static ReviewAskVm From(ReviewAsk a)
+    {
+        ArgumentNullException.ThrowIfNull(a);
+        return new(a.Id, a.File, a.Line, a.EndLine, a.Question, a.Answer, a.Author, a.AskedAt, a.ThreadId);
+    }
+}
 
 /// <summary>A session with its comments and questions, as the review page shows it.</summary>
 public sealed record ReviewSessionDetailVm(ReviewSessionVm Session, IReadOnlyList<ReviewCommentVm> Comments, IReadOnlyList<ReviewAskVm> Asks)
@@ -119,7 +133,7 @@ public sealed record ReviewSessionDetailVm(ReviewSessionVm Session, IReadOnlyLis
     {
         ArgumentNullException.ThrowIfNull(v);
         return new(ReviewSessionVm.From(v.Session), [.. v.Comments.Select(ReviewCommentVm.From)],
-            [.. v.Asks.Select(a => new ReviewAskVm(a.Id, a.File, a.Line, a.EndLine, a.Question, a.Answer, a.Author, a.AskedAt))]);
+            [.. v.Asks.Select(ReviewAskVm.From)]);
     }
 }
 

@@ -72,6 +72,19 @@ async function copy(text: string): Promise<void> {
   copied.value = true
 }
 
+/** Questions as conversations: each thread's first question, then its follow-ups. */
+const threads = computed(() => {
+  const asks = reviews.current?.asks ?? []
+  return asks.filter((a) => a.threadId == null).map((root) => ({ root, asks: asks.filter((a) => a.id === root.id || a.threadId === root.id) }))
+})
+const replies = ref<Record<number, string>>({})
+const followUp = (threadId: number) => act(async () => {
+  const text = replies.value[threadId]?.trim()
+  if (!text) return
+  await reviews.followUp(threadId, text)
+  replies.value[threadId] = ''
+})
+
 const where = (a: { file?: string | null; line?: number | null; endLine?: number | null }) =>
   a.file ? `${a.file}${a.line ? `:${a.line}${a.endLine && a.endLine !== a.line ? `-${a.endLine}` : ''}` : ''}` : 'the whole change'
 </script>
@@ -352,25 +365,55 @@ const where = (a: { file?: string | null; line?: number | null; endLine?: number
               id="asks-title"
               class="font-semibold"
             >
-              Questions · {{ reviews.current.asks.length }}
+              Questions · {{ threads.length }}
             </h2>
             <article
-              v-for="a in reviews.current.asks"
-              :key="a.id"
-              class="grid gap-1 rounded-box border border-base-300 p-2"
+              v-for="t in threads"
+              :key="t.root.id"
+              class="grid gap-2 rounded-box border border-base-300 p-2"
               data-testid="ask"
             >
-              <p>❓ <span class="font-mono text-xs">{{ where(a) }}</span> {{ a.question }}</p>
-              <MarkdownText
-                v-if="a.answer"
-                :text="a.answer"
-              />
-              <p
-                v-else
-                class="text-muted"
-              >
-                <span class="loading loading-dots loading-xs" /> thinking…
+              <p class="font-mono text-xs text-muted">
+                ❓ {{ where(t.root) }}
               </p>
+              <div
+                v-for="a in t.asks"
+                :key="a.id"
+                class="grid gap-1"
+              >
+                <p><span class="text-xs text-muted">{{ a.author }}:</span> {{ a.question }}</p>
+                <MarkdownText
+                  v-if="a.answer"
+                  :text="a.answer"
+                />
+                <p
+                  v-else
+                  class="text-muted"
+                >
+                  <span class="loading loading-dots loading-xs" /> thinking…
+                </p>
+              </div>
+              <form
+                v-if="!readonly"
+                class="flex gap-2"
+                @submit.prevent="followUp(t.root.id)"
+              >
+                <input
+                  v-model="replies[t.root.id]"
+                  class="input input-sm min-w-0 flex-1"
+                  placeholder="Ask a follow-up"
+                  aria-label="Ask a follow-up"
+                  :disabled="t.asks.some((a) => a.answer == null)"
+                >
+                <AgButton
+                  size="sm"
+                  variant="outline"
+                  type="submit"
+                  :disabled="t.asks.some((a) => a.answer == null)"
+                >
+                  Ask
+                </AgButton>
+              </form>
             </article>
           </section>
         </aside>

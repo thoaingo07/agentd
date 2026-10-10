@@ -1560,6 +1560,92 @@
         }
       }
     },
+    "/api/reviews/{id}/asks/{threadId}/follow-ups": {
+      "post": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "FollowUpReviewAsk",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "threadId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/CommentRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewAskVm"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/reviews/{id}/send": {
       "post": {
         "tags": [
@@ -4581,7 +4667,8 @@
           "question",
           "answer",
           "author",
-          "askedAt"
+          "askedAt",
+          "threadId"
         ],
         "type": "object",
         "properties": {
@@ -4624,8 +4711,16 @@
           "askedAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "threadId": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int64"
           }
-        }
+        },
+        "description": "A question and its answer; \u0060threadId\u0060 names the thread\u0027s first question (none: this one starts a thread)."
       },
       "ReviewCommentVm": {
         "required": [

@@ -9,6 +9,7 @@ namespace Agentd.Application.Reviews;
 /// <summary>
 /// Ask on a review page (docs/architect/review-sessions.md §2): a question about the selected code (or the whole change),
 /// answered in the background from the review's read-only checkout. The page shows "thinking…" until the answer is in.
+/// Each question starts a thread; follow-ups resume the thread's agent session, so the agent keeps the conversation.
 /// </summary>
 public sealed class ReviewSessionAsks(IReviewSessionStore store, IRepositoryRegistry repositories, IWorktreeManager worktrees, IBrainstormAgent agent) : IDisposable
 {
@@ -40,7 +41,37 @@ public sealed class ReviewSessionAsks(IReviewSessionStore store, IRepositoryRegi
                 return DomainError.Conflict($"Review {id} is closed.");
         }
 
-        var askId = await store.AddAskAsync(id, string.IsNullOrWhiteSpace(file) ? null : file.Trim(), line, endLine, question.Trim(), author, cancellationToken).ConfigureAwait(false);
+        var askId = await store.AddAskAsync(id, string.IsNullOrWhiteSpace(file) ? null : file.Trim(), line, endLine, question.Trim(), author, null, cancellationToken).ConfigureAwait(false);
+        var ask = (await store.ListAsksAsync(id, cancellationToken).ConfigureAwait(false)).Single(a => a.Id == askId);
+        _ = Answer(id, ask);
+        return ask;
+    }
+
+    /// <summary>A follow-up in thread <paramref name="threadId"/> (its first question), once the last question there is answered.</summary>
+    public async Task<Result<ReviewAsk>> FollowUpAsync(long id, long threadId, string question, string author, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(question) || question.Length > MaxQuestion)
+        {
+            return DomainError.Validation($"Ask a question (up to {MaxQuestion} characters).");
+        }
+
+        switch (await store.GetAsync(id, cancellationToken).ConfigureAwait(false))
+        {
+            case null:
+                return DomainError.NotFound($"Review {id}");
+            case { Status: ReviewSessionStatus.Closed }:
+                return DomainError.Conflict($"Review {id} is closed.");
+        }
+
+        var askId = await store.AddAskAsync(id, null, null, null, question.Trim(), author, threadId, cancellationToken).ConfigureAwait(false);
+        switch (askId)
+        {
+            case IReviewSessionStore.NoThread:
+                return DomainError.NotFound($"Question {threadId} in review {id}");
+            case IReviewSessionStore.ThreadBusy:
+                return DomainError.Conflict("The last question in this thread is still being answered; ask again once it is.");
+        }
+
         var ask = (await store.ListAsksAsync(id, cancellationToken).ConfigureAwait(false)).Single(a => a.Id == askId);
         _ = Answer(id, ask);
         return ask;
@@ -87,8 +118,34 @@ public sealed class ReviewSessionAsks(IReviewSessionStore store, IRepositoryRegi
             }
 
             var worktree = await worktrees.CheckoutCommitAsync(repo, $"review-session-{sessionId}", head, CancellationToken.None).ConfigureAwait(false);
-            var reply = await agent.RunAsync(new BrainstormTurn(ask.Id, worktree, Guid.NewGuid(), false, Prompt(session, ask), session.Model, session.Effort, ThreadTurnKind.ReviewAsk),
-                CancellationToken.None).ConfigureAwait(false);
+            var thread = (await store.ListAsksAsync(sessionId, CancellationToken.None).ConfigureAwait(false))
+                .Where(a => a.Id == (ask.ThreadId ?? ask.Id) || a.ThreadId == (ask.ThreadId ?? ask.Id)).OrderBy(a => a.Id).ToList();
+            var root = thread.FirstOrDefault(a => a.ThreadId is null) ?? ask;
+            BrainstormTurn Turn(Guid agentSession, bool resume, string prompt) =>
+                new(root.Id, worktree, agentSession, resume, prompt, session.Model, session.Effort, ThreadTurnKind.ReviewAsk);
+
+            BrainstormReply reply;
+            if (ask.ThreadId is null)
+            {
+                reply = await agent.RunAsync(Turn(root.AgentSession ?? Guid.NewGuid(), false, Prompt(session, ask)), CancellationToken.None).ConfigureAwait(false);
+            }
+            else
+            {
+                reply = root.AgentSession is { } previous
+                    ? await agent.RunAsync(Turn(previous, true, $"{ask.Author} follows up:\n\n{ask.Question}"), CancellationToken.None).ConfigureAwait(false)
+                    : new BrainstormReply(null, null, "no session");
+                if (reply is { Text: null, UsageLimitedUntil: null })
+                {
+                    // The session can't be resumed (it never started, or it's gone): start over with the conversation so far.
+                    var fresh = Guid.NewGuid();
+                    reply = await agent.RunAsync(Turn(fresh, false, Prompt(session, root, thread.Where(a => a.Id < ask.Id).ToList(), ask)), CancellationToken.None).ConfigureAwait(false);
+                    if (reply.Text is not null)
+                    {
+                        await store.SetAskSessionAsync(root.Id, fresh, CancellationToken.None).ConfigureAwait(false);
+                    }
+                }
+            }
+
             return reply switch
             {
                 { UsageLimitedUntil: { } until } => $"⚠️ I couldn't answer: the Claude usage limit is reached until {until:HH:mm} UTC.",
@@ -102,6 +159,23 @@ public sealed class ReviewSessionAsks(IReviewSessionStore store, IRepositoryRegi
         {
             return $"⚠️ I couldn't answer: {ex.Message}";
         }
+    }
+
+    /// <summary>A follow-up whose session is gone: the first question's prompt, the conversation so far, then the follow-up.</summary>
+    internal static string Prompt(ReviewSession s, ReviewAsk root, IReadOnlyList<ReviewAsk> earlier, ReviewAsk followUp)
+    {
+        var sb = new System.Text.StringBuilder(Prompt(s, root));
+        foreach (var a in earlier)
+        {
+            if (a.Id != root.Id)
+            {
+                sb.Append("\n\n").Append(a.Author).Append(" followed up:\n\n").Append(a.Question);
+            }
+
+            sb.Append("\n\nYou answered:\n\n").Append(a.Answer ?? "(no answer)");
+        }
+
+        return sb.Append("\n\n").Append(followUp.Author).Append(" follows up:\n\n").Append(followUp.Question).ToString();
     }
 
     internal static string Prompt(ReviewSession s, ReviewAsk ask)

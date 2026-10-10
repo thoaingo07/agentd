@@ -161,14 +161,40 @@ public sealed class ReviewSessionServiceTests
         public Task<IReadOnlyList<ReviewComment>> ListCommentsAsync(long sessionId, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<ReviewComment>>([.. _comments.Where(c => _sessionOf[c.Id] == sessionId)]);
 
-        public Task<long> AddAskAsync(long sessionId, string? file, int? line, int? endLine, string question, string author, CancellationToken cancellationToken)
+        public Task<long> AddAskAsync(long sessionId, string? file, int? line, int? endLine, string question, string author, long? threadId, CancellationToken cancellationToken)
         {
             lock (Asks)
             {
+                if (threadId is { } t)
+                {
+                    if (Asks.FirstOrDefault(a => a.Session == sessionId && a.Ask.Id == t && a.Ask.ThreadId is null).Ask is not { } root)
+                    {
+                        return Task.FromResult(IReviewSessionStore.NoThread);
+                    }
+
+                    if (Asks.Any(a => (a.Ask.Id == t || a.Ask.ThreadId == t) && a.Ask.Answer is null))
+                    {
+                        return Task.FromResult(IReviewSessionStore.ThreadBusy);
+                    }
+
+                    (file, line, endLine) = (root.File, root.Line, root.EndLine);
+                }
+
                 var id = ++_next;
-                Asks.Add((sessionId, new ReviewAsk(id, file, line, endLine, question, null, author, default, null)));
+                Asks.Add((sessionId, new ReviewAsk(id, file, line, endLine, question, null, author, default, null, threadId, threadId is null ? Guid.NewGuid() : null)));
                 return Task.FromResult(id);
             }
+        }
+
+        public Task SetAskSessionAsync(long threadId, Guid session, CancellationToken cancellationToken)
+        {
+            lock (Asks)
+            {
+                var i = Asks.FindIndex(a => a.Ask.Id == threadId);
+                Asks[i] = (Asks[i].Session, Asks[i].Ask with { AgentSession = session });
+            }
+
+            return Task.CompletedTask;
         }
 
         public Task AnswerAsync(long askId, string answer, CancellationToken cancellationToken)
