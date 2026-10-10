@@ -220,7 +220,7 @@ public sealed class Job : AggregateRoot<JobId>
 
         FixRounds++;
         PendingMessages = [.. PendingMessages, .. feedback];
-        Review = new ReviewState([.. Review.SeenCommentIds, .. commentIds], false, threadIds ?? []);
+        Review = Review with { SeenCommentIds = [.. Review.SeenCommentIds, .. commentIds], ReadyAnnounced = false, RoundThreads = threadIds ?? [] };
         Transition(JobState.Running, new FixRoundStarted(FixRounds, feedback.Count, Now));
         return Result.Ok;
     }
@@ -232,6 +232,13 @@ public sealed class Job : AggregateRoot<JobId>
         Review = Review with { RoundThreads = [] };
         return threads;
     }
+
+    /// <summary>
+    /// The PR build run and the PR head whose conflicts were handled (a fix round, or the take-over note), so neither starts
+    /// another round; null keeps what was recorded.
+    /// </summary>
+    public void MarkSignalsHandled(int? buildId, string? conflictCommit) =>
+        Review = Review with { LastBuildId = buildId ?? Review.LastBuildId, ConflictCommit = conflictCommit ?? Review.ConflictCommit };
 
     /// <summary>Records comments that need no fix round (e.g. already resolved when first seen).</summary>
     public void MarkCommentsSeen(IReadOnlyList<int> commentIds)
@@ -699,8 +706,12 @@ public enum HandoffStatus
     Closing,
 }
 
-/// <summary>PR review tracking: comment ids already handled, and whether "ready to complete" was posted for the current round.</summary>
-public sealed record ReviewState(IReadOnlyList<int> SeenCommentIds, bool ReadyAnnounced, IReadOnlyList<int>? RoundThreads = null)
+/// <summary>
+/// PR review tracking: comment ids already handled, whether "ready to complete" was posted for the current round, the
+/// threads the round addresses, the failed PR build run already handled, and the PR head whose merge conflicts were.
+/// </summary>
+public sealed record ReviewState(IReadOnlyList<int> SeenCommentIds, bool ReadyAnnounced, IReadOnlyList<int>? RoundThreads = null, int? LastBuildId = null,
+    string? ConflictCommit = null)
 {
     public static ReviewState Empty { get; } = new([], false);
 }

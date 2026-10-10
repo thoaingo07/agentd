@@ -113,7 +113,13 @@ watched PR** (then it asks in the 👀 thread), and never two at once for the sa
    sign-in yet). **Discard** drops the checkout. A prepared round nobody answers expires after 24 hours; a PR that's
    completed, or `unwatch`, discards it too.
 
-agentd's own PRs keep their job's flow: their fix rounds push as today.
+agentd's own PRs keep their job's flow: their fix rounds push as today. The review loop (`ReviewPullRequests`, every
+`Jobs:ReviewPollInterval`) reads the same signals: the latest run on `refs/pull/<id>/merge` failing (its failed steps'
+errors and log end become the round's feedback) and `mergeStatus` `conflicts` (the feedback tells the agent to
+`git merge origin/<target>`, resolve, test and commit; never rebase, since agentd pushes without force). Comments, the
+build and conflicts found in one pass make one round. The job's `review_state` remembers the handled run
+(`lastBuildId`) and the conflicted head (`conflictCommit`), so each starts one round; still conflicting after the push
+(a new head) is a new round. Past `Jobs:MaxFixRounds` it asks once to take over.
 
 **How it's built.** `PrMonitor` runs in the review monitor's pass (every `Jobs:ReviewPollInterval`, 2 minutes): the
 PR (status, `mergeStatus`), its comments (with the author's `uniqueName`), and its latest PR build (the runs on
