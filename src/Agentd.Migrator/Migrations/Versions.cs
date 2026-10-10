@@ -76,3 +76,6 @@ public sealed class AdoUserPat : SqlMigration;
 
 [Migration(2026_10_21_0001, "Review page questions become threads: follow-ups resume the first question's agent session")]
 public sealed class ReviewAskThreads : SqlMigration;
+
+[Migration(2026_10_22_0001, "Ideas can start on the Web UI, without a chat thread")]
+public sealed class WebIdeas : SqlMigration;

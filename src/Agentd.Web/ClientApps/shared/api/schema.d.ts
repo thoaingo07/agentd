@@ -301,7 +301,7 @@ export interface paths {
         };
         get: operations["GetIdeas"];
         put?: never;
-        post?: never;
+        post: operations["StartIdea"];
         delete?: never;
         options?: never;
         head?: never;
@@ -317,6 +317,38 @@ export interface paths {
         };
         get: operations["GetIdea"];
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ideas/{id}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["SendIdeaMessage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ideas/{id}/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["ChangeIdeaSettings"];
         post?: never;
         delete?: never;
         options?: never;
@@ -1278,9 +1310,21 @@ export interface components {
             };
         };
         IdeaDetailVm: {
+            /** @description The idea. */
             idea: components["schemas"]["IdeaSummaryVm"];
+            /** @description Its latest proposed work items. */
             drafts: components["schemas"]["WorkItemDraftVm"][];
+            /** @description The whole conversation, including agentd's own notices. */
             messages: components["schemas"]["IdeaMessageVm"][];
+            /**
+             * @description The agent is writing a reply.
+             * @default false
+             */
+            thinking: boolean;
+        };
+        IdeaMessageRequest: {
+            /** @description A message, or a choice once work items are proposed (✅ Create, 🚀 Create and start, ✏️ Change, 🗑 Discard). */
+            text: null | string;
         };
         /** @description One message of the idea's conversation: `in` from a person, `out` from the agent (Markdown). */
         IdeaMessageVm: {
@@ -1289,6 +1333,17 @@ export interface components {
             text: string;
             /** Format: date-time */
             at: string;
+        };
+        IdeaSettingsRequest: {
+            /** @description From the next reply; none keeps the current one. */
+            model: null | string;
+            /** @description From the next reply; none keeps the current one. */
+            effort: null | string;
+        };
+        /** @description A new idea: its page is `/ideas/{id}`. */
+        IdeaStartedVm: {
+            /** Format: int64 */
+            id: number;
         };
         IdeaSummaryVm: {
             /** Format: int64 */
@@ -1642,6 +1697,16 @@ export interface components {
         SetupSessionVm: {
             /** Format: date-time */
             expiresAt: null | string;
+        };
+        StartIdeaRequest: {
+            /** @description The idea, in your words. */
+            text: null | string;
+            /** @description The repository (optional when only one is registered). */
+            repo: null | string;
+            /** @description The brainstorm's model (fable, opus, sonnet or a full name); none = the default. */
+            model: null | string;
+            /** @description low, medium, high, xhigh or max; none = the default. */
+            effort: null | string;
         };
         StartReviewRequest: {
             /** @description A registered repository. */
@@ -2361,6 +2426,48 @@ export interface operations {
             };
         };
     };
+    StartIdea: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": null | components["schemas"]["StartIdeaRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdeaStartedVm"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     GetIdea: {
         parameters: {
             query?: never;
@@ -2379,6 +2486,99 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["IdeaDetailVm"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    SendIdeaMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": null | components["schemas"]["IdeaMessageRequest"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    ChangeIdeaSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": null | components["schemas"]["IdeaSettingsRequest"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
             /** @description Not Found */

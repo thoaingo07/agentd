@@ -22,7 +22,7 @@ public sealed record Idea(
     string Title,
     string Author,
     ProviderKey Provider,
-    string ThreadId,
+    string? ThreadId,
     string? SpaceId,
     string Status,
     Guid? Session,
@@ -52,7 +52,7 @@ public sealed record IdeaSummary(
 /// <summary>Ideas and their conversation (PostgreSQL routines).</summary>
 public interface IIdeaStore
 {
-    Task<long> InsertAsync(string repository, string title, string author, ProviderKey provider, string threadId, string? spaceId, CancellationToken cancellationToken);
+    Task<long> InsertAsync(string repository, string title, string author, ProviderKey provider, string? threadId, string? spaceId, CancellationToken cancellationToken);
 
     Task<Idea?> GetAsync(long id, CancellationToken cancellationToken);
 

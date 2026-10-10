@@ -67,7 +67,7 @@ public sealed class SweepWorktreesTests
             ? new Idea(id, "sysmin", "t", "tngo", ProviderKey.From("discord"), "t", null, s, null, null, null, null, null, [])
             : null);
 
-        public Task<long> InsertAsync(string repository, string title, string author, ProviderKey provider, string threadId, string? spaceId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<long> InsertAsync(string repository, string title, string author, ProviderKey provider, string? threadId, string? spaceId, CancellationToken cancellationToken) => throw new NotSupportedException();
 
         public Task<Idea?> FindByThreadAsync(ProviderKey provider, string threadId, CancellationToken cancellationToken) => throw new NotSupportedException();
 

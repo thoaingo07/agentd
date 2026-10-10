@@ -13,7 +13,8 @@ namespace Agentd.Application.Ideas;
 /// Brainstorm threads: <c>!idea</c> opens one with a read-only agent session in a detached checkout of the
 /// repository; every message resumes the same session. One turn at a time per idea (messages that arrive
 /// meanwhile are answered together next), and at most <see cref="MaxConcurrentIdeas"/> ideas think at once.
-/// Replies go straight to the thread (not the job outbox: an idea has no job).
+/// Replies go straight to the thread (not the job outbox: an idea has no job). An idea started on the Web UI
+/// (<see cref="Web"/>) has no thread: its conversation is only in agentd, where agentd's own notices are kept too.
 /// </summary>
 public sealed partial class IdeaService(
     IIdeaStore ideas,
@@ -26,6 +27,9 @@ public sealed partial class IdeaService(
 {
     public const int MaxConcurrentIdeas = 2;
     public const int TitleLength = 60;
+
+    /// <summary>The provider of ideas started on the Web UI (no chat thread).</summary>
+    public static readonly ProviderKey Web = ProviderKey.From("web");
 
     private readonly ConcurrentDictionary<long, Queue> _queues = new();
     private readonly SemaphoreSlim _slots = new(MaxConcurrentIdeas, MaxConcurrentIdeas);
@@ -40,6 +44,43 @@ public sealed partial class IdeaService(
             return DomainError.Validation("Describe the idea after `!idea`, e.g. `!idea dark mode for the portal`.");
         }
 
+        var started = await StartCoreAsync(provider, author, text, repository, model, effort, ct).ConfigureAwait(false);
+        if (!started.IsSuccess)
+        {
+            return started.Error;
+        }
+
+        var settings = (model, effort) switch
+        {
+            (null, null) => string.Empty,
+            _ => $" Model: {model ?? "default"}, effort: {effort ?? "default"}.",
+        };
+        return $"💡 Started a brainstorm thread for your idea (idea #{started.Value}).{settings}";
+    }
+
+    /// <summary>Starts an idea from the Web UI: no chat thread; it's talked through on its page. Returns its id.</summary>
+    public async Task<Result<long>> StartOnWebAsync(string author, string text, string? repository, string? model, string? effort, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return DomainError.Validation("Describe the idea.");
+        }
+
+        if (model is not null && !BrainstormSettings.IsModel(model))
+        {
+            return DomainError.Validation($"`{model}` isn't a model name (use fable, opus, sonnet or a full model name).");
+        }
+
+        if (effort is not null && !BrainstormSettings.IsEffort(effort))
+        {
+            return DomainError.Validation($"`{effort}` isn't an effort level ({string.Join(", ", BrainstormSettings.Efforts)}).");
+        }
+
+        return await StartCoreAsync(Web, author, text, repository, model, effort?.ToLowerInvariant(), ct).ConfigureAwait(false);
+    }
+
+    private async Task<Result<long>> StartCoreAsync(ProviderKey provider, string author, string text, string? repository, string? model, string? effort, CancellationToken ct)
+    {
         var repo = await ResolveRepositoryAsync(repository, ct).ConfigureAwait(false);
         if (!repo.IsSuccess)
         {
@@ -47,11 +88,17 @@ public sealed partial class IdeaService(
         }
 
         var title = Title(text);
-        var opening = new OutboundMessage(MessageKind.Info,
-            $"💡 **Idea from {author}** (`{repo.Value.Name}`)\n\n{text.Trim()}\n\nI'm reading the code and will reply here. Talk to me in this thread; when it's clear, I'll propose User Stories and Tasks.");
-        var thread = await providers.Resolve(provider).OpenConversationAsync(
-            new ConversationSpec(default, default, title, repo.Value.Name, opening, $"💡 Idea: {title}"), ct).ConfigureAwait(false);
-        var id = await ideas.InsertAsync(repo.Value.Name.Value, title, author, provider, thread.ExternalConversationId, thread.ExternalSpaceId, ct).ConfigureAwait(false);
+        string? threadId = null, spaceId = null;
+        if (provider != Web)
+        {
+            var opening = new OutboundMessage(MessageKind.Info,
+                $"💡 **Idea from {author}** (`{repo.Value.Name}`)\n\n{text.Trim()}\n\nI'm reading the code and will reply here. Talk to me in this thread; when it's clear, I'll propose User Stories and Tasks.");
+            var thread = await providers.Resolve(provider).OpenConversationAsync(
+                new ConversationSpec(default, default, title, repo.Value.Name, opening, $"💡 Idea: {title}"), ct).ConfigureAwait(false);
+            (threadId, spaceId) = (thread.ExternalConversationId, thread.ExternalSpaceId);
+        }
+
+        var id = await ideas.InsertAsync(repo.Value.Name.Value, title, author, provider, threadId, spaceId, ct).ConfigureAwait(false);
         if ((model ?? effort) is not null && await ideas.GetAsync(id, ct).ConfigureAwait(false) is { } created)
         {
             await ideas.SaveAsync(created with { Model = model, Effort = effort }, ct).ConfigureAwait(false);
@@ -62,12 +109,7 @@ public sealed partial class IdeaService(
         var prompt = string.Create(CultureInfo.InvariantCulture,
             $"Brainstorm this idea with the developer, {author}:\n\n{text.Trim()}\n\nRepository: {repo.Value.Name} (a read-only checkout of `{repo.Value.BaseBranch}` is your working directory).");
         Enqueue(id, prompt);
-        var settings = (model, effort) switch
-        {
-            (null, null) => string.Empty,
-            _ => $" Model: {model ?? "default"}, effort: {effort ?? "default"}.",
-        };
-        return $"💡 Started a brainstorm thread for your idea (idea #{id}).{settings}";
+        return id;
     }
 
     /// <summary><c>!model &lt;name&gt;</c> / <c>!effort &lt;level&gt;</c> in an idea's thread: used from the next reply.</summary>
@@ -96,11 +138,19 @@ public sealed partial class IdeaService(
     public const string LabelDelete = "🗑 Delete thread";
     public const string LabelKeep = "📦 Keep (archive)";
 
-    /// <summary>A message in an idea's thread. Returns false when the idea no longer takes messages.</summary>
-    public async Task<bool> HandleMessageAsync(Idea idea, string author, string text, CancellationToken ct)
+    /// <summary>
+    /// A message in an idea's thread, or from its Web UI page (<paramref name="fromWeb"/>: also posted to its chat thread, if
+    /// it has one, so the thread keeps the whole conversation). Returns false when the idea no longer takes messages.
+    /// </summary>
+    public async Task<bool> HandleMessageAsync(Idea idea, string author, string text, CancellationToken ct, bool fromWeb = false)
     {
         ArgumentNullException.ThrowIfNull(idea);
         ArgumentNullException.ThrowIfNull(text);
+        if (fromWeb && idea.ThreadId is not null && idea.Status is IdeaStatus.Brainstorming or IdeaStatus.Proposed)
+        {
+            await PostAsync(idea, new OutboundMessage(MessageKind.Info, $"💬 **{author}** (web): {text.Trim()}"), ct, record: false).ConfigureAwait(false);
+        }
+
         var answer = text.Trim().TrimEnd('.', '!');
         if (idea.Status is IdeaStatus.Created or IdeaStatus.Discarded && CloseOutAnswer(answer) is { } delete)
         {
@@ -117,7 +167,11 @@ public sealed partial class IdeaService(
 
         if (idea.Status is IdeaStatus.Closed or IdeaStatus.Discarded or IdeaStatus.Created)
         {
-            await PostAsync(idea, new OutboundMessage(MessageKind.Info, "This idea is finished, so I didn't pass your message on. Start a new one with `!idea <text>`."), ct).ConfigureAwait(false);
+            if (!fromWeb)
+            {
+                await PostAsync(idea, new OutboundMessage(MessageKind.Info, "This idea is finished, so I didn't pass your message on. Start a new one with `!idea <text>`."), ct, record: false).ConfigureAwait(false);
+            }
+
             return false;
         }
 
@@ -129,6 +183,9 @@ public sealed partial class IdeaService(
 
         return true;
     }
+
+    /// <summary>Whether the agent is working on a reply for idea <paramref name="ideaId"/> (its page says "thinking…").</summary>
+    public bool IsThinking(long ideaId) => _queues.TryGetValue(ideaId, out var queue) && queue.Running;
 
     /// <summary>Queues a prompt; returns false if a turn is already running (the prompt joins the next turn).</summary>
     private bool Enqueue(long ideaId, string prompt)
@@ -223,14 +280,15 @@ public sealed partial class IdeaService(
         await ideas.AddMessageAsync(idea.Id, "out", "agent", reply.Text, ct).ConfigureAwait(false);
         if (text.Length > 0)
         {
-            await PostAsync(idea, new OutboundMessage(MessageKind.Info, text), ct).ConfigureAwait(false);
+            await PostAsync(idea, new OutboundMessage(MessageKind.Info, text), ct, record: false).ConfigureAwait(false);   // stored above, as the agent's
         }
 
         if (drafts is not null)
         {
             await PostAsync(idea, new OutboundMessage(MessageKind.Question,
                 WorkItemDrafts.Render(drafts) + "\n\n**1** create them in Azure DevOps · **2** create and start (agentd picks them up) · **3** change · **4** discard. Or just tell me what to change.",
-                [new MessageOption("idea-create", LabelCreate), new MessageOption("idea-start", LabelStart), new MessageOption("idea-change", LabelChange), new MessageOption("idea-discard", LabelDiscard)]), ct).ConfigureAwait(false);
+                [new MessageOption("idea-create", LabelCreate), new MessageOption("idea-start", LabelStart), new MessageOption("idea-change", LabelChange), new MessageOption("idea-discard", LabelDiscard)]), ct, record: false)
+                .ConfigureAwait(false);   // the page shows the drafts and the choices itself
         }
         else if (problem is not null)
         {
@@ -320,16 +378,23 @@ public sealed partial class IdeaService(
         }
     }
 
-    private Task AskCloseOutAsync(Idea idea, CancellationToken ct) =>
-        PostAsync(idea, new OutboundMessage(MessageKind.Question, "🧹 **All done.** Delete this thread? **1** delete · **2** keep it (archived). The conversation stays in agentd either way.",
-            [new MessageOption("idea-delete", LabelDelete), new MessageOption("idea-keep", LabelKeep)]), ct);
+    /// <summary>Asks whether to delete the chat thread; an idea without one only gives back its checkout.</summary>
+    private Task AskCloseOutAsync(Idea idea, CancellationToken ct) => idea.ThreadId is null
+        ? RemoveCheckoutAsync(idea.Repository, idea.Worktree, ct)
+        : PostAsync(idea, new OutboundMessage(MessageKind.Question, "🧹 **All done.** Delete this thread? **1** delete · **2** keep it (archived). The conversation stays in agentd either way.",
+            [new MessageOption("idea-delete", LabelDelete), new MessageOption("idea-keep", LabelKeep)]), ct, record: false);
 
     private async Task CloseOutAsync(Idea idea, bool delete, string author, CancellationToken ct)
     {
         await ideas.SaveAsync(idea with { Status = IdeaStatus.Closed }, ct).ConfigureAwait(false);
         await RemoveCheckoutAsync(idea.Repository, idea.Worktree, ct).ConfigureAwait(false);
+        if (idea.ThreadId is not { } threadId)
+        {
+            return;
+        }
+
         var provider = providers.Resolve(idea.Provider);
-        var thread = new ConversationRef(idea.Provider, idea.ThreadId, idea.SpaceId);
+        var thread = new ConversationRef(idea.Provider, threadId, idea.SpaceId);
         try
         {
             if (delete)
@@ -390,14 +455,28 @@ public sealed partial class IdeaService(
         };
     }
 
-    private async Task PostAsync(Idea idea, OutboundMessage message, CancellationToken ct)
+    /// <summary>
+    /// agentd's own message about the idea: kept in its conversation (<paramref name="record"/>; the Web UI shows it) and
+    /// posted to its chat thread, if it has one.
+    /// </summary>
+    private async Task PostAsync(Idea idea, OutboundMessage message, CancellationToken ct, bool record = true)
     {
         try
         {
+            if (record)
+            {
+                await ideas.AddMessageAsync(idea.Id, "out", "agentd", message.Markdown, ct).ConfigureAwait(false);
+            }
+
+            if (idea.ThreadId is not { } threadId)
+            {
+                return;
+            }
+
             var provider = providers.Resolve(idea.Provider);
             foreach (var part in MessageChunker.Prepare(message, provider.Capabilities))
             {
-                await provider.SendAsync(new ConversationRef(idea.Provider, idea.ThreadId, idea.SpaceId), part, ct).ConfigureAwait(false);
+                await provider.SendAsync(new ConversationRef(idea.Provider, threadId, idea.SpaceId), part, ct).ConfigureAwait(false);
             }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createMemoryHistory, createRouter } from 'vue-router'
+import { setAntiforgeryUrl } from '../ClientApps/shared/api/http'
 import type { AgentEvent, IdeaDetail, IdeaSummary } from '../ClientApps/shared/api/types'
 import { useConnectionStore } from '../ClientApps/dashboard/stores/connection'
 import { ideaRefreshDelayMs, useIdeasStore } from '../ClientApps/dashboard/stores/ideas'
@@ -23,6 +24,7 @@ const detail: IdeaDetail = {
     { direction: 'in', author: 'tngo', text: '<b>dark</b> mode please', at: '2026-10-05T10:00:00Z' },
     { direction: 'out', author: 'agentd', text: 'Which **pages**?', at: '2026-10-05T10:01:00Z' },
   ],
+  thinking: false,
 }
 const ev = (seq: number, type: string, ideaId: number): AgentEvent => ({ seq, jobId: null, ts: '2026-10-05T10:00:00Z', type, payload: { ideaId } })
 const router = () => createRouter({
@@ -36,11 +38,21 @@ const router = () => createRouter({
 })
 
 let routes: Record<string, unknown>
+let posts: { method: string; path: string; body: unknown }[]
 beforeEach(() => {
   setActivePinia(createPinia())
-  routes = { '/api/ideas/4': detail, '/api/ideas': [summary(5), summary(4, 'Created', [5701, 5702])] }
+  setAntiforgeryUrl('/bff/antiforgery')
+  posts = []
+  routes = {
+    '/api/ideas/4': detail, '/api/ideas': [summary(5), summary(4, 'Created', [5701, 5702])], '/bff/antiforgery': { token: 't' },
+    '/api/config': { repositories: [{ name: 'sysmin', organization: 'o', project: 'p' }, { name: 'docs', organization: 'o', project: 'p' }] },
+  }
   vi.stubGlobal('fetch', vi.fn(async (req: Request) => {
     const path = new URL(req.url).pathname
+    if (req.method !== 'GET' && path !== '/bff/antiforgery') {
+      posts.push({ method: req.method, path, body: JSON.parse(await req.text()) })
+      return path === '/api/ideas' ? new Response(JSON.stringify({ id: 9 }), { status: 201 }) : new Response(null, { status: req.method === 'PUT' ? 204 : 202 })
+    }
     return path in routes ? new Response(JSON.stringify(routes[path])) : new Response(JSON.stringify({ title: 'Not found' }), { status: 404 })
   }))
 })
@@ -70,6 +82,56 @@ describe('Ideas', () => {
     expect(w.find('[data-direction=in]').text()).toContain('<b>dark</b> mode please')
     expect(w.find('[data-direction=in] b').exists()).toBe(false)
     expect(w.find('[data-direction=out] strong').text()).toBe('pages')
+  })
+
+  it('starts a brainstorm on a chosen repository and model, and opens its page', async () => {
+    const r = router()
+    const w = mount(IdeasView, { global: { plugins: [r] } })
+    await flushPromises()
+
+    await w.get('textarea[aria-label="The idea"]').setValue('  dark mode for the portal ')
+    await w.get('select[aria-label="Repository"]').setValue('docs')
+    await w.get('select[aria-label="Model"]').setValue('opus')
+    await w.get('form[aria-label="New idea"]').trigger('submit')
+    await flushPromises()
+
+    expect(posts).toEqual([{ method: 'POST', path: '/api/ideas', body: { text: 'dark mode for the portal', repo: 'docs', model: 'opus', effort: null } }])
+    expect(r.currentRoute.value.fullPath).toBe('/ideas/9')
+  })
+
+  it('talks to an open idea, shows thinking, and sends the choices like chat\'s buttons (creating only after confirming)', async () => {
+    routes['/api/ideas/4'] = { ...detail, idea: { ...detail.idea, status: 'Proposed', createdWorkItems: [] }, thinking: true }
+    const confirm = vi.fn(() => false)
+    vi.stubGlobal('confirm', confirm)
+    const w = mount(IdeaView, { props: { id: 4 }, global: { plugins: [router()] } })
+    await flushPromises()
+    expect(w.get('[role=status]').text()).toContain('thinking…')
+
+    await w.get('textarea[aria-label="Message the agent"]').setValue('only the portal pages')
+    await w.get('form').trigger('submit')
+    await flushPromises()
+    const choices = w.get('[role=group][aria-label="Choose"]').findAll('button')
+    expect(choices.map((b) => b.text())).toEqual(['✅ Create', '🚀 Create and start', '✏️ Change', '🗑 Discard'])
+    await choices[1]!.trigger('click')
+    await choices[3]!.trigger('click')
+    await flushPromises()
+
+    expect(confirm).toHaveBeenCalledOnce()
+    expect(posts.map((p) => p.body)).toEqual([{ text: 'only the portal pages' }, { text: '🗑 Discard' }])
+    expect(posts.every((p) => p.path === '/api/ideas/4/messages')).toBe(true)
+
+    await w.get('select[aria-label="Effort"]').setValue('max')
+    await w.findAll('button').find((b) => b.text() === 'Use from the next reply')!.trigger('click')
+    await flushPromises()
+    expect(posts.at(-1)).toEqual({ method: 'PUT', path: '/api/ideas/4/settings', body: { model: 'sonnet', effort: 'max' } })
+  })
+
+  it('a finished idea has no message box', async () => {
+    const w = mount(IdeaView, { props: { id: 4 }, global: { plugins: [router()] } })
+    await flushPromises()
+
+    expect(w.find('textarea[aria-label="Message the agent"]').exists()).toBe(false)
+    expect(w.find('[aria-label="Choose"]').exists()).toBe(false)
   })
 
   it('an unknown idea says so', async () => {
