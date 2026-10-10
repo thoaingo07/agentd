@@ -1099,6 +1099,29 @@
         }
       }
     },
+    "/api/artifacts": {
+      "get": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "ListArtifacts",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ArtifactVm"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/workitems/{id}": {
       "get": {
         "tags": [
@@ -3423,6 +3446,56 @@
             "type": "string"
           }
         }
+      },
+      "ArtifactVm": {
+        "required": [
+          "name",
+          "title",
+          "url",
+          "jobId",
+          "chatId",
+          "author",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "jobId": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int64"
+          },
+          "chatId": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int64"
+          },
+          "author": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "An artifact: open \u0060url\u0060 (a page of its own); \u0060jobId\u0060 / \u0060chatId\u0060 say which agent published it."
       },
       "AzureDevOpsRequest": {
         "required": [

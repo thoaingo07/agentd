@@ -42,7 +42,8 @@ public static class McpHosting
             .WithHttpTransport(o => o.SessionMode = HttpServerSessionMode.Stateless)
             .AddAuthorizationFilters()
             .WithTools<AgentdTools>()
-            .WithTools<ChatTools>();
+            .WithTools<ChatTools>()
+            .WithTools<ArtifactTools>();
         return services;
     }
 

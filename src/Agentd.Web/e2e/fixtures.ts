@@ -19,6 +19,12 @@ export const seed = {
   async events(request: APIRequestContext, jobId: number, count: number, from = 1): Promise<void> {
     expect((await request.post(`/__test/jobs/${jobId}/events`, { data: { count, from } })).ok()).toBe(true)
   },
+  /** Publishes an artifact; returns its page's path. */
+  async artifact(request: APIRequestContext, title: string, html: string): Promise<string> {
+    const res = await request.post('/__test/artifacts', { data: { title, html } })
+    expect(res.ok()).toBe(true)
+    return ((await res.json()) as { url: string }).url
+  },
   async permission(request: APIRequestContext, jobId: number): Promise<void> {
     expect((await request.post(`/__test/jobs/${jobId}/permissions`)).ok()).toBe(true)
   },

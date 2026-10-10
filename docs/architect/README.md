@@ -650,6 +650,7 @@ agentd/
 - [messaging-providers.md](messaging-providers.md) — chat provider pattern (Discord, Telegram, …)
 - [workflow-and-learning.md](workflow-and-learning.md) — phases, gates, learnings capture → distill → review → apply
 - [model-profiles.md](model-profiles.md) — per-phase model and provider routing, fallbacks, cost
+- [artifacts.md](artifacts.md) — HTML pages agents publish (`publish_artifact`), served sandboxed at `/artifacts/<slug>-<hash>.html`
 - [ai-sdlc-kit.md](ai-sdlc-kit.md) — per-repo `.agentd/` kit: init, customize, upgrade, validate
 - [orchestration-maf.md](orchestration-maf.md) — Microsoft Agent Framework workflow graph, checkpoints, MAF agents
 - [deployment.md](deployment.md) — standalone VPS (any repo): `agentd` daemon + CLI, `~/.agentd` config home, secrets, systemd, Docker, releases

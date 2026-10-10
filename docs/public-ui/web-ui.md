@@ -6,7 +6,7 @@ It updates live; the dot in the header shows whether it's connected.
 
 ## The header
 
-- **The navigation:** Dashboard · History · Ideas · Reviews · Settings.
+- **The navigation:** Dashboard · History · Ideas · Reviews · Artifacts · Settings.
 - **"N waiting":** jobs waiting for you. Click it to see them.
 - **The machine's CPU, free RAM and free disk** (on phones, CPU and free RAM). It's marked ⚠️ when disk or memory
   runs low. Click it for the **Host** panel at the top of Settings: CPU with cores and load, RAM, swap, every disk
@@ -66,6 +66,13 @@ If the work item came from an idea, the header links to it ("💡 born from idea
 Every `!idea`: its status, repository, author, message and draft counts, and the work items it created. An idea's
 page shows its model and effort, the latest drafts as stories with their tasks, and the whole conversation.
 Brainstorming itself happens in chat.
+
+## Artifacts
+
+Ask an agent in a job or in `!chat` to "publish an artifact" (a report, a diagram, an explainer) and it becomes a page
+at `/artifacts/<name>.html`; the agent replies with the link. **Artifacts** lists every page, newest first, with the
+job or chat that made it. Publishing again with the same title updates the page and keeps its link. Anyone who can
+open agentd can read them. Pages run in a sandbox: their scripts work, but can't reach agentd or send data anywhere.
 
 ## Reviews
 

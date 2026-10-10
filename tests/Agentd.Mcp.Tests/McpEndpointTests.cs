@@ -57,7 +57,7 @@ public sealed class McpEndpointTests
 
         var tools = await client.ListToolsAsync();
 
-        CollectionAssert.AreEquivalent(new[] { "finish", "report_progress", "get_work_item", "ask_developer", "set_phase", "submit_plan", "propose_knowledge", "permission" }, tools.Select(t => t.Name).ToList());
+        CollectionAssert.AreEquivalent(new[] { "finish", "report_progress", "get_work_item", "ask_developer", "set_phase", "submit_plan", "propose_knowledge", "permission", "publish_artifact" }, tools.Select(t => t.Name).ToList());
         var permission = tools.Single(t => t.Name == "permission").JsonSchema.GetRawText();
         foreach (var argument in new[] { "\"tool_name\"", "\"input\"", "\"tool_use_id\"" })
         {
@@ -83,7 +83,7 @@ public sealed class McpEndpointTests
         var chatTools = (await chat.ListToolsAsync()).Select(t => t.Name).ToList();
         var jobTools = (await job.ListToolsAsync()).Select(t => t.Name).ToList();
 
-        CollectionAssert.AreEquivalent(new[] { "ado_search_work_items", "ado_get_work_item", "ado_list_pull_requests", "ado_get_pull_request", "ado_list_pipelines", "ado_list_builds", "ado_get_build", "ado_search_wiki", "ado_get_wiki_page" }, chatTools);
+        CollectionAssert.AreEquivalent(new[] { "ado_search_work_items", "ado_get_work_item", "ado_list_pull_requests", "ado_get_pull_request", "ado_list_pipelines", "ado_list_builds", "ado_get_build", "ado_search_wiki", "ado_get_wiki_page", "publish_artifact" }, chatTools);
         Assert.IsFalse(jobTools.Any(t => t.StartsWith("ado_", StringComparison.Ordinal)), "a job agent gets no chat tools");
     }
 
@@ -173,6 +173,26 @@ public sealed class McpEndpointTests
         Assert.IsFalse(result.IsError ?? false, Text(result));
         StringAssert.Contains(Text(result), "pullrequest/42");
         Assert.AreEqual(JobState.Done, (await host.Jobs.GetAsync(new JobId(42), default))!.State);
+    }
+
+    [TestMethod]
+    public async Task Jobs_and_chats_publish_artifacts_as_themselves_and_get_the_link()
+    {
+        await using var host = await McpTestHost.StartAsync();
+        await using var job = await host.ClientAsync(host.Tokens.Issue(new JobId(42)));
+        await using var chat = await host.ClientAsync(host.Tokens.IssueChat(7));
+
+        var fromJob = await job.CallToolAsync("publish_artifact", Args(("title", "MCP job report"), ("html", "<p>job</p>")));
+        var fromChat = await chat.CallToolAsync("publish_artifact", Args(("title", "MCP chat diagram"), ("html", "<p>chat</p>")));
+        var noTitle = await job.CallToolAsync("publish_artifact", Args(("title", " "), ("html", "<p>x</p>")));
+
+        StringAssert.Matches(Text(fromJob), new System.Text.RegularExpressions.Regex("^Published: https://agentd\\.example/artifacts/mcp-job-report-[0-9a-f]{8}\\.html$"));
+        var published = McpTestHost.Artifacts.Published.Where(p => p.Title.StartsWith("MCP ", StringComparison.Ordinal)).ToList();
+        CollectionAssert.AreEquivalent(new[] { ((long?)42, (long?)null, "job #42"), ((long?)null, (long?)7, "chat #7") }, published.Select(p => (p.JobId, p.ChatId, p.Author)).ToList());
+        Assert.IsFalse(fromChat.IsError ?? false, Text(fromChat));
+        Assert.IsTrue(noTitle.IsError ?? false);
+        var schema = (await job.ListToolsAsync()).Single(t => t.Name == "publish_artifact").JsonSchema.GetProperty("properties").EnumerateObject().Select(p => p.Name).ToList();
+        CollectionAssert.AreEquivalent(new[] { "title", "html" }, schema, "the source is the token's, never an argument");
     }
 
     [TestMethod]

@@ -356,6 +356,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/artifacts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ListArtifacts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/workitems/{id}": {
         parameters: {
             query?: never;
@@ -1129,6 +1145,21 @@ export interface components {
         };
         AntiforgeryTokenVm: {
             token: string;
+        };
+        /** @description An artifact: open `url` (a page of its own); `jobId` / `chatId` say which agent published it. */
+        ArtifactVm: {
+            name: string;
+            title: string;
+            url: string;
+            /** Format: int64 */
+            jobId: null | number;
+            /** Format: int64 */
+            chatId: null | number;
+            author: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
         };
         /** @description `Auth` is `Pat` or `AzCli`. An empty `Pat` keeps the saved one. */
         AzureDevOpsRequest: {
@@ -2684,6 +2715,26 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    ListArtifacts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArtifactVm"][];
                 };
             };
         };

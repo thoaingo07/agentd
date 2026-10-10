@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using Agentd.Application.Abstractions;
+using Agentd.Application.Artifacts;
 using Agentd.Application.Jobs;
 using Agentd.Application.Messaging;
 using Agentd.Application.Ports;
@@ -32,6 +33,9 @@ internal sealed class McpTestHost : IAsyncDisposable
 
     public FakeEvents Events { get; }
 
+    /// <summary>What <c>publish_artifact</c> stored (shared by every host: tests read their own names).</summary>
+    public static MemoryArtifacts Artifacts { get; } = new();
+
     public IMcpTokenIssuer Tokens => _app.Services.GetRequiredService<IMcpTokenIssuer>();
 
     public HttpClient Http => _app.GetTestClient();
@@ -60,6 +64,9 @@ internal sealed class McpTestHost : IAsyncDisposable
         builder.Services.AddSingleton<IAzureDevOpsSearch, Search>();
         builder.Services.AddSingleton(Unused<IPullRequestService>.Create());
         builder.Services.AddSingleton(Unused<IRepositoryRegistry>.Create());
+        builder.Services.AddSingleton<IArtifactStore>(Artifacts);
+        builder.Services.AddSingleton<ArtifactService>();
+        builder.Configuration["Agentd:Web:PublicOrigin"] = "https://agentd.example/";
         builder.Services.AddAgentdMcp();
 
         var app = builder.Build();
@@ -224,5 +231,20 @@ internal sealed class McpTestHost : IAsyncDisposable
             await jobs.SaveAsync(job, cancellationToken);
             return pr;
         }
+    }
+
+    public sealed class MemoryArtifacts : IArtifactStore
+    {
+        public ConcurrentQueue<(string Name, string Title, long? JobId, long? ChatId, string Author)> Published { get; } = new();
+
+        public Task<PublishedArtifact> PublishAsync(string name, string title, string html, long? jobId, long? chatId, string author, CancellationToken cancellationToken)
+        {
+            Published.Enqueue((name, title, jobId, chatId, author));
+            return Task.FromResult(new PublishedArtifact(name, true));
+        }
+
+        public Task<Artifact?> GetAsync(string name, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<IReadOnlyList<ArtifactSummary>> ListAsync(int limit, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 }

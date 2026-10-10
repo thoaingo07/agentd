@@ -84,6 +84,10 @@ export function toRows(events: readonly AgentEvent[], previous?: ReadonlyMap<num
       case 'step.started':
         rows.push({ kind: 'state', key: event.seq, event, title: str(p.line) || 'Step started' })
         break
+      case 'artifact.published':
+        rows.push({ kind: 'state', key: event.seq, event, title: `${p.created === false ? 'Artifact updated' : 'Artifact published'}: ${str(p.title)}`,
+          detail: `[Open it](${globalThis.location?.origin ?? ''}/artifacts/${encodeURIComponent(str(p.name))}.html)` })
+        break
       case 'PullRequestCreated':
         rows.push({ kind: 'state', key: event.seq, event, title: 'Pull request opened', detail: val(p.url) })
         break
