@@ -61,6 +61,10 @@ Brainstorming itself happens in chat.
 
 ## Reviews
 
+**Reviews → Open pull requests** lists the registered repositories' active PRs, newest first, and refreshes itself
+every minute (or **Refresh**). **Review** starts a review of one; when you already reviewed it, **My review** reopens
+yours. A repository agentd can't read is named with the reason.
+
 **Reviews → New review**: pick a repository, then a **pull request**, a **pushed branch** (against its base, or
 another branch you name) or **two commits**. agentd fetches it with its own access, pins the commits, and its
 reviewer (the `review` step's model) looks for what can break the app or slow it down, with a fix for each.

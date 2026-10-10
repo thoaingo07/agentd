@@ -1142,6 +1142,26 @@
         }
       }
     },
+    "/api/reviews/pull-requests": {
+      "get": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "ListOpenPullRequests",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenPullRequestsVm"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/reviews/{id}": {
       "get": {
         "tags": [
@@ -3974,6 +3994,80 @@
           }
         }
       },
+      "OpenPullRequestVm": {
+        "required": [
+          "repo",
+          "id",
+          "title",
+          "author",
+          "sourceBranch",
+          "targetBranch",
+          "isDraft",
+          "createdAt",
+          "url"
+        ],
+        "type": "object",
+        "properties": {
+          "repo": {
+            "type": "string"
+          },
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "title": {
+            "type": "string"
+          },
+          "author": {
+            "type": "string"
+          },
+          "sourceBranch": {
+            "type": "string"
+          },
+          "targetBranch": {
+            "type": "string"
+          },
+          "isDraft": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          }
+        },
+        "description": "An active PR."
+      },
+      "OpenPullRequestsVm": {
+        "required": [
+          "items",
+          "failed",
+          "fetchedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OpenPullRequestVm"
+            }
+          },
+          "failed": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RepositoryProblemVm"
+            }
+          },
+          "fetchedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "The registered repositories\u0027 active PRs, newest first; \u0060failed\u0060: repositories that couldn\u0027t be read."
+      },
       "PermissionAnswerRequest": {
         "required": [
           "choice"
@@ -4227,6 +4321,22 @@
           }
         },
         "description": "A repository in \u0060agentd.json\u0060; the daemon registers and clones it at start."
+      },
+      "RepositoryProblemVm": {
+        "required": [
+          "repo",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "repo": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "description": "A repository whose PRs couldn\u0027t be listed, and why."
       },
       "RepositoryRequest": {
         "required": [

@@ -396,6 +396,22 @@ internal sealed class FakePullRequests : IPullRequestService
 
     public List<(int PullRequestId, string Text, string? File, int? Line)> Threads { get; } = [];
 
+    /// <summary>Active PRs per repository name; a repository in <see cref="ListFailures"/> throws instead.</summary>
+    public Dictionary<string, List<PullRequestSummary>> Active { get; } = [];
+
+    public HashSet<string> ListFailures { get; } = [];
+
+    public int ListCalls;
+
+    public async Task<IReadOnlyList<PullRequestSummary>> ListActiveAsync(Domain.Repositories.Repository repository, int top, CancellationToken cancellationToken)
+    {
+        Interlocked.Increment(ref ListCalls);
+        await Task.Yield();
+        return ListFailures.Contains(repository.Name.Value)
+            ? throw new InvalidOperationException("Azure DevOps answered 401.")
+            : [.. (Active.GetValueOrDefault(repository.Name.Value) ?? []).Take(top)];
+    }
+
     public Task<PullRequestDetails?> GetAsync(Repository repository, int pullRequestId, CancellationToken cancellationToken) =>
         Task.FromResult(Details.TryGetValue(pullRequestId, out var pr) ? pr : null);
 

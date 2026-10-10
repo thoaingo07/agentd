@@ -24,6 +24,27 @@ public sealed class PullRequestReviewTests
     }
 
     [TestMethod]
+    public async Task Active_prs_are_listed_newest_first_with_their_branches()
+    {
+        var ado = new FakeAdo().On(HttpMethod.Get, "/ermsystem/Portal/_apis/git/repositories/sysmin/pullrequests", HttpStatusCode.OK, """
+            { "value": [
+              { "pullRequestId": 3901, "title": "Older", "createdBy": { "displayName": "Ann" }, "sourceRefName": "refs/heads/feature/a",
+                "targetRefName": "refs/heads/develop", "creationDate": "2026-10-01T10:00:00Z" },
+              { "pullRequestId": 3944, "title": "Keyset chunks", "createdBy": { "displayName": "Bob" }, "sourceRefName": "refs/heads/feature/keyset",
+                "targetRefName": "refs/heads/develop", "isDraft": true, "creationDate": "2026-10-09T10:00:00Z" }
+            ] }
+            """);
+
+        var list = await new AzureDevOpsPullRequests(ado.Client()).ListActiveAsync(s_repo, 50, default);
+
+        StringAssert.Contains(ado.Requests.Single().Url, "searchCriteria.status=active");
+        StringAssert.Contains(ado.Requests.Single().Url, "$top=50");
+        Assert.AreEqual((3944, "Keyset chunks", "Bob", "feature/keyset", "develop", true), (list[0].Id, list[0].Title, list[0].Author, list[0].SourceBranch, list[0].TargetBranch, list[0].IsDraft));
+        Assert.AreEqual(3901, list[1].Id);
+        StringAssert.EndsWith(list[0].Url.ToString(), "/_git/sysmin/pullrequest/3944");
+    }
+
+    [TestMethod]
     public async Task Comments_keep_human_text_and_skip_system_deleted_and_agentds_own()
     {
         var ado = new FakeAdo().On(HttpMethod.Get, PrPath + "/threads", HttpStatusCode.OK, """

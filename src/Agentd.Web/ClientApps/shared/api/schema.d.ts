@@ -404,6 +404,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/reviews/pull-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ListOpenPullRequests"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/reviews/{id}": {
         parameters: {
             query?: never;
@@ -1297,6 +1313,28 @@ export interface components {
             profiles: components["schemas"]["ProfileVm"][];
             steps: components["schemas"]["StepModelVm"][];
         };
+        /** @description An active PR. */
+        OpenPullRequestVm: {
+            repo: string;
+            /** Format: int32 */
+            id: number;
+            title: string;
+            author: string;
+            sourceBranch: string;
+            targetBranch: string;
+            isDraft: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: uri */
+            url: string;
+        };
+        /** @description The registered repositories' active PRs, newest first; `failed`: repositories that couldn't be read. */
+        OpenPullRequestsVm: {
+            items: components["schemas"]["OpenPullRequestVm"][];
+            failed: components["schemas"]["RepositoryProblemVm"][];
+            /** Format: date-time */
+            fetchedAt: string;
+        };
         PermissionAnswerRequest: {
             choice: string;
         };
@@ -1358,6 +1396,11 @@ export interface components {
             baseBranch: null | string;
             matchTag: null | string;
             matchAreaPaths: string[];
+        };
+        /** @description A repository whose PRs couldn't be listed, and why. */
+        RepositoryProblemVm: {
+            repo: string;
+            reason: string;
         };
         /** @description A repository to add. Only `Url` is required; the rest defaults like `agentd repo add`. */
         RepositoryRequest: {
@@ -2402,6 +2445,26 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    ListOpenPullRequests: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpenPullRequestsVm"];
                 };
             };
         };

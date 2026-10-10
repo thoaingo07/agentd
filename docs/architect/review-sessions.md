@@ -74,6 +74,11 @@ server, the CLI's `/api/review` locally).
 ## 3. On the server
 
 **Start** from:
+- **Web UI → Reviews → Open pull requests**: every registered repository's active PRs, newest first, with **Review**
+  (or **My review** / **Review again** when you already reviewed it). `GET /api/reviews/pull-requests` reads them with
+  agentd's identity, all repositories in parallel; `OpenPullRequests` keeps each repository's list one minute (one
+  shared read for parallel callers, a failed read retried next time), and a repository that can't be read is named
+  with why. The page re-reads every minute while it's shown and the tab is visible;
 - **Web UI → Reviews → New review**: pick a repository, then a PR, a branch (against its base, or a branch you
   choose), or two commits;
 - **chat**: `!review !3944` (today) or `!review branch:feature-x [--base develop]`;
