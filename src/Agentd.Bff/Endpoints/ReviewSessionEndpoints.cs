@@ -50,8 +50,16 @@ public static class ReviewSessionEndpoints
                 .ToHttpResult(a => TypedResults.Accepted($"/api/reviews/{id}", new ReviewAskVm(a.Id, a.File, a.Line, a.EndLine, a.Question, a.Answer, a.Author, a.AskedAt))))
             .WithName("AskAboutReview").Produces<ReviewAskVm>(StatusCodes.Status202Accepted).ProducesProblem(StatusCodes.Status400BadRequest).ProducesProblem(StatusCodes.Status404NotFound);
 
+        reviews.MapPost("/{id:long}/send", async (long id, SendRequest? body, [FromServices] ReviewSessionSend send, CancellationToken ct) =>
+            (await send.SendAsync(id, body?.Destination ?? string.Empty, ct).ConfigureAwait(false))
+                .ToHttpResult(s => TypedResults.Ok(new ReviewSentVm(s.Destination, s.Text, s.Url, s.Posted, s.AsPerson))))
+            .WithName("SendReview").Produces<ReviewSentVm>().ProducesProblem(StatusCodes.Status400BadRequest).ProducesProblem(StatusCodes.Status404NotFound).ProducesProblem(StatusCodes.Status409Conflict);
+
         return api;
     }
+
+    /// <param name="Destination"><c>pr</c> (a PR's review: post it there) or <c>text</c> (copy it).</param>
+    public sealed record SendRequest(string? Destination);
 
     /// <param name="Repo">A registered repository.</param>
     /// <param name="PullRequestId">Review this PR…</param>
@@ -110,6 +118,9 @@ public sealed record ReviewSessionDetailVm(ReviewSessionVm Session, IReadOnlyLis
             [.. v.Asks.Select(a => new ReviewAskVm(a.Id, a.File, a.Line, a.EndLine, a.Question, a.Answer, a.Author, a.AskedAt))]);
     }
 }
+
+/// <summary>What Send did: the text to copy, or the PR it was posted to (under your name when <c>asPerson</c>).</summary>
+public sealed record ReviewSentVm(string Destination, string? Text, Uri? Url, int Posted, bool AsPerson);
 
 /// <summary>The pinned change; <c>unifiedDiff</c> is null when it's too big (only the file list).</summary>
 public sealed record ReviewDiffVm(string BaseCommit, string HeadCommit, IReadOnlyList<string> Files, string? UnifiedDiff, bool Truncated);

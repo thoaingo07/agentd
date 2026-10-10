@@ -73,8 +73,13 @@ The review page:
   and show under **Questions** ("thinking…" until then);
 - "Reviewing…" while the reviewer works: the findings appear when it's done, and you can read and comment meanwhile.
 
-**My reviews** lists the ones you started. Sending the review (to the PR under your name, or to an agent to fix)
-comes next.
+**Send** (when it's Ready): only the findings you kept (edited ones in your words) and your comments go.
+- **Post to the PR** (a PR's review): one thread per finding at its line, one per comment, and a main message with
+  the list. It's under **your name** when you've connected your Azure DevOps (Settings → Your Azure DevOps),
+  otherwise agentd's.
+- **Copy as text**: the same list as text, e.g. for an agent or a message.
+
+**My reviews** lists the ones you started. "Fix it" (an agent fixes the branch) comes next.
 
 ## Settings
 

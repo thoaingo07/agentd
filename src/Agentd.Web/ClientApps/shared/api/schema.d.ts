@@ -500,6 +500,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/reviews/{id}/send": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["SendReview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/bff/antiforgery": {
         parameters: {
             query?: never;
@@ -1417,6 +1433,16 @@ export interface components {
             required: boolean;
             check: components["schemas"]["StepCheckVm"];
         };
+        /** @description What Send did: the text to copy, or the PR it was posted to (under your name when `asPerson`). */
+        ReviewSentVm: {
+            destination: string;
+            text: null | string;
+            /** Format: uri */
+            url: null | string;
+            /** Format: int32 */
+            posted: number;
+            asPerson: boolean;
+        };
         /** @description A session with its comments and questions, as the review page shows it. */
         ReviewSessionDetailVm: {
             session: components["schemas"]["ReviewSessionVm"];
@@ -1460,6 +1486,10 @@ export interface components {
             /** Format: date-time */
             updatedAt: null | string;
             updatedBy: null | string;
+        };
+        SendRequest: {
+            /** @description `pr` (a PR's review: post it there) or `text` (copy it). */
+            destination: null | string;
         };
         /** @description The setup session (the one-time link's cookie): when it ends unless used again (it slides). */
         SetupSessionVm: {
@@ -2606,6 +2636,59 @@ export interface operations {
             };
             /** @description Not Found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    SendReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": null | components["schemas"]["SendRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewSentVm"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

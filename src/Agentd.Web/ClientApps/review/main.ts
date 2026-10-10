@@ -10,7 +10,7 @@ import '../shared/styles/app.css'
 const router = createRouter({
   history: createWebHistory(),
   routes: [
-    { path: '/reviews/:id(\\d+)', name: 'review', component: ReviewView, props: (r) => ({ id: Number(r.params.id) }) },
+    { path: '/reviews/:id(\\d+)', name: 'review', component: ReviewView, props: (r) => ({ id: Number(r.params.id), local: true }) },
     { path: '/:rest(.*)*', name: 'reviews', redirect: '/reviews/1' },
   ],
 })

@@ -38,6 +38,13 @@ beforeEach(() => {
     if (path === '/api/reviews' && req.method === 'POST') return json({ ...session, id: 9 }, 201)
     if (path === '/api/reviews/7/diff') return json({ baseCommit: 'a1b2c3d4', headCommit: 'f9e8d7c6', files: ['src/Sync.cs'], unifiedDiff: diff, truncated: false })
     if (path === '/api/reviews/7') return json({ session, comments, asks })
+    if (path === '/api/reviews/7/send') {
+      const destination = (body as { destination: string }).destination
+      session = { ...session, status: 'Sent', sentTo: destination === 'pr' ? 'pr:3944' : 'text' }
+      return json(destination === 'pr'
+        ? { destination, text: null, url: 'https://dev.azure.com/o/p/_git/sysmin/pullrequest/3944', posted: 3, asPerson: true }
+        : { destination, text: '# Review findings (agentd review)\n1. 🔴 **Unbounded read**', url: null, posted: 0, asPerson: false })
+    }
     if (path === '/api/reviews/7/asks') {
       const a = { id: 5, author: 'local', askedAt: '2026-10-09T10:02:00Z', endLine: null, answer: null, question: (body as { text: string }).text, file: (body as { file?: string }).file ?? null, line: (body as { line?: number }).line ?? null }
       asks = [...asks, a]
@@ -142,5 +149,33 @@ describe('reviews', () => {
     const answer = view.get('[data-testid=ask]')
     expect(answer.text()).toContain('src/Sync.cs:41 why a loop here?')
     expect(answer.find('strong').text()).toBe('key')
+  })
+
+  it('posts a PR review to the PR under your name', async () => {
+    session = { ...session, target: 'pr', pullRequestId: 3944 }
+    const view = mount(ReviewView, { props: { id: 7 }, global: { plugins: [router()] } })
+    await flushPromises()
+
+    await view.get('[data-testid=send]').findAll('button').find((b) => b.text() === 'Post to the PR')!.trigger('click')
+    await flushPromises()
+
+    expect(calls.find((c) => c.path === '/api/reviews/7/send')?.body).toEqual({ destination: 'pr' })
+    expect(view.get('[role=status]').text()).toContain('3 thread(s), under your name')
+    expect(view.get('a[href="https://dev.azure.com/o/p/_git/sysmin/pullrequest/3944"]').text()).toBe('Open it')
+    expect(view.find('[data-testid=send]').exists()).toBe(false)
+  })
+
+  it('copies a branch review as text, and the laptop page has no server Send', async () => {
+    const view = mount(ReviewView, { props: { id: 7 }, global: { plugins: [router()] } })
+    await flushPromises()
+    expect(view.get('[data-testid=send]').text()).not.toContain('Post to the PR')
+
+    await view.get('[data-testid=send]').findAll('button').find((b) => b.text() === 'Copy as text')!.trigger('click')
+    await flushPromises()
+    expect((view.get('textarea[aria-label="The review as text"]').element as HTMLTextAreaElement).value).toContain('Unbounded read')
+
+    const local = mount(ReviewView, { props: { id: 7, local: true }, global: { plugins: [router()] } })
+    await flushPromises()
+    expect(local.find('[data-testid=send]').exists()).toBe(false)
   })
 })

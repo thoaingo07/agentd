@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { ApiError } from '../../shared/api/http'
+import type { ReviewSent } from '../../shared/api/types'
 import { AgButton } from '../../shared/components/ui'
 import MarkdownText from '../../shared/components/MarkdownText.vue'
 import DiffFileReview from '../../shared/review/DiffFileReview.vue'
@@ -9,10 +10,14 @@ import { useReviewsStore } from '../stores/reviews'
 
 // The review page (docs/architect/review-sessions.md §2): files, the diff with findings and comments at their lines,
 // and the findings, your comments and a comment on the whole change at the side.
-const props = defineProps<{ id: number }>()
+// `local`: agentd review's page on a laptop, which has its own Send bar.
+const props = defineProps<{ id: number; local?: boolean }>()
 const reviews = useReviewsStore()
 const error = ref<string | null>(null)
 const overall = ref('')
+const sent = ref<ReviewSent | null>(null)
+const copied = ref(false)
+const sending = ref(false)
 const s = computed(() => reviews.current?.session ?? null)
 const readonly = computed(() => s.value?.status === 'Sent' || s.value?.status === 'Closed')
 const counts = computed(() => ({
@@ -47,6 +52,17 @@ const overallSend = (kind: 'comment' | 'ask') => act(async () => {
   else await reviews.ask({ text: overall.value.trim() })
   overall.value = ''
 })
+async function sendTo(destination: 'pr' | 'text'): Promise<void> {
+  sending.value = true
+  await act(async () => (sent.value = await reviews.sendTo(destination)))
+  sending.value = false
+}
+
+async function copy(text: string): Promise<void> {
+  await navigator.clipboard?.writeText(text).catch(() => {})
+  copied.value = true
+}
+
 const where = (a: { file?: string | null; line?: number | null; endLine?: number | null }) =>
   a.file ? `${a.file}${a.line ? `:${a.line}${a.endLine && a.endLine !== a.line ? `-${a.endLine}` : ''}` : ''}` : 'the whole change'
 </script>
@@ -110,6 +126,63 @@ const where = (a: { file?: string | null; line?: number | null; endLine?: number
         >
           {{ s.summary }}
         </p>
+        <div
+          v-if="!local && s.status === 'Ready'"
+          class="flex flex-wrap gap-2"
+          data-testid="send"
+        >
+          <AgButton
+            v-if="s.target === 'pr'"
+            :loading="sending"
+            @click="sendTo('pr')"
+          >
+            Post to the PR
+          </AgButton>
+          <AgButton
+            variant="outline"
+            :loading="sending"
+            @click="sendTo('text')"
+          >
+            Copy as text
+          </AgButton>
+          <span class="self-center text-xs text-muted">Sends the kept and edited findings and your comments.</span>
+        </div>
+        <p
+          v-if="sent?.destination === 'pr' || (!sent && s.sentTo?.startsWith('pr:'))"
+          class="alert alert-success text-sm"
+          role="status"
+        >
+          ✅ Posted to the PR<template v-if="sent">
+            ({{ sent.posted }} thread(s), {{ sent.asPerson ? 'under your name' : "as agentd: connect your Azure DevOps in Settings to post under your name" }})
+          </template>.
+          <a
+            v-if="sent?.url"
+            :href="sent.url"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="link"
+          >Open it</a>
+        </p>
+        <div
+          v-if="sent?.destination === 'text' && sent.text"
+          class="grid gap-2"
+        >
+          <textarea
+            class="textarea w-full font-mono text-xs"
+            rows="10"
+            readonly
+            aria-label="The review as text"
+            :value="sent.text"
+          />
+          <div>
+            <AgButton
+              size="sm"
+              @click="copy(sent.text)"
+            >
+              {{ copied ? 'Copied' : 'Copy' }}
+            </AgButton>
+          </div>
+        </div>
       </header>
 
       <div class="grid gap-4 lg:grid-cols-[14rem_minmax(0,1fr)_20rem]">

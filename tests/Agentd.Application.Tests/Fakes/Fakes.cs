@@ -373,9 +373,20 @@ internal sealed class FakePullRequests : IPullRequestService
     public Task<PullRequestDetails?> GetAsync(Repository repository, int pullRequestId, CancellationToken cancellationToken) =>
         Task.FromResult(Details.TryGetValue(pullRequestId, out var pr) ? pr : null);
 
+    public List<Guid?> ThreadsAs { get; } = [];
+
+    /// <summary>Fails thread number <c>n</c> (1-based), e.g. to test a post that stops half-way.</summary>
+    public int? FailThread { get; set; }
+
     public Task<int> CreateThreadAsync(Repository repository, int pullRequestId, string text, string? filePath, int? line, CancellationToken cancellationToken)
     {
+        if (FailThread == Threads.Count + 1)
+        {
+            throw new HttpRequestException("Azure DevOps answered 500");
+        }
+
         Threads.Add((pullRequestId, text, filePath, line));
+        ThreadsAs.Add(ActingAs?.Invoke());
         return Task.FromResult(100 + Threads.Count);
     }
 

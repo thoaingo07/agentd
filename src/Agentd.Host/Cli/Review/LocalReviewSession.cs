@@ -1,5 +1,3 @@
-using System.Globalization;
-using System.Text;
 using Agentd.Application.Reviews;
 
 namespace Agentd.Host.Cli.Review;
@@ -82,44 +80,7 @@ internal sealed class LocalReviewSession(string repository, string baseLabel, st
         lock (_gate)
         {
             _sent = true;
-            var sb = new StringBuilder().AppendLine("# Review findings (agentd review)").AppendLine();
-            sb.AppendLine(CultureInfo.InvariantCulture, $"Compared with {baseLabel}. {result.Summary}").AppendLine();
-            var kept = _findings.Where(f => f.Decision != FindingDecisions.Dropped).ToList();
-            if (kept.Count == 0 && _comments.Count == 0)
-            {
-                return sb.AppendLine("Nothing to fix: every finding was dropped.").ToString();
-            }
-
-            sb.AppendLine("Fix these, then run `agentd review` again:").AppendLine();
-            var n = 0;
-            foreach (var f in kept)
-            {
-                var where = f.File is null ? string.Empty : $" · `{f.File}{(f.Line is { } l ? string.Create(CultureInfo.InvariantCulture, $":{l}") : string.Empty)}`";
-                sb.AppendLine(CultureInfo.InvariantCulture, $"{++n}. {(f.Severity == ReviewFindings.Breaks ? "🔴" : "🟠")} **{f.Title}**{where}");
-                if (f.Decision == FindingDecisions.Edited && !string.IsNullOrWhiteSpace(f.Edited))
-                {
-                    sb.AppendLine(CultureInfo.InvariantCulture, $"   {f.Edited.Trim().ReplaceLineEndings(" ")}");
-                    continue;
-                }
-
-                if (!string.IsNullOrWhiteSpace(f.Detail))
-                {
-                    sb.AppendLine(CultureInfo.InvariantCulture, $"   {f.Detail.Trim().ReplaceLineEndings(" ")}");
-                }
-
-                if (!string.IsNullOrWhiteSpace(f.Suggestion))
-                {
-                    sb.AppendLine(CultureInfo.InvariantCulture, $"   Fix: {f.Suggestion.Trim().ReplaceLineEndings(" ")}");
-                }
-            }
-
-            foreach (var c in _comments)
-            {
-                var where = c.File is null ? "the whole change" : $"`{c.File}{(c.Line is { } l ? string.Create(CultureInfo.InvariantCulture, $":{l}") : string.Empty)}`";
-                sb.AppendLine(CultureInfo.InvariantCulture, $"{++n}. 💬 On {where}: {c.Text.Trim().ReplaceLineEndings(" ")}");
-            }
-
-            return sb.ToString();
+            return ReviewFeedback.Render(baseLabel, result.Summary, _findings, _comments);
         }
     }
 }

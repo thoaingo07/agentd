@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { get, send } from '../../shared/api/http'
-import type { ReviewComment, ReviewDetail, ReviewDiff, ReviewSession } from '../../shared/api/types'
+import type { ReviewComment, ReviewDetail, ReviewDiff, ReviewSent, ReviewSession } from '../../shared/api/types'
 import { parseDiff, type DiffFile } from '../../shared/utils/diff'
 
 /** While the reviewer works, the page checks the session this often (docs/architect/review-sessions.md §2). */
@@ -84,11 +84,19 @@ export const useReviewsStore = defineStore('reviews', () => {
     poll(id)
   }
 
+  /** Post a PR's review to the PR, or get it as text to copy. */
+  async function sendTo(destination: 'pr' | 'text'): Promise<ReviewSent | null> {
+    if (!current.value) return null
+    const sent = await send<ReviewSent>('POST', `/api/reviews/${current.value.session.id}/send`, { destination })
+    await refresh()
+    return sent
+  }
+
   async function removeComment(id: number): Promise<void> {
     if (!current.value) return
     await send<void>('DELETE', `/api/reviews/${current.value.session.id}/comments/${id}`)
     await refresh()
   }
 
-  return { mine, current, diff, files, loadMine, start, open, close, decide, comment, ask, removeComment }
+  return { mine, current, diff, files, loadMine, start, open, close, decide, comment, ask, removeComment, sendTo }
 })

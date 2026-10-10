@@ -223,7 +223,10 @@ public static partial class ReviewFindings
     /// The PR's main review message: every posted finding with its status (✅ once fixed), edited in place after each
     /// re-check. <paramref name="checkedAt"/> is the commit the statuses are about.
     /// </summary>
-    public static string MainMessage(ReviewResult result, string? checkedAt)
+    /// <param name="result">The posted findings.</param>
+    /// <param name="checkedAt">The commit the statuses are about.</param>
+    /// <param name="rechecks">agentd re-checks after pushes (<c>!review</c>); a review page's post doesn't.</param>
+    public static string MainMessage(ReviewResult result, string? checkedAt, bool rechecks = true)
     {
         ArgumentNullException.ThrowIfNull(result);
         var open = result.Findings.Count(f => (f.Status ?? Open) == Open);
@@ -240,7 +243,7 @@ public static partial class ReviewFindings
             lines.AddRange(result.Findings.Select(f => $"| {Mark(f)} | {Cell(f.Title)} | {Where(f, string.Empty)} |"));
         }
 
-        lines.AddRange([string.Empty, Legend, "Reply on a finding's thread if you disagree. agentd checks again after every push."]);
+        lines.AddRange([string.Empty, Legend, rechecks ? "Reply on a finding's thread if you disagree. agentd checks again after every push." : "Reply on a finding's thread if you disagree."]);
         return string.Join('\n', lines);
     }
 

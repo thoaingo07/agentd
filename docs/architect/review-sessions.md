@@ -188,7 +188,9 @@ with integration tests, including parallel callers for decisions and comments on
    - 5a: `--fix [--rounds N]`: review → page → Send → your claude fixes (`--permission-mode acceptEdits`, edits and
      read-only git only) → review again, a new page each round (`LocalReview.FixAsync`, the loop in `ReviewCommand`);
    - 5b: `--share`.
-6. **Send on the server**: Post to the PR (under your name: the on-behalf-of part 3b), Fix it jobs, Send to the
-   job's agent.
+6. **Send on the server**:
+   - 6a: Post to the PR (under the reviewer's name when connected: the on-behalf-of part 3b; `ReviewSessionSend`)
+     and Copy as text; the shared text is `ReviewFeedback`, also what `agentd review` sends;
+   - 6b: Fix it jobs, Send to the job's agent.
 
 The PR Monitor and the system monitor come after, opening sessions for the fixes they propose.
