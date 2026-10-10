@@ -288,6 +288,33 @@ public sealed partial class GitWorktreeManager(GitCli git, IOptions<GitOptions> 
         }, cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task<IReadOnlyList<string>> MergeAsync(string path, string reference, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        ArgumentException.ThrowIfNullOrWhiteSpace(reference);
+        if (reference.StartsWith('-'))
+        {
+            throw new GitException($"'{reference}' isn't a branch.");
+        }
+
+        // Exit code 1 is "conflicts"; the files are then listed as unmerged.
+        await git.RunAsync(path, ["merge", "--no-ff", "--no-commit", "--no-edit", reference], cancellationToken, throwOnError: false).ConfigureAwait(false);
+        var unmerged = await git.RunAsync(path, ["diff", "--name-only", "--diff-filter=U"], cancellationToken).ConfigureAwait(false);
+        return unmerged.StandardOutput.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+    }
+
+    public async Task<IReadOnlyList<string>> ConflictMarkersAsync(string path, IReadOnlyList<string> files, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(files);
+        if (files.Count == 0)
+        {
+            return [];
+        }
+
+        var found = await git.RunAsync(path, ["grep", "--untracked", "-l", "-e", "^<<<<<<< ", "--", .. files], cancellationToken, throwOnError: false).ConfigureAwait(false);
+        return found.ExitCode == 0 ? found.StandardOutput.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) : [];
+    }
+
     public async Task<string?> CommitAllAsync(string path, string message, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);

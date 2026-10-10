@@ -12,16 +12,27 @@ namespace Agentd.Application.Monitor;
 public sealed record PrFixRequest(PrWatch Watch, Domain.Repositories.Repository Repository, PullRequestDetails PullRequest, BuildDetail? FailedBuild, bool Conflicts,
     IReadOnlyList<PullRequestComment> Comments);
 
-/// <summary>Prepares a fix round and asks in the 👀 thread before pushing (part 3); true when one was prepared.</summary>
+/// <summary>Fix rounds with approval (<see cref="PrFixRounds"/>): prepared in the background, then pushed or discarded on an answer.</summary>
 public interface IPrFixRounds
 {
-    Task<bool> PrepareAsync(PrFixRequest request, CancellationToken cancellationToken);
+    /// <summary>A round is being prepared for this watch.</summary>
+    bool IsBusy(long watchId);
+
+    /// <summary>Prepares the round in the background; it stores the pending fix and asks in the 👀 thread.</summary>
+    Task Start(PrFixRequest request);
+
+    /// <summary>Pushes the pending fix (never forced) and says how it went; the text is also posted in the thread.</summary>
+    Task<string> PushAsync(PrWatch watch, string by, CancellationToken cancellationToken);
+
+    /// <summary>Drops the pending fix and its checkout; the text is also posted in the thread.</summary>
+    Task<string> DiscardAsync(PrWatch watch, string why, CancellationToken cancellationToken);
 }
 
 /// <summary>
 /// The PR Monitor's pass over watched PRs (docs/architect/pr-reviewer-and-monitor.md §2.0): a failed PR build, merge conflicts or
 /// new comments from people agentd knows start a fix round after 5 quiet minutes, at most <see cref="MaxRounds"/> per PR, never
-/// while one waits for an answer. A completed or abandoned PR stops being watched.
+/// while one prepares or waits for an answer (an unanswered one is discarded after <see cref="PrFixRounds.Expiry"/>). A
+/// completed or abandoned PR stops being watched.
 /// </summary>
 public sealed partial class PrMonitor(
     IPrWatchStore watches,
@@ -66,13 +77,28 @@ public sealed partial class PrMonitor(
 
         if (pr.Status != PullRequestStatus.Active)
         {
+            if (w.Pending is not null && rounds is not null)
+            {
+                await rounds.DiscardAsync(w, $"the PR is {pr.Status.ToString().ToLowerInvariant()}", ct).ConfigureAwait(false);
+            }
+
             await watches.StopAsync(w.Id, ct).ConfigureAwait(false);
             await PostAsync(w, $"🏁 PR !{w.PullRequestId} is {pr.Status.ToString().ToLowerInvariant()}: I stopped watching it.", ct).ConfigureAwait(false);
             return;
         }
 
-        if (w.Pending is not null)
+        if (rounds?.IsBusy(w.Id) == true)
         {
+            return;   // a round is being prepared
+        }
+
+        if (w.Pending is { } pending)
+        {
+            if (pending.ExpiresAt <= clock.UtcNow && rounds is not null)
+            {
+                await rounds.DiscardAsync(w, $"nobody answered in {PrFixRounds.Expiry.TotalHours:0} hours", ct).ConfigureAwait(false);
+            }
+
             return;   // a prepared round waits for push / discard
         }
 
@@ -130,20 +156,18 @@ public sealed partial class PrMonitor(
 
         var handled = seen.Concat(known.Select(c => c.CommentId)).Distinct().ToList();
         var lastBuild = failed?.Id ?? w.LastBuildId;
-        await watches.UpdateAsync(w.Id, w.FixRounds, handled, lastBuild, null, null, ct).ConfigureAwait(false);
         if (rounds is null)
         {
-            await PostAsync(w, $"🔧 PR !{w.PullRequestId}: {what}. (Preparing fixes isn't enabled here yet.)", ct).ConfigureAwait(false);
+            await watches.UpdateAsync(w.Id, w.FixRounds, handled, lastBuild, null, null, ct).ConfigureAwait(false);
+            await PostAsync(w, $"🔧 PR !{w.PullRequestId}: {what}. (Preparing fixes isn't enabled here.)", ct).ConfigureAwait(false);
             return;
         }
 
+        // The round is counted (and its signals handled) before it starts: the background round then only adds its pending fix.
         var detail = failed is null ? null : await search.GetBuildAsync(failed.Id, ct).ConfigureAwait(false);
-        var updated = w with { SeenComments = handled, LastBuildId = lastBuild, SignalAt = null };
-        if (await rounds.PrepareAsync(new PrFixRequest(updated, repo, pr, detail, conflicts, known), ct).ConfigureAwait(false))
-        {
-            var latest = await watches.GetAsync(w.Id, ct).ConfigureAwait(false);
-            await watches.UpdateAsync(w.Id, w.FixRounds + 1, handled, lastBuild, null, latest?.Pending, ct).ConfigureAwait(false);
-        }
+        await watches.UpdateAsync(w.Id, w.FixRounds + 1, handled, lastBuild, null, null, ct).ConfigureAwait(false);
+        var updated = w with { FixRounds = w.FixRounds + 1, SeenComments = handled, LastBuildId = lastBuild, SignalAt = null };
+        _ = rounds.Start(new PrFixRequest(updated, repo, pr, detail, conflicts, known));
     }
 
     /// <summary>"the PR build failed (run 901), merge conflicts with develop and 2 new comment(s)".</summary>

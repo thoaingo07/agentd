@@ -121,7 +121,7 @@ public sealed partial class InboundMessageHandler(
             if (watchService is not null && watchStore is not null && !string.IsNullOrWhiteSpace(message.Text)
                 && await watchStore.FindByThreadAsync(message.Provider, message.ExternalConversationId, ct).ConfigureAwait(false) is { } watch)
             {
-                await watchService.HandleThreadMessageAsync(watch, message.Text, ct).ConfigureAwait(false);
+                await watchService.HandleThreadMessageAsync(watch, message.Text, user.Name, ct).ConfigureAwait(false);
                 return new InboundOutcome("watch");
             }
 

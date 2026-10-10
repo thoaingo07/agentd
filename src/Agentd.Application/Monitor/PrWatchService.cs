@@ -12,7 +12,8 @@ namespace Agentd.Application.Monitor;
 /// <c>!watch &lt;PR&gt;</c> / <c>!unwatch &lt;PR&gt;</c> (docs/architect/pr-reviewer-and-monitor.md §2.0): watching opens a 👀 thread for the PR
 /// where the monitor reports and asks before pushing. Comments already on the PR when watching begins don't count.
 /// </summary>
-public sealed partial class PrWatchService(IPrWatchStore watches, IRepositoryRegistry repositories, IPullRequestService pullRequests, IMessagingProviderRegistry providers)
+public sealed partial class PrWatchService(IPrWatchStore watches, IRepositoryRegistry repositories, IPullRequestService pullRequests, IMessagingProviderRegistry providers,
+    IPrFixRounds? rounds = null)
 {
     public const string Usage = "Use `!watch <PR url or id> [--repo r]`.";
 
@@ -66,14 +67,39 @@ public sealed partial class PrWatchService(IPrWatchStore watches, IRepositoryReg
             : DomainError.NotFound($"A watch on PR !{id} in `{repo.Name}`");
     }
 
-    /// <summary>A message in a 👀 thread (the reply is posted there): <c>unwatch</c> stops; the monitor's questions are answered here too.</summary>
-    public async Task<string> HandleThreadMessageAsync(PrWatch watch, string text, CancellationToken ct)
+    /// <summary>
+    /// A message in a 👀 thread (the reply is posted there): <c>unwatch</c> stops; a prepared fix is answered with <b>1</b> / push
+    /// or <b>2</b> / discard (by <paramref name="author"/>).
+    /// </summary>
+    public async Task<string> HandleThreadMessageAsync(PrWatch watch, string text, string author, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(watch);
         var answer = (text ?? string.Empty).Trim().TrimEnd('.', '!').ToLowerInvariant();
         if (answer is "unwatch" or "stop")
         {
+            if (watch.Pending is not null && rounds is not null)
+            {
+                await rounds.DiscardAsync(watch, "you stopped watching", ct).ConfigureAwait(false);
+            }
+
             return await StopAsync(watch, ct).ConfigureAwait(false);
+        }
+
+        if (watch.Pending is not null && rounds is not null)
+        {
+            if (answer is "1" or "push" or "yes")
+            {
+                return await rounds.PushAsync(watch, author, ct).ConfigureAwait(false);
+            }
+
+            if (answer is "2" or "discard" or "no")
+            {
+                return await rounds.DiscardAsync(watch, $"{author} said so", ct).ConfigureAwait(false);
+            }
+
+            var ask = $"A fix for PR !{watch.PullRequestId} ({watch.Pending.Commit[..Math.Min(7, watch.Pending.Commit.Length)]}) waits: **1** push · **2** discard.";
+            await PostAsync(watch, ask, ct).ConfigureAwait(false);
+            return ask;
         }
 
         var reply = watch.Active

@@ -72,6 +72,15 @@ public interface IWorktreeManager
     /// <summary>Where two commits' histories meet (what a branch is compared with); null when they share none.</summary>
     Task<string?> MergeBaseAsync(Repository repository, string first, string second, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Merges <paramref name="reference"/> (e.g. <c>origin/develop</c>) into the checkout at <paramref name="path"/> without committing
+    /// (never a rebase): the files left with conflicts, or none when it merged cleanly.
+    /// </summary>
+    Task<IReadOnlyList<string>> MergeAsync(string path, string reference, CancellationToken cancellationToken);
+
+    /// <summary>Which of <paramref name="files"/> still hold conflict markers (<c>&lt;&lt;&lt;&lt;&lt;&lt;&lt; </c>) in the checkout.</summary>
+    Task<IReadOnlyList<string>> ConflictMarkersAsync(string path, IReadOnlyList<string> files, CancellationToken cancellationToken);
+
     /// <summary>Commits everything changed in the checkout at <paramref name="path"/> as agentd; null when nothing changed.</summary>
     Task<string?> CommitAllAsync(string path, string message, CancellationToken cancellationToken);
 
