@@ -15,6 +15,9 @@ public sealed class ReviewSessionAsks(IReviewSessionStore store, IRepositoryRegi
 {
     public const int MaxQuestion = 2000;
 
+    /// <summary>The question a draft request shows as in its thread; its answer is the comment to post.</summary>
+    public const string DraftQuestion = "✍️ Draft a review comment from this conversation.";
+
     /// <summary>Questions answered at once (each is a Claude Code process).</summary>
     public const int MaxConcurrent = 2;
 
@@ -46,6 +49,10 @@ public sealed class ReviewSessionAsks(IReviewSessionStore store, IRepositoryRegi
         _ = Answer(id, ask);
         return ask;
     }
+
+    /// <summary>Asks the thread's agent for the comment to post, from the conversation (a follow-up whose answer is the draft).</summary>
+    public Task<Result<ReviewAsk>> DraftAsync(long id, long threadId, string author, CancellationToken cancellationToken) =>
+        FollowUpAsync(id, threadId, DraftQuestion, author, cancellationToken);
 
     /// <summary>A follow-up in thread <paramref name="threadId"/> (its first question), once the last question there is answered.</summary>
     public async Task<Result<ReviewAsk>> FollowUpAsync(long id, long threadId, string question, string author, CancellationToken cancellationToken)
@@ -132,7 +139,7 @@ public sealed class ReviewSessionAsks(IReviewSessionStore store, IRepositoryRegi
             else
             {
                 reply = root.AgentSession is { } previous
-                    ? await agent.RunAsync(Turn(previous, true, $"{ask.Author} follows up:\n\n{ask.Question}"), CancellationToken.None).ConfigureAwait(false)
+                    ? await agent.RunAsync(Turn(previous, true, FollowUp(root, ask)), CancellationToken.None).ConfigureAwait(false)
                     : new BrainstormReply(null, null, "no session");
                 if (reply is { Text: null, UsageLimitedUntil: null })
                 {
@@ -175,12 +182,21 @@ public sealed class ReviewSessionAsks(IReviewSessionStore store, IRepositoryRegi
             sb.Append("\n\nYou answered:\n\n").Append(a.Answer ?? "(no answer)");
         }
 
-        return sb.Append("\n\n").Append(followUp.Author).Append(" follows up:\n\n").Append(followUp.Question).ToString();
+        return sb.Append("\n\n").Append(FollowUp(root, followUp)).ToString();
     }
+
+    /// <summary>What the agent is told for a follow-up: the question, or for a draft, how to write the comment.</summary>
+    internal static string FollowUp(ReviewAsk root, ReviewAsk ask) => ask.Question == DraftQuestion
+        ? $"{ask.Author} asks you to draft the comment they'll post on the pull request at {Where(root)}, from this conversation. " +
+            "Reply with only the comment, in Markdown: short, specific and polite, addressed to the change's author, with no preamble."
+        : $"{ask.Author} follows up:\n\n{ask.Question}";
+
+    private static string Where(ReviewAsk ask) =>
+        ask.File is null ? "the whole change" : ask.Line is null ? ask.File : ask.EndLine is { } end && end != ask.Line ? $"{ask.File}:{ask.Line}-{end}" : $"{ask.File}:{ask.Line}";
 
     internal static string Prompt(ReviewSession s, ReviewAsk ask)
     {
-        var where = ask.File is null ? "the whole change" : ask.Line is null ? ask.File : ask.EndLine is { } end && end != ask.Line ? $"{ask.File}:{ask.Line}-{end}" : $"{ask.File}:{ask.Line}";
+        var where = Where(ask);
         return $"On agentd's review page for {s.HeadRef} → {s.BaseRef} in {s.Repository} (the change is `git diff {s.BaseCommit} {s.HeadCommit}`; your checkout is {s.HeadCommit}), " +
             $"{ask.Author} selected {where} and asks:\n\n{ask.Question}";
     }

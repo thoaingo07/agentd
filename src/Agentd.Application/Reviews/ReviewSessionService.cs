@@ -150,6 +150,25 @@ public sealed class ReviewSessionService(
         return (await store.ListCommentsAsync(id, cancellationToken).ConfigureAwait(false)).Single(c => c.Id == commentId);
     }
 
+    /// <summary>Only its author rewords a comment, until the review is sent.</summary>
+    public async Task<Result<ReviewComment>> UpdateCommentAsync(long id, long commentId, string text, string author, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(text) || text.Length > MaxText)
+        {
+            return DomainError.Validation($"Write the comment (up to {MaxText} characters).");
+        }
+
+        var open = await OpenAsync(id, cancellationToken).ConfigureAwait(false);
+        if (!open.IsSuccess)
+        {
+            return open.Error;
+        }
+
+        return await store.UpdateCommentAsync(id, commentId, author, text.Trim(), cancellationToken).ConfigureAwait(false)
+            ? (await store.ListCommentsAsync(id, cancellationToken).ConfigureAwait(false)).Single(c => c.Id == commentId)
+            : DomainError.NotFound($"Your comment {commentId} on review {id}");
+    }
+
     /// <summary>Only its author removes a comment.</summary>
     public async Task<Result<Unit>> DeleteCommentAsync(long id, long commentId, string author, CancellationToken cancellationToken) =>
         await store.DeleteCommentAsync(id, commentId, author, cancellationToken).ConfigureAwait(false)

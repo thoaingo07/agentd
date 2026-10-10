@@ -66,6 +66,11 @@ Diff · Findings), and the inline cards in the diff.
   agent keeps the conversation (the thread's first question holds a Claude session that follow-ups `--resume`; if it
   can't be resumed, the follow-up starts a new session with the conversation so far in its prompt, and the thread
   keeps that one). One question per thread at a time: a follow-up waits until the last answer is in.
+- **Prepare the comments** (decided 2026-10-10): **Draft a comment** on a thread asks its agent (same session) for
+  only the comment to post, from the conversation; the draft is that thread's next answer. **Use as comment** on any
+  answer opens it in an editor; **Add comment** puts it at the thread's place. The **To post** panel lists exactly
+  what Send sends (kept and edited findings, then the comments), and each comment can be edited or removed there
+  until the review is sent.
 - **Live**: while the reviewer works the page says "Reviewing…" and checks the session every few seconds; the findings
   arrive together when the reviewer finishes (its review-findings block). The diff and comments work meanwhile.
   (Streaming findings one by one, over the SignalR hub, can come later if reviews get long.)
@@ -159,9 +164,10 @@ Server (`/api`, signed in, antiforgery on writes):
 | `GET /api/reviews` · `GET /api/reviews/{id}` | list (mine, recent) · one session: target, commits, summary, findings with decisions, comments, asks, status |
 | `GET /api/reviews/{id}/diff` | the unified diff and file list (pinned commits) |
 | `PUT /api/reviews/{id}/findings/{n}` | `{ decision: kept | dropped | edited, text? }` |
-| `POST /api/reviews/{id}/comments` · `DELETE …/comments/{c}` | `{ file?, line?, endLine?, text }` |
+| `POST /api/reviews/{id}/comments` · `PUT …/comments/{c}` · `DELETE …/comments/{c}` | `{ file?, line?, endLine?, text }` (PUT: `{ text }`; only its author, until Sent) |
 | `POST /api/reviews/{id}/asks` | `{ file?, line?, endLine?, question }` → the answer (streamed on the hub) |
 | `POST /api/reviews/{id}/asks/{threadId}/follow-ups` | `{ text }` → a follow-up in that thread (202); 409 while its last question waits for the answer |
+| `POST /api/reviews/{id}/asks/{threadId}/draft` | → a follow-up asking for the comment to post (202); the draft is its answer; 409 like a follow-up |
 | `POST /api/reviews/{id}/send` | `{ destination }` → what happened |
 | `POST /api/reviews/uploads` | `agentd review --share`: `{ repo?, base, diff, files[], findings, comments }` |
 

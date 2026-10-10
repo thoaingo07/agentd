@@ -68,14 +68,20 @@ public sealed class ReviewSessionServiceTests
         var badLines = await Service().AddCommentAsync(id, "src/A.cs", 5, 3, "x", "dev@example.com", default);
         var lineWithoutFile = await Service().AddCommentAsync(id, null, 3, null, "x", "dev@example.com", default);
         var notMine = await Service().DeleteCommentAsync(id, comment.Value!.Id, "lead@example.com", default);
+        var reworded = await Service().UpdateCommentAsync(id, comment.Value.Id, " read it from config ", "dev@example.com", default);
+        var rewordNotMine = await Service().UpdateCommentAsync(id, comment.Value.Id, "mine now", "lead@example.com", default);
+        var rewordEmpty = await Service().UpdateCommentAsync(id, comment.Value.Id, " ", "dev@example.com", default);
         await _store.SetStatusAsync(id, ReviewSessionStatus.Sent, null, "pr:3944", default);
         var late = await Service().AddCommentAsync(id, null, null, null, "too late", "dev@example.com", default);
+        var lateReword = await Service().UpdateCommentAsync(id, comment.Value.Id, "too late", "dev@example.com", default);
 
         Assert.IsTrue(edited.IsSuccess);
         Assert.AreEqual((FindingDecisions.Edited, "say it plainly"), (_store.Sessions[id].Findings[0].Decision, _store.Sessions[id].Findings[0].Edited));
         Assert.AreEqual(("validation", "validation", "not_found"), (noText.Error!.Code, unknown.Error!.Code, missing.Error!.Code));
         Assert.AreEqual(("make it config", 3, 5), (comment.Value.Text, comment.Value.Line, comment.Value.EndLine));
         Assert.AreEqual(("validation", "validation", "not_found", "conflict"), (badLines.Error!.Code, lineWithoutFile.Error!.Code, notMine.Error!.Code, late.Error!.Code));
+        Assert.AreEqual(("read it from config", 3, 5), (reworded.Value!.Text, reworded.Value.Line, reworded.Value.EndLine), "rewording keeps its place");
+        Assert.AreEqual(("not_found", "validation", "conflict"), (rewordNotMine.Error!.Code, rewordEmpty.Error!.Code, lateReword.Error!.Code));
     }
 
     private void Branch(string name, string head, string baseTip, string mergeBase)
@@ -157,6 +163,17 @@ public sealed class ReviewSessionServiceTests
 
         public Task<bool> DeleteCommentAsync(long sessionId, long commentId, string author, CancellationToken cancellationToken) =>
             Task.FromResult(_sessionOf.GetValueOrDefault(commentId) == sessionId && _comments.RemoveAll(c => c.Id == commentId && c.Author == author) > 0);
+
+        public Task<bool> UpdateCommentAsync(long sessionId, long commentId, string author, string text, CancellationToken cancellationToken)
+        {
+            var i = _comments.FindIndex(c => c.Id == commentId && c.Author == author && _sessionOf[c.Id] == sessionId);
+            if (i >= 0)
+            {
+                _comments[i] = _comments[i] with { Text = text };
+            }
+
+            return Task.FromResult(i >= 0);
+        }
 
         public Task<IReadOnlyList<ReviewComment>> ListCommentsAsync(long sessionId, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<ReviewComment>>([.. _comments.Where(c => _sessionOf[c.Id] == sessionId)]);

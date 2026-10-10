@@ -62,6 +62,15 @@ beforeEach(() => {
       asks = [...asks, a]
       return json(a, 202)
     }
+    if (path === '/api/reviews/7/asks/5/draft') {
+      const a = { ...asks[0], id: 6, answer: null, question: '✍️ Draft a review comment from this conversation.', threadId: 5 }
+      asks = [...asks, a]
+      return json(a, 202)
+    }
+    if (path.startsWith('/api/reviews/7/comments/') && req.method === 'PUT') {
+      comments = comments.map((c) => ((c as { id: number }).id === Number(path.split('/').at(-1)) ? { ...c, ...(body as object) } : c))
+      return json(comments[0])
+    }
     if (path.startsWith('/api/reviews/7/findings/')) {
       session = { ...session, findings: [{ ...finding, decision: (body as { decision: string }).decision, edited: (body as { text: string | null }).text }] }
       return new Response(null, { status: 204 })
@@ -201,6 +210,56 @@ describe('reviews', () => {
     expect(thread[0]!.text()).toContain('and if the table is empty?')
     expect(thread[0]!.text()).toContain('thinking…')
     expect((thread[0]!.get('input[aria-label="Ask a follow-up"]').element as HTMLInputElement).disabled).toBe(true)
+  })
+
+  it('drafts a comment from a thread, edits it, and adds it at the thread\'s place to what gets posted', async () => {
+    vi.useFakeTimers()
+    asks = [{ id: 5, author: 'local', askedAt: '2026-10-09T10:02:00Z', file: 'src/Sync.cs', line: 41, endLine: 45, question: 'why a loop here?', answer: 'It pages by key.', threadId: null }]
+    const view = mount(ReviewView, { props: { id: 7 }, global: { plugins: [router()] } })
+    await flushPromises()
+    expect(view.get('[data-testid=to-post]').text()).toContain('To post · 1')
+
+    await view.get('[data-testid=ask]').findAll('button').find((b) => b.text() === 'Draft a comment')!.trigger('click')
+    await flushPromises()
+    expect(calls.some((c) => c.method === 'POST' && c.path === '/api/reviews/7/asks/5/draft')).toBe(true)
+    expect(view.get('[data-testid=ask]').text()).toContain('thinking…')
+
+    asks = [asks[0]!, { ...asks[1]!, answer: 'Could this page by key?' }]
+    await vi.advanceTimersByTimeAsync(reviewPollMs + 1)
+    await flushPromises()
+    const uses = view.get('[data-testid=ask]').findAll('button').filter((b) => b.text() === 'Use as comment')
+    expect(uses).toHaveLength(2)
+    await uses[1]!.trigger('click')
+    const editor = view.get('textarea[aria-label="The comment on src/Sync.cs:41-45"]')
+    expect((editor.element as HTMLTextAreaElement).value).toBe('Could this page by key?')
+    await editor.setValue('Could this page by key? Big tables time out.')
+    await view.findAll('button').find((b) => b.text() === 'Add comment' && b.element.closest('[data-testid=ask]'))!.trigger('click')
+    await flushPromises()
+
+    expect(calls.find((c) => c.path === '/api/reviews/7/comments')?.body).toEqual({ file: 'src/Sync.cs', line: 41, endLine: 45, text: 'Could this page by key? Big tables time out.' })
+    const toPost = view.get('[data-testid=to-post]')
+    expect(toPost.text()).toContain('To post · 2')
+    expect(toPost.text()).toContain('Unbounded read')
+    expect(toPost.get('[data-testid=draft-comment]').text()).toContain('Big tables time out.')
+    expect(view.find('textarea[aria-label="The comment on src/Sync.cs:41-45"]').exists()).toBe(false)
+  })
+
+  it('rewords a comment under To post, and dropped findings aren\'t posted', async () => {
+    comments = [{ id: 1, author: 'local', createdAt: '2026-10-09T10:01:00Z', file: 'src/Sync.cs', line: 40, endLine: null, text: 'make it config' }]
+    session = { ...session, findings: [{ ...finding, decision: 'dropped' }] }
+    const view = mount(ReviewView, { props: { id: 7 }, global: { plugins: [router()] } })
+    await flushPromises()
+    const toPost = view.get('[data-testid=to-post]')
+    expect(toPost.text()).toContain('To post · 1')
+    expect(toPost.text()).not.toContain('Unbounded read')
+
+    await toPost.findAll('button').find((b) => b.text() === 'Edit')!.trigger('click')
+    await view.get('textarea[aria-label="Edit the comment on src/Sync.cs:40"]').setValue('read it from config')
+    await view.findAll('button').find((b) => b.text() === 'Save')!.trigger('click')
+    await flushPromises()
+
+    expect(calls.find((c) => c.method === 'PUT' && c.path === '/api/reviews/7/comments/1')?.body).toEqual({ text: 'read it from config' })
+    expect(view.get('[data-testid=draft-comment]').text()).toContain('read it from config')
   })
 
   it('posts a PR review to the PR under your name', async () => {

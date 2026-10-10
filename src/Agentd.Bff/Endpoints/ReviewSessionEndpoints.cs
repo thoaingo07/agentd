@@ -45,6 +45,11 @@ public static class ReviewSessionEndpoints
                 .ToHttpResult(c => TypedResults.Created($"/api/reviews/{id}/comments/{c.Id}", ReviewCommentVm.From(c))))
             .WithName("AddReviewComment").Produces<ReviewCommentVm>(StatusCodes.Status201Created).ProducesProblem(StatusCodes.Status400BadRequest).ProducesProblem(StatusCodes.Status404NotFound).ProducesProblem(StatusCodes.Status409Conflict);
 
+        reviews.MapPut("/{id:long}/comments/{commentId:long}", async (long id, long commentId, CommentRequest? body, ClaimsPrincipal user, [FromServices] ReviewSessionService service, CancellationToken ct) =>
+            (await service.UpdateCommentAsync(id, commentId, body?.Text ?? string.Empty, AdoConnectEndpoints.Login(user), ct).ConfigureAwait(false))
+                .ToHttpResult(c => TypedResults.Ok(ReviewCommentVm.From(c))))
+            .WithName("UpdateReviewComment").Produces<ReviewCommentVm>().ProducesProblem(StatusCodes.Status400BadRequest).ProducesProblem(StatusCodes.Status404NotFound).ProducesProblem(StatusCodes.Status409Conflict);
+
         reviews.MapDelete("/{id:long}/comments/{commentId:long}", async (long id, long commentId, ClaimsPrincipal user, [FromServices] ReviewSessionService service, CancellationToken ct) =>
             (await service.DeleteCommentAsync(id, commentId, AdoConnectEndpoints.Login(user), ct).ConfigureAwait(false)).ToHttpResult(_ => TypedResults.NoContent()))
             .WithName("DeleteReviewComment").Produces(StatusCodes.Status204NoContent).ProducesProblem(StatusCodes.Status404NotFound);
@@ -58,6 +63,12 @@ public static class ReviewSessionEndpoints
             (await asks.FollowUpAsync(id, threadId, body?.Text ?? string.Empty, AdoConnectEndpoints.Login(user), ct).ConfigureAwait(false))
                 .ToHttpResult(a => TypedResults.Accepted($"/api/reviews/{id}", ReviewAskVm.From(a))))
             .WithName("FollowUpReviewAsk").Produces<ReviewAskVm>(StatusCodes.Status202Accepted).ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status404NotFound).ProducesProblem(StatusCodes.Status409Conflict);
+
+        reviews.MapPost("/{id:long}/asks/{threadId:long}/draft", async (long id, long threadId, ClaimsPrincipal user, [FromServices] ReviewSessionAsks asks, CancellationToken ct) =>
+            (await asks.DraftAsync(id, threadId, AdoConnectEndpoints.Login(user), ct).ConfigureAwait(false))
+                .ToHttpResult(a => TypedResults.Accepted($"/api/reviews/{id}", ReviewAskVm.From(a))))
+            .WithName("DraftReviewComment").Produces<ReviewAskVm>(StatusCodes.Status202Accepted)
             .ProducesProblem(StatusCodes.Status404NotFound).ProducesProblem(StatusCodes.Status409Conflict);
 
         reviews.MapPost("/{id:long}/send", async (long id, SendRequest? body, [FromServices] ReviewSessionSend send, CancellationToken ct) =>

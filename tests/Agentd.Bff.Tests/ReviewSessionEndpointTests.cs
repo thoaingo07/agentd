@@ -49,6 +49,11 @@ public sealed class ReviewSessionEndpointTests
         Assert.AreEqual((1, "edited", "Page by key."), (finding.GetProperty("number").GetInt32(), finding.GetProperty("decision").GetString(), finding.GetProperty("edited").GetString()));
         Assert.AreEqual("make it config", detail.GetProperty("comments")[0].GetProperty("text").GetString());
 
+        using var reword = await client.SendAsync(HttpMethod.Put, $"/api/reviews/{id}/comments/{commentId}", new { text = "read it from config" });
+        using var empty = await client.SendAsync(HttpMethod.Put, $"/api/reviews/{id}/comments/{commentId}", new { text = " " });
+        Assert.AreEqual((HttpStatusCode.OK, HttpStatusCode.BadRequest), (reword.StatusCode, empty.StatusCode));
+        Assert.AreEqual("read it from config", JsonDocument.Parse(await reword.Content.ReadAsStringAsync()).RootElement.GetProperty("text").GetString());
+
         using var delete = await client.SendAsync(HttpMethod.Delete, $"/api/reviews/{id}/comments/{commentId}");
         var mine = JsonDocument.Parse(await http.GetStringAsync(new Uri("/api/reviews", UriKind.Relative))).RootElement;
         Assert.AreEqual(HttpStatusCode.NoContent, delete.StatusCode);
@@ -170,6 +175,17 @@ public sealed class ReviewSessionEndpointTests
 
         public Task<bool> DeleteCommentAsync(long sessionId, long commentId, string author, CancellationToken cancellationToken) =>
             Task.FromResult(_comments.RemoveAll(c => c.Id == commentId && c.Author == author) > 0);
+
+        public Task<bool> UpdateCommentAsync(long sessionId, long commentId, string author, string text, CancellationToken cancellationToken)
+        {
+            var i = _comments.FindIndex(c => c.Id == commentId && c.Author == author);
+            if (i >= 0)
+            {
+                _comments[i] = _comments[i] with { Text = text };
+            }
+
+            return Task.FromResult(i >= 0);
+        }
 
         public Task<IReadOnlyList<ReviewComment>> ListCommentsAsync(long sessionId, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<ReviewComment>>([.. _comments]);
 

@@ -123,6 +123,16 @@ export const useReviewsStore = defineStore('reviews', () => {
     poll(id)
   }
 
+  /** Asks the thread's agent to draft the comment to post from the conversation; the draft arrives as its answer. */
+  async function draft(threadId: number): Promise<void> {
+    if (!current.value) return
+    const id = current.value.session.id
+    await send<unknown>('POST', `/api/reviews/${id}/asks/${threadId}/draft`)
+    await refresh()
+    clearTimeout(timer)
+    poll(id)
+  }
+
   /** Post a PR's review to the PR, or get it as text to copy. */
   async function sendTo(destination: 'pr' | 'text' | 'fix'): Promise<ReviewSent | null> {
     if (!current.value) return null
@@ -134,11 +144,17 @@ export const useReviewsStore = defineStore('reviews', () => {
     return sent
   }
 
+  async function updateComment(id: number, text: string): Promise<void> {
+    if (!current.value) return
+    await send<ReviewComment>('PUT', `/api/reviews/${current.value.session.id}/comments/${id}`, { text })
+    await refresh()
+  }
+
   async function removeComment(id: number): Promise<void> {
     if (!current.value) return
     await send<void>('DELETE', `/api/reviews/${current.value.session.id}/comments/${id}`)
     await refresh()
   }
 
-  return { mine, current, diff, files, openPrs, openPrsError, loadMine, loadOpenPrs, watchOpenPrs, stopOpenPrs, start, open, close, decide, comment, ask, followUp, removeComment, sendTo }
+  return { mine, current, diff, files, openPrs, openPrsError, loadMine, loadOpenPrs, watchOpenPrs, stopOpenPrs, start, open, close, decide, comment, ask, followUp, draft, updateComment, removeComment, sendTo }
 })

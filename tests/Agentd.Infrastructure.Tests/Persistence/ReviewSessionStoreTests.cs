@@ -87,6 +87,31 @@ public sealed class ReviewSessionStoreTests
     }
 
     [TestMethod]
+    public async Task Only_its_author_rewords_a_comment_in_its_session_and_parallel_rewords_of_different_comments_all_land()
+    {
+        await using var db = await Database.CreateMigratedAsync("review_comment_update");
+        var store = new ReviewSessionStore(db);
+        var id = await store.InsertAsync("sysmin", ReviewTargets.Branch, null, "x", "develop", "dev@example.com", null, null, default);
+        var other = await store.InsertAsync("sysmin", ReviewTargets.Branch, null, "y", "develop", "dev@example.com", null, null, default);
+        var ids = new List<long>();
+        for (var i = 0; i < 8; i++)
+        {
+            ids.Add(await store.AddCommentAsync(id, "src/A.cs", i + 1, null, $"note {i}", "dev@example.com", default));
+        }
+
+        var rewords = await Task.WhenAll(ids.Select((c, i) => Task.Run(() => store.UpdateCommentAsync(id, c, "dev@example.com", $"reworded {i}", default))));
+        var notMine = await store.UpdateCommentAsync(id, ids[0], "lead@example.com", "mine now", default);
+        var wrongSession = await store.UpdateCommentAsync(other, ids[0], "dev@example.com", "elsewhere", default);
+        var missing = await store.UpdateCommentAsync(id, ids[^1] + 100, "dev@example.com", "?", default);
+
+        Assert.IsTrue(rewords.All(r => r));
+        Assert.AreEqual((false, false, false), (notMine, wrongSession, missing));
+        var comments = await store.ListCommentsAsync(id, default);
+        CollectionAssert.AreEqual(Enumerable.Range(0, 8).Select(i => $"reworded {i}").ToList(), comments.Select(c => c.Text).ToList());
+        CollectionAssert.AreEqual(Enumerable.Range(1, 8).ToList(), comments.Select(c => c.Line!.Value).ToList(), "a reworded comment keeps its place");
+    }
+
+    [TestMethod]
     public async Task A_follow_up_joins_its_thread_at_its_place_only_after_the_last_answer_and_one_of_parallel_follow_ups_wins()
     {
         await using var db = await Database.CreateMigratedAsync("review_ask_threads");
