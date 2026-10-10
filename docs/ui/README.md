@@ -150,14 +150,22 @@ agentd · ai/1234-fix-login · session 8f3c…      [Discord ↗][Telegram ↗] 
 - **Filters:** an `AgToggleGroup` of event categories. The selection is stored in the `ui` store,
   per job.
 - **Follow mode:**
-  - it is on by default, and the pane auto-scrolls to new events;
+  - it is on by default, and the pane jumps to new events (no smooth scrolling, which can't keep up);
   - scrolling up turns it off and shows a floating **"N new events ↓"** button;
   - clicking that button or pressing `End` turns it back on.
+- **Two modes**, picked by the run's state:
+  - **an active run** opens on its newest **100** events (`?before=<max>&limit=100`) and streams what comes next
+    via the hub. Live events are queued and applied **once per frame**, as a new array, so a busy agent renders once
+    per frame and not once per event;
+  - **a finished run** opens on the same newest page and doesn't stream at all;
+  - when an active run finishes, the stream stops and what's shown stays.
+- **Scrolling up** (both modes) loads the page before (`?before=<oldestSeq>&limit=100`) when the top comes within
+  300 px (an `IntersectionObserver`), keeping the reader's place; **Load earlier** at the top does the same.
 - **Windowing** (no virtual-list library):
-  - the store keeps and renders at most the latest **500** events for the job;
-  - **Load earlier** fetches `?before=<oldestSeq>&limit=200` and prepends the results;
-  - when the list grows past 2000 events, the oldest are dropped from the *rendered* set and
-    "Load earlier" brings them back;
+  - events aren't deeply reactive (`markRaw`);
+  - rows are rebuilt per change, but unchanged rows are reused as they were, so only new rows (and a tool call whose
+    result just came) render again;
+  - past **1000** events, the oldest are dropped from the rendered set and scrolling up brings them back;
   - large tool outputs are truncated to 200 lines, with a **Show all** link.
 - **Composer:** enabled in `WaitingForHuman` and `Running`. When the job is running, the message
   is queued as the next turn, and the composer says so.
@@ -210,7 +218,8 @@ after the chat thread is deleted, because the history lives in agentd's database
   - **Details:** the picked run's attempts, plan, fix rounds, hand-off and last error, then **plan & usage**: the
     estimate against actual (time, share of the 5-hour window), and 5-hour and weekly usage over each run.
 - **Live:** while a job of the work item is active, new entries stream in via the hub (subscribing to
-  each of its jobs). The timeline and the run's transcript share a job's stream: the connection store counts its
+  each of its jobs once the timeline has been read to its end; subscribing from a page in the middle would replay
+  the rest of the run event by event). The timeline and the run's transcript share a job's stream: the connection store counts its
   holders, replays from the earliest seq either needs, and unsubscribes when the last one leaves.
 
 ### 4.4 Pull requests
@@ -376,7 +385,7 @@ interface JobWindow { events: AgentEvent[]; oldestSeq: number; newestSeq: number
 export const useEventsStore = defineStore('events', () => {
   const windows = reactive(new Map<number, JobWindow>())
 
-  async function open(jobId: number) { /* GET /api/jobs/{id}/events?limit=500 → window; connection.subscribe(jobId, newestSeq) */ }
+  async function open(jobId: number) { /* GET /api/jobs/{id}/events?before=<max>&limit=100 → window; active: connection.subscribe(jobId, newestSeq) */ }
   function close(jobId: number) { /* unsubscribe; drop window after 5 min of not being viewed */ }
   function append(e: AgentEvent) { /* ignore if no window or e.seq <= newestSeq (dedupe); push; trim to 2000 */ }
   async function loadEarlier(jobId: number) { /* GET ?before=oldestSeq&limit=200 → unshift */ }

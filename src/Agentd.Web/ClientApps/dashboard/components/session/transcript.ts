@@ -31,7 +31,18 @@ const val = (v: unknown): string => (v && typeof v === 'object' && 'value' in v 
 /** Agent noise that adds nothing to a reader (session bookkeeping, usage polling, unknown system lines). */
 const hidden = new Set(['agent.session', 'agent.rate_limit', 'agent.other', 'agent.unparseable'])
 
-export function toRows(events: AgentEvent[]): Row[] {
+/** The same event(s) behind both rows: the earlier row can stay, so its component doesn't render again. */
+function same(a: Row, b: Row): boolean {
+  if (a.kind !== b.kind) return false
+  if (a.kind === 'tool') return a.call === (b as typeof a).call && a.result === (b as typeof a).result
+  return a.event === (b as Exclude<Row, { kind: 'tool' }>).event
+}
+
+/**
+ * The rows of a transcript. With the previous rows, unchanged ones are reused as they were: a live transcript renders
+ * only its new rows (and a tool call whose result just came).
+ */
+export function toRows(events: readonly AgentEvent[], previous?: ReadonlyMap<number, Row>): Row[] {
   const rows: Row[] = []
   const calls = new Map<string, Extract<Row, { kind: 'tool' }>>()
   for (const event of events) {
@@ -80,7 +91,11 @@ export function toRows(events: AgentEvent[]): Row[] {
         if (!hidden.has(event.type)) rows.push({ kind: 'state', key: event.seq, event, title: humanize(event.type) })
     }
   }
-  return rows
+  if (!previous) return rows
+  return rows.map((r) => {
+    const before = previous.get(r.key)
+    return before && same(before, r) ? before : r
+  })
 }
 
 /** One line for a tool call header: the most telling argument (command, file, pattern, …). */

@@ -54,33 +54,51 @@ afterEach(() => {
 })
 
 describe('events store', () => {
-  it('drops duplicates and older seqs, and trims to the rendered limit', async () => {
-    respond({ '/api/jobs/7/events': { events: [ev(1), ev(2)], oldestSeq: 1, newestSeq: 2, hasMore: false } })
+  it('opens on the newest page, applies a burst of live events at once, drops duplicates and trims', async () => {
+    respond({ '/api/jobs/7/events?before=9007199254740991&limit=100': { events: [ev(1), ev(2)], oldestSeq: 1, newestSeq: 2, hasMore: false } })
+    const connection = useConnectionStore()
+    await connection.start()
     const events = useEventsStore()
     await events.open(7)
+    expect(hub.subscribed).toEqual([['7', 2]])
+    const shown = events.windows.get(7)!.events
 
     for (const seq of [2, 1, 3, 3, 4]) events.append(ev(seq))
+    expect(events.windows.get(7)!.events).toBe(shown)   // nothing renders until the frame
+    events.flush()
     expect(events.windows.get(7)!.events.map((e) => e.seq)).toEqual([1, 2, 3, 4])
 
     for (let seq = 5; seq <= maxRendered + 10; seq++) events.append(ev(seq))
+    events.flush()
     const w = events.windows.get(7)!
     expect(w.events).toHaveLength(maxRendered)
     expect(w.oldestSeq).toBe(11)
     expect(w.hasMore).toBe(true)
   })
 
-  it('loads earlier events in order', async () => {
+  it('a finished run is read page by page without streaming, and a run that finishes stops streaming', async () => {
     respond({
-      '/api/jobs/7/events?limit': { events: [ev(301), ev(302)], oldestSeq: 301, newestSeq: 302, hasMore: true },
-      '/api/jobs/7/events?before=301': { events: [ev(299), ev(300)], oldestSeq: 299, newestSeq: 300, hasMore: false },
+      '/api/jobs/7/events?before=9007199254740991': { events: [ev(301), ev(302)], oldestSeq: 301, newestSeq: 302, hasMore: true },
+      '/api/jobs/7/events?before=301&limit=100': { events: [ev(299), ev(300)], oldestSeq: 299, newestSeq: 300, hasMore: false },
+      '/api/jobs/8/events': { events: [ev(5, 8)], oldestSeq: 5, newestSeq: 5, hasMore: false },
     })
+    const connection = useConnectionStore()
+    await connection.start()
     const events = useEventsStore()
-    await events.open(7)
+    await events.open(7, false)
 
     await events.loadEarlier(7)
+    events.append(ev(303))
+    events.flush()
 
+    expect(hub.subscribed).toEqual([])
     expect(events.windows.get(7)!.events.map((e) => e.seq)).toEqual([299, 300, 301, 302])
     expect(events.windows.get(7)!.hasMore).toBe(false)
+
+    await events.open(8)
+    events.settle(8)
+    events.close(8)
+    expect(hub.unsubscribe).toHaveBeenCalledTimes(1)
   })
 })
 
@@ -94,6 +112,7 @@ describe('connection store', () => {
     hub.push('all', ev(120, 7, 'JobStarted'))
     hub.push('7', ev(11))
     hub.push('7', ev(12))
+    useEventsStore().flush()
 
     hub.drop()
     expect(connection.status).toBe('reconnecting')
