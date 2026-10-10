@@ -50,6 +50,7 @@ public static class DependencyInjection
         services.AddSingleton<Reviews.ReviewSessionAsks>();
         services.AddSingleton<Reviews.ReviewSessionService>();
         services.AddSingleton<Reviews.BranchReviews>();
+        services.AddSingleton<Reviews.ReviewSessionSend>();
         services.AddSingleton<Chats.ChatService>();
         services.AddSingleton<AzureDevOps.AdoConnections>();
         services.AddSingleton<AzureDevOps.AdoActor>();

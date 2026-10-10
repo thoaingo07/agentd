@@ -1483,6 +1483,83 @@
         }
       }
     },
+    "/api/reviews/{id}/send": {
+      "post": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "SendReview",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/SendRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewSentVm"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/bff/antiforgery": {
       "get": {
         "tags": [
@@ -4467,6 +4544,42 @@
         },
         "description": "One review line: a step, whether finishing needs it, and its check."
       },
+      "ReviewSentVm": {
+        "required": [
+          "destination",
+          "text",
+          "url",
+          "posted",
+          "asPerson"
+        ],
+        "type": "object",
+        "properties": {
+          "destination": {
+            "type": "string"
+          },
+          "text": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "url": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uri"
+          },
+          "posted": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "asPerson": {
+            "type": "boolean"
+          }
+        },
+        "description": "What Send did: the text to copy, or the PR it was posted to (under your name when \u0060asPerson\u0060)."
+      },
       "ReviewSessionDetailVm": {
         "required": [
           "session",
@@ -4655,6 +4768,21 @@
           }
         },
         "description": "A secret\u0027s status. Secrets are write-only: the value never leaves the server."
+      },
+      "SendRequest": {
+        "required": [
+          "destination"
+        ],
+        "type": "object",
+        "properties": {
+          "destination": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "\u0060pr\u0060 (a PR\u0027s review: post it there) or \u0060text\u0060 (copy it)."
+          }
+        }
       },
       "SetupSessionVm": {
         "required": [
