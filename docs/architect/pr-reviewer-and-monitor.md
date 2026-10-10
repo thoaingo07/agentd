@@ -7,7 +7,7 @@ agentd's job doesn't end when a PR opens. Three capabilities cover the rest of t
 - **PR Monitor** watches open PRs for review comments, failing builds, merge conflicts and a moved
   target branch. It **keeps fixing** them by pushing follow-up commits to the PR branch and replying
   on the threads.
-- **Hotfix** is an expedited flow that branches from a release branch, fixes, opens a PR, and
+- **Hotfix** (dropped, §4): a hotfix is an ordinary Task or Bug run with `!run`. *Formerly:* an expedited flow that branches from a release branch, fixes, opens a PR, and
   backports to `main`.
 
 All three are driven from the **PR dashboard** in the Web UI and from chat. All their configuration
@@ -285,13 +285,14 @@ authors or agentd, per §2.4.
 
 ---
 
-## 4. Hotfix flow
+## 4. Hotfixes: no separate flow
 
-Hotfixes are started from the dashboard (**Create hotfix**), from chat (`/hotfix <repo> <release-branch> <description>`),
-or from a work item tagged `ai-hotfix`.
+**Decided 2026-10-10:** there's no hotfix flow, kit section, template or `!hotfix` command. A hotfix is a Task or Bug
+in Azure DevOps like any other, started with `!run <work item id>` (or the `ai-workflow` tag), and its PR is
+followed like every agentd PR (review comments, failed builds and conflicts start fix rounds, §2.0). The design
+below that mentions hotfix files, `kit.json` `hotfix` settings or **Create hotfix** is superseded by this section.
 
-| Step | Behavior |
-|---|---|
+---|---|
 | Branch | from the release branch (`hotfix.branches`, e.g. `release/*`) → `hotfix/<id>-<slug>` |
 | Workflow | **expedited**: Plan → Implement → Test → Review (Design skipped), using `phases/hotfix.md` |
 | Gates | a **plan gate is always on** for hotfixes (a kit setting can't turn it off), and the PR is announced with high priority in chat |

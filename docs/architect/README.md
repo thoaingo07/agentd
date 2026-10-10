@@ -31,8 +31,9 @@ real-time view of every session: live transcripts, tool calls, state and cost.
   PR or commit range on the server, and for uncommitted work on a laptop with `agentd review` and the developer's own
   Claude ([review-sessions.md](review-sessions.md)).
 - **Keep PRs moving after they open.** PR Reviewer runs the repo's predefined reviewers on any open
-  PR, PR Monitor keeps fixing review comments, CI failures and conflicts, and hotfixes get an
-  expedited flow with an automatic backport ([pr-reviewer-and-monitor.md](pr-reviewer-and-monitor.md)).
+  PR, and PR Monitor keeps fixing review comments, CI failures and conflicts
+  ([pr-reviewer-and-monitor.md](pr-reviewer-and-monitor.md)). A hotfix is an ordinary Task or Bug run with `!run`
+  (no separate hotfix flow, decided 2026-10-10).
 - Run every job through a fixed workflow: **Design → Plan → Implement → Test → Review**,
   with optional human gates ([workflow-and-learning.md](workflow-and-learning.md)).
 - **Initialize an ai-sdlc kit (`.agentd/`) in every repo**: phase instructions, templates,
@@ -479,7 +480,7 @@ and component styling rules are in **[docs/design-system](../design-system/READM
 | `POST /api/workitems/{id}/run` | start a work item immediately |
 | `GET /api/prs?repo=&filter=` / `GET /api/prs/{repo}/{id}` | PR dashboard: open PRs with CI, votes, conflicts, threads, agentd status |
 | `POST /api/prs/{repo}/{id}/reviews` `{ reviewers[], post }` / `…/fix` `{ instruction? }` / `…/monitor` `{ enabled }` | run predefined reviewers, fix now, toggle monitoring (Operator) |
-| `GET /api/repos/{repo}/reviewers` / `POST /api/hotfixes` | reviewer catalog from the kit / start a hotfix (Operator) |
+| `GET /api/repos/{repo}/reviewers` | reviewer catalog from the kit (`POST /api/hotfixes` dropped 2026-10-10) |
 | `/mcp` | `Agentd.Mcp`, not the BFF: the MCP endpoint for Claude processes (per-job token, not browser-facing) |
 | `/healthz` | health checks (Postgres, each messaging provider, Azure DevOps token) |
 
@@ -630,7 +631,7 @@ agentd/
 | 12 | ~~Workflow~~ | **Decided:** Design → Plan → Implement → Test → Review + learning loop ([workflow-and-learning.md](workflow-and-learning.md)) |
 | 13 | ~~Models~~ | **Decided:** per-phase model profiles with fallback chains ([model-profiles.md](model-profiles.md)) |
 | 18 | ~~Deployment target~~ | **Decided:** standalone VPS, any repo; NetClaw-style single binary + config home + Docker ([deployment.md](deployment.md)) |
-| 17 | ~~PR lifecycle~~ | **Decided:** PR Reviewer (kit-defined reviewers), PR Monitor (fix rounds, no force-push), hotfix + backport ([pr-reviewer-and-monitor.md](pr-reviewer-and-monitor.md)) |
+| 17 | ~~PR lifecycle~~ | **Decided:** PR Reviewer (kit-defined reviewers), PR Monitor (fix rounds, no force-push); hotfix + backport dropped 2026-10-10, a hotfix is a Task or Bug run with `!run` ([pr-reviewer-and-monitor.md](pr-reviewer-and-monitor.md)) |
 | 16 | ~~Orchestration framework~~ | **Decided:** Microsoft Agent Framework Workflows + MAF agents for non-coding steps; Claude Code stays the coding runner; MAF Harness Agent is benchmark-gated ([orchestration-maf.md](orchestration-maf.md)) |
 | 15 | ~~Per-repo process knowledge~~ | **Decided:** ai-sdlc kit in `.agentd/`, initialized by agentd and owned by the team ([ai-sdlc-kit.md](ai-sdlc-kit.md)) |
 | 14 | Gemini integration | LiteLLM-style gateway via `ANTHROPIC_BASE_URL` first; a `GeminiCliRunner` only if tool-use quality needs it |
@@ -651,7 +652,7 @@ agentd/
 - [ai-sdlc-kit.md](ai-sdlc-kit.md) — per-repo `.agentd/` kit: init, customize, upgrade, validate
 - [orchestration-maf.md](orchestration-maf.md) — Microsoft Agent Framework workflow graph, checkpoints, MAF agents
 - [deployment.md](deployment.md) — standalone VPS (any repo): `agentd` daemon + CLI, `~/.agentd` config home, secrets, systemd, Docker, releases
-- [pr-reviewer-and-monitor.md](pr-reviewer-and-monitor.md) — predefined PR reviewers, PR monitoring & fix rounds, hotfixes
+- [pr-reviewer-and-monitor.md](pr-reviewer-and-monitor.md) — predefined PR reviewers, PR monitoring & fix rounds (hotfixes: §4, no separate flow)
 - [references/azure-devops.md](references/azure-devops.md) — auth, WIQL, work item & PR REST calls
 - [references/discord.md](references/discord.md) — bot setup, intents, threads
 - [references/telegram.md](references/telegram.md) — bot setup, forum topics, long polling, inline keyboards

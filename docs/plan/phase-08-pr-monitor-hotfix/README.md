@@ -1,5 +1,9 @@
 # Phase 8 — PR Monitor (fix rounds) + hotfix & backport
 
+> **2026-10-10:** the hotfix flow and backport are dropped. A hotfix is a Task or Bug in Azure DevOps, started with
+> `!run` like any work item ([pr-reviewer-and-monitor.md §4](../../architect/pr-reviewer-and-monitor.md#4-hotfixes-no-separate-flow)).
+> The hotfix items below are kept for history only.
+
 > **Note (2026-10-03):** [Phase 2b](../phase-02b-job-lifecycle/README.md) delivers a light, single-session version of parts of this phase (phases and plan gate / PR review fix loop / knowledge hand-off). Build on it rather than re-building it.
 
 **Goal:** keep PRs moving. agentd **fixes** review comments, red CI and merge conflicts on the PR
