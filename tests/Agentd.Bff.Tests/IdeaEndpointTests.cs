@@ -43,7 +43,7 @@ public sealed class IdeaEndpointTests
         var idea = JsonDocument.Parse(await client.GetStringAsync(new Uri("/api/ideas/4", UriKind.Relative))).RootElement;
         using var missing = await client.GetAsync(new Uri("/api/ideas/5", UriKind.Relative));
 
-        CollectionAssert.AreEqual(new[] { "idea", "drafts", "messages" }, idea.EnumerateObject().Select(p => p.Name).ToArray());
+        CollectionAssert.AreEqual(new[] { "idea", "drafts", "messages", "thinking" }, idea.EnumerateObject().Select(p => p.Name).ToArray());
         CollectionAssert.AreEqual(new[] { "type", "title", "description", "acceptanceCriteria", "estimate", "parent", "tags" },
             idea.GetProperty("drafts")[0].EnumerateObject().Select(p => p.Name).ToArray());
         Assert.AreEqual(0, idea.GetProperty("drafts")[1].GetProperty("parent").GetInt32());

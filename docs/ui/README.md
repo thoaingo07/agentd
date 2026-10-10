@@ -44,7 +44,7 @@ Adding anything else needs a note in this section explaining why.
 | `/history` | `HistoryView` | finished, failed and cancelled jobs, with search and filters |
 | `/workitems/:id` | `WorkItemView` | **everything about one work item on one page**: the picked run's live transcript (tool calls), diff and actions, plus the timeline across runs, conversation, PRs, plan vs actual and usage |
 | `/ideas` | `IdeasView` | brainstormed ideas (`!idea`), newest first: status, repo, author, the work items they created |
-| `/ideas/:id` | `IdeaView` | one idea: drafts as stories with their tasks, created work items, and the whole conversation (read-only; people continue in the chat thread) |
+| `/ideas/:id` | `IdeaView` | one idea: drafts as stories with their tasks and the choices, created work items, the whole conversation, and a box to talk to the agent |
 | `/prs` | `PullRequestsView` | **PR dashboard**: all open PRs across repos, with run review / fix now / monitor / hotfix |
 | `/prs/:repo/:id` | `PullRequestView` | review runs & findings per reviewer, fix rounds, live trace |
 | `/learnings` | `LearningsView` | approved learnings per repo, pending candidates, distill runs and Learnings PRs, and global-learning approval cards |
@@ -297,13 +297,19 @@ after the chat thread is deleted, because the history lives in agentd's database
 
 ### 4.6 Ideas (`/ideas`, `/ideas/:id`)
 
-- **Read-only.** Ideas start and continue in chat (`!idea`); the page reads `GET /api/ideas` and
-  `GET /api/ideas/{id}`.
+- **Start and talk here or in chat** (decided 2026-10-10, chat/UI parity). **New idea** on the list (text, repository
+  when there are several, model, effort) calls `POST /api/ideas`: an idea started here has no chat thread (provider
+  `web`) and lives only on its page. On the idea, a message box (`POST /api/ideas/{id}/messages`) is handled exactly
+  like a message in its thread; for an idea that has a thread, it's also posted there ("💬 name (web): …"). Once work
+  items are proposed, **✅ Create / 🚀 Create and start / ✏️ Change / 🗑 Discard** are sent as messages, like chat's
+  buttons; the two that create work items are confirmed first. Model and effort apply from the next reply
+  (`PUT /api/ideas/{id}/settings`). An idea without a thread has no close-out question: it gives back its checkout.
 - **List:** status badge (Brainstorming, Proposed, Created, Discarded, Closed), repo, author, message
   and draft counts, and links to the created work items.
 - **Idea:** model and effort, the latest drafts (stories with their tasks and estimates), the created
-  work items, and the conversation. The agent's replies are Markdown (`MarkdownText`); people's
-  messages are plain text.
+  work items, and the conversation, including agentd's own notices (discarded, created, …). The agent's
+  replies are Markdown (`MarkdownText`); people's messages are plain text. "thinking…" shows while the agent
+  writes (`thinking` in the detail; the page re-reads every 3 s until it's done).
 - **Live:** the idea routines write `idea.message` / `idea.updated` events (ids and status only,
   never the text) with no job. The `ideas` store reads them from the "all" stream and re-reads the
   list and the open idea (debounced).

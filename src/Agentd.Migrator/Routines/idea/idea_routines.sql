@@ -64,8 +64,8 @@ AS $$
 $$;
 
 -- The idea threads chat providers should read: every idea that isn't closed (a finished idea still answers
--- its close-out question and points new messages to !idea).
+-- its close-out question and points new messages to !idea). Ideas started on the Web UI have no thread.
 CREATE OR REPLACE FUNCTION agentd.idea_list_open_threads(p_provider text)
 RETURNS SETOF text
 LANGUAGE sql STABLE
-AS $$ SELECT i.thread_id FROM agentd.ideas AS i WHERE i.provider = p_provider AND i.status <> 'Closed' ORDER BY i.id $$;
+AS $$ SELECT i.thread_id FROM agentd.ideas AS i WHERE i.provider = p_provider AND i.status <> 'Closed' AND i.thread_id IS NOT NULL ORDER BY i.id $$;

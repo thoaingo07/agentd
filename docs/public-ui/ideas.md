@@ -11,6 +11,9 @@ code, and when you're ready it drafts **User Stories and Tasks** that agentd can
 ```
 
 - **The thread:** agentd opens **💡 Idea: <first words>** in the channel.
+- **Or on the Web UI:** **Ideas → New idea** (with the repository, model and effort) starts it on its own page, without a
+  chat thread. You talk to the agent there, and the choices below are buttons. An idea started in chat can also be
+  continued on its page; your messages from there show up in the thread too.
 - **The agent:** works on a **read-only** copy of the repository's base branch. It can read and search the code but
   never edit, build or commit.
 - **The repository:** `--repo` picks it. With a single registered repository it's implied; with several, `--repo` is

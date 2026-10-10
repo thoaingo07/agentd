@@ -20,7 +20,11 @@ public sealed record WorkItemDraftVm(string Type, string Title, string? Descript
 /// <summary>One message of the idea's conversation: <c>in</c> from a person, <c>out</c> from the agent (Markdown).</summary>
 public sealed record IdeaMessageVm(string Direction, string Author, string Text, DateTimeOffset At);
 
-public sealed record IdeaDetailVm(IdeaSummaryVm Idea, IReadOnlyList<WorkItemDraftVm> Drafts, IReadOnlyList<IdeaMessageVm> Messages)
+/// <param name="Idea">The idea.</param>
+/// <param name="Drafts">Its latest proposed work items.</param>
+/// <param name="Messages">The whole conversation, including agentd's own notices.</param>
+/// <param name="Thinking">The agent is writing a reply.</param>
+public sealed record IdeaDetailVm(IdeaSummaryVm Idea, IReadOnlyList<WorkItemDraftVm> Drafts, IReadOnlyList<IdeaMessageVm> Messages, bool Thinking = false)
 {
     public static IdeaDetailVm From(IdeaDetail d)
     {
@@ -31,3 +35,6 @@ public sealed record IdeaDetailVm(IdeaSummaryVm Idea, IReadOnlyList<WorkItemDraf
             d.Messages.Select(m => new IdeaMessageVm(m.Direction, m.Author, m.Text, m.At)).ToList());
     }
 }
+
+/// <summary>A new idea: its page is <c>/ideas/{id}</c>.</summary>
+public sealed record IdeaStartedVm(long Id);

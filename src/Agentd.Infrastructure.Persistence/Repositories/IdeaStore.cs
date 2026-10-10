@@ -9,7 +9,7 @@ namespace Agentd.Infrastructure.Persistence.Repositories;
 /// <summary>Ideas and their conversation via <c>agentd.idea_*</c> routines.</summary>
 public sealed class IdeaStore(NpgsqlDataSource dataSource) : IIdeaStore
 {
-    public async Task<long> InsertAsync(string repository, string title, string author, ProviderKey provider, string threadId, string? spaceId, CancellationToken cancellationToken)
+    public async Task<long> InsertAsync(string repository, string title, string author, ProviderKey provider, string? threadId, string? spaceId, CancellationToken cancellationToken)
     {
         await using var cmd = dataSource.CreateCommand("SELECT agentd.idea_insert($1, $2, $3, $4, $5, $6)");
         cmd.Parameters.AddRange(new[] { T(repository), T(title), T(author), T(provider.Value), T(threadId), T(spaceId) });
@@ -99,7 +99,7 @@ public sealed class IdeaStore(NpgsqlDataSource dataSource) : IIdeaStore
             var drafts = Str("drafts");
             rows.Add(new Idea(
                 r.GetInt64(r.GetOrdinal("id")), r.GetString(r.GetOrdinal("repo")), r.GetString(r.GetOrdinal("title")), r.GetString(r.GetOrdinal("author")),
-                ProviderKey.From(r.GetString(r.GetOrdinal("provider"))), r.GetString(r.GetOrdinal("thread_id")), Str("space_id"), r.GetString(r.GetOrdinal("status")),
+                ProviderKey.From(r.GetString(r.GetOrdinal("provider"))), Str("thread_id"), Str("space_id"), r.GetString(r.GetOrdinal("status")),
                 r.IsDBNull(session) ? null : r.GetGuid(session), Str("model"), Str("effort"), Str("worktree_path"),
                 drafts is null ? null : JsonSerializer.Deserialize<List<WorkItemDraft>>(drafts),
                 r.GetFieldValue<int[]>(r.GetOrdinal("created_work_items"))));

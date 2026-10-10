@@ -144,6 +144,72 @@ public sealed class IdeaServiceTests
         Assert.IsEmpty(h.WorkItems.Created);
     }
 
+    [TestMethod]
+    public async Task A_web_idea_has_no_thread_its_page_gets_agentds_notices_and_it_needs_no_close_out()
+    {
+        var h = new Harness();
+        h.Agent.Replies.Enqueue("Which pages first?");
+
+        var id = (await h.Service.StartOnWebAsync("dev@example.com", "dark mode", null, "opus", "HIGH", default)).Value;
+        await h.WaitForMessagesAsync(2);
+        for (var i = 0; i < 300 && h.Service.IsThinking(id); i++)
+        {
+            await Task.Delay(10);
+        }
+
+        Assert.IsFalse(h.Service.IsThinking(id), "thinking ends with the reply");
+        h.Agent.Replies.Enqueue("Plan.\n```work-items\n[{\"type\":\"User Story\",\"title\":\"Dark mode\"}]\n```");
+        Assert.IsTrue(await h.Service.HandleMessageAsync(h.Store.Rows[id], "dev@example.com", "all pages", default, fromWeb: true));
+        for (var i = 0; i < 300 && h.Store.Rows[id].Status != IdeaStatus.Proposed; i++)
+        {
+            await Task.Delay(10);
+        }
+
+        Assert.IsTrue(await h.Service.HandleMessageAsync(h.Store.Rows[id], "dev@example.com", IdeaService.LabelDiscard, default, fromWeb: true));
+        var late = await h.Service.HandleMessageAsync(h.Store.Rows[id], "dev@example.com", "one more thing", default, fromWeb: true);
+
+        var idea = h.Store.Rows[id];
+        Assert.AreEqual((IdeaService.Web, null, "opus", "high"), (idea.Provider, idea.ThreadId, idea.Model, idea.Effort));
+        Assert.IsEmpty(h.Chat.Opened);
+        Assert.IsEmpty(h.Chat.SentText, "nothing goes to a chat thread");
+        Assert.AreEqual(IdeaStatus.Discarded, idea.Status, "no close-out question: there is no thread to delete");
+        Assert.IsFalse(late);
+        var notices = h.Store.Authored.Where(m => m.Author == "agentd").Select(m => m.Text).ToList();
+        Assert.HasCount(1, notices, "agentd's own notice is kept for the page; the agent's replies are kept as the agent's");
+        StringAssert.StartsWith(notices[0], "🗑 Discarded by dev@example.com");
+        Assert.AreEqual(2, h.Store.Authored.Count(m => m.Author == "agent"));
+        CollectionAssert.Contains(h.Worktrees.Removed, idea.Worktree, "its checkout is given back");
+    }
+
+    [TestMethod]
+    public async Task A_message_from_the_web_on_a_chat_idea_is_posted_to_its_thread_too()
+    {
+        var h = new Harness();
+        h.Agent.Replies.Enqueue("Question?");
+        await h.Service.StartAsync(s_discord, "tngo", "dark mode", null, default);
+        await h.WaitForSentAsync(1);
+
+        await h.Service.HandleMessageAsync(h.Store.Rows[1], "dev@example.com", "all pages", default, fromWeb: true);
+        await h.WaitForSentAsync(3);
+
+        Assert.AreEqual("💬 **dev@example.com** (web): all pages", h.Chat.SentText[1]);
+        Assert.AreEqual("dev@example.com: all pages", h.Agent.Turns.Last().Prompt);
+    }
+
+    [TestMethod]
+    public async Task A_web_idea_needs_text_and_valid_settings()
+    {
+        var h = new Harness();
+
+        var empty = await h.Service.StartOnWebAsync("dev@example.com", " ", null, null, null, default);
+        var model = await h.Service.StartOnWebAsync("dev@example.com", "x", null, "gpt 4!", null, default);
+        var effort = await h.Service.StartOnWebAsync("dev@example.com", "x", null, null, "huge", default);
+        var repo = await h.Service.StartOnWebAsync("dev@example.com", "x", "nope", null, null, default);
+
+        Assert.AreEqual(("validation", "validation", "validation", "not_found"), (empty.Error!.Code, model.Error!.Code, effort.Error!.Code, repo.Error!.Code));
+        Assert.IsEmpty(h.Store.Rows);
+    }
+
     private sealed class Harness
     {
         public Harness()
@@ -177,6 +243,16 @@ public sealed class IdeaServiceTests
 
         public IdeaService Service { get; }
 
+        public async Task WaitForMessagesAsync(int count)
+        {
+            for (var i = 0; i < 300 && Store.Messages.Count < count; i++)
+            {
+                await Task.Delay(10);
+            }
+
+            Assert.IsGreaterThanOrEqualTo(count, Store.Messages.Count, "the reply was kept");
+        }
+
         public async Task WaitForSentAsync(int count)
         {
             for (var i = 0; i < 300 && Chat.SentText.Count < count; i++)
@@ -207,7 +283,9 @@ public sealed class IdeaServiceTests
 
         public List<(long Idea, string Direction, string Text)> Messages { get; } = [];
 
-        public Task<long> InsertAsync(string repository, string title, string author, ProviderKey provider, string threadId, string? spaceId, CancellationToken cancellationToken)
+        public List<(string Direction, string Author, string Text)> Authored { get; } = [];
+
+        public Task<long> InsertAsync(string repository, string title, string author, ProviderKey provider, string? threadId, string? spaceId, CancellationToken cancellationToken)
         {
             var id = Rows.Count + 1;
             Rows[id] = new Idea(id, repository, title, author, provider, threadId, spaceId, IdeaStatus.Brainstorming, null, null, null, null, null, []);
@@ -230,6 +308,7 @@ public sealed class IdeaServiceTests
             lock (Messages)
             {
                 Messages.Add((ideaId, direction, text));
+                Authored.Add((direction, author, text));
             }
 
             return Task.CompletedTask;
@@ -238,7 +317,7 @@ public sealed class IdeaServiceTests
         public Task<IReadOnlyList<IdeaMessage>> ListMessagesAsync(long ideaId, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<IdeaMessage>>([]);
 
         public Task<IReadOnlyList<string>> ListOpenThreadsAsync(ProviderKey provider, CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<string>>(Rows.Values.Where(i => i.Status != IdeaStatus.Closed).Select(i => i.ThreadId).ToList());
+            Task.FromResult<IReadOnlyList<string>>(Rows.Values.Where(i => i.Status != IdeaStatus.Closed && i.ThreadId is not null).Select(i => i.ThreadId!).ToList());
 
         public Task<IReadOnlyList<IdeaSummary>> ListSummariesAsync(long? id, int? workItem, int limit, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<IdeaSummary>>(Rows.Values.Where(i => (id is null || i.Id == id) && (workItem is null || i.CreatedWorkItems.Contains(workItem.Value)))

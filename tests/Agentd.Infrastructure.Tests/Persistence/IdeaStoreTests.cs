@@ -39,6 +39,21 @@ public sealed class IdeaStoreTests
     }
 
     [TestMethod]
+    public async Task Web_ideas_have_no_thread_and_many_of_them_insert_in_parallel()
+    {
+        await using var db = await Database.CreateMigratedAsync("ideas_web");
+        var store = new IdeaStore(db);
+        var web = ProviderKey.From("web");
+
+        var ids = await Task.WhenAll(Enumerable.Range(0, 8).Select(i => Task.Run(() => store.InsertAsync("sysmin", $"Idea {i}", "dev@example.com", web, null, null, default))));
+
+        Assert.HasCount(8, ids.Distinct(), "no thread means no clash on (provider, thread_id)");
+        var idea = (await store.GetAsync(ids[0], default))!;
+        Assert.AreEqual((web, null), (idea.Provider, idea.ThreadId));
+        Assert.IsEmpty(await store.ListOpenThreadsAsync(web, default), "chat providers never read web ideas");
+    }
+
+    [TestMethod]
     public async Task Summaries_count_drafts_and_messages_filter_by_work_item_and_raise_events_without_text()
     {
         await using var db = await Database.CreateMigratedAsync("ideas_summaries");
