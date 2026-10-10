@@ -48,6 +48,28 @@ public sealed class EventStreamTests
     }
 
     [TestMethod]
+    public async Task A_jobs_pages_skip_agent_other_even_across_a_long_run_of_it()
+    {
+        await using var db = await Database.CreateMigratedAsync(Name());
+        var store = new EventStore(db);
+        var job = await JobAsync(db);
+        var from = await store.LatestSeqAsync(default);   // after the job's own lifecycle events
+        await store.AppendAsync(job, "agent.text", """{"text":"first"}""", default);
+        for (var i = 0; i < 250; i++)
+        {
+            await store.AppendAsync(job, "agent.other", """{"type":"system","subtype":"thinking_tokens"}""", default);
+        }
+
+        await store.AppendAsync(job, "agent.text", """{"text":"second"}""", default);
+        await store.AppendAsync(job, "agent.other", "{}", default);
+
+        var after = await store.ReadAfterAsync(job, from, 100, default);
+        CollectionAssert.AreEqual(new[] { "agent.text", "agent.text" }, after.Select(e => e.Type).ToArray(), "a page of 100 reaches past 250 hidden lines");
+        var before = await store.ReadBeforeAsync(job, after[^1].Seq, 100, default);
+        Assert.AreEqual(after[0].Seq, before.Single(e => e.Seq > from).Seq, "paging back skips them too");
+    }
+
+    [TestMethod]
     public async Task Events_land_in_monthly_partitions_and_partitions_are_created_ahead()
     {
         await using var db = await Database.CreateMigratedAsync(Name());

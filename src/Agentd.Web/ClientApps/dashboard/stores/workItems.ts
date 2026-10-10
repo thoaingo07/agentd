@@ -8,6 +8,8 @@ const finalStates = ['Done', 'Failed', 'Cancelled']
 export const timelinePage = 500
 /** New chat lines don't arrive as events; re-read the conversation shortly after activity. */
 export const conversationRefreshMs = 2000
+/** The story the timeline shows (as the server's timeline does): steps, each agent turn's result, usage; not raw output. */
+export const inStory = (type: string): boolean => !type.startsWith('agent.') || type === 'agent.result' || type === 'agent.rate_limit'
 
 /** One work item across all its jobs (/workitems/:id), kept live while one of its jobs is active. */
 export const useWorkItemsStore = defineStore('workItems', () => {
@@ -67,7 +69,7 @@ export const useWorkItemsStore = defineStore('workItems', () => {
 
   /** A live event of one of its jobs (routed by the connection store). */
   function append(evt: AgentEvent): void {
-    if (!summary.value || hasMore.value || !summary.value.jobs.some((j) => j.id === evt.jobId) || evt.seq <= newest()) return
+    if (!summary.value || hasMore.value || !summary.value.jobs.some((j) => j.id === evt.jobId) || evt.seq <= newest() || !inStory(evt.type)) return
     events.value.push(evt)
     if (!evt.type.startsWith('agent.')) {
       clearTimeout(refresh)
