@@ -58,3 +58,17 @@ AS $$
            pending = p_pending, updated_at = now()
      WHERE id = p_id
 $$;
+
+-- A notice the monitor wrote about the watch (also posted to its 👀 thread, if it has one). The event carries ids only.
+CREATE OR REPLACE FUNCTION agentd.pr_watch_message_add(p_watch_id bigint, p_text text)
+RETURNS void
+LANGUAGE sql
+AS $$
+    INSERT INTO agentd.pr_watch_messages (watch_id, text) VALUES (p_watch_id, p_text);
+    INSERT INTO agentd.events (job_id, type, payload) VALUES (NULL, 'watch.message', jsonb_build_object('watchId', p_watch_id));
+$$;
+
+CREATE OR REPLACE FUNCTION agentd.pr_watch_message_list(p_watch_id bigint)
+RETURNS SETOF agentd.pr_watch_messages
+LANGUAGE sql STABLE
+AS $$ SELECT * FROM agentd.pr_watch_messages WHERE watch_id = p_watch_id ORDER BY id $$;

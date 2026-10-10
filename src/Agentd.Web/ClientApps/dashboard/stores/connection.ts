@@ -5,6 +5,7 @@ import type { AgentEvent } from '../../shared/api/types'
 import { useEventsStore } from './events'
 import { useIdeasStore } from './ideas'
 import { useJobsStore } from './jobs'
+import { useWatchesStore } from './watches'
 import { useWorkItemsStore } from './workItems'
 
 export type ConnectionStatus = 'connecting' | 'live' | 'reconnecting' | 'offline'
@@ -31,6 +32,7 @@ export const useConnectionStore = defineStore('connection', () => {
     if (stream === 'all') {
       useJobsStore().apply(evt)
       useIdeasStore().apply(evt)
+      useWatchesStore().apply(evt)
     } else {
       useEventsStore().append(evt)
       useWorkItemsStore().append(evt)

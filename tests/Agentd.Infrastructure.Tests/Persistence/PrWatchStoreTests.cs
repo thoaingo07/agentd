@@ -32,6 +32,28 @@ public sealed class PrWatchStoreTests
     }
 
     [TestMethod]
+    public async Task Web_watches_have_no_thread_parallel_ones_make_one_and_notices_are_kept_in_order()
+    {
+        await using var db = await Database.CreateMigratedAsync("pr_watches_web");
+        var store = new PrWatchStore(db);
+        var web = ProviderKey.From("web");
+
+        var results = await Task.WhenAll(Enumerable.Range(0, 8).Select(i => Task.Run(() =>
+            store.InsertAsync("sysmin", 3944, "Deploy", $"user{i}", web, null, null, [], default))));
+        var id = results[0].Id;
+        await Task.WhenAll(Enumerable.Range(0, 10).Select(i => Task.Run(() => store.AddMessageAsync(id, $"notice {i}", default))));
+        await store.AddMessageAsync(id, "last", default);
+        var other = await store.InsertAsync("sysmin", 3945, "Other", "tngo", web, null, null, [], default);
+
+        Assert.AreEqual((1, 1), (results.Count(r => r.Created), results.Select(r => r.Id).Distinct().Count()));
+        Assert.IsNull((await store.GetAsync(id, default))!.ThreadId);
+        var messages = await store.ListMessagesAsync(id, default);
+        Assert.HasCount(11, messages, "parallel notices all land");
+        Assert.AreEqual("last", messages[^1].Text);
+        Assert.IsEmpty(await store.ListMessagesAsync(other.Id, default));
+    }
+
+    [TestMethod]
     public async Task Parallel_watches_of_one_pr_make_one_watch_and_stopping_allows_a_new_one()
     {
         await using var db = await Database.CreateMigratedAsync("pr_watches_parallel");

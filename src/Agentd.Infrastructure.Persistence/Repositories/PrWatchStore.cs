@@ -9,7 +9,7 @@ namespace Agentd.Infrastructure.Persistence.Repositories;
 /// <summary>The PR Monitor's watch list via <c>agentd.pr_watch_*</c> routines.</summary>
 public sealed class PrWatchStore(NpgsqlDataSource dataSource) : IPrWatchStore
 {
-    public async Task<(long Id, bool Created)> InsertAsync(string repository, int pullRequestId, string title, string watchedBy, ProviderKey provider, string threadId, string? spaceId,
+    public async Task<(long Id, bool Created)> InsertAsync(string repository, int pullRequestId, string title, string watchedBy, ProviderKey provider, string? threadId, string? spaceId,
         IReadOnlyList<int> seenComments, CancellationToken cancellationToken)
     {
         await using var cmd = dataSource.CreateCommand("SELECT id, created FROM agentd.pr_watch_insert($1, $2, $3, $4, $5, $6, $7, $8)");
@@ -39,6 +39,27 @@ public sealed class PrWatchStore(NpgsqlDataSource dataSource) : IPrWatchStore
         return (bool)(await cmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false))!;
     }
 
+    public async Task AddMessageAsync(long id, string text, CancellationToken cancellationToken)
+    {
+        await using var cmd = dataSource.CreateCommand("SELECT agentd.pr_watch_message_add($1, $2)");
+        cmd.Parameters.AddRange(new[] { P(id, NpgsqlDbType.Bigint), T(text) });
+        await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<IReadOnlyList<PrWatchMessage>> ListMessagesAsync(long id, CancellationToken cancellationToken)
+    {
+        await using var cmd = dataSource.CreateCommand("SELECT text, created_at FROM agentd.pr_watch_message_list($1)");
+        cmd.Parameters.Add(P(id, NpgsqlDbType.Bigint));
+        await using var r = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        var rows = new List<PrWatchMessage>();
+        while (await r.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            rows.Add(new PrWatchMessage(r.GetString(0), r.GetFieldValue<DateTimeOffset>(1)));
+        }
+
+        return rows;
+    }
+
     public async Task UpdateAsync(long id, int fixRounds, IReadOnlyList<int> seenComments, int? lastBuildId, DateTimeOffset? signalAt, PendingFix? pending, CancellationToken cancellationToken)
     {
         await using var cmd = dataSource.CreateCommand("SELECT agentd.pr_watch_update($1, $2, $3, $4, $5, $6)");
@@ -61,7 +82,7 @@ public sealed class PrWatchStore(NpgsqlDataSource dataSource) : IPrWatchStore
             int O(string c) => r.GetOrdinal(c);
             rows.Add(new PrWatch(
                 r.GetInt64(O("id")), r.GetString(O("repo")), r.GetInt32(O("pull_request_id")), r.GetString(O("title")), r.GetString(O("watched_by")),
-                ProviderKey.From(r.GetString(O("provider"))), r.GetString(O("thread_id")), r.IsDBNull(O("space_id")) ? null : r.GetString(O("space_id")),
+                ProviderKey.From(r.GetString(O("provider"))), r.IsDBNull(O("thread_id")) ? null : r.GetString(O("thread_id")), r.IsDBNull(O("space_id")) ? null : r.GetString(O("space_id")),
                 r.GetString(O("status")) == "Watching", r.GetInt32(O("fix_rounds")), r.GetFieldValue<int[]>(O("seen_comments")),
                 r.IsDBNull(O("last_build_id")) ? null : r.GetInt32(O("last_build_id")),
                 r.IsDBNull(O("signal_at")) ? null : r.GetFieldValue<DateTimeOffset>(O("signal_at")),

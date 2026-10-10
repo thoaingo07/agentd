@@ -468,6 +468,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/watches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ListWatches"];
+        put?: never;
+        post: operations["WatchPullRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/watches/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetWatch"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/watches/{id}/{action}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AnswerWatch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/reviews": {
         parameters: {
             query?: never;
@@ -1491,6 +1539,13 @@ export interface components {
             /** Format: date-time */
             fetchedAt: string;
         };
+        /** @description A fix the monitor prepared, waiting for push or discard. */
+        PendingFixVm: {
+            commit: string;
+            summary: string;
+            /** Format: date-time */
+            expiresAt: string;
+        };
         PermissionAnswerRequest: {
             choice: string;
         };
@@ -1749,6 +1804,47 @@ export interface components {
             name: string;
             roles: string[];
             provider: string;
+        };
+        /** @description A watch and everything the monitor said about it. */
+        WatchDetailVm: {
+            watch: components["schemas"]["WatchVm"];
+            messages: components["schemas"]["WatchMessageVm"][];
+        };
+        /** @description A notice from the monitor (what the 👀 thread shows). */
+        WatchMessageVm: {
+            text: string;
+            /** Format: date-time */
+            at: string;
+        };
+        /** @description What agentd answered (as it would in chat). */
+        WatchReplyVm: {
+            message: string;
+        };
+        WatchRequest: {
+            /** @description The registered repository (optional when only one is registered). */
+            repo: null | string;
+            /**
+             * Format: int32
+             * @description The PR to watch.
+             */
+            pullRequestId: null | number;
+        };
+        /** @description A watched PR; `inChat`: it has a 👀 thread too. */
+        WatchVm: {
+            /** Format: int64 */
+            id: number;
+            repo: string;
+            /** Format: int32 */
+            pullRequestId: number;
+            title: string;
+            watchedBy: string;
+            active: boolean;
+            /** Format: int32 */
+            fixRounds: number;
+            pending: null | components["schemas"]["PendingFixVm"];
+            inChat: boolean;
+            /** Format: date-time */
+            createdAt: string;
         };
         /** @description A proposed work item; a task's `parent` is its story's index in the list. */
         WorkItemDraftVm: {
@@ -2772,6 +2868,149 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    ListWatches: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchVm"][];
+                };
+            };
+        };
+    };
+    WatchPullRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": null | components["schemas"]["WatchRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchReplyVm"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetWatch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchDetailVm"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    AnswerWatch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+                action: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchReplyVm"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
             };
         };
     };

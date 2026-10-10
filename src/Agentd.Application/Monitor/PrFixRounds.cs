@@ -272,8 +272,7 @@ public sealed partial class PrFixRounds(
     private Task Give(PrWatch w, string why, CancellationToken ct) =>
         Post(w, $"⚠️ PR !{w.PullRequestId}: I couldn't prepare a fix: {why}. The next change starts a new round.", ct);
 
-    private async Task Post(PrWatch w, string text, CancellationToken ct) =>
-        await providers.Resolve(w.Provider).SendAsync(new ConversationRef(w.Provider, w.ThreadId, w.SpaceId), new OutboundMessage(MessageKind.Info, text), ct).ConfigureAwait(false);
+    private Task Post(PrWatch w, string text, CancellationToken ct) => PrWatchNotices.PostAsync(watches, providers, w, text, ct);
 
     private async Task BestEffort(Func<Task> action, int pr)
     {

@@ -10,12 +10,16 @@ namespace Agentd.Application.Monitor;
 
 /// <summary>
 /// <c>!watch &lt;PR&gt;</c> / <c>!unwatch &lt;PR&gt;</c> (docs/architect/pr-reviewer-and-monitor.md §2.0): watching opens a 👀 thread for the PR
-/// where the monitor reports and asks before pushing. Comments already on the PR when watching begins don't count.
+/// where the monitor reports and asks before pushing. Comments already on the PR when watching begins don't count. A PR
+/// watched from the Web UI (<see cref="Web"/>) has no thread: what the monitor says is kept with the watch and shown there.
 /// </summary>
 public sealed partial class PrWatchService(IPrWatchStore watches, IRepositoryRegistry repositories, IPullRequestService pullRequests, IMessagingProviderRegistry providers,
     IPrFixRounds? rounds = null)
 {
     public const string Usage = "Use `!watch <PR url or id> [--repo r]`.";
+
+    /// <summary>The provider of watches started on the Web UI (no 👀 thread).</summary>
+    public static ProviderKey Web => IdeaService.Web;
 
     public async Task<Result<string>> WatchAsync(ProviderKey provider, string author, IReadOnlyList<string> args, CancellationToken ct)
     {
@@ -38,7 +42,7 @@ public sealed partial class PrWatchService(IPrWatchStore watches, IRepositoryReg
 
         if (await watches.FindActiveAsync(repo.Name.Value, id, ct).ConfigureAwait(false) is { } existing)
         {
-            return $"👀 PR !{id} is already watched (since {existing.CreatedAt:yyyy-MM-dd}, by {existing.WatchedBy}): see its thread.";
+            return $"👀 PR !{id} is already watched (since {existing.CreatedAt:yyyy-MM-dd}, by {existing.WatchedBy}){(existing.ThreadId is null ? "." : ": see its thread.")}";
         }
 
         var seen = (await pullRequests.ListCommentsAsync(repo, id, ct).ConfigureAwait(false)).Select(c => c.CommentId).ToList();
@@ -47,10 +51,19 @@ public sealed partial class PrWatchService(IPrWatchStore watches, IRepositoryReg
             "I'll fix **failed PR builds**, **merge conflicts** and **new comments** from people I know. I prepare each fix and ask here " +
             "before pushing anything: **1** push · **2** discard. Say **unwatch** to stop.");
         var title = $"PR !{id}: {pr.Title}";
-        var thread = await providers.Resolve(provider).OpenConversationAsync(
-            new ConversationSpec(default, default, title, repo.Name, opening, $"👀 {IdeaService.Title(title)}"), ct).ConfigureAwait(false);
-        var (_, created) = await watches.InsertAsync(repo.Name.Value, id, pr.Title, author, provider, thread.ExternalConversationId, thread.ExternalSpaceId, seen, ct).ConfigureAwait(false);
-        return created ? $"👀 Watching PR !{id} in its thread." : $"👀 PR !{id} was just watched by someone else: see its thread.";
+        var thread = provider == Web
+            ? null
+            : await providers.Resolve(provider).OpenConversationAsync(
+                new ConversationSpec(default, default, title, repo.Name, opening, $"👀 {IdeaService.Title(title)}"), ct).ConfigureAwait(false);
+        var (watchId, created) = await watches.InsertAsync(repo.Name.Value, id, pr.Title, author, provider, thread?.ExternalConversationId, thread?.ExternalSpaceId, seen, ct)
+            .ConfigureAwait(false);
+        if (created)
+        {
+            await watches.AddMessageAsync(watchId, opening.Markdown, ct).ConfigureAwait(false);
+        }
+
+        var where = thread is null ? string.Empty : " in its thread";
+        return created ? $"👀 Watching PR !{id}{where}." : $"👀 PR !{id} was just watched by someone else.";
     }
 
     public async Task<Result<string>> UnwatchAsync(IReadOnlyList<string> args, CancellationToken ct)
@@ -109,8 +122,7 @@ public sealed partial class PrWatchService(IPrWatchStore watches, IRepositoryReg
         return reply;
     }
 
-    private async Task PostAsync(PrWatch watch, string text, CancellationToken ct) =>
-        await providers.Resolve(watch.Provider).SendAsync(new ConversationRef(watch.Provider, watch.ThreadId, watch.SpaceId), new OutboundMessage(MessageKind.Info, text), ct).ConfigureAwait(false);
+    private Task PostAsync(PrWatch watch, string text, CancellationToken ct) => PrWatchNotices.PostAsync(watches, providers, watch, text, ct);
 
     private async Task<string> StopAsync(PrWatch watch, CancellationToken ct)
     {

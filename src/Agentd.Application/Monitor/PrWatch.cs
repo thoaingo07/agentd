@@ -16,9 +16,9 @@ public sealed record PendingFix(
     [property: JsonPropertyName("threads")] IReadOnlyList<int> Threads,
     [property: JsonPropertyName("expiresAt")] DateTimeOffset ExpiresAt);
 
-/// <summary>A watched PR: who asked, its 👀 thread, and the monitor's bookkeeping.</summary>
+/// <summary>A watched PR: who asked, its 👀 thread (none when watched from the Web UI), and the monitor's bookkeeping.</summary>
 public sealed record PrWatch(
-    long Id, string Repository, int PullRequestId, string Title, string WatchedBy, ProviderKey Provider, string ThreadId, string? SpaceId,
+    long Id, string Repository, int PullRequestId, string Title, string WatchedBy, ProviderKey Provider, string? ThreadId, string? SpaceId,
     bool Active, int FixRounds, IReadOnlyList<int> SeenComments, int? LastBuildId, DateTimeOffset? SignalAt, PendingFix? Pending,
     DateTimeOffset CreatedAt);
 
@@ -26,7 +26,7 @@ public sealed record PrWatch(
 public interface IPrWatchStore
 {
     /// <summary>Watches a PR; when it's already watched, the existing watch's id and <c>Created = false</c>.</summary>
-    Task<(long Id, bool Created)> InsertAsync(string repository, int pullRequestId, string title, string watchedBy, ProviderKey provider, string threadId, string? spaceId,
+    Task<(long Id, bool Created)> InsertAsync(string repository, int pullRequestId, string title, string watchedBy, ProviderKey provider, string? threadId, string? spaceId,
         IReadOnlyList<int> seenComments, CancellationToken cancellationToken);
 
     Task<PrWatch?> GetAsync(long id, CancellationToken cancellationToken);
@@ -40,5 +40,13 @@ public interface IPrWatchStore
     /// <summary>Stops watching; false when it wasn't active.</summary>
     Task<bool> StopAsync(long id, CancellationToken cancellationToken);
 
+    /// <summary>Keeps a notice the monitor wrote about the watch (what its 👀 thread shows).</summary>
+    Task AddMessageAsync(long id, string text, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<PrWatchMessage>> ListMessagesAsync(long id, CancellationToken cancellationToken);
+
     Task UpdateAsync(long id, int fixRounds, IReadOnlyList<int> seenComments, int? lastBuildId, DateTimeOffset? signalAt, PendingFix? pending, CancellationToken cancellationToken);
 }
+
+/// <summary>A notice the monitor wrote about a watch.</summary>
+public sealed record PrWatchMessage(string Text, DateTimeOffset At);

@@ -79,3 +79,6 @@ public sealed class ReviewAskThreads : SqlMigration;
 
 [Migration(2026_10_22_0001, "Ideas can start on the Web UI, without a chat thread")]
 public sealed class WebIdeas : SqlMigration;
+
+[Migration(2026_10_23_0001, "PRs can be watched from the Web UI, without a 👀 thread; the monitor's notices are kept")]
+public sealed class WebWatches : SqlMigration;

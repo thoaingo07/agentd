@@ -84,6 +84,34 @@ public sealed class PrWatchServiceTests
         Assert.IsFalse(_store.All.Single().Active);
     }
 
+    [TestMethod]
+    public async Task A_watch_from_the_web_has_no_thread_and_keeps_what_the_monitor_says()
+    {
+        var reply = await Service().WatchAsync(PrWatchService.Web, "dev@example.com", ["3944", "--repo", "sysmin"], default);
+        var again = await Service().WatchAsync(PrWatchService.Web, "lead@example.com", ["3944"], default);
+        var watch = _store.All.Single();
+        await Service().HandleThreadMessageAsync(watch, "unwatch", "dev@example.com", default);
+
+        Assert.AreEqual("👀 Watching PR !3944.", reply.Value);
+        StringAssert.EndsWith(again.Value, "by dev@example.com).");
+        Assert.AreEqual((PrWatchService.Web, null), (watch.Provider, watch.ThreadId));
+        Assert.IsEmpty(_chat.Opened);
+        Assert.IsEmpty(_chat.SentText, "nothing goes to a chat thread");
+        Assert.HasCount(2, _store.Messages);
+        StringAssert.Contains(_store.Messages[0].Text, "**Watching PR !3944**: Deploy");
+        Assert.AreEqual("🛑 Stopped watching PR !3944.", _store.Messages[1].Text);
+    }
+
+    [TestMethod]
+    public async Task A_chat_watch_keeps_its_notices_too()
+    {
+        await Service().WatchAsync(s_discord, "tngo", ["!3944"], default);
+        await Service().UnwatchAsync(["!3944"], default);
+
+        CollectionAssert.AreEqual(new[] { "🛑 Stopped watching PR !3944." }, _store.Messages.Skip(1).Select(m => m.Text).ToList());
+        Assert.AreEqual("🛑 Stopped watching PR !3944.", _chat.SentText.Last());
+    }
+
     private PrWatchService Service() => new(_store, _t.Registry, _t.PullRequests, new MessagingProviderRegistry(_t.Chats, Options.Create(_t.Messaging)));
 
     /// <summary>Watches in memory, one active per PR like the routines.</summary>
@@ -91,7 +119,7 @@ public sealed class PrWatchServiceTests
     {
         public List<PrWatch> All { get; } = [];
 
-        public Task<(long Id, bool Created)> InsertAsync(string repository, int pullRequestId, string title, string watchedBy, ProviderKey provider, string threadId, string? spaceId,
+        public Task<(long Id, bool Created)> InsertAsync(string repository, int pullRequestId, string title, string watchedBy, ProviderKey provider, string? threadId, string? spaceId,
             IReadOnlyList<int> seenComments, CancellationToken cancellationToken)
         {
             if (All.FirstOrDefault(w => w.Active && w.Repository == repository && w.PullRequestId == pullRequestId) is { } existing)
@@ -125,6 +153,17 @@ public sealed class PrWatchServiceTests
             All[i] = All[i] with { Active = false, Pending = null };
             return Task.FromResult(true);
         }
+
+        public List<(long Watch, string Text)> Messages { get; } = [];
+
+        public Task AddMessageAsync(long id, string text, CancellationToken cancellationToken)
+        {
+            Messages.Add((id, text));
+            return Task.CompletedTask;
+        }
+
+        public Task<IReadOnlyList<PrWatchMessage>> ListMessagesAsync(long id, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<PrWatchMessage>>([.. Messages.Where(m => m.Watch == id).Select(m => new PrWatchMessage(m.Text, DateTimeOffset.UnixEpoch))]);
 
         public Task UpdateAsync(long id, int fixRounds, IReadOnlyList<int> seenComments, int? lastBuildId, DateTimeOffset? signalAt, PendingFix? pending, CancellationToken cancellationToken)
         {
