@@ -97,7 +97,7 @@ The rest of §2 is the longer-term design.
 |---|---|---|
 | A PR build (build validation) **failed** | a fix round with the failed steps' errors and log end | a fix round in the job's session (its review loop) |
 | **Merge conflicts** with the target | a fix round: merge the target into the source, resolve, never rebase | the same, in the job's session |
-| A **new active comment** from someone agentd knows (an agentd user's email, or a connected Azure DevOps identity) | a fix round with the comment (no mention needed) | today's review loop |
+| A **new active comment** from someone agentd knows (someone who connected their Azure DevOps in agentd: the comment author's sign-in name matches) | a fix round with the comment (no mention needed) | today's review loop |
 | **Completed / abandoned** | stop watching | today's handling |
 
 Rounds are **debounced** (5 minutes without new signals, so one review pass is one round), at most **5 fix rounds per
@@ -113,6 +113,13 @@ watched PR** (then it asks in the 👀 thread), and never two at once for the sa
    A prepared round nobody answers expires after 24 hours.
 
 agentd's own PRs keep their job's flow: their fix rounds push as today.
+
+**How it's built.** `PrMonitor` runs in the review monitor's pass (every `Jobs:ReviewPollInterval`, 2 minutes): the
+PR (status, `mergeStatus`), its comments (with the author's `uniqueName`), and its latest PR build (the runs on
+`refs/pull/<id>/merge`). The first signal posts "🔔 … I'll prepare a fix after 5 quiet minutes" in the 👀 thread;
+after 5 minutes without new signals it hands a `PrFixRequest` (the failed run's errors and log end, conflicts, the
+comments) to `IPrFixRounds`, which prepares the round and asks. What was handled is remembered (`seen_comments`,
+`last_build_id`), so nothing starts two rounds.
 
 ### 2.1 What it watches
 

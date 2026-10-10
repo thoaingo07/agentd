@@ -99,9 +99,10 @@ public sealed record PullRequestRef(int Id, Uri Url);
 /// <param name="IsDraft">A draft PR.</param>
 /// <param name="Url">The PR in the browser.</param>
 /// <param name="WorkItems">The work items linked to the PR (none when unknown).</param>
+/// <param name="MergeStatus">Azure DevOps' merge check: <c>succeeded</c>, <c>conflicts</c>, <c>queued</c>, … (null when unknown).</param>
 public sealed record PullRequestDetails(
     int Id, string Title, string? Description, string Author, string SourceBranch, string TargetBranch, string SourceCommit,
-    PullRequestStatus Status, bool IsDraft, Uri Url, IReadOnlyList<int>? WorkItems = null);
+    PullRequestStatus Status, bool IsDraft, Uri Url, IReadOnlyList<int>? WorkItems = null, string? MergeStatus = null);
 
 public enum PullRequestStatus
 {
@@ -119,6 +120,7 @@ public enum PullRequestStatus
 /// <param name="Line">The line in that file, if any.</param>
 /// <param name="ThreadStatus">ADO thread status: active, pending, fixed, wontFix, closed, byDesign.</param>
 /// <param name="PublishedAt">When the comment was posted.</param>
+/// <param name="AuthorUniqueName">The commenter's sign-in name (email/UPN), to tell people agentd knows.</param>
 public sealed record PullRequestComment(
     int ThreadId,
     int CommentId,
@@ -127,7 +129,8 @@ public sealed record PullRequestComment(
     string? FilePath,
     int? Line,
     string ThreadStatus,
-    DateTimeOffset PublishedAt)
+    DateTimeOffset PublishedAt,
+    string? AuthorUniqueName = null)
 {
     /// <summary>Prefix of every comment agentd writes on a PR (it posts with the operator's identity, so the author can't tell).</summary>
     public const string AgentdMarker = "🤖 agentd:";
