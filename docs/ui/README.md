@@ -40,9 +40,9 @@ Adding anything else needs a note in this section explaining why.
 | Path | View | Purpose |
 |---|---|---|
 | `/` | `DashboardView` | all active jobs, live |
-| `/jobs/:id` | `SessionView` | live trace of one job (tabs: Transcript · Diff · Details) |
+| `/jobs/:id` | `JobView` | opens the job's work item with that run picked (`/workitems/:wi?run=:id`); kept for old and chat links |
 | `/history` | `HistoryView` | finished, failed and cancelled jobs, with search and filters |
-| `/workitems/:id` | `WorkItemView` | **the whole life of one work item** across all its jobs: timeline, conversation, agent activity, PRs, plan vs actual, usage |
+| `/workitems/:id` | `WorkItemView` | **everything about one work item on one page**: the picked run's live transcript (tool calls), diff and actions, plus the timeline across runs, conversation, PRs, plan vs actual and usage |
 | `/ideas` | `IdeasView` | brainstormed ideas (`!idea`), newest first: status, repo, author, the work items they created |
 | `/ideas/:id` | `IdeaView` | one idea: drafts as stories with their tasks, created work items, and the whole conversation (read-only; people continue in the chat thread) |
 | `/prs` | `PullRequestsView` | **PR dashboard**: all open PRs across repos, with run review / fix now / monitor / hotfix |
@@ -102,13 +102,16 @@ Concurrency  ███████████░░░  3 / 3 slots            
 
 - Rows update live from the `jobs` store (state, elapsed, turns, cost). A changed cell flashes
   briefly with `bg-primary/10`.
-- Clicking a row opens `/jobs/:id`. A row action menu offers Open chat (one entry per provider), Open work item,
+- Clicking a row opens its work item with that run picked (`/workitems/:wi?run=:id`). A row action menu offers Open chat (one entry per provider), Open work item,
   Open PR, Cancel and Retry.
 - Waiting rows sort first and are tinted `bg-warning/10`.
 - **Empty state:** "No active jobs. Tag a work item with `ai-workflow` to start one." plus a
   **Run work item…** button, which opens a modal with a WI id input and calls `POST /api/workitems/{id}/run`.
 
-### 4.2 Session (`/jobs/:id`)
+### 4.2 Session (the run inside the work item page)
+
+> Since 2026-10-10 there's no separate session page: the run's transcript, diff and actions are tabs of the work item
+> page (§4.3a), and `/jobs/:id` redirects there. The layout below is the Transcript tab.
 
 Below the header, a **phase stepper** (Design → Plan → Implement → Test → Review) shows the current
 phase, loop counts (e.g. `Test ↺2`) and each phase's model profile and cost. An open gate shows
@@ -186,23 +189,29 @@ A work item often spans several jobs: a first run, a rework, review fix rounds, 
 and the close-out (Phase 2b). This view tells its **whole story on one page**, and it keeps working
 after the chat thread is deleted, because the history lives in agentd's database.
 
-- **Header:** the work item (link to Azure DevOps), repository, current state and phase, the PRs
-  (code PR, knowledge sync PR) with their status, total elapsed time and usage.
-- **Tabs:**
+- **Header:** the work item (link to Azure DevOps), repository, the picked run's state and phase, the PRs, chat
+  threads, total elapsed time, and the run's **Retry / Resume / Pause / Cancel**.
+- **Run bar:** with several runs, a selector ("Run 1", "Run 2 (rework)", "… · hand-off") picks the run the
+  run tabs show (`?run=<job id>`; default: the active run, else the latest), then the run's elapsed time, its current
+  step (provider, model, effort), branch, session id, usage and CPU / RAM / disk. A pending **permission request**
+  banner sits under it.
+- **Tabs** (keys 1–6):
+  - **Transcript** (the picked run): everything live, the agent's text with collapsible tool calls
+    (`ToolCallCard`), steps, questions and answers, and the composer to message the agent.
+  - **Diff** (the picked run): the branch against its base, refreshed after the agent edits files.
   - **Timeline:** every lifecycle step and message in order, with each **job as a section**
-    ("Run 1", "Rework", "Hand-off"). Steps include claimed, worktree ready, each `set_phase` summary,
-    plan and approval, questions and answers, pushes, PR opened, review comments and fix rounds,
-    ready to complete, merged, hand-off proposal and agreement, close-out.
+    ("Run 1", "Rework", "Hand-off"); a section's job link picks that run. Steps include claimed, worktree ready,
+    each `set_phase` summary, plan and approval, questions and answers, pushes, PR opened, review comments and fix
+    rounds, ready to complete, merged, hand-off proposal and agreement, close-out.
   - **Conversation:** the chat exactly as it happened, **both directions**: what agentd and the agent
     posted (from the outbox, with delivery status), your replies and commands, and mirrored messages.
     A composer sends a message to the active job (`SubmitDeveloperMessage`).
-  - **Activity:** the agent's turns, with collapsible tool calls (`ToolCallCard`), and a link to the
-    raw transcript.
-  - **PRs:** each PR with its review threads and the fix round that addressed them.
-  - **Plan & usage:** the plan with its estimate against actual (time, share of the 5-hour window),
-    and 5-hour and weekly usage over the work item's life.
+  - **Pull requests:** each PR with the run that opened it and its fix rounds.
+  - **Details:** the picked run's attempts, plan, fix rounds, hand-off and last error, then **plan & usage**: the
+    estimate against actual (time, share of the 5-hour window), and 5-hour and weekly usage over each run.
 - **Live:** while a job of the work item is active, new entries stream in via the hub (subscribing to
-  each of its jobs).
+  each of its jobs). The timeline and the run's transcript share a job's stream: the connection store counts its
+  holders, replays from the earliest seq either needs, and unsubscribes when the last one leaves.
 
 ### 4.4 Pull requests
 

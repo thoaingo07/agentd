@@ -115,7 +115,7 @@ When the agent needs a command outside its allowlist, the CLI calls `mcp__agentd
      so it doesn't reduce the questions much. `bypassPermissions` would skip agentd's hard denies.
 3. **Otherwise asks** in the job's thread: **1** allow once · **2** allow for this job · **3** always allow
    in this repository · **4** deny. People answer with the number, a word (`allow`, `always`, `deny`, …),
-   or `!approve [job|always]` / `!deny`. The **Web UI** asks too: a banner on the session page with the
+   or `!approve [job|always]` / `!deny`. The **Web UI** asks too: a banner on the work item page with the
    same four buttons (`POST /api/jobs/{id}/permissions/{requestId}` with `choice` = `once`, `job`, `repo`
    or `deny`; 409 `already_decided` when someone answered first), and a 🔐 badge on the dashboard's job
    row. The first answer wins (an atomic routine), and the decision is announced in the thread.
@@ -159,6 +159,6 @@ When the agent needs a command outside its allowlist, the CLI calls `mcp__agentd
   - **Web UI** (2026-10-06): `GET /api/resources` returns the machine plus each running job's latest sample (under a minute
     old). The `resources` store polls it every 10 s, and only while something shows it.
     - The **header** shows the machine (⚠️ and bold when disk or memory is low, not just colour).
-    - The **session page** shows the job's CPU, RAM and worktree size.
+    - The **work item page** shows the job's CPU, RAM and worktree size.
     - The **dashboard** has a CPU/RAM column (xl screens).
 

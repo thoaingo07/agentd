@@ -50,7 +50,7 @@ function elapsed(job: JobSummary): string {
 }
 
 function open(job: JobSummary): void {
-  void router.push({ name: 'job', params: { id: job.id } })
+  void router.push({ name: 'work-item', params: { id: job.workItemId }, query: { run: String(job.id) } })
 }
 
 function onKey(e: KeyboardEvent): void {

@@ -44,12 +44,15 @@ All jobs, newest first. Search by title or `WI-1234`, and filter by state, repos
 
 ## Work item
 
-Every run of one work item, with these tabs:
-- **Timeline:** every event of every run;
+Everything about one work item on one page (the dashboard and History open it; an old `/jobs/<id>` link lands here
+with that run picked). The header has the run's **Pause / Resume / Cancel / Retry**; with several runs, pick one
+("Run 1", "Run 2 (rework)") and the run tabs follow it. Tabs (keys 1–6):
+- **Transcript:** the run live: the agent's text and tool calls, steps, questions, and a box to message the agent;
+- **Diff:** the run's branch against its base;
+- **Timeline:** every step of every run;
 - **Conversation:** chat both ways, with the provider;
-- **Activity:** what the agents did;
 - **Pull requests**;
-- **Plan & usage:** the estimate vs. the actual.
+- **Details:** the run's attempts, plan, fix rounds and last error, and the estimate vs. the actual with usage.
 
 If the work item came from an idea, the header links to it ("💡 born from idea #N").
 
