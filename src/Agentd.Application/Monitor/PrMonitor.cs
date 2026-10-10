@@ -179,8 +179,7 @@ public sealed partial class PrMonitor(
             comments > 0 ? string.Create(CultureInfo.InvariantCulture, $"{comments} new comment(s)") : null,
         }.OfType<string>());
 
-    private async Task PostAsync(PrWatch w, string text, CancellationToken ct) =>
-        await providers.Resolve(w.Provider).SendAsync(new ConversationRef(w.Provider, w.ThreadId, w.SpaceId), new OutboundMessage(MessageKind.Info, text), ct).ConfigureAwait(false);
+    private Task PostAsync(PrWatch w, string text, CancellationToken ct) => PrWatchNotices.PostAsync(watches, providers, w, text, ct);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Checking watched PR {Pr} failed; retrying next pass")]
     private static partial void LogFailed(ILogger logger, Exception exception, int pr);

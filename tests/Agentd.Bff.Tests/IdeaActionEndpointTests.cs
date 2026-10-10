@@ -1,5 +1,4 @@
 using System.Net;
-using System.Reflection;
 using Agentd.Application.Ideas;
 using Agentd.Application.Messaging;
 using Agentd.Application.Ports;
@@ -66,8 +65,8 @@ public sealed class IdeaActionEndpointTests
         builder.WebHost.UseTestServer();
         builder.Services.AddBff();
         builder.Services.AddSingleton<IIdeaStore>(_store);
-        builder.Services.AddSingleton(new IdeaService(_store, Unused<IRepositoryRegistry>(), Unused<IWorktreeManager>(), Unused<IBrainstormAgent>(),
-            Unused<IMessagingProviderRegistry>(), NullLogger<IdeaService>.Instance));
+        builder.Services.AddSingleton(new IdeaService(_store, UnusedProxy.Of<IRepositoryRegistry>(), UnusedProxy.Of<IWorktreeManager>(), UnusedProxy.Of<IBrainstormAgent>(),
+            UnusedProxy.Of<IMessagingProviderRegistry>(), NullLogger<IdeaService>.Instance));
         var app = builder.Build();
         app.UseAuthentication();
         app.UseAuthorization();
@@ -81,16 +80,6 @@ public sealed class IdeaActionEndpointTests
 
     private static async Task<HttpResponseMessage> SendAsync(WebApplication app, HttpMethod method, string url, object body) =>
         await (await new AntiforgeryClient(app).InitAsync()).SendAsync(method, url, body);
-
-    /// <summary>A dependency these requests never reach: any call fails the test.</summary>
-    private static T Unused<T>() where T : class => DispatchProxy.Create<T, UnusedProxy>();
-
-#pragma warning disable CA1852 // DispatchProxy needs a non-sealed type
-    internal class UnusedProxy : DispatchProxy
-#pragma warning restore CA1852
-    {
-        protected override object? Invoke(MethodInfo? targetMethod, object?[]? args) => throw new NotSupportedException($"{targetMethod?.Name} isn't used here.");
-    }
 
     private sealed class Store : IIdeaStore
     {

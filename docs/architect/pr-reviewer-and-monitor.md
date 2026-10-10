@@ -87,8 +87,13 @@ sessions' Fix it (a checkout of the PR head, an edit-only agent, a commit as age
 The rest of §2 is the longer-term design.
 
 **Which PRs.** agentd's own PRs, plus PRs someone **watches**:
-- `!watch !3944 [--repo r]` in chat, or **Watch** on a PR's review page. Watching opens a 👀 thread for the PR, where
-  reports and approvals happen; `!unwatch !3944` (or `unwatch` in that thread) stops it.
+- `!watch !3944 [--repo r]` in chat, or **Watch** on the Web UI's open PR list. Watching from chat opens a 👀 thread for
+  the PR, where reports and approvals happen; `!unwatch !3944` (or `unwatch` in that thread) stops it.
+- Watched from the Web UI (decided 2026-10-10, chat/UI parity), the watch has no thread (provider `web`). Everything
+  the monitor says about any watch is kept in `pr_watch_messages` (a `watch.message` event, ids only, refreshes the
+  page), and Reviews → **Watched pull requests** shows it (**Log**) with **Push / Discard** for a prepared fix and
+  **Unwatch**: the 👀 thread's answers (`GET /api/watches`, `GET /api/watches/{id}`, `POST /api/watches`,
+  `POST /api/watches/{id}/push|discard|unwatch`).
 - A PR that's completed or abandoned stops being watched.
 
 **Signals and what they start.**

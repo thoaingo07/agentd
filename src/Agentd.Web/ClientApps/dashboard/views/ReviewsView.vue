@@ -4,13 +4,18 @@ import { useRouter } from 'vue-router'
 import { ApiError } from '../../shared/api/http'
 import type { OpenPullRequest } from '../../shared/api/types'
 import { AgButton } from '../../shared/components/ui'
+import MarkdownText from '../../shared/components/MarkdownText.vue'
 import { dateTime } from '../../shared/utils/format'
 import { useConfigStore } from '../stores/config'
 import { useReviewsStore } from '../stores/reviews'
+import { useUiStore } from '../stores/ui'
+import { useWatchesStore } from '../stores/watches'
 
 // Reviews: the registered repositories' open PRs (kept fresh while the page is shown), start one on any PR, pushed
-// branch or two commits, and reopen mine.
+// branch or two commits, and reopen mine. Watch a PR (like !watch): agentd prepares fixes and asks before pushing.
 const reviews = useReviewsStore()
+const watches = useWatchesStore()
+const ui = useUiStore()
 const config = useConfigStore()
 const router = useRouter()
 const form = reactive({ repo: '', kind: 'branch' as 'pr' | 'branch' | 'range', pr: '', branch: '', base: '', head: '' })
@@ -25,7 +30,7 @@ const reviewing = ref<string | null>(null)
 
 onMounted(async () => {
   reviews.watchOpenPrs()
-  await Promise.all([reviews.loadMine().catch(() => {}), config.load().catch(() => {})])
+  await Promise.all([reviews.loadMine().catch(() => {}), config.load().catch(() => {}), watches.load().catch(() => {})])
   form.repo ||= repos.value[0] ?? ''
 })
 onUnmounted(() => reviews.stopOpenPrs())
@@ -50,6 +55,17 @@ async function reviewPr(p: OpenPullRequest): Promise<void> {
   await begin({ repo: p.repo, pullRequestId: p.id })
   reviewing.value = null
 }
+
+/** Watch / Push / Discard / Unwatch: agentd's answer (as in the 👀 thread) becomes a toast. */
+async function tell(work: () => Promise<string>): Promise<void> {
+  try {
+    ui.toast(await work(), 'info')
+  } catch (err) {
+    ui.toast(err instanceof ApiError ? err.message : 'Something went wrong.', 'error')
+  }
+}
+
+const toggleLog = (id: number) => void watches.open(watches.opened?.watch.id === id ? null : id).catch(() => {})
 
 async function start(): Promise<void> {
   busy.value = true
@@ -153,6 +169,18 @@ async function start(): Promise<void> {
               :to="{ name: 'review', params: { id: myReview(p)!.id } }"
               class="btn btn-xs btn-ghost"
             >My review</RouterLink>
+            <span
+              v-if="watches.of(p.repo, p.id)"
+              class="badge badge-ghost badge-sm self-center"
+            >👀 watched</span>
+            <AgButton
+              v-else
+              size="sm"
+              variant="outline"
+              @click="tell(() => watches.watch(p.repo, p.id))"
+            >
+              Watch
+            </AgButton>
             <AgButton
               size="sm"
               :loading="reviewing === `${p.repo}/${p.id}`"
@@ -164,6 +192,95 @@ async function start(): Promise<void> {
         </li>
       </ul>
     </div>
+
+    <section
+      v-if="watches.list?.length"
+      class="grid gap-2"
+      aria-labelledby="watched-title"
+      data-testid="watched"
+    >
+      <h2
+        id="watched-title"
+        class="font-semibold"
+      >
+        Watched pull requests · {{ watches.list.length }}
+      </h2>
+      <p class="text-xs text-muted">
+        agentd fixes failed PR builds, merge conflicts and new comments from people it knows. It prepares each fix and asks here before pushing.
+      </p>
+      <article
+        v-for="w in watches.list"
+        :key="w.id"
+        class="grid gap-2 rounded-box border border-base-300 p-3 text-sm"
+        data-testid="watch"
+      >
+        <p class="flex flex-wrap items-center gap-2">
+          <span class="font-mono text-xs">!{{ w.pullRequestId }}</span>
+          <span class="font-medium">{{ w.title }}</span>
+          <span class="text-xs text-muted">{{ w.repo }} · by {{ w.watchedBy }} · {{ w.fixRounds }} fix round(s){{ w.inChat ? ' · 👀 thread in chat' : '' }}</span>
+          <span class="ml-auto flex gap-2">
+            <button
+              type="button"
+              class="btn btn-xs btn-ghost"
+              :aria-expanded="watches.opened?.watch.id === w.id"
+              @click="toggleLog(w.id)"
+            >
+              Log
+            </button>
+            <button
+              type="button"
+              class="btn btn-xs btn-ghost"
+              @click="tell(() => watches.answer(w.id, 'unwatch'))"
+            >
+              Unwatch
+            </button>
+          </span>
+        </p>
+        <div
+          v-if="w.pending"
+          class="alert alert-warning grid gap-2 text-sm"
+          role="status"
+        >
+          <p>🔧 A fix waits (<span class="font-mono">{{ w.pending.commit.slice(0, 7) }}</span>, until {{ dateTime(w.pending.expiresAt) }}):</p>
+          <p class="whitespace-pre-wrap">
+            {{ w.pending.summary }}
+          </p>
+          <div class="flex gap-2">
+            <AgButton
+              size="sm"
+              @click="tell(() => watches.answer(w.id, 'push'))"
+            >
+              Push
+            </AgButton>
+            <AgButton
+              size="sm"
+              variant="outline"
+              @click="tell(() => watches.answer(w.id, 'discard'))"
+            >
+              Discard
+            </AgButton>
+          </div>
+        </div>
+        <ol
+          v-if="watches.opened?.watch.id === w.id"
+          class="grid gap-1 border-l-2 border-base-300 pl-3 text-xs"
+          aria-label="What agentd said"
+        >
+          <li
+            v-for="(m, i) in watches.opened.messages"
+            :key="i"
+          >
+            <span class="text-muted">{{ dateTime(m.at) }}</span> <MarkdownText :text="m.text" />
+          </li>
+          <li
+            v-if="!watches.opened.messages.length"
+            class="text-muted"
+          >
+            Nothing yet.
+          </li>
+        </ol>
+      </article>
+    </section>
 
     <form
       class="grid gap-3 rounded-box border border-base-300 p-4"

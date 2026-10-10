@@ -71,7 +71,9 @@ Brainstorming itself happens in chat.
 
 **Reviews → Open pull requests** lists the registered repositories' active PRs, newest first, and refreshes itself
 every minute (or **Refresh**). **Review** starts a review of one; when you already reviewed it, **My review** reopens
-yours. A repository agentd can't read is named with the reason.
+yours. A repository agentd can't read is named with the reason. **Watch** asks agentd to look after a PR, like `!watch`:
+it fixes failed PR builds, merge conflicts and new comments, and asks before pushing. **Watched pull requests** lists
+them with **Push / Discard** when a fix waits, **Unwatch**, and **Log** (what agentd said, as a 👀 thread would).
 
 **Reviews → New review**: pick a repository, then a **pull request**, a **pushed branch** (against its base, or
 another branch you name) or **two commits**. agentd fetches it with its own access, pins the commits, and its
