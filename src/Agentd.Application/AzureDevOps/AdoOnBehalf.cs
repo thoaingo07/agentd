@@ -9,9 +9,10 @@ namespace Agentd.Application.AzureDevOps;
 /// Whose name a job's Azure DevOps actions go under (docs/architect/ado-user-delegation.md §1): its work item's Assigned
 /// To, when they have a working sign-in; otherwise agentd's own, said once in the job's thread.
 /// </summary>
-public sealed class AdoOnBehalf(IAdoUserConnections connections, AdoUserTokens tokens, IOutbox outbox)
+public sealed class AdoOnBehalf(IAdoUserConnections connections, AdoUserTokens tokens, IOutbox outbox, Microsoft.Extensions.Options.IOptions<Reviews.WebLinkOptions>? web = null)
 {
     private readonly ConcurrentDictionary<long, byte> _told = new();
+    private readonly ConcurrentDictionary<long, byte> _askedEmail = new();
 
     /// <summary>The identity of whoever connected from this agentd web login, while their sign-in works; else null (agentd's own).</summary>
     public async Task<Guid?> ForWebLoginAsync(string webLogin, CancellationToken cancellationToken)
@@ -22,6 +23,38 @@ public sealed class AdoOnBehalf(IAdoUserConnections connections, AdoUserTokens t
             {
                 return c.IdentityId;
             }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Who a job's commits are by (docs/architect/ado-user-delegation.md §1.1): its work item's Assigned To once they've
+    /// connected (a PAT or Microsoft's sign-in) and agentd has an email for them. Otherwise null (agentd's), and the job's
+    /// thread asks them, once, to add it in Settings → Your Azure DevOps.
+    /// </summary>
+    public async Task<CommitAuthor?> CommitAuthorAsync(Guid? assigneeId, string? assignee, JobId job, CancellationToken cancellationToken)
+    {
+        if (assigneeId is not { } id)
+        {
+            return null;
+        }
+
+        var connection = await connections.FindByIdentityAsync(id, cancellationToken).ConfigureAwait(false);
+        if (connection?.Author is { } author)
+        {
+            return author;
+        }
+
+        // Not connected: one ask covers the PR too (no "agentd's name" note later). Connected without an email: its own ask.
+        if ((connection is null ? _told : _askedEmail).TryAdd(job.Value, 0))
+        {
+            var who = assignee ?? connection?.DisplayName ?? "The assignee";
+            var settings = web?.Value.Link("/settings") ?? "/settings";
+            var ask = connection is null
+                ? $"👤 {who}, this job's commits and PR go under agentd's name until you add your Azure DevOps: a personal access token (or Connect with Microsoft) in Settings → Your Azure DevOps, {settings}. Add it before the PR opens and they're yours."
+                : $"👤 {who}, agentd needs your commit email to commit as you: add it in Settings → Your Azure DevOps, {settings}. Until then this job's commits are agentd's.";
+            await outbox.TryEnqueueAsync(job, new OutboundMessage(MessageKind.Info, ask), cancellationToken).ConfigureAwait(false);
         }
 
         return null;

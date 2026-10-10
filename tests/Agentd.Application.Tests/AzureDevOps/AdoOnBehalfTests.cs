@@ -93,9 +93,64 @@ public sealed class AdoOnBehalfTests
         await _t.OnBehalf!.ResolveAsync(s_dev, "Dev One", request.JobId, default);
 
         Assert.IsNull(_t.PullRequests.CreatedAs.Single());
-        var notes = _t.Outbox.Enqueued.Select(e => e.Message.Message.Markdown).Where(m => m.StartsWith("🔗", StringComparison.Ordinal)).ToList();
-        Assert.HasCount(1, notes, "once per job");
-        StringAssert.Contains(notes[0], "Dev One hasn't connected their Azure DevOps");
+        var notes = _t.Outbox.Enqueued.Select(e => e.Message.Message.Markdown).Where(m => m.StartsWith("🔗", StringComparison.Ordinal) || m.StartsWith("👤", StringComparison.Ordinal)).ToList();
+        Assert.HasCount(1, notes, "once per job: the ask when the worktree was made covers the PR");
+        StringAssert.Contains(notes[0], "Dev One, this job's commits and PR go under agentd's name until you add your Azure DevOps");
+        Assert.IsNull(_t.Worktrees.Authors[request.Worktree.Value], "agentd's commits");
+    }
+
+    [TestMethod]
+    public async Task Without_a_connection_the_note_still_comes_when_the_pr_opens_for_a_job_started_before()
+    {
+        UseOnBehalf();
+        var onBehalf = _t.OnBehalf!;
+        _t.OnBehalf = null;   // started before agentd asked at worktree time
+        var request = await StartAsync();
+        _t.OnBehalf = onBehalf;
+
+        await _t.Finish().Handle(new FinishWork(request.JobId, "T", "D", "S"), default);
+
+        StringAssert.Contains(_t.Outbox.Enqueued.Select(e => e.Message.Message.Markdown).Single(m => m.StartsWith("🔗", StringComparison.Ordinal)), "Dev One hasn't connected");
+    }
+
+    [TestMethod]
+    public async Task A_connected_assignees_name_and_email_go_on_the_worktrees_commits()
+    {
+        Connect();
+        UseOnBehalf();
+        _store.Rows[0] = _store.Rows[0] with { CommitName = "Dev O." };
+
+        var request = await StartAsync();
+
+        Assert.AreEqual(new Ports.CommitAuthor("Dev O.", "dev@example.com"), _t.Worktrees.Authors[request.Worktree.Value]);
+        Assert.IsFalse(_t.Outbox.Enqueued.Any(e => e.Message.Message.Markdown.StartsWith("👤", StringComparison.Ordinal)));
+    }
+
+    [TestMethod]
+    public async Task Connected_without_an_email_asks_for_one_once_and_commits_as_agentd()
+    {
+        _store.Rows.Add(new(s_dev, "live.com#Dev One", "Dev One", "dev@example.com", Encoding.UTF8.GetBytes("enc:PAT"), false, null, default, default, Ports.AdoConnectionKind.Pat));
+        UseOnBehalf();
+
+        var request = await StartAsync();
+        await _t.OnBehalf!.CommitAuthorAsync(s_dev, "Dev One", request.JobId, default);
+
+        Assert.IsNull(_t.Worktrees.Authors[request.Worktree.Value]);
+        var asks = _t.Outbox.Enqueued.Select(e => e.Message.Message.Markdown).Where(m => m.StartsWith("👤", StringComparison.Ordinal)).ToList();
+        Assert.HasCount(1, asks);
+        StringAssert.Contains(asks[0], "agentd needs your commit email");
+    }
+
+    [TestMethod]
+    public async Task A_pat_connection_is_handed_out_as_is_without_asking_entra()
+    {
+        _store.Rows.Add(new(s_dev, "dev@example.com", "Dev One", "dev@example.com", Encoding.UTF8.GetBytes("enc:the-PAT"), false, null, default, default, Ports.AdoConnectionKind.Pat));
+
+        var credential = await Tokens().GetCredentialAsync(s_dev, forceRefresh: false, default);
+
+        Assert.AreEqual(new AdoUserCredential("the-PAT", IsPat: true), credential);
+        Assert.IsEmpty(_delegation.Refreshed);
+        Assert.DoesNotContain("the-PAT", credential!.ToString());
     }
 
     [TestMethod]

@@ -70,3 +70,6 @@ public sealed class ReviewSessions : SqlMigration;
 
 [Migration(2026_10_19_0001, "The PR Monitor's watch list")]
 public sealed class PrWatches : SqlMigration;
+
+[Migration(2026_10_20_0001, "Azure DevOps connections by personal access token, and each person's commit name and email")]
+public sealed class AdoUserPat : SqlMigration;

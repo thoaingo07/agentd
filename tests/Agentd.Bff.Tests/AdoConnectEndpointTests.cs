@@ -63,6 +63,25 @@ public sealed class AdoConnectEndpointTests
     }
 
     [TestMethod]
+    public async Task A_pat_is_saved_write_only_and_the_commit_author_changes_only_for_its_owner()
+    {
+        await using var app = await StartAsync();
+        var antiforgery = await new AntiforgeryClient(app).InitAsync();
+
+        using var added = await antiforgery.SendAsync(HttpMethod.Post, "/api/me/ado-connections/pat", new { token = "pat-SECRET", commitName = "Dev O.", commitEmail = "" });
+        var body = await added.Content.ReadAsStringAsync();
+        using var bad = await antiforgery.SendAsync(HttpMethod.Post, "/api/me/ado-connections/pat", new { token = "" });
+        using var author = await antiforgery.SendAsync(HttpMethod.Put, $"/api/me/ado-connections/{s_dev}/commit-author", new { name = "", email = "dev@work.example" });
+        using var unknown = await antiforgery.SendAsync(HttpMethod.Put, $"/api/me/ado-connections/{Guid.NewGuid()}/commit-author", new { name = "x" });
+
+        Assert.AreEqual((HttpStatusCode.OK, HttpStatusCode.BadRequest, HttpStatusCode.OK, HttpStatusCode.NotFound), (added.StatusCode, bad.StatusCode, author.StatusCode, unknown.StatusCode));
+        var vm = JsonDocument.Parse(body).RootElement;
+        Assert.AreEqual(("Pat", "Dev O.", "dev.one@example.com"), (vm.GetProperty("kind").GetString(), vm.GetProperty("authorName").GetString(), vm.GetProperty("authorEmail").GetString()));
+        Assert.DoesNotContain("SECRET", body);
+        Assert.AreEqual(("Dev One", "dev@work.example"), (_store.Rows.Single().Author!.Name, _store.Rows.Single().Author!.Email));
+    }
+
+    [TestMethod]
     public async Task Without_the_entra_app_connect_says_its_unavailable()
     {
         _delegation.Configured = false;
@@ -89,6 +108,7 @@ public sealed class AdoConnectEndpointTests
         builder.Services.AddSingleton<IAdoDelegation>(_delegation);
         builder.Services.AddSingleton<IAdoUserConnections>(_store);
         builder.Services.AddSingleton<ITokenProtector, Protector>();
+        builder.Services.AddSingleton<IAdoPatCheck>(new Pats());
         builder.Services.AddSingleton<AdoConnections>();
         var app = builder.Build();
         app.UseAuthentication();
@@ -120,6 +140,12 @@ public sealed class AdoConnectEndpointTests
         public Task<DelegatedToken> RefreshAsync(string refreshToken, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 
+    private sealed class Pats : IAdoPatCheck
+    {
+        public Task<DelegatedSignIn> WhoAsync(string pat, CancellationToken cancellationToken) =>
+            Task.FromResult(new DelegatedSignIn(s_dev, "dev.one@example.com", "Dev One", pat));
+    }
+
     private sealed class Protector : ITokenProtector
     {
         public byte[] Protect(string token) => Encoding.UTF8.GetBytes(new string(token.Reverse().ToArray()));
@@ -131,10 +157,21 @@ public sealed class AdoConnectEndpointTests
     {
         public List<AdoUserConnection> Rows { get; } = [];
 
-        public Task UpsertAsync(Guid identityId, string uniqueName, string displayName, string webLogin, byte[] refreshToken, CancellationToken cancellationToken)
+        public Task UpsertAsync(Guid identityId, string uniqueName, string displayName, string webLogin, byte[] refreshToken, AdoConnectionKind kind, CancellationToken cancellationToken)
         {
-            Rows.Add(new AdoUserConnection(identityId, uniqueName, displayName, webLogin, refreshToken, false, null, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch));
+            Rows.Add(new AdoUserConnection(identityId, uniqueName, displayName, webLogin, refreshToken, false, null, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, kind));
             return Task.CompletedTask;
+        }
+
+        public Task<bool> SetCommitAuthorAsync(Guid identityId, string webLogin, string? name, string? email, CancellationToken cancellationToken)
+        {
+            var i = Rows.FindIndex(r => r.IdentityId == identityId && r.WebLogin == webLogin);
+            if (i >= 0)
+            {
+                Rows[i] = Rows[i] with { CommitName = name, CommitEmail = email };
+            }
+
+            return Task.FromResult(i >= 0);
         }
 
         public Task<AdoUserConnection?> FindByIdentityAsync(Guid identityId, CancellationToken cancellationToken) => Task.FromResult(Rows.FirstOrDefault(r => r.IdentityId == identityId));

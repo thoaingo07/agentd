@@ -104,6 +104,42 @@ public sealed class AdoDelegationTests : IDisposable
     }
 
     [TestMethod]
+    public async Task A_person_who_connected_with_a_pat_acts_with_it_as_basic_auth()
+    {
+        var actor = new Application.AzureDevOps.AdoActor();
+        var store = new Store { Kind = Application.Ports.AdoConnectionKind.Pat };
+        var tokens = new Application.AzureDevOps.AdoUserTokens(store, new Protector(), new Refresher(), new Clock());
+        var provider = new ActingAsAuthProvider(new Own(), actor, tokens);
+
+        using (actor.Begin(store.Id))
+        {
+            var header = await provider.GetAsync(false, default);
+
+            Assert.AreEqual(("Basic", Convert.ToBase64String(":the-pat"u8.ToArray())), (header.Scheme, header.Parameter));
+        }
+    }
+
+    [TestMethod]
+    public async Task A_pat_is_checked_with_connection_data_and_an_unknown_one_is_refused()
+    {
+        _http.On(HttpMethod.Get, "/myorg/_apis/connectionData", HttpStatusCode.OK, """
+            {"authenticatedUser":{"id":"aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee","providerDisplayName":"Dev One","properties":{"Account":{"$type":"System.String","$value":"dev.one@example.com"}}}}
+            """);
+        var who = await Pats().WhoAsync("the-pat", default);
+        var auth = _http.Requests.Single().Auth;
+
+        _http.On(HttpMethod.Get, "/myorg/_apis/connectionData", HttpStatusCode.OK, """
+            {"authenticatedUser":{"id":"aa44a7d7-0000-0000-0000-000000000000","providerDisplayName":"Anonymous","properties":{}}}
+            """);
+        var anonymous = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => Pats().WhoAsync("unknown", default));
+
+        Assert.AreEqual((Guid.Parse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"), "dev.one@example.com", "Dev One"), (who.IdentityId, who.UniqueName, who.DisplayName));
+        Assert.AreEqual("Basic " + Convert.ToBase64String(":the-pat"u8.ToArray()), auth);
+        Assert.Contains("Code (Read & write)", anonymous.Message);
+        Assert.DoesNotContain("the-pat", who.ToString());
+    }
+
+    [TestMethod]
     public void Its_configured_only_with_the_apps_tenant_client_and_secret() =>
         Assert.IsFalse(new AdoDelegation(new HttpClient(), Options.Create(new AzureDevOpsOptions { TenantId = Tenant, ClientId = Client })).IsConfigured);
 
@@ -146,10 +182,14 @@ public sealed class AdoDelegationTests : IDisposable
 
         public bool Failed { get; set; }
 
-        public Task<Application.Ports.AdoUserConnection?> FindByIdentityAsync(Guid identityId, CancellationToken cancellationToken) =>
-            Task.FromResult<Application.Ports.AdoUserConnection?>(identityId == Id ? new(Id, "dev@example.com", "Dev", "dev@example.com", [1], Failed, null, default, default) : null);
+        public Application.Ports.AdoConnectionKind Kind { get; set; }
 
-        public Task UpsertAsync(Guid identityId, string uniqueName, string displayName, string webLogin, byte[] refreshToken, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task<Application.Ports.AdoUserConnection?> FindByIdentityAsync(Guid identityId, CancellationToken cancellationToken) =>
+            Task.FromResult<Application.Ports.AdoUserConnection?>(identityId == Id ? new(Id, "dev@example.com", "Dev", "dev@example.com", "the-pat"u8.ToArray(), Failed, null, default, default, Kind) : null);
+
+        public Task UpsertAsync(Guid identityId, string uniqueName, string displayName, string webLogin, byte[] refreshToken, Application.Ports.AdoConnectionKind kind, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task<bool> SetCommitAuthorAsync(Guid identityId, string webLogin, string? name, string? email, CancellationToken cancellationToken) => Task.FromResult(false);
 
         public Task<Application.Ports.AdoUserConnection?> FindByUniqueNameAsync(string uniqueName, CancellationToken cancellationToken) => Task.FromResult<Application.Ports.AdoUserConnection?>(null);
 
@@ -162,6 +202,8 @@ public sealed class AdoDelegationTests : IDisposable
 
         public Task<bool> DeleteAsync(Guid identityId, string webLogin, CancellationToken cancellationToken) => Task.FromResult(false);
     }
+
+    private AdoPatCheck Pats() => new(new HttpClient(_http, disposeHandler: false), Options.Create(new AzureDevOpsOptions { Organization = "myorg" }));
 
     private AdoDelegation Delegation() => new(new HttpClient(_http, disposeHandler: false),
         Options.Create(new AzureDevOpsOptions { Organization = "myorg", TenantId = Tenant, ClientId = Client, ClientSecret = "shh" }));

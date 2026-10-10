@@ -13,12 +13,28 @@
 | A job's PR, its comments and replies (fix rounds), and the job's work item comments and state changes | the work item's **Assigned To**, when that person has connected |
 | `!review` findings and re-checks posted to a PR | whoever ran **`!review`** (matched by their agentd user's email), when connected |
 | Polling and reading work items, `!chat`'s tools, repositories, pipelines, the wiki | always agentd's own identity |
+| A job's **commits** (author and committer) | the work item's **Assigned To**, when connected and agentd has an email for them (§1.1) |
 | Git pushes | unchanged: SSH with agentd's key |
 
 **Fallback:** if that person hasn't connected, or their sign-in was revoked or expired, agentd uses its own identity and
 says once in the thread: "🔗 Connect your Azure DevOps (Settings → Your Azure DevOps) to have this under your name."
 A delegated call is never retried as agentd after it reached Azure DevOps (no duplicate PRs or comments): only a token
 that can't be obtained falls back.
+
+### 1.1 Commits
+
+When a job's worktree is made (the job starts, resumes, or its hand-off recreates it), agentd looks up the work item's
+Assigned To and sets that worktree's own `git config --worktree user.name/email`, so every commit made there (by the
+agent, whichever runner, or by agentd) is theirs. The name and email are what the person set in **Your Azure DevOps**,
+otherwise their profile's display name and sign-in email. Nobody connected, or no email: the worktree's setting is
+removed, so commits are agentd's (`Agentd:Git:CommitName/CommitEmail`), and the job's thread **asks** the assignee once:
+"👤 … add your Azure DevOps (a personal access token, or Connect with Microsoft) in Settings → Your Azure DevOps …".
+That ask also covers the PR (no 🔗 note later). Commits made before they connect stay agentd's; the next start or
+resume picks the person up.
+
+Per-worktree config needs `extensions.worktreeConfig` on the managed clone. agentd turns it on at the next fetch, moving
+`core.bare` into the clone's own `config.worktree` first (otherwise every worktree would think it's bare); the steps are
+ordered so running worktrees keep working throughout.
 
 ## 2. Connecting (once per person)
 
@@ -40,6 +56,17 @@ that can't be obtained falls back.
 4. It stores the **refresh token**, encrypted, keyed by that identity id, plus the agentd web login that connected it.
    **Disconnect** deletes the row; revoking the app's consent in Entra has the same effect, seen at the next refresh.
 
+### 2.1 Or a personal access token
+
+Without the Entra app (or by choice), a person pastes a **PAT** in Settings → Your Azure DevOps (`POST
+/api/me/ado-connections/pat`), with **Code (Read & write)** and **Work Items (Read & write)** for the organization.
+agentd checks it with `connectionData` (Basic auth; an unknown token answers as *Anonymous* and is refused), then stores it
+encrypted in the same row (`kind = 'Pat'`), replacing a Microsoft sign-in for that identity. Calls as the person send it as
+Basic auth; there's no refresh. The field is write-only: the token is never sent back.
+
+The person can also set their **commit name and email** (`PUT /api/me/ado-connections/{id}/commit-author`, blank: from
+the profile); reconnecting keeps them.
+
 Only the person who connected (their web login) sees and removes their connection; Admins see who is connected, never
 any token.
 
@@ -53,14 +80,17 @@ any token.
 | `unique_name text` | the sign-in name (email/UPN), for matching a `!review` requester |
 | `display_name text` | for the UI |
 | `web_login text` | the agentd web login that connected it (who may disconnect it) |
-| `refresh_token bytea` | **encrypted** with ASP.NET Core Data Protection (purpose `agentd.ado-user-tokens`); the database never sees it in clear |
+| `refresh_token bytea` | the secret (a refresh token, or a PAT per `kind`), **encrypted** with ASP.NET Core Data Protection (purpose `agentd.ado-user-tokens`); the database never sees it in clear |
+| `kind text` | `OAuth` (Microsoft's sign-in) or `Pat` |
+| `commit_name`, `commit_email text` | what goes on their commits; null: from the profile |
 | `status text` | `Connected`, or `Failed` with `last_error` (a refresh was refused: revoked, expired, password reset) |
 | `connected_at`, `refreshed_at` | |
 
 Routines (`Routines/ado/ado_user_connection_routines.sql`): `ado_connection_upsert` (connecting again replaces the
 token: idempotent and safe for parallel callers), `ado_connection_find_by_identity`, `ado_connection_find_by_unique_name`
 (case-insensitive), `ado_connection_list_by_web_login`, `ado_connection_store_token` (Entra rotates refresh tokens on
-use), `ado_connection_mark_failed`, `ado_connection_delete` (only by its own web login).
+use), `ado_connection_mark_failed`, `ado_connection_delete` (only by its own web login), `ado_connection_set_commit_author`
+(only by its own web login).
 
 Access tokens are never stored: they're cached in memory per identity until five minutes before expiry.
 

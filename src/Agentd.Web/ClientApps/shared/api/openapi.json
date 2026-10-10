@@ -1041,6 +1041,63 @@
         }
       }
     },
+    "/api/me/ado-connections/pat": {
+      "post": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "AddMyAdoPat",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddAdoPatRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/me/ado-connections/{id}/commit-author": {
+      "put": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "SetMyCommitAuthor",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommitAuthorRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/me/ado-connections/{id}": {
       "delete": {
         "tags": [
@@ -2574,6 +2631,35 @@
   },
   "components": {
     "schemas": {
+      "AddAdoPatRequest": {
+        "required": [
+          "token",
+          "commitName",
+          "commitEmail"
+        ],
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "commitName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "commitEmail": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "A personal access token (Code and Work Items, read and write), and optionally the commit name and email."
+      },
       "AdoConnectionVm": {
         "required": [
           "identityId",
@@ -2581,7 +2667,12 @@
           "displayName",
           "failed",
           "lastError",
-          "connectedAt"
+          "connectedAt",
+          "kind",
+          "commitName",
+          "commitEmail",
+          "authorName",
+          "authorEmail"
         ],
         "type": "object",
         "properties": {
@@ -2607,9 +2698,36 @@
           "connectedAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "commitName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "commitEmail": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "authorName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "authorEmail": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         },
-        "description": "A person\u0027s Azure DevOps connection (never the token). \u0060failed\u0060: reconnect (\u0060lastError\u0060 says why)."
+        "description": "A person\u0027s Azure DevOps connection (never the token). \u0060failed\u0060: reconnect (\u0060lastError\u0060 says why). \u0060kind\u0060:\n\u0060OAuth\u0060 or \u0060Pat\u0060. \u0060commitName\u0060/\u0060commitEmail\u0060: what they set; \u0060authorName\u0060/\u0060authorEmail\u0060: what their\ncommits get (null: no email yet, so agentd\u0027s)."
       },
       "AdoConnectionsVm": {
         "required": [
@@ -2957,6 +3075,28 @@
             "description": "The comment, or the question (Ask)."
           }
         }
+      },
+      "CommitAuthorRequest": {
+        "required": [
+          "name",
+          "email"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "email": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "The name and email on the person\u0027s commits; blank goes back to their profile\u0027s."
       },
       "ConfigVm": {
         "required": [
