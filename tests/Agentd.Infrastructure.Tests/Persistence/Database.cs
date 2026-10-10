@@ -14,7 +14,9 @@ public static class Database
     [AssemblyInitialize]
     public static async Task StartAsync(TestContext _)
     {
-        s_container = new PostgreSqlBuilder("postgres:17-alpine").Build();
+        // Test classes run in parallel, each with its own pool (parallel-caller tests open many connections at once):
+        // the default 100 connections run out ("53300: too many clients already").
+        s_container = new PostgreSqlBuilder("postgres:17-alpine").WithCommand("-c", "max_connections=500").Build();
         await s_container.StartAsync().ConfigureAwait(false);
     }
 

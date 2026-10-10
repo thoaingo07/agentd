@@ -64,20 +64,29 @@ public sealed class AdoDelegation(HttpClient http, IOptions<AzureDevOpsOptions> 
         var refresh = token["refresh_token"]?.GetValue<string>()
             ?? throw new InvalidOperationException("Microsoft Entra didn't return a refresh token (the app needs offline_access).");
 
-        using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(O.BaseUrl, $"{Uri.EscapeDataString(O.Organization)}/_apis/connectionData"));
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", access);
+        return await WhoAsync(http, O, new AuthenticationHeaderValue("Bearer", access), refresh, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Who <paramref name="auth"/> is in the organization (<c>connectionData</c>), carrying <paramref name="secret"/> along.</summary>
+    internal static async Task<DelegatedSignIn> WhoAsync(HttpClient http, AzureDevOpsOptions o, AuthenticationHeaderValue auth, string secret, CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(o.BaseUrl, $"{Uri.EscapeDataString(o.Organization)}/_apis/connectionData"));
+        request.Headers.Authorization = auth;
+        request.Headers.TryAddWithoutValidation("X-TFS-FedAuthRedirect", "Suppress");
         using var me = await http.SendAsync(request, cancellationToken).ConfigureAwait(false);
         var user = me.IsSuccessStatusCode && me.Content.Headers.ContentType?.MediaType == "application/json"
             ? JsonNode.Parse(await me.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false))?["authenticatedUser"]
             : null;
-        if (user?["id"]?.GetValue<string>() is not { } id || !Guid.TryParse(id, out var identity) || identity == Guid.Empty)
+        var name = user?["providerDisplayName"]?.GetValue<string>() ?? user?["customDisplayName"]?.GetValue<string>() ?? "";
+        var unique = user?["properties"]?["Account"]?["$value"]?.GetValue<string>() ?? name;
+        // A token Azure DevOps doesn't know can be answered as the anonymous identity rather than with a 401.
+        if (user?["id"]?.GetValue<string>() is not { } id || !Guid.TryParse(id, out var identity) || identity == Guid.Empty
+            || unique.Length == 0 || name == "Anonymous" || unique == "Anonymous")
         {
-            throw new InvalidOperationException($"Azure DevOps ({O.Organization}) didn't accept this account. Is it a member of the organization?");
+            throw new InvalidOperationException($"Azure DevOps ({o.Organization}) didn't accept this account. Is it a member of the organization?");
         }
 
-        var name = user["providerDisplayName"]?.GetValue<string>() ?? user["customDisplayName"]?.GetValue<string>() ?? "";
-        var unique = user["properties"]?["Account"]?["$value"]?.GetValue<string>() ?? name;
-        return new DelegatedSignIn(identity, unique, name.Length > 0 ? name : unique, refresh);
+        return new DelegatedSignIn(identity, unique, name.Length > 0 ? name : unique, secret);
     }
 
     /// <summary>The token endpoint as the app (a confidential client). Entra's refusal becomes its reason, never the request.</summary>
@@ -102,5 +111,23 @@ public sealed class AdoDelegation(HttpClient http, IOptions<AzureDevOpsOptions> 
         }
 
         return token;
+    }
+}
+
+/// <summary>A personal access token checked with Azure DevOps' <c>connectionData</c> (docs/architect/ado-user-delegation.md §2.1).</summary>
+public sealed class AdoPatCheck(HttpClient http, IOptions<AzureDevOpsOptions> options) : IAdoPatCheck
+{
+    public async Task<DelegatedSignIn> WhoAsync(string pat, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(pat);
+        try
+        {
+            return await AdoDelegation.WhoAsync(http, options.Value, PatAuthProvider.Header(pat), pat, cancellationToken).ConfigureAwait(false);
+        }
+        catch (InvalidOperationException)
+        {
+            throw new InvalidOperationException(
+                $"Azure DevOps ({options.Value.Organization}) didn't accept this token. Is it for this organization, unexpired, with Code (Read & write) and Work Items (Read & write)?");
+        }
     }
 }

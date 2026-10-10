@@ -319,6 +319,15 @@ internal sealed class FakeWorktrees : IWorktreeManager
 
     public Exception? PushFailure { get; set; }
 
+    /// <summary>The commit author set on each worktree (null: agentd's).</summary>
+    public Dictionary<string, CommitAuthor?> Authors { get; } = [];
+
+    public Task SetCommitAuthorAsync(WorktreePath worktree, CommitAuthor? author, CancellationToken cancellationToken)
+    {
+        Authors[worktree.Value] = author;
+        return Task.CompletedTask;
+    }
+
     public Task<string?> CommitAllAsync(string path, string message, CancellationToken cancellationToken)
     {
         CommittedAll.Add((path, message));
@@ -663,7 +672,7 @@ internal sealed class TestContext
 
     public ClaimWorkItemHandler Claim() => new(WorkItems, Registry, Jobs, Clock, Notices, Options, OnBehalf, Actor);
 
-    public StartNextJobHandler StartNext() => new(Jobs, Registry, Worktrees, WorkItems, MessagingService(), Outbox, Options);
+    public StartNextJobHandler StartNext() => new(Jobs, Registry, Worktrees, WorkItems, MessagingService(), Outbox, Options, OnBehalf);
 
     public MessagingService MessagingService()
     {

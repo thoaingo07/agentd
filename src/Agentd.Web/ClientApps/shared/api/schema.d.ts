@@ -372,6 +372,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/me/ado-connections/pat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AddMyAdoPat"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/me/ado-connections/{id}/commit-author": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["SetMyCommitAuthor"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/me/ado-connections/{id}": {
         parameters: {
             query?: never;
@@ -936,7 +968,17 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        /** @description A person's Azure DevOps connection (never the token). `failed`: reconnect (`lastError` says why). */
+        /** @description A personal access token (Code and Work Items, read and write), and optionally the commit name and email. */
+        AddAdoPatRequest: {
+            token: null | string;
+            commitName: null | string;
+            commitEmail: null | string;
+        };
+        /**
+         * @description A person's Azure DevOps connection (never the token). `failed`: reconnect (`lastError` says why). `kind`:
+         *     `OAuth` or `Pat`. `commitName`/`commitEmail`: what they set; `authorName`/`authorEmail`: what their
+         *     commits get (null: no email yet, so agentd's).
+         */
         AdoConnectionVm: {
             /** Format: uuid */
             identityId: string;
@@ -946,6 +988,11 @@ export interface components {
             lastError: null | string;
             /** Format: date-time */
             connectedAt: string;
+            kind: string;
+            commitName: null | string;
+            commitEmail: null | string;
+            authorName: null | string;
+            authorEmail: null | string;
         };
         /** @description `available`: the Entra app is set up (Settings → Azure DevOps → Service principal), so people can connect. */
         AdoConnectionsVm: {
@@ -1035,6 +1082,11 @@ export interface components {
             endLine: null | number;
             /** @description The comment, or the question (Ask). */
             text: null | string;
+        };
+        /** @description The name and email on the person's commits; blank goes back to their profile's. */
+        CommitAuthorRequest: {
+            name: null | string;
+            email: null | string;
         };
         /** @description Read-only settings. Explicit fields only: tokens, keys and secrets have no way in. */
         ConfigVm: {
@@ -2364,6 +2416,52 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["AdoConnectionsVm"];
                 };
+            };
+        };
+    };
+    AddMyAdoPat: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddAdoPatRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    SetMyCommitAuthor: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CommitAuthorRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

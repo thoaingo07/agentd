@@ -65,8 +65,23 @@ public static class AdoConnectEndpoints
     {
         api.MapGet("/me/ado-connections", async (ClaimsPrincipal user, [FromServices] AdoConnections connections, CancellationToken ct) =>
             TypedResults.Ok(new AdoConnectionsVm(connections.IsConfigured,
-                [.. (await connections.MineAsync(Login(user), ct).ConfigureAwait(false)).Select(c => new AdoConnectionVm(c.IdentityId, c.UniqueName, c.DisplayName, c.Failed, c.LastError, c.ConnectedAt))])))
+                [.. (await connections.MineAsync(Login(user), ct).ConfigureAwait(false)).Select(AdoConnectionVm.Of)])))
             .WithName("GetMyAdoConnections");
+
+        // A personal access token instead of Microsoft's sign-in; write-only: it's never sent back.
+        api.MapPost("/me/ado-connections/pat", async Task<IResult> (AddAdoPatRequest body, ClaimsPrincipal user, [FromServices] AdoConnections connections, CancellationToken ct) =>
+        {
+            var result = await connections.AddPatAsync(Login(user), body.Token, body.CommitName, body.CommitEmail, ct).ConfigureAwait(false);
+            return result.IsSuccess ? TypedResults.Ok(AdoConnectionVm.Of(result.Value)) : TypedResults.Problem(result.Error!.Message, statusCode: StatusCodes.Status400BadRequest);
+        }).WithName("AddMyAdoPat");
+
+        api.MapPut("/me/ado-connections/{id:guid}/commit-author", async Task<IResult> (Guid id, CommitAuthorRequest body, ClaimsPrincipal user, [FromServices] AdoConnections connections, CancellationToken ct) =>
+        {
+            var result = await connections.SetCommitAuthorAsync(Login(user), id, body.Name, body.Email, ct).ConfigureAwait(false);
+            return result.IsSuccess ? TypedResults.Ok(AdoConnectionVm.Of(result.Value))
+                : result.Error!.Code == "not_found" ? TypedResults.NotFound()
+                : TypedResults.Problem(result.Error.Message, statusCode: StatusCodes.Status400BadRequest);
+        }).WithName("SetMyCommitAuthor");
 
         api.MapDelete("/me/ado-connections/{id:guid}", async Task<IResult> (Guid id, ClaimsPrincipal user, [FromServices] AdoConnections connections, CancellationToken ct) =>
             await connections.DisconnectAsync(Login(user), id, ct).ConfigureAwait(false) ? TypedResults.NoContent() : TypedResults.NotFound())
@@ -99,8 +114,27 @@ public static class AdoConnectEndpoints
         Results.Redirect($"/settings?ado={outcome}{(reason is null ? string.Empty : "&reason=" + Uri.EscapeDataString(reason))}");
 }
 
-/// <summary>A person's Azure DevOps connection (never the token). <c>failed</c>: reconnect (<c>lastError</c> says why).</summary>
-public sealed record AdoConnectionVm(Guid IdentityId, string UniqueName, string DisplayName, bool Failed, string? LastError, DateTimeOffset ConnectedAt);
+/// <summary>
+/// A person's Azure DevOps connection (never the token). <c>failed</c>: reconnect (<c>lastError</c> says why). <c>kind</c>:
+/// <c>OAuth</c> or <c>Pat</c>. <c>commitName</c>/<c>commitEmail</c>: what they set; <c>authorName</c>/<c>authorEmail</c>: what their
+/// commits get (null: no email yet, so agentd's).
+/// </summary>
+public sealed record AdoConnectionVm(Guid IdentityId, string UniqueName, string DisplayName, bool Failed, string? LastError, DateTimeOffset ConnectedAt,
+    string Kind, string? CommitName, string? CommitEmail, string? AuthorName, string? AuthorEmail)
+{
+    internal static AdoConnectionVm Of(AdoConnectionView c) =>
+        new(c.IdentityId, c.UniqueName, c.DisplayName, c.Failed, c.LastError, c.ConnectedAt, c.Kind.ToString(), c.CommitName, c.CommitEmail, c.Author?.Name, c.Author?.Email);
+}
+
+/// <summary>A personal access token (Code and Work Items, read and write), and optionally the commit name and email.</summary>
+public sealed record AddAdoPatRequest(string? Token, string? CommitName, string? CommitEmail)
+{
+    /// <summary>Never print the token.</summary>
+    public override string ToString() => $"AddAdoPatRequest {{ CommitName = {CommitName} }}";
+}
+
+/// <summary>The name and email on the person's commits; blank goes back to their profile's.</summary>
+public sealed record CommitAuthorRequest(string? Name, string? Email);
 
 /// <summary><c>available</c>: the Entra app is set up (Settings → Azure DevOps → Service principal), so people can connect.</summary>
 public sealed record AdoConnectionsVm(bool Available, IReadOnlyList<AdoConnectionVm> Connections);

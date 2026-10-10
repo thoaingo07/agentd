@@ -70,9 +70,12 @@ public sealed class ActingAsAuthProvider(IAdoAuthProvider own, Application.Azure
             return await own.GetAsync(forceRefresh, cancellationToken).ConfigureAwait(false);
         }
 
-        return await tokens.GetAccessTokenAsync(person, forceRefresh, cancellationToken).ConfigureAwait(false) is { } token
-            ? new AuthenticationHeaderValue("Bearer", token)
-            : throw new AdoException("The person's Azure DevOps sign-in stopped working during this action; they need to reconnect (Settings → Your Azure DevOps).", 401);
+        return await tokens.GetCredentialAsync(person, forceRefresh, cancellationToken).ConfigureAwait(false) switch
+        {
+            { IsPat: true, Token: var pat } => PatAuthProvider.Header(pat),
+            { Token: var token } => new AuthenticationHeaderValue("Bearer", token),
+            null => throw new AdoException("The person's Azure DevOps sign-in stopped working during this action; they need to reconnect (Settings → Your Azure DevOps).", 401),
+        };
     }
 }
 
@@ -93,8 +96,11 @@ public sealed class PatAuthProvider(IOptions<AzureDevOpsOptions> options) : IAdo
             throw new AdoException("Azure DevOps auth is 'Pat' but no PAT is configured (Agentd:AzureDevOps:Pat).");
         }
 
-        return ValueTask.FromResult(new AuthenticationHeaderValue("Basic", Convert.ToBase64String(Encoding.ASCII.GetBytes(":" + pat))));
+        return ValueTask.FromResult(Header(pat));
     }
+
+    /// <summary>A PAT as Basic auth with an empty user name.</summary>
+    internal static AuthenticationHeaderValue Header(string pat) => new("Basic", Convert.ToBase64String(Encoding.ASCII.GetBytes(":" + pat)));
 }
 
 /// <summary>

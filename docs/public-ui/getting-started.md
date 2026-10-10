@@ -134,7 +134,8 @@ under its work item's Assigned To, and `!review` findings under whoever ran it. 
 - under **API permissions**, **Azure DevOps → Delegated → user_impersonation** (grant admin consent if your tenant
   requires it).
 
-Then each person opens **Settings → Your Azure DevOps → Connect with Microsoft** once. See
+Then each person opens **Settings → Your Azure DevOps → Connect with Microsoft** once (or, without the Entra app, pastes
+a personal access token there). See
 [the design](../architect/ado-user-delegation.md).
 
 ## 4. Git access and repositories

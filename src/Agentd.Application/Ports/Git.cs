@@ -23,6 +23,12 @@ public interface IWorktreeManager
     /// </summary>
     Task<WorktreePath> RecreateAsync(Repository repository, WorkItemId workItem, BranchName branch, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Who the commits made in <paramref name="worktree"/> are by (its own <c>git config --worktree user.name/email</c>), whoever
+    /// makes them (the agent or agentd); null goes back to agentd's.
+    /// </summary>
+    Task SetCommitAuthorAsync(WorktreePath worktree, CommitAuthor? author, CancellationToken cancellationToken);
+
     Task<bool> HasCommitsAheadAsync(Repository repository, WorktreePath worktree, CancellationToken cancellationToken);
 
     /// <summary>Pushes the branch. Never force-pushes.</summary>
@@ -78,6 +84,9 @@ public interface IWorktreeManager
     /// <summary>What changes from <paramref name="baseCommit"/> to <paramref name="headCommit"/> in the managed clone; over <paramref name="maxBytes"/>, only the file list.</summary>
     Task<BranchDiff> DiffCommitsAsync(Repository repository, string baseCommit, string headCommit, int maxBytes, CancellationToken cancellationToken);
 }
+
+/// <summary>The name and email on a commit.</summary>
+public sealed record CommitAuthor(string Name, string Email);
 
 /// <summary>A checkout folder: its name (e.g. <c>wi-5617</c>) and full path.</summary>
 public sealed record WorktreeFolder(string Name, string Path);

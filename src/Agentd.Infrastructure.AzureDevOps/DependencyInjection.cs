@@ -29,6 +29,7 @@ public static class DependencyInjection
         services.AddTransient<AdoAuthHandler>();
         // People's delegated sign-in: its own client (their tokens, never agentd's auth handler), no redirects.
         services.AddHttpClient<IAdoDelegation, AdoDelegation>().ConfigurePrimaryHttpMessageHandler(NoRedirects);
+        services.AddHttpClient<IAdoPatCheck, AdoPatCheck>().ConfigurePrimaryHttpMessageHandler(NoRedirects);
         services.AddSingleton<Application.Setup.IAzureDevOpsProbe>(new AzureDevOpsProbe());
 
         // One named client for both typed clients: configuring the same name twice would stack the auth

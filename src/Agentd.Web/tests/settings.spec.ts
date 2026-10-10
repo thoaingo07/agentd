@@ -10,6 +10,7 @@ import AdoConnectionPanel from '../ClientApps/dashboard/components/AdoConnection
 
 let paths: string[]
 let adoConnections: object[]
+let bodies: Record<string, unknown>
 const json = (body: unknown) => new Response(JSON.stringify(body))
 const router = () => createRouter({
   history: createMemoryHistory(),
@@ -23,13 +24,20 @@ beforeEach(() => {
   setActivePinia(createPinia())
   setAntiforgeryUrl('/bff/antiforgery')
   paths = []
-  adoConnections = [{ identityId: 'aaaa', uniqueName: 'dev@example.com', displayName: 'Dev One', failed: false, lastError: null, connectedAt: '2026-10-09T10:00:00Z' }]
+  bodies = {}
+  adoConnections = [{ identityId: 'aaaa', uniqueName: 'dev@example.com', displayName: 'Dev One', failed: false, lastError: null, connectedAt: '2026-10-09T10:00:00Z', kind: 'OAuth', commitName: null, commitEmail: null, authorName: 'Dev One', authorEmail: 'dev@example.com' }]
   vi.stubGlobal('fetch', vi.fn(async (req: Request) => {
     const path = new URL(req.url).pathname
     paths.push(`${req.method} ${path}`)
     if (path === '/bff/antiforgery') return json({ token: 'admin-xsrf' })
     if (path === '/api/settings/review') return json([{ step: 'database', title: 'Database', required: true, check: { ok: true, message: 'Connected.', fix: null } }])
     if (path === '/api/me/ado-connections' && req.method === 'GET') return json({ available: true, connections: adoConnections })
+    if (req.method === 'POST' || req.method === 'PUT') bodies[`${req.method} ${path}`] = await req.json()
+    if (path === '/api/me/ado-connections/pat') {
+      adoConnections = [{ identityId: 'bbbb', uniqueName: 'pat@example.com', displayName: 'Pat User', failed: false, lastError: null, connectedAt: '2026-10-10T10:00:00Z', kind: 'Pat', commitName: 'Pat', commitEmail: null, authorName: 'Pat', authorEmail: 'pat@example.com' }]
+      return json(adoConnections[0])
+    }
+    if (path.endsWith('/commit-author')) return json(adoConnections[0])
     if (path.startsWith('/api/me/ado-connections/') && req.method === 'DELETE') {
       adoConnections = []
       return new Response(null, { status: 204 })
@@ -86,5 +94,28 @@ describe('Settings', () => {
     expect(paths).toContain('DELETE /api/me/ado-connections/aaaa')
     expect(view.find('[data-testid=ado-connection]').exists()).toBe(false)
     expect(view.get('a[href="/bff/ado/connect"]').text()).toBe('Connect with Microsoft')
+  })
+
+  it('your Azure DevOps: saves a personal access token, never shows it again, and changes the commit author', async () => {
+    const view = mount(AdoConnectionPanel, { global: { plugins: [router()] } })
+    await flushPromises()
+    expect(view.get('[data-testid=commit-author]').text()).toContain('Commits as Dev One <dev@example.com>')
+
+    const form = view.get('[data-testid=ado-pat]')
+    await form.get('input[type=password]').setValue('  secret-pat  ')
+    await form.findAll('input')[1]!.setValue('Pat')
+    await form.trigger('submit')
+    await flushPromises()
+
+    expect(bodies['POST /api/me/ado-connections/pat']).toEqual({ token: '  secret-pat  ', commitName: 'Pat', commitEmail: '' })
+    expect((view.get('[data-testid=ado-pat] input[type=password]').element as HTMLInputElement).value).toBe('')
+    expect(view.text()).not.toContain('secret-pat')
+    expect(view.get('[data-testid=ado-connection]').text()).toContain('access token')
+
+    await view.findAll('button').find((b) => b.text() === 'Change')!.trigger('click')
+    await view.get('[data-testid=ado-connection] input[type=email]').setValue('pat@work.example')
+    await view.get('[data-testid=ado-connection] form').trigger('submit')
+    await flushPromises()
+    expect(bodies['PUT /api/me/ado-connections/bbbb/commit-author']).toEqual({ name: 'Pat', email: 'pat@work.example' })
   })
 })

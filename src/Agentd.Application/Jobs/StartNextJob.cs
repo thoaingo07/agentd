@@ -22,7 +22,8 @@ public sealed class StartNextJobHandler(
     IWorkItemSource workItems,
     MessagingService messaging,
     IOutbox outbox,
-    IOptions<JobOptions> options) : ICommandHandler<StartNextJob, AgentRunRequest?>
+    IOptions<JobOptions> options,
+    AzureDevOps.AdoOnBehalf? onBehalf = null) : ICommandHandler<StartNextJob, AgentRunRequest?>
 {
     public async Task<Result<AgentRunRequest?>> Handle(StartNextJob command, CancellationToken cancellationToken)
     {
@@ -82,6 +83,14 @@ public sealed class StartNextJobHandler(
             {
                 await messaging.OpenConversationsAsync(job, item, cancellationToken).ConfigureAwait(false);
                 await outbox.TryEnqueueAsync(job.Id, MessageCatalog.Started(job, item, repository.BaseBranch), cancellationToken).ConfigureAwait(false);
+            }
+
+            // The commits go under the assignee's name when they've connected; otherwise they're asked (once) to.
+            if (onBehalf is not null)
+            {
+                item ??= await workItems.GetAsync(job.WorkItemId.Value, cancellationToken).ConfigureAwait(false);
+                var author = await onBehalf.CommitAuthorAsync(item?.AssignedToId, item?.AssignedTo, job.Id, cancellationToken).ConfigureAwait(false);
+                await worktrees.SetCommitAuthorAsync(worktree, author, cancellationToken).ConfigureAwait(false);
             }
 
             return new AgentRunRequest(job.Id, job.WorkItemId, worktree, session, prompt, resume, ReadOnly: job.PlanStatus == PlanStatus.Pending, Step: JobSteps.Of(job));

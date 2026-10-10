@@ -1,3 +1,4 @@
+using Agentd.Application.Ports;
 using Agentd.Domain.Jobs.ValueObjects;
 using Agentd.Infrastructure.Git;
 
@@ -20,6 +21,29 @@ public sealed class GitWorktreeManagerTests
         Assert.AreEqual("ai/1234-fix-login", GitSandbox.Run(worktree.Value, "rev-parse", "--abbrev-ref", "HEAD"));
         Assert.AreEqual(GitSandbox.Run(box.RemotePath, "rev-parse", "develop"), GitSandbox.Run(worktree.Value, "rev-parse", "HEAD"));
         StringAssert.EndsWith(worktree.Value, Path.Combine("worktrees", "sysmin", "wi-1234"));
+    }
+
+    [TestMethod]
+    public async Task Each_worktree_commits_as_its_own_author_and_null_goes_back_to_agentd()
+    {
+        using var box = new GitSandbox();
+        var mine = await box.Manager.CreateAsync(box.Repository, s_wi, s_branch, default);
+        var other = WorkItemId.From(99);
+        var theirs = await box.Manager.CreateAsync(box.Repository, other, BranchName.For(other, "other"), default);
+        var agentd = GitSandbox.Run(theirs.Value, "config", "user.name");
+
+        await box.Manager.SetCommitAuthorAsync(mine, new CommitAuthor("Dev One", "dev.one@example.com"), default);
+        GitSandbox.Run(mine.Value, "commit", "--allow-empty", "-m", "as the assignee");
+        GitSandbox.Run(theirs.Value, "commit", "--allow-empty", "-m", "as agentd");
+        var fetched = await box.Manager.ResolveCommitAsync(box.Repository, "develop", default);   // the clone still works as a bare repository
+
+        Assert.AreEqual("Dev One <dev.one@example.com>", GitSandbox.Run(mine.Value, "log", "-1", "--format=%an <%ae>"));
+        Assert.AreEqual(agentd, GitSandbox.Run(theirs.Value, "log", "-1", "--format=%an"), "other worktrees keep agentd's");
+        Assert.IsNotNull(fetched);
+
+        await box.Manager.SetCommitAuthorAsync(mine, null, default);
+        Assert.AreEqual(agentd, GitSandbox.Run(mine.Value, "config", "user.name"));
+        await box.Manager.SetCommitAuthorAsync(mine, null, default);   // already agentd's: no error
     }
 
     [TestMethod]

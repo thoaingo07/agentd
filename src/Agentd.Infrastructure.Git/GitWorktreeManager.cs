@@ -73,6 +73,21 @@ public sealed partial class GitWorktreeManager(GitCli git, IOptions<GitOptions> 
         }, cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task SetCommitAuthorAsync(WorktreePath worktree, CommitAuthor? author, CancellationToken cancellationToken)
+    {
+        var path = worktree.Value;
+        if (author is null)
+        {
+            // Exit code 5 is "wasn't set": already agentd's.
+            await git.RunAsync(path, ["config", "--worktree", "--unset", "user.name"], cancellationToken, throwOnError: false).ConfigureAwait(false);
+            await git.RunAsync(path, ["config", "--worktree", "--unset", "user.email"], cancellationToken, throwOnError: false).ConfigureAwait(false);
+            return;
+        }
+
+        await git.RunAsync(path, ["config", "--worktree", "user.name", author.Name], cancellationToken).ConfigureAwait(false);
+        await git.RunAsync(path, ["config", "--worktree", "user.email", author.Email], cancellationToken).ConfigureAwait(false);
+    }
+
     public async Task<bool> HasCommitsAheadAsync(Repository repository, WorktreePath worktree, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(repository);
@@ -329,8 +344,27 @@ public sealed partial class GitWorktreeManager(GitCli git, IOptions<GitOptions> 
             await git.RunAsync(clone, ["config", "user.email", options.Value.CommitEmail], ct).ConfigureAwait(false);
         }
 
+        await EnableWorktreeConfigAsync(clone, ct).ConfigureAwait(false);
         await git.RunAsync(clone, ["fetch", "--prune", "origin"], ct).ConfigureAwait(false);
         return clone;
+    }
+
+    /// <summary>
+    /// Lets each worktree have its own commit author (<see cref="SetCommitAuthorAsync"/>). With per-worktree config on,
+    /// <c>core.bare</c> must move to the clone's own <c>config.worktree</c>, or every worktree would think it's bare. The
+    /// order keeps running worktrees working at every step: bareness is detected anyway while it's unset.
+    /// </summary>
+    private async Task EnableWorktreeConfigAsync(string clone, CancellationToken ct)
+    {
+        var on = await git.RunAsync(clone, ["config", "--bool", "--get", "extensions.worktreeConfig"], ct, throwOnError: false).ConfigureAwait(false);
+        if (on.StandardOutput == "true")
+        {
+            return;
+        }
+
+        await git.RunAsync(clone, ["config", "--file", Path.Combine(clone, "config.worktree"), "core.bare", "true"], ct).ConfigureAwait(false);
+        await git.RunAsync(clone, ["config", "--unset", "core.bare"], ct, throwOnError: false).ConfigureAwait(false);
+        await git.RunAsync(clone, ["config", "extensions.worktreeConfig", "true"], ct).ConfigureAwait(false);
     }
 
     private async Task<T> WithRepoLockAsync<T>(Repository repository, Func<Task<T>> action, CancellationToken ct)

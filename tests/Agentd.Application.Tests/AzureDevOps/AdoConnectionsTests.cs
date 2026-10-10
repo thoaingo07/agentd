@@ -78,7 +78,78 @@ public sealed class AdoConnectionsTests
         Assert.IsEmpty(_store.Rows);
     }
 
+    [TestMethod]
+    public async Task A_pat_is_checked_with_azure_devops_then_stored_encrypted_with_the_commit_author()
+    {
+        var pats = new FakePats();
+
+        var result = await new AdoConnections(_delegation, _store, new FakeProtector(), pats).AddPatAsync("dev@example.com", "  the-PAT \n", " Dev O. ", "", default);
+
+        Assert.IsTrue(result.IsSuccess, result.Error?.Message);
+        Assert.AreEqual("the-PAT", pats.Checked.Single(), "trimmed");
+        var row = _store.Rows.Single();
+        Assert.AreEqual((AdoConnectionKind.Pat, "enc:the-PAT", "Dev O.", (string?)null), (row.Kind, Encoding.UTF8.GetString(row.RefreshToken), row.CommitName, row.CommitEmail));
+        Assert.AreEqual(new CommitAuthor("Dev O.", "dev.one@example.com"), result.Value.Author);
+    }
+
+    [TestMethod]
+    [DataRow(null, null, null, "Paste a personal access token")]
+    [DataRow("a b", null, null, "Paste a personal access token")]
+    [DataRow("pat", "Dev <x>", null, "git accepts")]
+    [DataRow("pat", null, "not-an-email", "git accepts")]
+    [DataRow("pat", "two\nlines", null, "one line")]
+    public async Task A_bad_pat_or_commit_author_stores_nothing(string? pat, string? name, string? email, string expected)
+    {
+        var pats = new FakePats();
+
+        var result = await new AdoConnections(_delegation, _store, new FakeProtector(), pats).AddPatAsync("dev@example.com", pat, name, email, default);
+
+        StringAssert.Contains(result.Error!.Message, expected);
+        Assert.IsEmpty(pats.Checked);
+        Assert.IsEmpty(_store.Rows);
+    }
+
+    [TestMethod]
+    public async Task A_pat_azure_devops_refuses_is_explained_and_not_stored()
+    {
+        var pats = new FakePats { Refusal = "Azure DevOps (myorg) didn't accept this token." };
+
+        var result = await new AdoConnections(_delegation, _store, new FakeProtector(), pats).AddPatAsync("dev@example.com", "expired", null, null, default);
+
+        StringAssert.Contains(result.Error!.Message, "didn't accept this token");
+        Assert.IsEmpty(_store.Rows);
+    }
+
+    [TestMethod]
+    public async Task The_commit_author_is_changed_only_on_your_own_connection_and_blank_goes_back_to_the_profile()
+    {
+        await _store.UpsertAsync(s_dev, "dev.one@example.com", "Dev One", "dev@example.com", [1], AdoConnectionKind.OAuth, default);
+
+        var other = await Service().SetCommitAuthorAsync("admin@example.com", s_dev, "X", "x@example.com", default);
+        var mine = await Service().SetCommitAuthorAsync("dev@example.com", s_dev, "Dev", "dev@work.example", default);
+        var reset = await Service().SetCommitAuthorAsync("dev@example.com", s_dev, " ", "", default);
+
+        Assert.AreEqual("not_found", other.Error!.Code);
+        Assert.AreEqual(new CommitAuthor("Dev", "dev@work.example"), mine.Value!.Author);
+        Assert.AreEqual(new CommitAuthor("Dev One", "dev.one@example.com"), reset.Value!.Author);
+    }
+
     private AdoConnections Service() => new(_delegation, _store, new FakeProtector());
+
+    private sealed class FakePats : IAdoPatCheck
+    {
+        public List<string> Checked { get; } = [];
+
+        public string? Refusal { get; set; }
+
+        public Task<DelegatedSignIn> WhoAsync(string pat, CancellationToken cancellationToken)
+        {
+            Checked.Add(pat);
+            return Refusal is null
+                ? Task.FromResult(new DelegatedSignIn(s_dev, "dev.one@example.com", "Dev One", pat))
+                : throw new InvalidOperationException(Refusal);
+        }
+    }
 
     internal sealed class FakeDelegation : IAdoDelegation
     {
@@ -135,11 +206,22 @@ public sealed class AdoConnectionsTests
     {
         public List<AdoUserConnection> Rows { get; } = [];
 
-        public Task UpsertAsync(Guid identityId, string uniqueName, string displayName, string webLogin, byte[] refreshToken, CancellationToken cancellationToken)
+        public Task UpsertAsync(Guid identityId, string uniqueName, string displayName, string webLogin, byte[] refreshToken, AdoConnectionKind kind, CancellationToken cancellationToken)
         {
             Rows.RemoveAll(r => r.IdentityId == identityId);
-            Rows.Add(new AdoUserConnection(identityId, uniqueName, displayName, webLogin, refreshToken, false, null, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch));
+            Rows.Add(new AdoUserConnection(identityId, uniqueName, displayName, webLogin, refreshToken, false, null, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, kind));
             return Task.CompletedTask;
+        }
+
+        public Task<bool> SetCommitAuthorAsync(Guid identityId, string webLogin, string? name, string? email, CancellationToken cancellationToken)
+        {
+            var i = Rows.FindIndex(r => r.IdentityId == identityId && r.WebLogin == webLogin);
+            if (i >= 0)
+            {
+                Rows[i] = Rows[i] with { CommitName = name, CommitEmail = email };
+            }
+
+            return Task.FromResult(i >= 0);
         }
 
         public Task<AdoUserConnection?> FindByIdentityAsync(Guid identityId, CancellationToken cancellationToken) => Task.FromResult(Rows.SingleOrDefault(r => r.IdentityId == identityId));

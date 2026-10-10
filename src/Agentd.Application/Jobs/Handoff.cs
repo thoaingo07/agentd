@@ -18,7 +18,9 @@ public sealed class StartHandoffHandler(
     IJobRepository jobs,
     IRepositoryRegistry repositories,
     IWorktreeManager worktrees,
-    IOptions<JobOptions> options) : ICommandHandler<StartHandoff, Unit>
+    IOptions<JobOptions> options,
+    IWorkItemSource? workItems = null,
+    AzureDevOps.AdoOnBehalf? onBehalf = null) : ICommandHandler<StartHandoff, Unit>
 {
     public async Task<Result<Unit>> Handle(StartHandoff command, CancellationToken cancellationToken)
     {
@@ -41,6 +43,13 @@ public sealed class StartHandoffHandler(
 
         var branch = BranchName.For(job.WorkItemId, "knowledge", options.Value.BranchPrefix);
         var worktree = await worktrees.RecreateAsync(repository, job.WorkItemId, branch, cancellationToken).ConfigureAwait(false);
+        if (onBehalf is not null && workItems is not null)
+        {
+            var item = await workItems.GetAsync(job.WorkItemId.Value, cancellationToken).ConfigureAwait(false);
+            var author = await onBehalf.CommitAuthorAsync(item?.AssignedToId, item?.AssignedTo, job.Id, cancellationToken).ConfigureAwait(false);
+            await worktrees.SetCommitAuthorAsync(worktree, author, cancellationToken).ConfigureAwait(false);
+        }
+
         var started = job.StartHandoff(branch, worktree);
         if (!started.IsSuccess)
         {
