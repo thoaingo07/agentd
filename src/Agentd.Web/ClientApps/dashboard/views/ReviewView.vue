@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { ApiError } from '../../shared/api/http'
-import type { ReviewSent } from '../../shared/api/types'
+import type { ReviewAsk, ReviewSent } from '../../shared/api/types'
 import { AgButton } from '../../shared/components/ui'
 import MarkdownText from '../../shared/components/MarkdownText.vue'
 import DiffFileReview from '../../shared/review/DiffFileReview.vue'
@@ -83,6 +83,27 @@ const followUp = (threadId: number) => act(async () => {
   if (!text) return
   await reviews.followUp(threadId, text)
   replies.value[threadId] = ''
+})
+
+const draft = (threadId: number) => act(() => reviews.draft(threadId))
+const failed = (answer: string) => answer.startsWith('⚠️')
+
+/** Answers being turned into comments at their thread's place: ask id → the text, edited before it's added. */
+const asComment = ref<Record<number, string>>({})
+const addFromAnswer = (root: ReviewAsk, askId: number) => act(async () => {
+  const text = asComment.value[askId]?.trim()
+  if (!text) return
+  await reviews.comment({ file: root.file, line: root.line, endLine: root.endLine, text })
+  delete asComment.value[askId]
+})
+
+/** What Post (or Copy) sends: the kept and edited findings, then the comments, each comment editable until then. */
+const toPost = computed(() => s.value?.findings.filter((f) => f.decision !== 'dropped') ?? [])
+const editing = ref<{ id: number; text: string } | null>(null)
+const saveEdit = () => act(async () => {
+  if (!editing.value?.text.trim()) return
+  await reviews.updateComment(editing.value.id, editing.value.text.trim())
+  editing.value = null
 })
 
 const where = (a: { file?: string | null; line?: number | null; endLine?: number | null }) =>
@@ -175,7 +196,7 @@ const where = (a: { file?: string | null; line?: number | null; endLine?: number
           >
             Copy as text
           </AgButton>
-          <span class="self-center text-xs text-muted">Sends the kept and edited findings and your comments.</span>
+          <span class="self-center text-xs text-muted">Sends what's under To post: {{ toPost.length }} finding(s) and {{ reviews.current?.comments.length ?? 0 }} comment(s).</span>
         </div>
         <p
           v-if="sent?.destination === 'pr' || (!sent && s.sentTo?.startsWith('pr:'))"
@@ -317,19 +338,68 @@ const where = (a: { file?: string | null; line?: number | null; endLine?: number
           <section
             aria-labelledby="comments-title"
             class="grid gap-2 text-sm"
+            data-testid="to-post"
           >
             <h2
               id="comments-title"
               class="font-semibold"
             >
-              Your comments · {{ reviews.current?.comments.length ?? 0 }}
+              To post · {{ toPost.length + (reviews.current?.comments.length ?? 0) }}
             </h2>
             <p
+              v-for="f in toPost"
+              :key="`f${f.number}`"
+            >
+              {{ f.severity === 'breaks' ? '🔴' : '🟠' }} <span class="font-mono text-xs">{{ where(f) }}</span> {{ f.decision === 'edited' ? f.edited : f.title }}
+            </p>
+            <div
               v-for="c in reviews.current?.comments ?? []"
               :key="c.id"
+              class="grid gap-1"
+              data-testid="draft-comment"
             >
-              💬 <span class="font-mono text-xs">{{ c.file ? `${c.file}:${c.line}` : 'the whole change' }}</span> {{ c.text }}
-            </p>
+              <template v-if="editing?.id === c.id">
+                <textarea
+                  v-model="editing.text"
+                  class="textarea w-full text-sm"
+                  rows="3"
+                  :aria-label="`Edit the comment on ${where(c)}`"
+                />
+                <div class="flex gap-2">
+                  <AgButton
+                    size="sm"
+                    @click="saveEdit()"
+                  >
+                    Save
+                  </AgButton>
+                  <AgButton
+                    size="sm"
+                    variant="ghost"
+                    @click="editing = null"
+                  >
+                    Cancel
+                  </AgButton>
+                </div>
+              </template>
+              <p v-else>
+                💬 <span class="font-mono text-xs">{{ where(c) }}</span> {{ c.text }}
+                <span
+                  v-if="!readonly"
+                  class="ml-1 inline-flex gap-1"
+                >
+                  <button
+                    type="button"
+                    class="link text-xs"
+                    @click="editing = { id: c.id, text: c.text }"
+                  >Edit</button>
+                  <button
+                    type="button"
+                    class="link text-xs"
+                    @click="act(() => reviews.removeComment(c.id))"
+                  >Remove</button>
+                </span>
+              </p>
+            </div>
             <template v-if="!readonly">
               <textarea
                 v-model="overall"
@@ -382,10 +452,44 @@ const where = (a: { file?: string | null; line?: number | null; endLine?: number
                 class="grid gap-1"
               >
                 <p><span class="text-xs text-muted">{{ a.author }}:</span> {{ a.question }}</p>
-                <MarkdownText
-                  v-if="a.answer"
-                  :text="a.answer"
-                />
+                <template v-if="a.answer">
+                  <MarkdownText :text="a.answer" />
+                  <div
+                    v-if="!readonly && asComment[a.id] != null"
+                    class="grid gap-1"
+                  >
+                    <textarea
+                      v-model="asComment[a.id]"
+                      class="textarea w-full text-sm"
+                      rows="4"
+                      :aria-label="`The comment on ${where(t.root)}`"
+                    />
+                    <div class="flex gap-2">
+                      <AgButton
+                        size="sm"
+                        @click="addFromAnswer(t.root, a.id)"
+                      >
+                        Add comment
+                      </AgButton>
+                      <AgButton
+                        size="sm"
+                        variant="ghost"
+                        @click="delete asComment[a.id]"
+                      >
+                        Cancel
+                      </AgButton>
+                    </div>
+                  </div>
+                  <div v-else-if="!readonly && !failed(a.answer)">
+                    <button
+                      type="button"
+                      class="link text-xs"
+                      @click="asComment[a.id] = a.answer"
+                    >
+                      Use as comment
+                    </button>
+                  </div>
+                </template>
                 <p
                   v-else
                   class="text-muted"
@@ -412,6 +516,14 @@ const where = (a: { file?: string | null; line?: number | null; endLine?: number
                   :disabled="t.asks.some((a) => a.answer == null)"
                 >
                   Ask
+                </AgButton>
+                <AgButton
+                  size="sm"
+                  variant="outline"
+                  :disabled="t.asks.some((a) => a.answer == null)"
+                  @click="draft(t.root.id)"
+                >
+                  Draft a comment
                 </AgButton>
               </form>
             </article>

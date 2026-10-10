@@ -43,6 +43,10 @@ public sealed class ReviewSessionStore(NpgsqlDataSource dataSource) : IReviewSes
         await ScalarAsync<bool>("SELECT agentd.review_comment_delete($1, $2, $3)", cancellationToken,
             P(sessionId, NpgsqlDbType.Bigint), P(commentId, NpgsqlDbType.Bigint), T(author)).ConfigureAwait(false);
 
+    public async Task<bool> UpdateCommentAsync(long sessionId, long commentId, string author, string text, CancellationToken cancellationToken) =>
+        await ScalarAsync<bool>("SELECT agentd.review_comment_update($1, $2, $3, $4)", cancellationToken,
+            P(sessionId, NpgsqlDbType.Bigint), P(commentId, NpgsqlDbType.Bigint), T(author), T(text)).ConfigureAwait(false);
+
     public async Task<IReadOnlyList<ReviewComment>> ListCommentsAsync(long sessionId, CancellationToken cancellationToken)
     {
         await using var cmd = dataSource.CreateCommand("SELECT id, file, line, end_line, text, author, created_at FROM agentd.review_comment_list($1)");

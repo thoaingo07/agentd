@@ -70,6 +70,29 @@ public sealed class ReviewSessionAsksTests
     }
 
     [TestMethod]
+    public async Task A_draft_asks_the_threads_agent_for_only_the_comment_at_the_threads_place()
+    {
+        var id = await SessionAsync();
+        _agent.Reply = new BrainstormReply("It pages by key.", null, null);
+        using var asks = Asks();
+        var first = (await asks.AskAsync(id, "src/Sync.cs", 41, 45, "why a loop here?", "dev@example.com", default)).Value!;
+        await asks.Answer(id, first);
+        _agent.Reply = new BrainstormReply("  Could this page by key instead of loading every row?  ", null, null);
+
+        var draft = (await asks.DraftAsync(id, first.Id, "dev@example.com", default)).Value!;
+        await asks.Answer(id, draft);
+        var missing = await asks.DraftAsync(id, 999, "dev@example.com", default);
+
+        Assert.AreEqual((ReviewSessionAsks.DraftQuestion, first.Id), (draft.Question, draft.ThreadId));
+        var turn = _agent.Turns[^1];
+        Assert.AreEqual((true, first.Id), (turn.Resume, turn.IdeaId));
+        StringAssert.StartsWith(turn.Prompt, "dev@example.com asks you to draft the comment they'll post on the pull request at src/Sync.cs:41-45");
+        StringAssert.Contains(turn.Prompt, "Reply with only the comment");
+        Assert.AreEqual("Could this page by key instead of loading every row?", (await _store.ListAsksAsync(id, default)).Single(a => a.Id == draft.Id).Answer);
+        Assert.AreEqual("not_found", missing.Error!.Code);
+    }
+
+    [TestMethod]
     public async Task A_follow_up_whose_session_is_gone_starts_over_with_the_conversation_so_far()
     {
         var id = await SessionAsync();

@@ -117,6 +117,9 @@ public interface IReviewSessionStore
     /// <summary>Only its author removes a comment; false otherwise.</summary>
     Task<bool> DeleteCommentAsync(long sessionId, long commentId, string author, CancellationToken cancellationToken);
 
+    /// <summary>Only its author rewords a comment; false otherwise.</summary>
+    Task<bool> UpdateCommentAsync(long sessionId, long commentId, string author, string text, CancellationToken cancellationToken);
+
     Task<IReadOnlyList<ReviewComment>> ListCommentsAsync(long sessionId, CancellationToken cancellationToken);
 
     /// <summary>

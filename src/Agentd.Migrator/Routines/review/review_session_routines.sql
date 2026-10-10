@@ -93,6 +93,17 @@ AS $$
     SELECT EXISTS (SELECT 1 FROM deleted)
 $$;
 
+-- Only its author rewords a comment (a draft until the review is sent).
+CREATE OR REPLACE FUNCTION agentd.review_comment_update(p_session_id bigint, p_id bigint, p_author text, p_text text)
+RETURNS boolean
+LANGUAGE sql
+AS $$
+    WITH updated AS (
+        UPDATE agentd.review_comments SET text = p_text WHERE session_id = p_session_id AND id = p_id AND author = p_author RETURNING 1
+    )
+    SELECT EXISTS (SELECT 1 FROM updated)
+$$;
+
 CREATE OR REPLACE FUNCTION agentd.review_comment_list(p_session_id bigint)
 RETURNS SETOF agentd.review_comments
 LANGUAGE sql STABLE
