@@ -50,6 +50,91 @@ public sealed class ArtifactServiceTests
     }
 
     [TestMethod]
+    public async Task With_s3_configured_the_page_goes_to_storage_and_the_row_keeps_the_metadata()
+    {
+        var blobs = new Blobs();
+        var service = new ArtifactService(_store, new Fakes.FakeClock(), S3Options(), blobs);
+
+        var published = (await service.PublishAsync("Sync report", "<p>sync</p>", ArtifactSources.Idea, 4, "idea #4", default)).Value!;
+        blobs.Failing = true;
+        var failed = await service.PublishAsync("Another", "<p>x</p>", ArtifactSources.Idea, 4, "idea #4", default);
+        var expired = await service.ExpireAsync(default);
+
+        Assert.AreEqual((ArtifactStorage.S3, (string?)null), (_store.Storages[0], _store.Published[0].Html), "no HTML in the row");
+        StringAssert.Contains(blobs.Objects[published.Name], "<body>\n<p>sync</p>\n</body>", "the whole document, under the row's name");
+        Assert.AreEqual("validation", failed.Error!.Code);
+        StringAssert.Contains(failed.Error.Message, "couldn't be uploaded");
+        Assert.AreEqual(3, expired);
+        CollectionAssert.AreEquivalent(new[] { "b-2", "c-3" }, blobs.Deleted, "only S3 pages have objects to delete");
+    }
+
+    [TestMethod]
+    public async Task Reading_an_s3_page_fetches_it_and_says_when_its_gone_or_expired()
+    {
+        var blobs = new Blobs();
+        blobs.Objects["sync-1"] = "<p>from r2</p>";
+        var service = new ArtifactService(_store, null, S3Options(), blobs);
+
+        _store.Page = new Artifact("sync-1", "Sync", null, "idea", 4, "idea #4", DateTimeOffset.UnixEpoch, null, ArtifactStorage.S3);
+        var live = await service.ReadAsync("sync-1", default);
+        _store.Page = _store.Page with { Name = "gone-2" };
+        var missing = await service.ReadAsync("gone-2", default);
+        _store.Page = _store.Page with { ExpiredAt = DateTimeOffset.UnixEpoch };
+        var expired = await service.ReadAsync("gone-2", default);
+        _store.Page = null;
+
+        Assert.AreEqual("<p>from r2</p>", live!.Html);
+        Assert.AreEqual((true, false), (missing!.Missing, missing.Expired));
+        Assert.AreEqual((true, (string?)null), (expired!.Expired, expired.Html));
+        Assert.IsNull(await service.ReadAsync("nope", default));
+    }
+
+    [TestMethod]
+    public async Task Without_s3_keys_pages_stay_in_the_database()
+    {
+        var options = S3Options();
+        options.Value.S3.SecretAccessKey = null;
+
+        await new ArtifactService(_store, null, options, new Blobs()).PublishAsync("Sync", "<p>x</p>", ArtifactSources.Job, 1, "job #1", default);
+
+        Assert.AreEqual(ArtifactStorage.Database, _store.Storages.Single());
+        StringAssert.Contains(_store.Published.Single().Html, "<p>x</p>");
+    }
+
+    private static Microsoft.Extensions.Options.IOptions<ArtifactOptions> S3Options() => Microsoft.Extensions.Options.Options.Create(new ArtifactOptions
+    {
+        S3 = new ArtifactS3Options { Url = "https://acct.r2.cloudflarestorage.com/agentd", AccessKeyId = "id", SecretAccessKey = "secret" },
+    });
+
+    private sealed class Blobs : IArtifactBlobs
+    {
+        public Dictionary<string, string> Objects { get; } = [];
+
+        public List<string> Deleted { get; } = [];
+
+        public bool Failing { get; set; }
+
+        public Task PutAsync(string name, string html, CancellationToken cancellationToken)
+        {
+            if (Failing)
+            {
+                throw new InvalidOperationException("R2 answered 403");
+            }
+
+            Objects[name] = html;
+            return Task.CompletedTask;
+        }
+
+        public Task<string?> GetAsync(string name, CancellationToken cancellationToken) => Task.FromResult(Objects.GetValueOrDefault(name));
+
+        public Task DeleteAsync(string name, CancellationToken cancellationToken)
+        {
+            Deleted.Add(name);
+            return Task.CompletedTask;
+        }
+    }
+
+    [TestMethod]
     [DataRow("Café — Crème & Co", "caf-crme-co")]
     [DataRow("!!!", "artifact")]
     [DataRow("A very long title that keeps going well past the forty-eight character limit", "a-very-long-title-that-keeps-going-well-past-the")]
@@ -59,22 +144,27 @@ public sealed class ArtifactServiceTests
     {
         public List<(string Name, string Title, string Html, long? Job)> Published { get; } = [];
 
-        public Task<PublishedArtifact> PublishAsync(string name, string title, string html, string source, long sourceId, string author, CancellationToken cancellationToken)
+        public List<string> Storages { get; } = [];
+
+        public Artifact? Page { get; set; }
+
+        public Task<PublishedArtifact> PublishAsync(string name, string title, string? html, string source, long sourceId, string author, string storage, CancellationToken cancellationToken)
         {
-            Published.Add((name, title, html, source == ArtifactSources.Job ? sourceId : null));
+            Published.Add((name, title, html!, source == ArtifactSources.Job ? sourceId : null));
+            Storages.Add(storage);
             return Task.FromResult(new PublishedArtifact(name, true));
         }
 
-        public Task<Artifact?> GetAsync(string name, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<Artifact?> GetAsync(string name, CancellationToken cancellationToken) => Task.FromResult(Page);
 
         public Task<IReadOnlyList<ArtifactSummary>> ListAsync(int limit, CancellationToken cancellationToken) => throw new NotSupportedException();
 
         public List<DateTimeOffset> Expired { get; } = [];
 
-        public Task<int> ExpireAsync(DateTimeOffset updatedBefore, CancellationToken cancellationToken)
+        public Task<IReadOnlyList<ExpiredArtifact>> ExpireAsync(DateTimeOffset updatedBefore, CancellationToken cancellationToken)
         {
             Expired.Add(updatedBefore);
-            return Task.FromResult(3);
+            return Task.FromResult<IReadOnlyList<ExpiredArtifact>>([new("a-1", ArtifactStorage.Database), new("b-2", ArtifactStorage.S3), new("c-3", ArtifactStorage.S3)]);
         }
     }
 }

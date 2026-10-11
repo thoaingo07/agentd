@@ -54,6 +54,20 @@ public sealed class ArtifactEndpointTests
         StringAssert.StartsWith(gone.Headers.GetValues("Content-Security-Policy").Single(), "sandbox ");
     }
 
+    private static readonly Artifact s_lost = new("lost-11223344", "Lost", null, "idea", 4, "idea #4", DateTimeOffset.UnixEpoch, null, ArtifactStorage.S3);
+
+    [TestMethod]
+    public async Task A_page_whose_object_is_gone_from_storage_says_so()
+    {
+        await using var app = await StartAsync();
+        using var client = app.GetTestClient();
+
+        using var lost = await client.GetAsync(new Uri("/artifacts/lost-11223344.html", UriKind.Relative));
+
+        Assert.AreEqual(HttpStatusCode.BadGateway, lost.StatusCode);
+        StringAssert.Contains(await lost.Content.ReadAsStringAsync(), "publish it again");
+    }
+
     [TestMethod]
     public async Task Artifacts_are_listed_with_their_links()
     {
@@ -81,6 +95,7 @@ public sealed class ArtifactEndpointTests
         builder.WebHost.UseTestServer();
         builder.Services.AddBff();
         builder.Services.AddSingleton<IArtifactStore>(new Store());
+        builder.Services.AddSingleton(sp => new ArtifactService(sp.GetRequiredService<IArtifactStore>()));
         var app = builder.Build();
         app.UseSecurityHeaders();
         app.UseAuthentication();
@@ -92,13 +107,13 @@ public sealed class ArtifactEndpointTests
 
     private sealed class Store : IArtifactStore
     {
-        public Task<PublishedArtifact> PublishAsync(string name, string title, string html, string source, long sourceId, string author, CancellationToken cancellationToken) =>
+        public Task<PublishedArtifact> PublishAsync(string name, string title, string? html, string source, long sourceId, string author, string storage, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
         public Task<Artifact?> GetAsync(string name, CancellationToken cancellationToken) =>
-            Task.FromResult(name == s_page.Name ? s_page : name == s_expired.Name ? s_expired : null);
+            Task.FromResult(name == s_page.Name ? s_page : name == s_expired.Name ? s_expired : name == s_lost.Name ? s_lost : null);
 
-        public Task<int> ExpireAsync(DateTimeOffset updatedBefore, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<IReadOnlyList<ExpiredArtifact>> ExpireAsync(DateTimeOffset updatedBefore, CancellationToken cancellationToken) => throw new NotSupportedException();
 
         public Task<IReadOnlyList<ArtifactSummary>> ListAsync(int limit, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<ArtifactSummary>>([new(s_page.Name, s_page.Title, s_page.Source, s_page.SourceId, s_page.Author, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch)]);

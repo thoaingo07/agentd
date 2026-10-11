@@ -237,7 +237,7 @@ internal sealed class McpTestHost : IAsyncDisposable
     {
         public ConcurrentQueue<(string Name, string Title, string Source, long SourceId, string Author)> Published { get; } = new();
 
-        public Task<PublishedArtifact> PublishAsync(string name, string title, string html, string source, long sourceId, string author, CancellationToken cancellationToken)
+        public Task<PublishedArtifact> PublishAsync(string name, string title, string? html, string source, long sourceId, string author, string storage, CancellationToken cancellationToken)
         {
             Published.Enqueue((name, title, source, sourceId, author));
             return Task.FromResult(new PublishedArtifact(name, true));
@@ -247,6 +247,6 @@ internal sealed class McpTestHost : IAsyncDisposable
 
         public Task<IReadOnlyList<ArtifactSummary>> ListAsync(int limit, CancellationToken cancellationToken) => throw new NotSupportedException();
 
-        public Task<int> ExpireAsync(DateTimeOffset updatedBefore, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<IReadOnlyList<ExpiredArtifact>> ExpireAsync(DateTimeOffset updatedBefore, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 }
