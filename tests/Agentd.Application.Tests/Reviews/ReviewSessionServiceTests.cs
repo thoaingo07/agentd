@@ -27,6 +27,25 @@ public sealed class ReviewSessionServiceTests
     }
 
     [TestMethod]
+    public async Task A_review_can_be_started_with_its_own_model_effort_focus_and_instructions()
+    {
+        Branch("feature/keyset", head: "h1", baseTip: "d9", mergeBase: "m1");
+
+        var session = (await Service().StartAsync(new StartReview("sysmin", Branch: "feature/keyset", Model: "sonnet", Effort: "LOW", Focus: " security, tests ",
+            Instructions: "the paging change matters most"), "dev@example.com", default)).Value!;
+        var badModel = await Service().StartAsync(new StartReview("sysmin", Branch: "feature/keyset", Model: "gpt 4!"), "dev@example.com", default);
+        var longFocus = await Service().StartAsync(new StartReview("sysmin", Branch: "feature/keyset", Focus: new string('f', 201)), "dev@example.com", default);
+
+        Assert.AreEqual(("sonnet", "low"), (session.Model, session.Effort), "over the review step's defaults");
+        Assert.AreEqual(("security, tests", "the paging change matters most"), _store.Briefs[session.Id]);
+        Assert.AreEqual(("validation", "validation"), (badModel.Error!.Code, longFocus.Error!.Code));
+        var prompt = ReviewSessionReviewer.Prompt(session with { Focus = "security, tests", Instructions = "the paging change matters most" }, "sysmin");
+        StringAssert.Contains(prompt, "Focus on: security, tests.");
+        StringAssert.EndsWith(prompt, "Instructions from dev@example.com: the paging change matters most");
+        Assert.DoesNotContain("Focus on", ReviewSessionReviewer.Prompt(session, "sysmin"), "nothing asked: nothing added");
+    }
+
+    [TestMethod]
     public async Task A_pr_is_pinned_at_its_head_against_its_target()
     {
         _t.PullRequests.Details[3944] = new PullRequestDetails(3944, "Deploy", null, "Dev", "ai/5617-deploy", "develop", "c0ffee1234", PullRequestStatus.Active, false, new Uri("https://x/pr/3944"));
@@ -121,6 +140,14 @@ public sealed class ReviewSessionServiceTests
 
         public Task<IReadOnlyList<ReviewSession>> ListByStatusAsync(string status, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<ReviewSession>>([.. Sessions.Values.Where(s => s.Status == status).OrderBy(s => s.Id)]);
+
+        public Task SetBriefAsync(long id, string? focus, string? instructions, CancellationToken cancellationToken)
+        {
+            Briefs[id] = (focus, instructions);
+            return Task.CompletedTask;
+        }
+
+        public Dictionary<long, (string? Focus, string? Instructions)> Briefs { get; } = [];
 
         public Task PinAsync(long id, string baseCommit, string headCommit, string? worktree, CancellationToken cancellationToken)
         {

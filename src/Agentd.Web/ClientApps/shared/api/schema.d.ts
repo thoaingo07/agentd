@@ -1060,6 +1060,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/setup/repositories/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["RemoveSetupRepository"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/setup/repositories/test": {
         parameters: {
             query?: never;
@@ -1946,6 +1962,14 @@ export interface components {
             base: null | string;
             /** @description …to this commit. */
             head: null | string;
+            /** @description The reviewer's model; none = the review step's default. */
+            model?: null | string;
+            /** @description low, medium, high, xhigh or max; none = the default. */
+            effort?: null | string;
+            /** @description What to look at most, e.g. "security, tests". */
+            focus?: null | string;
+            /** @description Anything else for the reviewer. */
+            instructions?: null | string;
         };
         /** @description A step's "Test" result; string? StepCheckVm.Fix says what to do when it failed. */
         StepCheckVm: {
@@ -4542,6 +4566,35 @@ export interface operations {
             };
             /** @description Conflict */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    RemoveSetupRepository: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

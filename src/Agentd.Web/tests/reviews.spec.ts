@@ -111,9 +111,24 @@ describe('reviews', () => {
     await view.get('form').trigger('submit')
     await flushPromises()
 
-    expect(calls.find((c) => c.method === 'POST')?.body).toEqual({ repo: 'sysmin', pullRequestId: null, branch: 'feature/keyset', base: 'release/1.2', head: null })
+    expect(calls.find((c) => c.method === 'POST')?.body).toEqual({ repo: 'sysmin', pullRequestId: null, branch: 'feature/keyset', base: 'release/1.2', head: null,
+      model: null, effort: null, focus: null, instructions: null })
     expect(r.currentRoute.value.fullPath).toBe('/reviews/9')
     expect(view.text()).toContain('feature/keyset')
+  })
+
+  it('starts a review with its own model, effort, focus and instructions, like !review', async () => {
+    const view = mount(ReviewsView, { global: { plugins: [router()] } })
+    await flushPromises()
+    await view.get('input[placeholder="feature/keyset-chunks"]').setValue('feature/keyset')
+    await view.get('select[aria-label="Reviewer model"]').setValue('opus')
+    await view.get('select[aria-label="Reviewer effort"]').setValue('max')
+    await view.get('input[aria-label="Focus"]').setValue(' security, tests ')
+    await view.get('textarea[aria-label="Instructions for the reviewer"]').setValue('the paging change matters most')
+    await view.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(calls.find((c) => c.method === 'POST')?.body).toMatchObject({ branch: 'feature/keyset', model: 'opus', effort: 'max', focus: 'security, tests', instructions: 'the paging change matters most' })
   })
 
   it('lists the open pull requests, keeps them fresh, and reviews one', async () => {

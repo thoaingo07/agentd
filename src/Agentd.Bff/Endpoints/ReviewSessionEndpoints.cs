@@ -16,7 +16,8 @@ public static class ReviewSessionEndpoints
         var reviews = api.MapGroup("/reviews");
 
         reviews.MapPost("/", async (StartReviewRequest? body, ClaimsPrincipal user, [FromServices] ReviewSessionService service, CancellationToken ct) =>
-            (await service.StartAsync(new StartReview(body?.Repo ?? string.Empty, body?.PullRequestId, body?.Branch, body?.Base, body?.Head), AdoConnectEndpoints.Login(user), ct).ConfigureAwait(false))
+            (await service.StartAsync(new StartReview(body?.Repo ?? string.Empty, body?.PullRequestId, body?.Branch, body?.Base, body?.Head,
+                body?.Model, body?.Effort, body?.Focus, body?.Instructions), AdoConnectEndpoints.Login(user), ct).ConfigureAwait(false))
                 .ToHttpResult(s => TypedResults.Created($"/api/reviews/{s.Id}", ReviewSessionVm.From(s))))
             .WithName("StartReview").Produces<ReviewSessionVm>(StatusCodes.Status201Created).ProducesProblem(StatusCodes.Status400BadRequest).ProducesProblem(StatusCodes.Status404NotFound);
 
@@ -87,7 +88,12 @@ public static class ReviewSessionEndpoints
     /// <param name="Branch">…or this branch (against its base, or <paramref name="Base"/>)…</param>
     /// <param name="Base">…or from this commit (with <paramref name="Head"/>); for a branch, what it's compared with.</param>
     /// <param name="Head">…to this commit.</param>
-    public sealed record StartReviewRequest(string? Repo, int? PullRequestId, string? Branch, string? Base, string? Head);
+    /// <param name="Model">The reviewer's model; none = the review step's default.</param>
+    /// <param name="Effort">low, medium, high, xhigh or max; none = the default.</param>
+    /// <param name="Focus">What to look at most, e.g. "security, tests".</param>
+    /// <param name="Instructions">Anything else for the reviewer.</param>
+    public sealed record StartReviewRequest(string? Repo, int? PullRequestId, string? Branch, string? Base, string? Head,
+        string? Model = null, string? Effort = null, string? Focus = null, string? Instructions = null);
 
     /// <param name="Decision">kept, dropped or edited.</param>
     /// <param name="Text">The new text, for edited.</param>

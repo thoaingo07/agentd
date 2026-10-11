@@ -69,10 +69,13 @@ public sealed record SessionFinding(
 /// <param name="SentTo">Where Send delivered it.</param>
 /// <param name="CreatedAt">When it started.</param>
 /// <param name="UpdatedAt">Last change.</param>
+/// <param name="Focus">What the reviewer should look at most (e.g. "security, tests"), as started.</param>
+/// <param name="Instructions">Anything else the person asked the reviewer, as started.</param>
 public sealed record ReviewSession(
     long Id, string Repository, string Target, int? PullRequestId, string? HeadRef, string? BaseRef, string? BaseCommit, string? HeadCommit,
     string Status, string? Error, string? Model, string? Effort, string? Summary, IReadOnlyList<SessionFinding> Findings,
-    long? PullRequestReviewId, string? Worktree, string CreatedBy, string? SentTo, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
+    long? PullRequestReviewId, string? Worktree, string CreatedBy, string? SentTo, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt,
+    string? Focus = null, string? Instructions = null);
 
 /// <summary>A person's note on a file and lines (no file: the whole change).</summary>
 public sealed record ReviewComment(long Id, string? File, int? Line, int? EndLine, string Text, string Author, DateTimeOffset CreatedAt);
@@ -98,6 +101,9 @@ public interface IReviewSessionStore
     Task<IReadOnlyList<ReviewSession>> ListByStatusAsync(string status, CancellationToken cancellationToken);
 
     Task PinAsync(long id, string baseCommit, string headCommit, string? worktree, CancellationToken cancellationToken);
+
+    /// <summary>The focus and instructions the review was started with.</summary>
+    Task SetBriefAsync(long id, string? focus, string? instructions, CancellationToken cancellationToken);
 
     /// <param name="id">The session.</param>
     /// <param name="status">One of <see cref="ReviewSessionStatus"/>.</param>

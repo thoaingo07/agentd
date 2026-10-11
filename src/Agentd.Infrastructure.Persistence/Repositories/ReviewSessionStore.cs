@@ -35,6 +35,9 @@ public sealed class ReviewSessionStore(NpgsqlDataSource dataSource) : IReviewSes
         await ScalarAsync<bool>("SELECT agentd.review_session_decide($1, $2, $3, $4)", cancellationToken,
             P(id, NpgsqlDbType.Bigint), P(index, NpgsqlDbType.Integer), T(decision), T(edited)).ConfigureAwait(false);
 
+    public Task SetBriefAsync(long id, string? focus, string? instructions, CancellationToken cancellationToken) =>
+        ExecuteAsync("SELECT agentd.review_session_set_brief($1, $2, $3)", cancellationToken, P(id, NpgsqlDbType.Bigint), T(focus), T(instructions));
+
     public async Task<long> AddCommentAsync(long sessionId, string? file, int? line, int? endLine, string text, string author, CancellationToken cancellationToken) =>
         await ScalarAsync<long>("SELECT agentd.review_comment_add($1, $2, $3, $4, $5, $6)", cancellationToken,
             P(sessionId, NpgsqlDbType.Bigint), T(file), P(line, NpgsqlDbType.Integer), P(endLine, NpgsqlDbType.Integer), T(text), T(author)).ConfigureAwait(false);
@@ -103,7 +106,7 @@ public sealed class ReviewSessionStore(NpgsqlDataSource dataSource) : IReviewSes
                 S("model"), S("effort"), S("summary"),
                 JsonSerializer.Deserialize<List<SessionFinding>>(r.GetString(r.GetOrdinal("findings"))) ?? [],
                 r.IsDBNull(prReview) ? null : r.GetInt64(prReview), S("worktree_path"), r.GetString(r.GetOrdinal("created_by")), S("sent_to"),
-                r.GetFieldValue<DateTimeOffset>(r.GetOrdinal("created_at")), r.GetFieldValue<DateTimeOffset>(r.GetOrdinal("updated_at"))));
+                r.GetFieldValue<DateTimeOffset>(r.GetOrdinal("created_at")), r.GetFieldValue<DateTimeOffset>(r.GetOrdinal("updated_at")), S("focus"), S("instructions")));
         }
 
         return rows;

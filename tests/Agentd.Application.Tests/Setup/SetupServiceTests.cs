@@ -357,6 +357,30 @@ public sealed class SetupServiceTests
     }
 
     [TestMethod]
+    public async Task Removing_a_repository_moves_the_later_ones_up_and_leaves_nothing_behind()
+    {
+        _config.Values["Repositories:Items:0:Url"] = "git@ssh.dev.azure.com:v3/ermsystem/Portal/alpha";
+        _config.Values["Repositories:Items:0:Name"] = "alpha";
+        _config.Values["Repositories:Items:1:Url"] = "git@ssh.dev.azure.com:v3/ermsystem/Portal/beta";   // no name: its Azure DevOps name
+        _config.Values["Repositories:Items:1:MatchAreaPaths:0"] = "Portal\\Beta";
+        _config.Values["Repositories:Items:1:MatchAreaPaths:1"] = "Portal\\Beta2";
+        _config.Values["Repositories:Items:2:Url"] = RepoUrl;
+        _config.Values["Repositories:Items:2:Name"] = "sysmin";
+        _config.Values["Repositories:Items:2:MatchAreaPaths:0"] = "Portal\\Sysmin";
+
+        var removed = await Service().RemoveRepositoryAsync("BETA", "admin", CancellationToken.None);
+        var unknown = await Service().RemoveRepositoryAsync("nope", "admin", CancellationToken.None);
+
+        Assert.AreEqual((true, false), (removed, unknown));
+        var left = Service().GetRepositories();
+        CollectionAssert.AreEqual(new[] { "alpha", "sysmin" }, left.Select(r => r.Name).ToArray());
+        CollectionAssert.AreEqual(new[] { "Portal\\Sysmin" }, left[1].MatchAreaPaths.ToList(), "moved up with its own area paths only");
+        Assert.IsNull(_config.Values["Repositories:Items:2:Url"]);
+        Assert.IsNull(_config.Values["Repositories:Items:1:MatchAreaPaths:1"], "the removed one's extra area path doesn't stick to the next");
+        Assert.AreEqual(("Repositories:Items:1", "removed"), (_audit.Changes.Single().Key, _audit.Changes.Single().Action));
+    }
+
+    [TestMethod]
     public async Task Area_paths_replace_the_default_tag()
     {
         var result = await Service().AddRepositoryAsync(new RepositoryInput(RepoUrl, "sys", "main", null, ["Portal\\Sysmin", " ", "portal\\sysmin"]), "setup", CancellationToken.None);

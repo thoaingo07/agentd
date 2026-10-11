@@ -304,6 +304,23 @@ describe('steps', () => {
     expect(useSetupStore().restartRequired).toBe(true)
   })
 
+  it('repositories: removes one after confirming, by its name or its URL\'s last part', async () => {
+    routes['GET /api/setup/repositories'] = json([{ url: 'git@ssh.dev.azure.com:v3/myorg/Portal/beta', name: null, baseBranch: 'develop', matchTag: null, matchAreaPaths: [] }])
+    routes['DELETE /api/setup/repositories/beta'] = () => new Response(null, { status: 204 })
+    const confirm = vi.fn(() => true)
+    vi.stubGlobal('confirm', confirm)
+    const step = mount(RepositoriesStep, { global: { plugins: [router()] } })
+    await flushPromises()
+
+    routes['GET /api/setup/repositories'] = json([])
+    await step.get('button[aria-label="Remove beta"]').trigger('click')
+    await flushPromises()
+
+    expect(confirm).toHaveBeenCalledOnce()
+    expect(calls.some((c) => c.method === 'DELETE' && c.path === '/api/setup/repositories/beta')).toBe(true)
+    expect(step.text()).toContain('No repositories yet.')
+  })
+
   it('review: a failing required check blocks Finish; once it passes, Finish says to restart', async () => {
     const step = mount(ReviewStep, { global: { plugins: [router()] } })
     await flushPromises()

@@ -12,7 +12,17 @@ namespace Agentd.Application.Reviews;
 /// What to review (docs/architect/review-sessions.md §3): a PR, a branch (against its base, or <see cref="Base"/>),
 /// or two commits (<see cref="Base"/> and <see cref="Head"/>). Exactly one of them.
 /// </summary>
-public sealed record StartReview(string Repository, int? PullRequestId = null, string? Branch = null, string? Base = null, string? Head = null);
+/// <param name="Repository">A registered repository.</param>
+/// <param name="PullRequestId">Review this PR…</param>
+/// <param name="Branch">…or this branch (against its base, or <paramref name="Base"/>)…</param>
+/// <param name="Base">…or from this commit (with <paramref name="Head"/>); for a branch, what it's compared with.</param>
+/// <param name="Head">…to this commit.</param>
+/// <param name="Model">The reviewer's model (fable, opus, sonnet or a full name); none = the review step's default.</param>
+/// <param name="Effort">low … max; none = the review step's default.</param>
+/// <param name="Focus">What to look at most, e.g. "security, tests" (like <c>!review --focus</c>).</param>
+/// <param name="Instructions">Anything else for the reviewer (like <c>!review</c>'s free text).</param>
+public sealed record StartReview(string Repository, int? PullRequestId = null, string? Branch = null, string? Base = null, string? Head = null,
+    string? Model = null, string? Effort = null, string? Focus = null, string? Instructions = null);
 
 /// <summary>A session with its comments and questions, as the page shows it.</summary>
 public sealed record ReviewSessionView(ReviewSession Session, IReadOnlyList<ReviewComment> Comments, IReadOnlyList<ReviewAsk> Asks);
@@ -44,6 +54,16 @@ public sealed class ReviewSessionService(
             return DomainError.Validation("Say what to review: a PR, a branch, or two commits (base and head).");
         }
 
+        if ((Blank(request.Model) is { } m && !Ideas.BrainstormSettings.IsModel(m)) || (Blank(request.Effort) is { } e && !Ideas.BrainstormSettings.IsEffort(e)))
+        {
+            return DomainError.Validation($"Use a model name (fable, opus, sonnet or a full name) and an effort level ({string.Join(", ", Ideas.BrainstormSettings.Efforts)}).");
+        }
+
+        if ((request.Focus?.Length ?? 0) > 200 || (request.Instructions?.Length ?? 0) > MaxText)
+        {
+            return DomainError.Validation($"Keep the focus under 200 characters and the instructions under {MaxText}.");
+        }
+
         if (RepositoryName.Create(request.Repository ?? string.Empty) is not { IsSuccess: true } name
             || await repositories.GetAsync(name.Value, cancellationToken).ConfigureAwait(false) is not { } repo)
         {
@@ -60,8 +80,12 @@ public sealed class ReviewSessionService(
         var (target, headRef, baseRef, baseCommit, headCommit) = pinned.Value;
         var defaults = jobs?.Value.Steps.TryGetValue(JobSteps.Review, out var step) == true ? step : null;
         var id = await store.InsertAsync(repo.Name.Value, target, request.PullRequestId, headRef, baseRef, createdBy,
-            Blank(defaults?.Model), Blank(defaults?.Effort)?.ToLowerInvariant(), cancellationToken).ConfigureAwait(false);
+            Blank(request.Model) ?? Blank(defaults?.Model), (Blank(request.Effort) ?? Blank(defaults?.Effort))?.ToLowerInvariant(), cancellationToken).ConfigureAwait(false);
         await store.PinAsync(id, baseCommit, headCommit, null, cancellationToken).ConfigureAwait(false);
+        if ((Blank(request.Focus) ?? Blank(request.Instructions)) is not null)
+        {
+            await store.SetBriefAsync(id, Blank(request.Focus), Blank(request.Instructions), cancellationToken).ConfigureAwait(false);
+        }
         if (reviewer is null)
         {
             // No reviewer here: the change is ready to read and comment on as it is.
