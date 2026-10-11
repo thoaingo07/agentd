@@ -5,7 +5,7 @@ internal sealed class SecretsConfigurationSource(ConfigHome home, TextWriter? wa
 {
     public IConfigurationProvider Build(IConfigurationBuilder builder) => new Provider(home, warnings ?? Console.Error);
 
-    private sealed class Provider(ConfigHome home, TextWriter warnings) : ConfigurationProvider
+    internal sealed class Provider(ConfigHome home, TextWriter warnings) : ConfigurationProvider
     {
         public override void Load()
         {

@@ -27,6 +27,8 @@ internal sealed class AgentdJsonFile(ConfigHome home, IConfiguration? configurat
         return configuration?[$"{Options.AgentdOptions.Section}:{key}"];
     }
 
+    public string? OverriddenBy(string key) => ConfigurationLayers.OverriddenBy(configuration, $"{Options.AgentdOptions.Section}:{key}", secret: false);
+
     public IReadOnlyList<string> Children(string section)
     {
         ArgumentNullException.ThrowIfNull(section);

@@ -3,13 +3,29 @@ namespace Agentd.Bff.ViewModels;
 /// <summary>The setup session (the one-time link's cookie): when it ends unless used again (it slides).</summary>
 public sealed record SetupSessionVm(DateTimeOffset? ExpiresAt);
 
-/// <summary>A secret's status. Secrets are write-only: the value never leaves the server.</summary>
-public sealed record SecretStatusVm(bool Set, DateTimeOffset? UpdatedAt, string? UpdatedBy)
+/// <summary>
+/// A secret's status. Secrets are write-only: the value never leaves the server. <c>overriddenBy</c> names what supplies it
+/// over the secret store (e.g. "Key Vault (my-vault.vault.azure.net)"): change it there, since saving here changes nothing.
+/// </summary>
+public sealed record SecretStatusVm(bool Set, DateTimeOffset? UpdatedAt, string? UpdatedBy, string? OverriddenBy = null)
 {
     public static SecretStatusVm From(Application.Setup.SecretStatus s)
     {
         ArgumentNullException.ThrowIfNull(s);
-        return new(s.Set, s.UpdatedAt, s.UpdatedBy);
+        return new(s.Set, s.UpdatedAt, s.UpdatedBy, s.OverriddenBy);
+    }
+}
+
+/// <summary>
+/// Where artifacts are stored: the S3 API URL (none: the database) and the public domain links use; the keys as statuses.
+/// <c>urlOverriddenBy</c> / <c>publicUrlOverriddenBy</c> name what supplies a value over agentd.json.
+/// </summary>
+public sealed record ArtifactStorageStepVm(string? Url, string? PublicUrl, string? UrlOverriddenBy, string? PublicUrlOverriddenBy, SecretStatusVm AccessKeyId, SecretStatusVm SecretAccessKey)
+{
+    public static ArtifactStorageStepVm From(Application.Setup.ArtifactStorageStep s)
+    {
+        ArgumentNullException.ThrowIfNull(s);
+        return new(s.Url, s.PublicUrl, s.UrlOverriddenBy, s.PublicUrlOverriddenBy, SecretStatusVm.From(s.AccessKeyId), SecretStatusVm.From(s.SecretAccessKey));
     }
 }
 

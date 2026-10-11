@@ -68,8 +68,11 @@ internal sealed class KeyVaultConfigurationSource(SecretClient client, string? p
         return name.Length == 0 ? null : SecretStore.ConfigKey(name.Replace("--", ":", StringComparison.Ordinal));
     }
 
-    private sealed class Provider(SecretClient client, string? prefix, string vault, TextWriter warnings) : ConfigurationProvider
+    internal sealed class Provider(SecretClient client, string? prefix, string vault, TextWriter warnings) : ConfigurationProvider
     {
+        /// <summary>The vault's host name, as Settings names it.</summary>
+        public string Vault => vault;
+
         public override void Load()
         {
             var data = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);

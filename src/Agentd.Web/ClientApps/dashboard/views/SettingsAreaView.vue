@@ -11,22 +11,7 @@ const current = computed(() => settingsAreas.find((a) => a.name === props.area))
 </script>
 
 <template>
-  <section class="mx-auto grid max-w-3xl gap-4">
-    <nav
-      aria-label="Breadcrumb"
-      class="breadcrumbs text-sm"
-    >
-      <ul>
-        <li>
-          <RouterLink :to="{ name: 'settings' }">
-            Settings
-          </RouterLink>
-        </li>
-        <li aria-current="page">
-          {{ current?.title ?? area }}
-        </li>
-      </ul>
-    </nav>
+  <section class="grid max-w-3xl gap-4">
     <h1 class="sr-only">
       {{ current?.title ?? 'Settings' }}
     </h1>

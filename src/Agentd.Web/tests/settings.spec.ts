@@ -5,12 +5,13 @@ import { createMemoryHistory, createRouter } from 'vue-router'
 import { setAntiforgeryUrl } from '../ClientApps/shared/api/http'
 import { useSessionStore } from '../ClientApps/dashboard/stores/session'
 import SettingsAreaView from '../ClientApps/dashboard/views/SettingsAreaView.vue'
-import SettingsView from '../ClientApps/dashboard/views/SettingsView.vue'
+import SettingsLayout from '../ClientApps/dashboard/components/SettingsLayout.vue'
 import AdoConnectionPanel from '../ClientApps/dashboard/components/AdoConnectionPanel.vue'
 
 let paths: string[]
 let adoConnections: object[]
 let bodies: Record<string, unknown>
+let storage: object
 const json = (body: unknown) => new Response(JSON.stringify(body))
 const router = () => createRouter({
   history: createMemoryHistory(),
@@ -26,6 +27,11 @@ beforeEach(() => {
   setAntiforgeryUrl('/bff/antiforgery')
   paths = []
   bodies = {}
+  storage = {
+    url: 'https://acct.r2.cloudflarestorage.com/agentd', publicUrl: null, urlOverriddenBy: null, publicUrlOverriddenBy: 'an environment variable or the command line',
+    accessKeyId: { set: true, updatedAt: null, updatedBy: 'environment', overriddenBy: 'Key Vault (agentd-prd.vault.azure.net)' },
+    secretAccessKey: { set: false, updatedAt: null, updatedBy: null, overriddenBy: null },
+  }
   adoConnections = [{ identityId: 'aaaa', uniqueName: 'dev@example.com', displayName: 'Dev One', failed: false, lastError: null, connectedAt: '2026-10-09T10:00:00Z', kind: 'OAuth', commitName: null, commitEmail: null, authorName: 'Dev One', authorEmail: 'dev@example.com' }]
   vi.stubGlobal('fetch', vi.fn(async (req: Request) => {
     const path = new URL(req.url).pathname
@@ -43,6 +49,9 @@ beforeEach(() => {
       adoConnections = []
       return new Response(null, { status: 204 })
     }
+    if (path === '/api/settings/artifact-storage' && req.method === 'GET') return json(storage)
+    if (path === '/api/settings/artifact-storage') return json({ restartRequired: true })
+    if (path === '/api/settings/artifact-storage/test') return json({ ok: true, message: 'Uploaded, read back and deleted a test page.', fix: null })
     if (path === '/api/settings/database') return json({ connectionString: { set: true, updatedAt: '2026-10-07T10:00:00Z', updatedBy: 'local' } })
     return new Response(JSON.stringify({ title: 'Not found' }), { status: 404 })
   }))
@@ -68,16 +77,51 @@ describe('Settings', () => {
     expect(view.findAll('button').some((b) => b.text() === 'Finish setup')).toBe(false)
   })
 
-  it('only Admins see the configuration links', async () => {
+  it('only Admins see the vertical menu of configuration pages', async () => {
     const session = useSessionStore()
     session.user = { name: 'dev@example.com', roles: ['User'], provider: 'cloudflare' }
-    const view = mount(SettingsView, { global: { plugins: [router()] } })
+    const view = mount(SettingsLayout, { global: { plugins: [router()] } })
     await flushPromises()
     expect(view.text()).not.toContain('Configuration')
 
     session.user = { name: 'local', roles: ['Admin'], provider: 'local' }
     await flushPromises()
-    expect(view.findAll('a').map((a) => a.text())).toEqual(expect.arrayContaining(['Health', 'Database', 'Azure DevOps', 'Models', 'Repositories', 'System log']))
+    const menu = view.get('nav[aria-label=Settings] ul.menu')
+    expect(menu.findAll('a').map((a) => a.text())).toEqual(['General', 'Health', 'Database', 'Azure DevOps', 'Git access', 'Claude', 'Models', 'Chat', 'Repositories', 'Artifacts', 'System log'])
+  })
+
+  it('an area page has the vertical menu with its own entry current', async () => {
+    useSessionStore().user = { name: 'local', roles: ['Admin'], provider: 'local' }
+    const r = router()
+    await r.push('/settings/database')
+    const view = mount(SettingsLayout, { global: { plugins: [r] } })
+    await flushPromises()
+
+    const current = view.get('nav[aria-label=Settings] a[aria-current=page]')
+    expect([current.text(), current.classes()]).toEqual(['Database', expect.arrayContaining(['menu-active'])])
+  })
+
+  it('Artifacts: shows the storage, what overrides it, and saves and tests without echoing keys', async () => {
+    const view = mount(SettingsAreaView, { props: { area: 'artifacts' }, global: { plugins: [router()] } })
+    await flushPromises()
+
+    expect((view.get('input[type=url]').element as HTMLInputElement).value).toBe('https://acct.r2.cloudflarestorage.com/agentd')
+    expect(view.text()).toContain("From an environment variable or the command line: saving here doesn't change it.")
+    expect(view.get('[data-testid=overridden]').text()).toBe('from Key Vault (agentd-prd.vault.azure.net): change it there')
+    expect(view.findAll('button').filter((b) => b.text() === 'Replace')).toHaveLength(0)
+
+    await view.findAll('input[type=url]')[1]!.setValue(' https://agentd.thoaingo.com ')
+    await view.get('input[type=password]').setValue('the-secret')
+    await view.findAll('button').find((b) => b.text() === 'Test connection')!.trigger('click')
+    await flushPromises()
+    expect(view.text()).toContain('Uploaded, read back and deleted a test page.')
+    await view.findAll('button').find((b) => b.text() === 'Save')!.trigger('click')
+    await flushPromises()
+
+    const body = { url: 'https://acct.r2.cloudflarestorage.com/agentd', publicUrl: 'https://agentd.thoaingo.com', accessKeyId: null, secretAccessKey: 'the-secret' }
+    expect([bodies['POST /api/settings/artifact-storage/test'], bodies['PUT /api/settings/artifact-storage']]).toEqual([body, body])
+    expect((view.get('input[type=password]').element as HTMLInputElement).value).toBe('')
+    expect(view.text()).toContain('agentd daemon restart')
   })
 
   it('your Azure DevOps: shows the result of the sign-in, who you are connected as, and disconnects', async () => {

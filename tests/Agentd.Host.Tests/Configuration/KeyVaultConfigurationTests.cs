@@ -50,6 +50,13 @@ public sealed class KeyVaultConfigurationTests : IDisposable
             Assert.AreEqual("from-env", config["Agentd:KeyVaultTest:Overridden"], "an AGENTD_ variable beats the vault");
             Assert.AreEqual("Host=vault-db", config.GetConnectionString("agentd"));
             Assert.IsNull(config["Agentd:Old:Secret"], "disabled secrets are skipped");
+
+            // Settings names what wins over the secret store or agentd.json (saving there would change nothing).
+            Assert.AreEqual("Key Vault (my-vault.vault.azure.net)", new StoredSecrets(new SecretStore(_home), config).Status("AzureDevOps:Pat").OverriddenBy);
+            Assert.AreEqual("an environment variable or the command line", ConfigurationLayers.OverriddenBy(config, "Agentd:KeyVaultTest:Overridden", secret: true));
+            Assert.IsNull(ConfigurationLayers.OverriddenBy(config, "Agentd:KeyVault:Uri", secret: false), "agentd.json's own value");
+            Assert.IsNull(ConfigurationLayers.OverriddenBy(config, "Agentd:Old:Secret", secret: true), "nothing set: nothing overrides");
+            Assert.IsNull(new AgentdJsonFile(_home, config).OverriddenBy("KeyVault:Uri"));
         }
         finally
         {
