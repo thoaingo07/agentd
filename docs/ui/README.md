@@ -306,8 +306,9 @@ after the chat thread is deleted, because the history lives in agentd's database
   items are proposed, **✅ Create / 🚀 Create and start / ✏️ Change / 🗑 Discard** are sent as messages, like chat's
   buttons; the two that create work items are confirmed first. Model and effort apply from the next reply
   (`PUT /api/ideas/{id}/settings`). An idea without a thread has no close-out question: it gives back its checkout.
-- **List:** status badge (Brainstorming, Proposed, Created, Discarded, Closed), repo, author, message
-  and draft counts, and links to the created work items.
+- **List:** one card per idea, newest first (no table, so it works on a phone): `#id` and title (the link), the status
+  badge (Brainstorming, Proposed, Created, Discarded, Closed), then repo · author · drafts · messages · how long ago
+  (the exact time on hover), and the created work items as chips linking to them.
 - **Idea:** model and effort, the latest drafts (stories with their tasks and estimates), the created
   work items, and the conversation, including agentd's own notices (discarded, created, …). The agent's
   replies are Markdown (`MarkdownText`); people's messages are plain text. "thinking…" shows while the agent

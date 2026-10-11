@@ -4,7 +4,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { defineComponent, h } from 'vue'
 import type { AgentEvent } from '../ClientApps/shared/api/types'
 import { renderMarkdown, safeUrl } from '../ClientApps/shared/utils/markdown-lite'
-import { duration, humanize } from '../ClientApps/shared/utils/format'
+import { ago, duration, humanize } from '../ClientApps/shared/utils/format'
 import { toRows, toolSummary } from '../ClientApps/dashboard/components/session/transcript'
 import EventList from '../ClientApps/dashboard/components/session/EventList.vue'
 import ToolCallCard from '../ClientApps/dashboard/components/session/ToolCallCard.vue'
@@ -187,6 +187,15 @@ describe('EventList', () => {
     expect(loadEarlier).toHaveBeenCalled()
     expect(s.top()).toBe(650)
     w.unmount()
+  })
+})
+
+describe('ago', () => {
+  it('says how long ago, then the date after a week', () => {
+    const now = Date.parse('2026-10-27T12:00:00Z')
+    expect(['2026-10-27T11:59:40Z', '2026-10-27T11:55:00Z', '2026-10-27T10:00:00Z', '2026-10-26T09:00:00Z', '2026-10-24T12:00:00Z'].map((t) => ago(t, now)))
+      .toEqual(['just now', '5 min ago', '2h ago', 'yesterday', '3d ago'])
+    expect(ago('2026-10-01T12:00:00Z', now)).toBe(new Date('2026-10-01T12:00:00Z').toLocaleDateString())
   })
 })
 

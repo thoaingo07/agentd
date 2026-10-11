@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ApiError } from '../../shared/api/http'
 import { AgButton } from '../../shared/components/ui'
+import { ago } from '../../shared/utils/format'
 import IdeaStatusBadge from '../components/IdeaStatusBadge.vue'
 import { useConfigStore } from '../stores/config'
 import { ideaEfforts, ideaModels, useIdeasStore } from '../stores/ideas'
@@ -135,62 +136,49 @@ async function start(): Promise<void> {
     >
       No ideas yet. Start one above, or in the chat channel with <code class="font-mono">!idea</code>.
     </p>
-    <div
+    <ul
       v-else
-      class="overflow-x-auto rounded-box border border-base-300"
+      class="grid gap-2"
+      aria-label="Ideas"
     >
-      <table class="table table-sm">
-        <thead>
-          <tr>
-            <th>Idea</th><th>Status</th><th class="hidden md:table-cell">
-              Repo
-            </th><th class="hidden sm:table-cell">
-              By
-            </th><th>Work items</th><th class="hidden lg:table-cell text-right">
-              Updated
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr
-            v-for="idea in ideas.list"
-            :key="idea.id"
-            class="hover:bg-base-200"
-            data-testid="idea-row"
+      <li
+        v-for="idea in ideas.list"
+        :key="idea.id"
+        class="grid gap-1 rounded-box border border-base-300 p-3 text-sm transition-colors hover:bg-base-200"
+        data-testid="idea-row"
+      >
+        <p class="flex items-start gap-2">
+          <RouterLink
+            :to="{ name: 'idea', params: { id: idea.id } }"
+            class="link link-hover min-w-0 flex-1 font-medium"
           >
-            <td class="max-w-80">
-              <RouterLink
-                :to="{ name: 'idea', params: { id: idea.id } }"
-                class="link link-hover"
-              >
-                <span class="font-mono text-[13px] text-muted">#{{ idea.id }}</span> {{ idea.title }}
-              </RouterLink>
-              <span class="block text-xs text-muted">{{ idea.messages }} messages<span v-if="idea.drafts"> · {{ idea.drafts }} drafts</span></span>
-            </td>
-            <td><IdeaStatusBadge :status="idea.status" /></td>
-            <td class="hidden md:table-cell">
-              {{ idea.repo }}
-            </td>
-            <td class="hidden sm:table-cell">
-              {{ idea.author }}
-            </td>
-            <td class="whitespace-nowrap">
-              <RouterLink
-                v-for="wi in idea.createdWorkItems"
-                :key="wi"
-                :to="{ name: 'work-item', params: { id: wi } }"
-                class="link mr-2 font-mono text-[13px]"
-              >
-                WI-{{ wi }}
-              </RouterLink>
-              <span v-if="idea.createdWorkItems.length === 0">—</span>
-            </td>
-            <td class="hidden whitespace-nowrap text-right text-muted lg:table-cell">
-              {{ new Date(idea.updatedAt).toLocaleString() }}
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+            <span class="font-mono text-[13px] font-normal text-muted">#{{ idea.id }}</span> {{ idea.title }}
+          </RouterLink>
+          <IdeaStatusBadge :status="idea.status" />
+        </p>
+        <p class="text-xs text-muted">
+          {{ idea.repo }} · {{ idea.author }}<template v-if="idea.drafts">
+            · {{ idea.drafts }} drafts
+          </template> · {{ idea.messages }} messages ·
+          <time
+            :datetime="idea.updatedAt"
+            :title="new Date(idea.updatedAt).toLocaleString()"
+          >{{ ago(idea.updatedAt) }}</time>
+        </p>
+        <p
+          v-if="idea.createdWorkItems.length"
+          class="flex flex-wrap gap-1"
+        >
+          <RouterLink
+            v-for="wi in idea.createdWorkItems"
+            :key="wi"
+            :to="{ name: 'work-item', params: { id: wi } }"
+            class="badge badge-outline badge-sm font-mono hover:badge-primary"
+          >
+            WI-{{ wi }}
+          </RouterLink>
+        </p>
+      </li>
+    </ul>
   </section>
 </template>
