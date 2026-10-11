@@ -76,7 +76,8 @@ Discord ("in chat").
 
 ## Artifacts
 
-Ask an agent in a job or in `!chat` to "publish an artifact" (a report, a diagram, an explainer) and it becomes a page
+Ask any agent (a job, `!chat`, an idea, a review, a review page's question) to "publish an artifact" (a report, a
+diagram, an explainer) and it publishes it straight away as a page
 at `/artifacts/<name>.html`; the agent replies with the link. **Artifacts** lists every page, newest first, with the
 job or chat that made it. Publishing again with the same title updates the page and keeps its link. A page expires
 30 days after its last update (`Artifacts:RetentionDays`); its link then says so. Anyone who can

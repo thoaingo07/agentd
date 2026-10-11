@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Agentd.Application.Artifacts;
 using Agentd.Application.Ideas;
 using Agentd.Application.Messaging;
 using Agentd.Application.Ports;
@@ -17,7 +18,8 @@ public sealed partial class JobFollowUps(
     IWorktreeManager worktrees,
     IBrainstormAgent agent,
     IOutbox outbox,
-    ILogger<JobFollowUps> logger) : IDisposable
+    ILogger<JobFollowUps> logger,
+    IMcpTokenIssuer? tokens = null) : IDisposable
 {
     private readonly ConcurrentDictionary<long, SemaphoreSlim> _turns = new();
 
@@ -57,7 +59,7 @@ public sealed partial class JobFollowUps(
                 ? w.Value
                 : await worktrees.CheckoutDetachedAsync(repo, $"wi-{job.WorkItemId}", CancellationToken.None).ConfigureAwait(false);
             var prompt = $"(agentd) The pull request {job.PullRequest} is merged and this job is finished. {author} writes in the thread:\n\n{text}";
-            var reply = await agent.RunAsync(new BrainstormTurn(job.Id.Value, worktree, job.Session!.Value.Value, Resume: true, prompt, Kind: ThreadTurnKind.FollowUp),
+            var reply = await ArtifactTurn.RunAsync(agent, tokens, ArtifactSources.Job, job.Id.Value, new BrainstormTurn(job.Id.Value, worktree, job.Session!.Value.Value, Resume: true, prompt, Kind: ThreadTurnKind.FollowUp),
                 CancellationToken.None).ConfigureAwait(false);
             var answer = reply.Text
                 ?? (reply.UsageLimitedUntil is { } until

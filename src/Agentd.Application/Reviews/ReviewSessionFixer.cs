@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Globalization;
 using System.Text;
+using Agentd.Application.Artifacts;
 using Agentd.Application.AzureDevOps;
 using Agentd.Application.Ideas;
 using Agentd.Application.Ports;
@@ -25,7 +26,8 @@ public sealed partial class ReviewSessionFixer(
     ReviewSessionService sessions,
     AdoOnBehalf? onBehalf = null,
     AdoActor? actor = null,
-    ILogger<ReviewSessionFixer>? logger = null) : IDisposable
+    ILogger<ReviewSessionFixer>? logger = null,
+    IMcpTokenIssuer? tokens = null) : IDisposable
 {
     public const string Running = "fix:running";
     public const string NoChange = "fix:nochange";
@@ -77,7 +79,7 @@ public sealed partial class ReviewSessionFixer(
             path = await worktrees.CheckoutCommitAsync(repo, $"review-fix-{id}", head, ct).ConfigureAwait(false);
             var comments = await store.ListCommentsAsync(id, ct).ConfigureAwait(false);
             var feedback = ReviewFeedback.Render($"{session.BaseRef}", session.Summary, session.Findings, comments);
-            var reply = await agent.RunAsync(new BrainstormTurn(id, path, Guid.NewGuid(), false, Prompt(branch, feedback), session.Model, session.Effort, ThreadTurnKind.ReviewFix), ct)
+            var reply = await ArtifactTurn.RunAsync(agent, tokens, ArtifactSources.ReviewSession, id, new BrainstormTurn(id, path, Guid.NewGuid(), false, Prompt(branch, feedback), session.Model, session.Effort, ThreadTurnKind.ReviewFix), ct)
                 .ConfigureAwait(false);
             if (reply.UsageLimitedUntil is { } until || reply.Text is null)
             {

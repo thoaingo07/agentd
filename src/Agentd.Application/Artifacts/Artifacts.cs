@@ -6,11 +6,31 @@ using Microsoft.Extensions.Options;
 
 namespace Agentd.Application.Artifacts;
 
+/// <summary>What published an artifact: any agent turn (see docs/architect/artifacts.md §1).</summary>
+public static class ArtifactSources
+{
+    public const string Job = "job";
+    public const string Chat = "chat";
+    public const string Idea = "idea";
+
+    /// <summary>A PR review's thread (<c>!review</c>).</summary>
+    public const string Review = "review";
+
+    /// <summary>A review page (its reviewer, its questions, Fix it).</summary>
+    public const string ReviewSession = "review-session";
+
+    /// <summary>A watched PR's fix round.</summary>
+    public const string Watch = "watch";
+
+    /// <summary>Not an agent (seeding, tests).</summary>
+    public const string Web = "web";
+}
+
 /// <summary>An artifact without its HTML, as the Web UI lists it. Its page is <c>/artifacts/{Name}.html</c>.</summary>
-public sealed record ArtifactSummary(string Name, string Title, long? JobId, long? ChatId, string Author, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
+public sealed record ArtifactSummary(string Name, string Title, string Source, long SourceId, string Author, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
 
 /// <summary>A published page; an expired one has no <see cref="Html"/> (its link says it expired).</summary>
-public sealed record Artifact(string Name, string Title, string? Html, long? JobId, long? ChatId, string Author, DateTimeOffset UpdatedAt, DateTimeOffset? ExpiredAt = null);
+public sealed record Artifact(string Name, string Title, string? Html, string Source, long SourceId, string Author, DateTimeOffset UpdatedAt, DateTimeOffset? ExpiredAt = null);
 
 /// <summary><c>Agentd:Artifacts</c>.</summary>
 public sealed class ArtifactOptions
@@ -31,7 +51,7 @@ public sealed record PublishedArtifact(string Name, bool Created)
 public interface IArtifactStore
 {
     /// <summary>Publishes as <paramref name="name"/>, or replaces the same source's page with this title (keeping its name).</summary>
-    Task<PublishedArtifact> PublishAsync(string name, string title, string html, long? jobId, long? chatId, string author, CancellationToken cancellationToken);
+    Task<PublishedArtifact> PublishAsync(string name, string title, string html, string source, long sourceId, string author, CancellationToken cancellationToken);
 
     Task<Artifact?> GetAsync(string name, CancellationToken cancellationToken);
 
@@ -53,7 +73,13 @@ public sealed class ArtifactService(IArtifactStore store, IClock? clock = null, 
     /// <summary>2 MB of HTML: plenty for a report with inline SVG, small enough for the database and the browser.</summary>
     public const int MaxHtml = 2 * 1024 * 1024;
 
-    public async Task<Result<PublishedArtifact>> PublishAsync(string title, string html, long? jobId, long? chatId, string author, CancellationToken ct)
+    /// <param name="title">The page's title (also names its link).</param>
+    /// <param name="html">A whole document or a body fragment.</param>
+    /// <param name="source">One of <see cref="ArtifactSources"/>.</param>
+    /// <param name="sourceId">The job's, chat's, idea's, … id.</param>
+    /// <param name="author">Who published it, as shown (e.g. "job #12").</param>
+    /// <param name="ct">Cancels it.</param>
+    public async Task<Result<PublishedArtifact>> PublishAsync(string title, string html, string source, long sourceId, string author, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(title) || title.Trim().Length > MaxTitle)
         {
@@ -66,7 +92,7 @@ public sealed class ArtifactService(IArtifactStore store, IClock? clock = null, 
         }
 
         var name = $"{Slug(title)}-{Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(4))}";
-        return await store.PublishAsync(name, title.Trim(), Document(title.Trim(), html), jobId, chatId, author, ct).ConfigureAwait(false);
+        return await store.PublishAsync(name, title.Trim(), Document(title.Trim(), html), source, sourceId, author, ct).ConfigureAwait(false);
     }
 
     /// <summary>

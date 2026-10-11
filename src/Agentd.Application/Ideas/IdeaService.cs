@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Globalization;
+using Agentd.Application.Artifacts;
 using Agentd.Application.Messaging;
 using Agentd.Application.Ports;
 using Agentd.Domain.Common;
@@ -23,7 +24,8 @@ public sealed partial class IdeaService(
     IBrainstormAgent agent,
     IMessagingProviderRegistry providers,
     ILogger<IdeaService> logger,
-    IWorkItemSource? workItems = null) : IDisposable
+    IWorkItemSource? workItems = null,
+    IMcpTokenIssuer? tokens = null) : IDisposable
 {
     public const int MaxConcurrentIdeas = 2;
     public const int TitleLength = 60;
@@ -257,7 +259,7 @@ public sealed partial class IdeaService(
         }
 
         var session = idea.Session ?? Guid.NewGuid();
-        var reply = await agent.RunAsync(new BrainstormTurn(idea.Id, worktree, session, idea.Session is not null, prompt, idea.Model, idea.Effort), ct).ConfigureAwait(false);
+        var reply = await ArtifactTurn.RunAsync(agent, tokens, ArtifactSources.Idea, idea.Id, new BrainstormTurn(idea.Id, worktree, session, idea.Session is not null, prompt, idea.Model, idea.Effort), ct).ConfigureAwait(false);
         idea = idea with { Session = session, Worktree = worktree };
 
         if (reply.UsageLimitedUntil is { } until || reply.Text is null)

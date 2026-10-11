@@ -3776,8 +3776,8 @@
           "name",
           "title",
           "url",
-          "jobId",
-          "chatId",
+          "source",
+          "sourceId",
           "author",
           "createdAt",
           "updatedAt"
@@ -3793,18 +3793,11 @@
           "url": {
             "type": "string"
           },
-          "jobId": {
-            "type": [
-              "null",
-              "integer"
-            ],
-            "format": "int64"
+          "source": {
+            "type": "string"
           },
-          "chatId": {
-            "type": [
-              "null",
-              "integer"
-            ],
+          "sourceId": {
+            "type": "integer",
             "format": "int64"
           },
           "author": {
@@ -3819,7 +3812,7 @@
             "format": "date-time"
           }
         },
-        "description": "An artifact: open \u0060url\u0060 (a page of its own); \u0060jobId\u0060 / \u0060chatId\u0060 say which agent published it."
+        "description": "An artifact: open \u0060url\u0060 (a page of its own); \u0060source\u0060 (job, chat, idea, review, review-session, watch, web) and \u0060sourceId\u0060 say which agent published it."
       },
       "AzureDevOpsRequest": {
         "required": [

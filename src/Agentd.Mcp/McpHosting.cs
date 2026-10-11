@@ -37,7 +37,8 @@ public static class McpHosting
                 .RequireClaim(McpJobAuthenticationHandler.ChatIdClaim))
             .AddPolicy(AgentPolicy, p => p
                 .AddAuthenticationSchemes(McpJobAuthenticationHandler.SchemeName)
-                .RequireAssertion(c => c.User.HasClaim(x => x.Type is McpJobAuthenticationHandler.JobIdClaim or McpJobAuthenticationHandler.ChatIdClaim)));
+                .RequireAssertion(c => c.User.HasClaim(x => x.Type is McpJobAuthenticationHandler.JobIdClaim or McpJobAuthenticationHandler.ChatIdClaim
+                    or McpJobAuthenticationHandler.ArtifactSourceClaim)));
         services.AddMcpServer()
             .WithHttpTransport(o => o.SessionMode = HttpServerSessionMode.Stateless)
             .AddAuthorizationFilters()

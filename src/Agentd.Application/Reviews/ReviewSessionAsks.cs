@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Agentd.Application.Artifacts;
 using Agentd.Application.Ideas;
 using Agentd.Application.Ports;
 using Agentd.Domain.Common;
@@ -11,7 +12,8 @@ namespace Agentd.Application.Reviews;
 /// answered in the background from the review's read-only checkout. The page shows "thinking…" until the answer is in.
 /// Each question starts a thread; follow-ups resume the thread's agent session, so the agent keeps the conversation.
 /// </summary>
-public sealed class ReviewSessionAsks(IReviewSessionStore store, IRepositoryRegistry repositories, IWorktreeManager worktrees, IBrainstormAgent agent) : IDisposable
+public sealed class ReviewSessionAsks(IReviewSessionStore store, IRepositoryRegistry repositories, IWorktreeManager worktrees, IBrainstormAgent agent,
+    IMcpTokenIssuer? tokens = null) : IDisposable
 {
     public const int MaxQuestion = 2000;
 
@@ -134,18 +136,18 @@ public sealed class ReviewSessionAsks(IReviewSessionStore store, IRepositoryRegi
             BrainstormReply reply;
             if (ask.ThreadId is null)
             {
-                reply = await agent.RunAsync(Turn(root.AgentSession ?? Guid.NewGuid(), false, Prompt(session, ask)), CancellationToken.None).ConfigureAwait(false);
+                reply = await ArtifactTurn.RunAsync(agent, tokens, ArtifactSources.ReviewSession, sessionId, Turn(root.AgentSession ?? Guid.NewGuid(), false, Prompt(session, ask)), CancellationToken.None).ConfigureAwait(false);
             }
             else
             {
                 reply = root.AgentSession is { } previous
-                    ? await agent.RunAsync(Turn(previous, true, FollowUp(root, ask)), CancellationToken.None).ConfigureAwait(false)
+                    ? await ArtifactTurn.RunAsync(agent, tokens, ArtifactSources.ReviewSession, sessionId, Turn(previous, true, FollowUp(root, ask)), CancellationToken.None).ConfigureAwait(false)
                     : new BrainstormReply(null, null, "no session");
                 if (reply is { Text: null, UsageLimitedUntil: null })
                 {
                     // The session can't be resumed (it never started, or it's gone): start over with the conversation so far.
                     var fresh = Guid.NewGuid();
-                    reply = await agent.RunAsync(Turn(fresh, false, Prompt(session, root, thread.Where(a => a.Id < ask.Id).ToList(), ask)), CancellationToken.None).ConfigureAwait(false);
+                    reply = await ArtifactTurn.RunAsync(agent, tokens, ArtifactSources.ReviewSession, sessionId, Turn(fresh, false, Prompt(session, root, thread.Where(a => a.Id < ask.Id).ToList(), ask)), CancellationToken.None).ConfigureAwait(false);
                     if (reply.Text is not null)
                     {
                         await store.SetAskSessionAsync(root.Id, fresh, CancellationToken.None).ConfigureAwait(false);

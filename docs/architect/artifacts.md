@@ -8,20 +8,26 @@ it in the browser at **`/artifacts/<slug>-<hash>.html`** and find every page und
 
 ## 1. Publishing
 
-- **Tool:** `publish_artifact(title, html)` on agentd's MCP server (`ArtifactTools`), for **jobs** and **`!chat`**
-  sessions (any agent token, `McpHosting.AgentPolicy`). The source (the job or the chat) comes from the bearer token,
-  never from an argument. Ideas and review Asks have no MCP server yet, so they can't publish.
+- **Tool:** `publish_artifact(title, html)` on agentd's MCP server (`ArtifactTools`), for **every agent** (decided
+  2026-10-10): jobs and `!chat` with their own tokens, and every other turn (ideas, `!review` threads, a review page's
+  reviewer, its questions and Fix it, follow-ups after the merge, a watched PR's fix rounds) with an **artifact-only
+  token** (`IMcpTokenIssuer.IssueArtifacts`, run through `ArtifactTurn`): issued for the turn, revoked when it ends,
+  several alive at once for parallel turns of one source, and it lists and calls nothing but `publish_artifact`. The
+  source (`job`, `chat`, `idea`, `review`, `review-session`, `watch`) and its id come from the bearer token, never from
+  an argument.
+- **When asked, just publish:** every agent's instructions (jobs' `SystemPromptRules`, threads' `ArtifactRule`) say to
+  publish an artifact right away when someone asks for one, without asking first, and to reply with the link.
 - **HTML:** a whole document, or only the body (agentd wraps it in a minimal page with the title). Up to 2 MB.
 - **Name:** a slug of the title (lower-case ASCII words and dashes, at most 48 characters) plus 8 random hex digits, so
-  links can't be guessed. Publishing **again with the same title from the same job or chat** replaces the page and keeps
-  its name (`ux_artifacts_source_title`, `NULLS NOT DISTINCT`); parallel publishes of one title make one page.
+  links can't be guessed. Publishing **again with the same title from the same source** replaces the page and keeps
+  its name (`ux_artifacts_source_title` on source, source id and title); parallel publishes of one title make one page.
 - **Reply:** the link (`Agentd:Web:PublicOrigin` + the path), to share in chat or the PR.
 - A job's page is announced on its event stream (`artifact.published`, name and title only): the transcript shows
   "Artifact published: <title>" with a link.
 
 ## 2. Storage
 
-`agentd.artifacts` (name, title, html, job_id or chat_id, author, created/updated, expired_at), through
+`agentd.artifacts` (name, title, html, source and source_id, author, created/updated, expired_at), through
 `artifact_publish`, `artifact_get`, `artifact_list` (live pages, newest first, without the HTML) and `artifact_expire`.
 The HTML is kept in the database on purpose: when the Web UI is hosted apart from the daemon (e.g. in the cloud), the
 database is what both share, so the web serves pages without the daemon's disk.
@@ -50,6 +56,5 @@ same link. Expired pages aren't listed.
 
 ## 4. Later
 
-- Ideas and review Asks publishing (they need an MCP token like `!chat`'s).
 - A **Keep** toggle that exempts a page from expiry, if links in PRs need to outlive the retention.
 - Viewers by email domain (e.g. `*@ermsystem.com`) and a read-only role; today, whoever can sign in sees everything.

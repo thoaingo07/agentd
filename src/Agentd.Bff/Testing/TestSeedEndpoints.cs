@@ -66,7 +66,7 @@ public static class TestSeedEndpoints
 
         // An artifact, as if an agent had published it.
         test.MapPost("/artifacts", async (SeedArtifact body, [FromServices] Application.Artifacts.ArtifactService artifacts, CancellationToken ct) =>
-            (await artifacts.PublishAsync(body.Title, body.Html, null, null, "e2e", ct).ConfigureAwait(false)) is { IsSuccess: true } published
+            (await artifacts.PublishAsync(body.Title, body.Html, Application.Artifacts.ArtifactSources.Web, 0, "e2e", ct).ConfigureAwait(false)) is { IsSuccess: true } published
                 ? Results.Ok(new { url = published.Value.Path })
                 : Results.BadRequest());
 

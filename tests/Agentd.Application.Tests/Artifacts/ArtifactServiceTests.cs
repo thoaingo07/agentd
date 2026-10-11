@@ -10,7 +10,7 @@ public sealed class ArtifactServiceTests
     [TestMethod]
     public async Task A_fragment_becomes_a_page_named_after_its_title_with_a_random_hash()
     {
-        var published = (await new ArtifactService(_store).PublishAsync("  Sync job: how a run pages through tables ", "<h1>Sync</h1>", 12, null, "job #12", default)).Value!;
+        var published = (await new ArtifactService(_store).PublishAsync("  Sync job: how a run pages through tables ", "<h1>Sync</h1>", "job", 12, "job #12", default)).Value!;
 
         var (name, title, html, job) = _store.Published.Single();
         StringAssert.Matches(name, new System.Text.RegularExpressions.Regex("^sync-job-how-a-run-pages-through-tables-[0-9a-f]{8}$"));
@@ -26,11 +26,11 @@ public sealed class ArtifactServiceTests
         var service = new ArtifactService(_store);
         const string doc = "<!DOCTYPE html><HTML><body>x</body></HTML>";
 
-        await service.PublishAsync("Report", doc, null, 3, "chat #3", default);
-        var noTitle = await service.PublishAsync(" ", "<p>x</p>", null, 3, "chat #3", default);
-        var longTitle = await service.PublishAsync(new string('t', ArtifactService.MaxTitle + 1), "<p>x</p>", null, 3, "chat #3", default);
-        var empty = await service.PublishAsync("Report", " ", null, 3, "chat #3", default);
-        var huge = await service.PublishAsync("Report", new string('x', ArtifactService.MaxHtml + 1), null, 3, "chat #3", default);
+        await service.PublishAsync("Report", doc, "chat", 3, "chat #3", default);
+        var noTitle = await service.PublishAsync(" ", "<p>x</p>", "chat", 3, "chat #3", default);
+        var longTitle = await service.PublishAsync(new string('t', ArtifactService.MaxTitle + 1), "<p>x</p>", "chat", 3, "chat #3", default);
+        var empty = await service.PublishAsync("Report", " ", "chat", 3, "chat #3", default);
+        var huge = await service.PublishAsync("Report", new string('x', ArtifactService.MaxHtml + 1), "chat", 3, "chat #3", default);
 
         Assert.AreEqual(doc, _store.Published.Single().Html);
         Assert.IsTrue(new[] { noTitle, longTitle, empty, huge }.All(r => r.Error!.Code == "validation"));
@@ -59,9 +59,9 @@ public sealed class ArtifactServiceTests
     {
         public List<(string Name, string Title, string Html, long? Job)> Published { get; } = [];
 
-        public Task<PublishedArtifact> PublishAsync(string name, string title, string html, long? jobId, long? chatId, string author, CancellationToken cancellationToken)
+        public Task<PublishedArtifact> PublishAsync(string name, string title, string html, string source, long sourceId, string author, CancellationToken cancellationToken)
         {
-            Published.Add((name, title, html, jobId));
+            Published.Add((name, title, html, source == ArtifactSources.Job ? sourceId : null));
             return Task.FromResult(new PublishedArtifact(name, true));
         }
 

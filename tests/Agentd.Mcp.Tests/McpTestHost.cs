@@ -235,11 +235,11 @@ internal sealed class McpTestHost : IAsyncDisposable
 
     public sealed class MemoryArtifacts : IArtifactStore
     {
-        public ConcurrentQueue<(string Name, string Title, long? JobId, long? ChatId, string Author)> Published { get; } = new();
+        public ConcurrentQueue<(string Name, string Title, string Source, long SourceId, string Author)> Published { get; } = new();
 
-        public Task<PublishedArtifact> PublishAsync(string name, string title, string html, long? jobId, long? chatId, string author, CancellationToken cancellationToken)
+        public Task<PublishedArtifact> PublishAsync(string name, string title, string html, string source, long sourceId, string author, CancellationToken cancellationToken)
         {
-            Published.Enqueue((name, title, jobId, chatId, author));
+            Published.Enqueue((name, title, source, sourceId, author));
             return Task.FromResult(new PublishedArtifact(name, true));
         }
 

@@ -94,6 +94,11 @@ public sealed class ClaudeBrainstormAgent(IOptions<ClaudeOptions> options) : IBr
         "instead of guessing. Keep answers short (under ~250 words) unless asked for detail, in the developer's language. When " +
         "something should become work, suggest `!idea <text>` (to shape work items) or `!run <work item id>`.";
 
+    /// <summary>Every turn with agentd's MCP tools can publish artifacts (docs/architect/artifacts.md).</summary>
+    public const string ArtifactRule =
+        " When someone asks for an artifact (a page, report, diagram or explainer to share), publish it with agentd's `publish_artifact` tool right away, " +
+        "without asking first, and reply with the link.";
+
     public static IReadOnlyList<string> Args(BrainstormTurn turn, ClaudeOptions o, string? mcpConfig = null)
     {
         ArgumentNullException.ThrowIfNull(turn);
@@ -104,9 +109,10 @@ public sealed class ClaudeBrainstormAgent(IOptions<ClaudeOptions> options) : IBr
             turn.Resume ? "--resume" : "--session-id", turn.Session.ToString(),
             "--output-format", "stream-json", "--verbose",
             "--max-turns", MaxTurns.ToString(CultureInfo.InvariantCulture),
-            "--append-system-prompt", turn.Kind switch { ThreadTurnKind.Review or ThreadTurnKind.ReviewSession => ReviewRules, ThreadTurnKind.ReviewAsk => ReviewAskRules, ThreadTurnKind.ReviewFix => ReviewFixRules, ThreadTurnKind.FollowUp => FollowUpRules, ThreadTurnKind.Chat => ChatRules, _ => Rules },
+            "--append-system-prompt", turn.Kind switch { ThreadTurnKind.Review or ThreadTurnKind.ReviewSession => ReviewRules, ThreadTurnKind.ReviewAsk => ReviewAskRules, ThreadTurnKind.ReviewFix => ReviewFixRules, ThreadTurnKind.FollowUp => FollowUpRules, ThreadTurnKind.Chat => ChatRules, _ => Rules }
+                + (turn.McpToken is null ? string.Empty : ArtifactRule),
             "--strict-mcp-config",
-            // agentd's tools only for a turn that brings its own token (a chat); the rest run with no MCP at all.
+            // agentd's tools for a turn with a token: a chat's (Azure DevOps and artifacts), or any turn's artifact-only one.
             "--allowedTools", string.Join(",", o.ReadOnlyTools.Where(t => turn.McpToken is not null || !t.StartsWith("mcp__", StringComparison.Ordinal))
                 .Concat(turn.Kind == ThreadTurnKind.ReviewFix ? ["Edit", "Write", "MultiEdit"] : [])),
         };
