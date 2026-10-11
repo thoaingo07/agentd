@@ -47,8 +47,30 @@ agentd secrets list
 | `Claude:OAuthToken` | a token from `claude setup-token`, instead of logging in on the server |
 | `Messaging:Providers:Discord:BotToken` | the Discord bot |
 | `ConnectionStrings:agentd` | the PostgreSQL connection string (it holds the password) |
+| `Artifacts:S3:AccessKeyId` · `Artifacts:S3:SecretAccessKey` | Cloudflare R2 (or other S3-compatible storage) for artifacts |
 
 In containers, environment variables work too (`ConnectionStrings__agentd`, `AGENTD_AzureDevOps__Pat`, …).
+
+### Azure Key Vault
+
+Keep the secrets in Azure Key Vault instead: set the vault's URL and agentd reads every secret from it at start.
+
+```json
+"KeyVault": { "Uri": "https://my-vault.vault.azure.net/", "Prefix": "agentd-" }
+```
+
+(or `AGENTD_KeyVault__Uri`). The secret names are the keys above with `--` for `:`, because Key Vault allows only
+letters, digits and dashes: `AzureDevOps--Pat`, `Artifacts--S3--SecretAccessKey`, `ConnectionStrings--agentd`. With
+`Prefix`, only names that start with it are read and the prefix is dropped (`agentd-AzureDevOps--Pat`), so one vault can
+hold other apps' secrets too. Disabled secrets are skipped.
+
+- **Sign-in:** a managed identity (agentd in Azure), a service principal (`AZURE_TENANT_ID`, `AZURE_CLIENT_ID`,
+  `AZURE_CLIENT_SECRET` in the service's environment), or your `az login`. It needs to **list and get** secrets (the
+  *Key Vault Secrets User* role).
+- **Which wins:** the vault beats `secrets.json` and `agentd.json`; an `AGENTD_*` environment variable still beats the
+  vault.
+- **Read at start:** a changed secret applies after `agentd daemon restart`. If the vault can't be read, agentd says so
+  (naming the vault, never a value) and starts without it, so `agentd doctor` still works.
 
 ## Settings you're most likely to change
 

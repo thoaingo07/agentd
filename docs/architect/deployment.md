@@ -122,7 +122,8 @@ Repositories aren't local folders in config. agentd **clones and owns** them:
 **As built (T1b.2):**
 - **Names are configuration paths** under `Agentd`: `AzureDevOps:Pat` fills `Agentd:AzureDevOps:Pat`. A name
   starting with `ConnectionStrings:` is used as is, so `ConnectionStrings:agentd` can hold the database password.
-- **Layering:** `agentd.json` < `secrets.json` < `AGENTD_*` variables < command line. Containers can still override a
+- **Layering:** `agentd.json` < `secrets.json` < Azure Key Vault (when `Agentd:KeyVault:Uri` is set) < `AGENTD_*`
+  variables < command line. Containers can still override a
   secret with the environment.
 - **`agentd secrets set <name>`** reads the value from **piped stdin or a no-echo prompt**, and refuses a value given
   as an argument, which would end up in the shell history and `ps`. `list` shows names, dates, who set them, and
@@ -132,6 +133,10 @@ Repositories aren't local folders in config. agentd **clones and owns** them:
 - **A secret that no longer decrypts** (the key ring was replaced) is skipped, with one warning naming the key and
   never the value. Set it again to fix it.
 - **The daemon reads secrets at startup:** restart it after a change.
+- **Azure Key Vault** (decided 2026-10-10): `KeyVaultConfigurationSource` reads every enabled secret once at start with
+  `DefaultAzureCredential` (managed identity, service principal env vars, or `az login`). Names use `--` for `:` and map
+  like `secrets.json` keys (`Agentd:` prefixed, except `ConnectionStrings:*`); `Agentd:KeyVault:Prefix` limits it to
+  names that start with the prefix. A vault that can't be read is a warning naming only the vault; agentd starts without it.
 
 ---
 
