@@ -3812,7 +3812,7 @@
             "format": "date-time"
           }
         },
-        "description": "An artifact: open \u0060url\u0060 (a page of its own); \u0060source\u0060 (job, chat, idea, review, review-session, watch, web) and \u0060sourceId\u0060 say which agent published it."
+        "description": "An artifact: open \u0060url\u0060 (a page of its own: agentd\u0027s, or the bucket\u0027s public domain for a page in S3); \u0060source\u0060 (job, chat, idea, review, review-session, watch, web) and \u0060sourceId\u0060 say which agent published it."
       },
       "AzureDevOpsRequest": {
         "required": [
