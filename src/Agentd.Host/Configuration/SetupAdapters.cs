@@ -6,7 +6,8 @@ namespace Agentd.Host.Configuration;
 /// <summary>
 /// <see cref="ISecrets"/> over the encrypted <see cref="SecretStore"/>. A secret given to the daemon some other way counts
 /// as set too: an environment variable (<c>AGENTD_AzureDevOps__Pat</c>, Docker's <c>ConnectionStrings__agentd</c>) in the
-/// running <paramref name="configuration"/>. Its status then says "environment".
+/// running <paramref name="configuration"/>. Its status then says "environment", and names Key Vault or the variable when
+/// that beats the store (<see cref="ConfigurationLayers"/>).
 /// </summary>
 internal sealed class StoredSecrets(SecretStore store, IConfiguration? configuration = null) : ISecrets
 {
@@ -14,10 +15,13 @@ internal sealed class StoredSecrets(SecretStore store, IConfiguration? configura
 
     private readonly Lock _lock = new();
 
-    public SecretStatus Status(string key) =>
-        store.List().FirstOrDefault(s => string.Equals(s.Key, key, StringComparison.Ordinal)) is { } s
-            ? new SecretStatus(true, s.UpdatedAt, s.UpdatedBy)
-            : FromConfiguration(key) is null ? SecretStatus.Missing : new SecretStatus(true, null, FromEnvironment);
+    public SecretStatus Status(string key)
+    {
+        var overriddenBy = ConfigurationLayers.OverriddenBy(configuration, SecretStore.ConfigKey(key), secret: true);
+        return store.List().FirstOrDefault(s => string.Equals(s.Key, key, StringComparison.Ordinal)) is { } s
+            ? new SecretStatus(true, s.UpdatedAt, s.UpdatedBy, overriddenBy)
+            : FromConfiguration(key) is null ? SecretStatus.Missing : new SecretStatus(true, null, FromEnvironment, overriddenBy);
+    }
 
     public string? TryGet(string key) => store.Load().Values.TryGetValue(key, out var value) ? value : FromConfiguration(key);
 

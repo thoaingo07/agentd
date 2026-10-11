@@ -4,7 +4,8 @@ import type { SecretStatus } from '../../api/types'
 import { AgButton } from '../../components/ui'
 import { dateTime } from '../../utils/format'
 
-// A write-only secret: once set, only "set · updated … by …" shows, until Replace opens an empty input.
+// A write-only secret: once set, only "set · updated … by …" shows, until Replace opens an empty input. One supplied
+// over the secret store (Key Vault, an environment variable) can't be replaced here: it says where to change it.
 const props = defineProps<{ label: string; status: SecretStatus | null; placeholder?: string; hint?: string }>()
 const value = defineModel<string>({ default: '' })
 const replacing = ref(false)
@@ -33,7 +34,12 @@ const isSet = () => props.status?.set === true && !replacing.value
         class="badge badge-success badge-soft"
       >Set</span>
       <span
-        v-if="status?.updatedBy === 'environment'"
+        v-if="status?.overriddenBy"
+        class="text-muted"
+        data-testid="overridden"
+      >from {{ status.overriddenBy }}: change it there</span>
+      <span
+        v-else-if="status?.updatedBy === 'environment'"
         class="text-muted"
       >from the environment (an environment variable); saving one here takes precedence</span>
       <span
@@ -43,6 +49,7 @@ const isSet = () => props.status?.set === true && !replacing.value
         updated {{ status?.updatedAt ? dateTime(status.updatedAt) : '' }}<template v-if="status?.updatedBy"> by {{ status.updatedBy }}</template>
       </span>
       <AgButton
+        v-if="!status?.overriddenBy"
         variant="outline"
         size="sm"
         @click="replace"

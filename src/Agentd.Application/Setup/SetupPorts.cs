@@ -11,10 +11,16 @@ public interface IConfigWriter
 
     /// <summary>Sets (or, for null, removes) the keys in one atomic write.</summary>
     Task SetAsync(IReadOnlyDictionary<string, string?> values, CancellationToken cancellationToken);
+
+    /// <summary>What supplies <paramref name="key"/> over agentd.json (e.g. "Key Vault (my-vault.vault.azure.net)"), or null: saving it then changes nothing.</summary>
+    string? OverriddenBy(string key) => null;
 }
 
-/// <summary>A secret's metadata: whether it's set, when and by whom. Never the value.</summary>
-public sealed record SecretStatus(bool Set, DateTimeOffset? UpdatedAt = null, string? UpdatedBy = null)
+/// <summary>
+/// A secret's metadata: whether it's set, when and by whom. Never the value. <see cref="OverriddenBy"/> names what supplies
+/// it over the secret store (Key Vault, an environment variable): storing one here then changes nothing.
+/// </summary>
+public sealed record SecretStatus(bool Set, DateTimeOffset? UpdatedAt = null, string? UpdatedBy = null, string? OverriddenBy = null)
 {
     public static SecretStatus Missing { get; } = new(false);
 }

@@ -213,7 +213,12 @@ finish. (Step 1, admin access, comes with SSO in Phase 5.)
 ### After setup: Settings (Admin)
 
 The same forms stay available under **Settings → Access, Azure DevOps, Git, Models, Chat,
-Repositories**, and **Health** shows the live `doctor` report.
+Repositories**, plus **Artifacts** (storage; Settings only, not a wizard step), and **Health** shows the live `doctor`
+report. Settings pages share a vertical menu (`SettingsLayout`: General, the areas, System log; Admins only).
+
+A value supplied over agentd.json or the secret store (Key Vault, an `AGENTD_*` variable, the command line) is named
+in the form (`overriddenBy`, from `ConfigurationLayers`: the last configuration provider holding the key), and its
+secret field has no Replace: saving there would change nothing (added 2026-10-11).
 
 How it's built: `/api/settings/*` mounts the same step endpoints for **Admins** (the normal session with
 antiforgery; the setup cookie doesn't count) without Finish, and **Health** is `GET /api/settings/review`. The

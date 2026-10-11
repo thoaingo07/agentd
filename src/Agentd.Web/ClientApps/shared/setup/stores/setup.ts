@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { ApiError, get, send } from '../../api/http'
-import type { AzureDevOpsRequest, AzureDevOpsStep, ChatRequest, ChatStep, ClaudeStep, DatabaseStep, FinishResult, GitKeyStep, ModelsStep, ProfileRequest, RepositoryEntry, RepositoryRequest, ReviewItem, SaveResult, SetupSession, StepCheck, StepModel } from '../../api/types'
+import type { ArtifactStorageRequest, ArtifactStorageStep, AzureDevOpsRequest, AzureDevOpsStep, ChatRequest, ChatStep, ClaudeStep, DatabaseStep, FinishResult, GitKeyStep, ModelsStep, ProfileRequest, RepositoryEntry, RepositoryRequest, ReviewItem, SaveResult, SetupSession, StepCheck, StepModel } from '../../api/types'
 
 /**
  * The wizard's state. Secrets are write-only: they're sent once and never kept here; the server answers with
@@ -20,6 +20,7 @@ export const useSetupStore = defineStore('setup', () => {
   const chat = ref<ChatStep | null>(null)
   const repositories = ref<RepositoryEntry[] | null>(null)
   const models = ref<ModelsStep | null>(null)
+  const artifactStorage = ref<ArtifactStorageStep | null>(null)
   const review = ref<ReviewItem[] | null>(null)
   const completedAt = ref<string | null>(null)
   /** A saved step only applies after `agentd daemon restart`. */
@@ -88,6 +89,26 @@ export const useSetupStore = defineStore('setup', () => {
 
   function testGitAccess(url: string): Promise<StepCheck> {
     return send<StepCheck>('POST', `${base.value}/git-key/test`, { url })
+  }
+
+  // Empty keys keep the stored ones (write-only).
+  const storageBody = (input: ArtifactStorageRequest): ArtifactStorageRequest => ({
+    url: input.url?.trim() || null, publicUrl: input.publicUrl?.trim() || null,
+    accessKeyId: input.accessKeyId?.trim() || null, secretAccessKey: input.secretAccessKey?.trim() || null,
+  })
+
+  async function loadArtifactStorage(): Promise<void> {
+    artifactStorage.value = await get<ArtifactStorageStep>(`${base.value}/artifact-storage`)
+  }
+
+  async function saveArtifactStorage(input: ArtifactStorageRequest): Promise<SaveResult> {
+    const result = await send<SaveResult>('PUT', `${base.value}/artifact-storage`, storageBody(input))
+    await loadArtifactStorage()
+    return saved(result)
+  }
+
+  function testArtifactStorage(input: ArtifactStorageRequest): Promise<StepCheck> {
+    return send<StepCheck>('POST', `${base.value}/artifact-storage/test`, storageBody(input))
   }
 
   async function loadClaude(): Promise<void> {
@@ -190,10 +211,11 @@ export const useSetupStore = defineStore('setup', () => {
   }
 
   return {
-    base, session, expiresAt, database, azureDevOps, gitKey, claude, chat, repositories, models, review, completedAt, restartRequired,
+    base, session, expiresAt, database, azureDevOps, gitKey, claude, chat, repositories, models, artifactStorage, review, completedAt, restartRequired,
     loadSession, loadDatabase, saveDatabase, testDatabase, migrateDatabase, loadAzureDevOps, saveAzureDevOps, testAzureDevOps,
     loadGitKey, generateGitKey, testGitAccess, loadClaude, saveClaudeToken, removeClaudeToken, testClaude,
     loadChat, saveChat, testChat, loadRepositories, addRepository, removeRepository, testRepository,
     loadModels, saveProfile, removeProfile, testProfile, saveSteps, loadReview, finish,
+    loadArtifactStorage, saveArtifactStorage, testArtifactStorage,
   }
 })

@@ -74,6 +74,32 @@ public sealed class SetupEndpointTests : IDisposable
     }
 
     [TestMethod]
+    public async Task Artifact_storage_keys_go_in_but_never_come_back_out()
+    {
+        await using var app = await StartAsync();
+        var client = await SetupClient.SignInAsync(app);
+        var storage = new { url = "https://acct.r2.cloudflarestorage.com/agentd", publicUrl = "https://agentd.thoaingo.com", accessKeyId = "SECRET-id", secretAccessKey = "SECRET-key" };
+
+        using var save = await client.SendAsync(HttpMethod.Put, "/api/setup/artifact-storage", storage);
+        using var test = await client.SendAsync(HttpMethod.Post, "/api/setup/artifact-storage/test", new { storage.url, storage.publicUrl });
+        using var get = await client.SendAsync(HttpMethod.Get, "/api/setup/artifact-storage");
+        using var bad = await client.SendAsync(HttpMethod.Put, "/api/setup/artifact-storage", new { url = "https://acct.r2.cloudflarestorage.com" });
+
+        foreach (var response in new[] { save, test, get })
+        {
+            var body = await response.Content.ReadAsStringAsync();
+            Assert.AreEqual(HttpStatusCode.OK, response.StatusCode, body);
+            Assert.DoesNotContain("SECRET", body);
+        }
+
+        Assert.AreEqual(HttpStatusCode.BadRequest, bad.StatusCode);
+        Assert.AreEqual(("SECRET-id", "https://agentd.thoaingo.com"), (_secrets["Artifacts:S3:AccessKeyId"], _config["Artifacts:S3:PublicUrl"]));
+        var step = JsonDocument.Parse(await get.Content.ReadAsStringAsync()).RootElement;
+        Assert.AreEqual((storage.url, true), (step.GetProperty("url").GetString(), step.GetProperty("secretAccessKey").GetProperty("set").GetBoolean()));
+        Assert.IsTrue(JsonDocument.Parse(await test.Content.ReadAsStringAsync()).RootElement.GetProperty("ok").GetBoolean(), "tested with the stored keys");
+    }
+
+    [TestMethod]
     public async Task A_service_principals_secret_goes_in_but_never_comes_back_out()
     {
         await using var app = await StartAsync();
@@ -314,6 +340,8 @@ public sealed class SetupEndpointTests : IDisposable
         services.AddSingleton(Options.Create(new JobOptions()));
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<SetupService>();
+        services.AddSingleton<IArtifactStorageProbe, OkStorage>();
+        services.AddSingleton<ArtifactStorageSettings>();
     });
 
     /// <summary>What the wizard does: open the link, fetch the setup antiforgery token, send both cookies.</summary>
@@ -418,6 +446,12 @@ public sealed class SetupEndpointTests : IDisposable
         public Task<StepCheck> TestAsync(string? token, CancellationToken cancellationToken) => Task.FromResult(new StepCheck(true, "answered"));
 
         public Task<StepCheck> TestProfileAsync(string name, Agentd.Application.Jobs.ModelProfile profile, CancellationToken cancellationToken) => Task.FromResult(new StepCheck(true, "answered"));
+    }
+
+    private sealed class OkStorage : IArtifactStorageProbe
+    {
+        public Task<StepCheck> TestAsync(Agentd.Application.Artifacts.ArtifactS3Options options, CancellationToken cancellationToken) =>
+            Task.FromResult(new StepCheck(options.Configured, "uploaded"));
     }
 
     private sealed class OkChat : IChatProbe

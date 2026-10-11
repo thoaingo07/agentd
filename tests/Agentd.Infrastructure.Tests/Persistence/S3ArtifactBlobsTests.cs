@@ -44,6 +44,39 @@ public sealed class S3ArtifactBlobsTests
     }
 
     [TestMethod]
+    public async Task The_settings_test_uploads_reads_opens_publicly_and_deletes_and_says_what_failed()
+    {
+        await using var s3 = new ContainerBuilder("adobe/s3mock:5.2.3")
+            .WithEnvironment("COM_ADOBE_TESTING_S3MOCK_STORE_INITIAL_BUCKETS", "agentd")
+            .WithPortBinding(9090, true)
+            .WithWaitStrategy(Wait.ForUnixContainer().UntilHttpRequestIsSucceeded(r => r.ForPort(9090).ForPath("/")))
+            .Build();
+        await s3.StartAsync();
+        var endpoint = $"http://{s3.Hostname}:{s3.GetMappedPublicPort(9090)}";
+        var probe = new S3ArtifactStorageProbe();
+        ArtifactS3Options Options(string url, string? publicUrl = null) => new() { Url = url, PublicUrl = publicUrl, AccessKeyId = "test-key", SecretAccessKey = "test-secret" };
+
+        var stored = await probe.TestAsync(Options($"{endpoint}/agentd"), default);
+        var published = await probe.TestAsync(Options($"{endpoint}/agentd", $"{endpoint}/agentd/"), default);   // S3Mock serves objects without signing
+        var notPublic = await probe.TestAsync(Options($"{endpoint}/agentd", $"{endpoint}/elsewhere"), default);
+        var noBucket = await probe.TestAsync(Options($"{endpoint}/nope"), default);
+        var unreachable = await probe.TestAsync(Options("http://127.0.0.1:9/agentd"), default);
+
+        Assert.AreEqual((true, "Uploaded, read back and deleted a test page. Links stay on agentd."), (stored.Ok, stored.Message));
+        Assert.IsTrue(published.Ok, published.Message);
+        StringAssert.Contains(published.Message, "opened it on");
+        Assert.AreEqual(false, notPublic.Ok);
+        StringAssert.Contains(notPublic.Message, "answered 404");
+        StringAssert.Contains(notPublic.Fix, "Custom Domains");
+        Assert.AreEqual((false, "The storage refused it: NoSuchBucket."), (noBucket.Ok, noBucket.Message));
+        StringAssert.Contains(noBucket.Fix, "bucket's name");
+        Assert.AreEqual(false, unreachable.Ok);
+        StringAssert.Contains(unreachable.Fix, "S3 API URL");
+        using var check = new AmazonS3Client(new BasicAWSCredentials("test-key", "test-secret"), new AmazonS3Config { ServiceURL = endpoint, ForcePathStyle = true });
+        Assert.IsEmpty((await check.ListObjectsV2Async(new ListObjectsV2Request { BucketName = "agentd", Prefix = "artifacts/" })).S3Objects ?? [], "test pages are deleted");
+    }
+
+    [TestMethod]
     [DataRow("https://acct.r2.cloudflarestorage.com")]
     [DataRow("https://acct.r2.cloudflarestorage.com/agentd/more")]
     [DataRow("not a url")]

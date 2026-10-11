@@ -77,6 +77,15 @@ public static class SetupEndpoints
             TooLong(body?.Token) ?? Check(await service.TestClaudeAsync(body?.Token, ct).ConfigureAwait(false)))
             .WithName($"Test{prefix}Claude").Accepts<ClaudeTokenRequest>("application/json").Produces<StepCheckVm>().ProducesProblem(StatusCodes.Status400BadRequest);
 
+        setup.MapGet("/artifact-storage", ([FromServices] ArtifactStorageSettings settings) => TypedResults.Ok(ArtifactStorageStepVm.From(settings.Get())))
+            .WithName($"Get{prefix}ArtifactStorage");
+        setup.MapPut("/artifact-storage", async (ArtifactStorageRequest? body, ClaimsPrincipal user, [FromServices] ArtifactStorageSettings settings, CancellationToken ct) =>
+            TooLong(body?.AccessKeyId) ?? TooLong(body?.SecretAccessKey) ?? (await settings.SaveAsync(Storage(body), By(user), ct).ConfigureAwait(false)).ToHttpResult(Saved))
+            .WithName($"Save{prefix}ArtifactStorage").Accepts<ArtifactStorageRequest>("application/json").Produces<SaveResultVm>().ProducesProblem(StatusCodes.Status400BadRequest);
+        setup.MapPost("/artifact-storage/test", async (ArtifactStorageRequest? body, [FromServices] ArtifactStorageSettings settings, CancellationToken ct) =>
+            TooLong(body?.AccessKeyId) ?? TooLong(body?.SecretAccessKey) ?? Check(await settings.TestAsync(Storage(body), ct).ConfigureAwait(false)))
+            .WithName($"Test{prefix}ArtifactStorage").Accepts<ArtifactStorageRequest>("application/json").Produces<StepCheckVm>().ProducesProblem(StatusCodes.Status400BadRequest);
+
         setup.MapGet("/chat", ([FromServices] SetupService service) => TypedResults.Ok(ChatStepVm.From(service.GetChat())))
             .WithName($"Get{prefix}Chat");
         setup.MapPut("/chat", async (ChatRequest? body, ClaimsPrincipal user, [FromServices] SetupService service, CancellationToken ct) =>
@@ -156,6 +165,13 @@ public static class SetupEndpoints
     /// <summary>Discord settings. An empty <c>BotToken</c> keeps the saved one; <c>UserName</c> + <c>UserDiscordId</c> add you as a user.</summary>
     public sealed record ChatRequest(bool Enabled, string? GuildId, string? ChannelId, string? BotToken, string? UserName, string? UserDiscordId);
 
+    /// <summary>Artifact storage. An empty <c>Url</c> keeps new pages in the database; empty keys keep the saved ones.</summary>
+    /// <param name="Url">The S3 API URL ending with the bucket (<c>https://&lt;account&gt;.r2.cloudflarestorage.com/agentd</c>).</param>
+    /// <param name="PublicUrl">The bucket's public domain (<c>https://agentd.example.com</c>); empty links pages to agentd.</param>
+    /// <param name="AccessKeyId">A new access key ID; empty keeps the stored one.</param>
+    /// <param name="SecretAccessKey">A new secret access key; empty keeps the stored one.</param>
+    public sealed record ArtifactStorageRequest(string? Url, string? PublicUrl, string? AccessKeyId, string? SecretAccessKey);
+
     /// <summary>A repository to add. Only <c>Url</c> is required; the rest defaults like <c>agentd repo add</c>.</summary>
     public sealed record RepositoryRequest(string? Url, string? Name, string? BaseBranch, string? MatchTag, IReadOnlyList<string>? MatchAreaPaths);
 
@@ -170,6 +186,8 @@ public static class SetupEndpoints
 
     private static ProfileInput Profile(ProfileRequest? body) =>
         new(body?.Name ?? string.Empty, body?.BaseUrl, body?.Model, body?.SmallModel, body?.ApiKey);
+
+    private static ArtifactStorageInput Storage(ArtifactStorageRequest? body) => new(body?.Url, body?.PublicUrl, body?.AccessKeyId, body?.SecretAccessKey);
 
     private static ChatInput Chat(ChatRequest? body) =>
         new(body?.Enabled ?? false, body?.GuildId, body?.ChannelId, body?.BotToken, body?.UserName, body?.UserDiscordId);

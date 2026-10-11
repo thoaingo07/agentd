@@ -49,7 +49,8 @@ link: `publish_artifact`'s answer and `/api/artifacts`' `url` (`artifact_list` r
 the database stay on agentd (`Agentd:Web:PublicOrigin`), and agentd still serves S3 pages at its own
 `/artifacts/<name>.html`. A page on its own domain can't reach agentd's cookies or API (another origin), but R2 doesn't
 send agentd's sandbox CSP; a Cloudflare response-header rule on the domain can add it. An expired page's object is
-deleted, so its public link answers 404 instead of 410.
+deleted, so its public link answers 404 instead of 410. Admins set all of it in **Settings → Artifacts**
+(`ArtifactStorageSettings`; Test: `S3ArtifactStorageProbe` puts, reads, opens publicly and deletes `artifacts/agentd-check-<hex>.html`).
 
 **Retention** (decided 2026-10-10): a page expires `Agentd:Artifacts:RetentionDays` (default 30; 0 = never) after its
 last update. The hourly sweep (`WorktreeSweepWorker`) calls `artifact_expire`, which drops the HTML and keeps a

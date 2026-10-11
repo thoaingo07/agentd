@@ -70,22 +70,7 @@ const source = (category: string) => category.split('.').at(-1) ?? category
 </script>
 
 <template>
-  <section class="mx-auto grid max-w-5xl gap-4">
-    <nav
-      aria-label="Breadcrumb"
-      class="breadcrumbs text-sm"
-    >
-      <ul>
-        <li>
-          <RouterLink :to="{ name: 'settings' }">
-            Settings
-          </RouterLink>
-        </li>
-        <li aria-current="page">
-          System log
-        </li>
-      </ul>
-    </nav>
+  <section class="grid gap-4">
     <h1 class="text-xl font-semibold">
       System log
     </h1>

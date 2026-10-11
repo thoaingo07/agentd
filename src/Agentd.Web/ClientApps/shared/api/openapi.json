@@ -3130,6 +3130,116 @@
         }
       }
     },
+    "/api/setup/artifact-storage": {
+      "get": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "GetSetupArtifactStorage",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArtifactStorageStepVm"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "SaveSetupArtifactStorage",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ArtifactStorageRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SaveResultVm"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/setup/artifact-storage/test": {
+      "post": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "TestSetupArtifactStorage",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ArtifactStorageRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StepCheckVm"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/setup/chat": {
       "get": {
         "tags": [
@@ -3770,6 +3880,90 @@
             "type": "string"
           }
         }
+      },
+      "ArtifactStorageRequest": {
+        "required": [
+          "url",
+          "publicUrl",
+          "accessKeyId",
+          "secretAccessKey"
+        ],
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The S3 API URL ending with the bucket (\u0060https://\u0026lt;account\u0026gt;.r2.cloudflarestorage.com/agentd\u0060)."
+          },
+          "publicUrl": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The bucket\u0027s public domain (\u0060https://agentd.example.com\u0060); empty links pages to agentd."
+          },
+          "accessKeyId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "A new access key ID; empty keeps the stored one."
+          },
+          "secretAccessKey": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "A new secret access key; empty keeps the stored one."
+          }
+        },
+        "description": "Artifact storage. An empty \u0060Url\u0060 keeps new pages in the database; empty keys keep the saved ones."
+      },
+      "ArtifactStorageStepVm": {
+        "required": [
+          "url",
+          "publicUrl",
+          "urlOverriddenBy",
+          "publicUrlOverriddenBy",
+          "accessKeyId",
+          "secretAccessKey"
+        ],
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "publicUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "urlOverriddenBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "publicUrlOverriddenBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "accessKeyId": {
+            "$ref": "#/components/schemas/SecretStatusVm"
+          },
+          "secretAccessKey": {
+            "$ref": "#/components/schemas/SecretStatusVm"
+          }
+        },
+        "description": "Where artifacts are stored: the S3 API URL (none: the database) and the public domain links use; the keys as statuses.\n\u0060urlOverriddenBy\u0060 / \u0060publicUrlOverriddenBy\u0060 name what supplies a value over agentd.json."
       },
       "ArtifactVm": {
         "required": [
@@ -6315,9 +6509,15 @@
               "null",
               "string"
             ]
+          },
+          "overriddenBy": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         },
-        "description": "A secret\u0027s status. Secrets are write-only: the value never leaves the server."
+        "description": "A secret\u0027s status. Secrets are write-only: the value never leaves the server. \u0060overriddenBy\u0060 names what supplies it\nover the secret store (e.g. \u0022Key Vault (my-vault.vault.azure.net)\u0022): change it there, since saving here changes nothing."
       },
       "SendRequest": {
         "required": [

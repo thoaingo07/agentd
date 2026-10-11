@@ -1012,6 +1012,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/setup/artifact-storage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetSetupArtifactStorage"];
+        put: operations["SaveSetupArtifactStorage"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/setup/artifact-storage/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["TestSetupArtifactStorage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/setup/chat": {
         parameters: {
             query?: never;
@@ -1241,6 +1273,29 @@ export interface components {
         };
         AntiforgeryTokenVm: {
             token: string;
+        };
+        /** @description Artifact storage. An empty `Url` keeps new pages in the database; empty keys keep the saved ones. */
+        ArtifactStorageRequest: {
+            /** @description The S3 API URL ending with the bucket (`https://&lt;account&gt;.r2.cloudflarestorage.com/agentd`). */
+            url: null | string;
+            /** @description The bucket's public domain (`https://agentd.example.com`); empty links pages to agentd. */
+            publicUrl: null | string;
+            /** @description A new access key ID; empty keeps the stored one. */
+            accessKeyId: null | string;
+            /** @description A new secret access key; empty keeps the stored one. */
+            secretAccessKey: null | string;
+        };
+        /**
+         * @description Where artifacts are stored: the S3 API URL (none: the database) and the public domain links use; the keys as statuses.
+         *     `urlOverriddenBy` / `publicUrlOverriddenBy` name what supplies a value over agentd.json.
+         */
+        ArtifactStorageStepVm: {
+            url: null | string;
+            publicUrl: null | string;
+            urlOverriddenBy: null | string;
+            publicUrlOverriddenBy: null | string;
+            accessKeyId: components["schemas"]["SecretStatusVm"];
+            secretAccessKey: components["schemas"]["SecretStatusVm"];
         };
         /** @description An artifact: open `url` (a page of its own: agentd's, or the bucket's public domain for a page in S3); `source` (job, chat, idea, review, review-session, watch, web) and `sourceId` say which agent published it. */
         ArtifactVm: {
@@ -1911,12 +1966,16 @@ export interface components {
         SaveResultVm: {
             restartRequired: boolean;
         };
-        /** @description A secret's status. Secrets are write-only: the value never leaves the server. */
+        /**
+         * @description A secret's status. Secrets are write-only: the value never leaves the server. `overriddenBy` names what supplies it
+         *     over the secret store (e.g. "Key Vault (my-vault.vault.azure.net)"): change it there, since saving here changes nothing.
+         */
         SecretStatusVm: {
             set: boolean;
             /** Format: date-time */
             updatedAt: null | string;
             updatedBy: null | string;
+            overriddenBy?: null | string;
         };
         SendRequest: {
             /** @description `pr` (a PR's review: post it there) or `text` (copy it). */
@@ -4403,6 +4462,92 @@ export interface operations {
         requestBody?: {
             content: {
                 "application/json": null | components["schemas"]["ClaudeTokenRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StepCheckVm"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetSetupArtifactStorage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArtifactStorageStepVm"];
+                };
+            };
+        };
+    };
+    SaveSetupArtifactStorage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": null | components["schemas"]["ArtifactStorageRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SaveResultVm"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    TestSetupArtifactStorage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": null | components["schemas"]["ArtifactStorageRequest"];
             };
         };
         responses: {

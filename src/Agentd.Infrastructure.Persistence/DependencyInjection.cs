@@ -34,6 +34,7 @@ public static class DependencyInjection
         services.AddSingleton<Application.Monitor.IPrWatchStore, PrWatchStore>();
         services.AddSingleton<Application.Artifacts.IArtifactStore, ArtifactStore>();
         services.AddSingleton<Application.Artifacts.IArtifactBlobs, S3ArtifactBlobs>();   // used only when Agentd:Artifacts:S3 is configured
+        services.AddSingleton<Application.Setup.IArtifactStorageProbe>(_ => new S3ArtifactStorageProbe());
         services.AddSingleton<Application.SystemLog.ISystemLogStore, SystemLogStore>();
         services.AddSingleton<JobSessionStore>();
         services.AddSingleton<Application.Jobs.IJobSessions>(sp => sp.GetRequiredService<JobSessionStore>());
