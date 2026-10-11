@@ -32,6 +32,16 @@ it in the browser at **`/artifacts/<slug>-<hash>.html`** and find every page und
 The HTML is kept in the database on purpose: when the Web UI is hosted apart from the daemon (e.g. in the cloud), the
 database is what both share, so the web serves pages without the daemon's disk.
 
+**S3-compatible storage** (Cloudflare R2, decided 2026-10-10): with `Agentd:Artifacts:S3` configured (`Url` = the S3
+API URL with the bucket as its path, e.g. `https://<account>.r2.cloudflarestorage.com/agentd`, plus `AccessKeyId` and
+`SecretAccessKey` from the encrypted secret store), new pages are uploaded to `artifacts/<name>.html` and the row keeps
+only the metadata (`storage = 's3'`, no HTML). The row stays: it lists pages, keeps one link per source and title
+(race-safe), expires them, and links them to their agent. `/artifacts/<name>.html` still serves them through agentd (the
+same sign-in and sandbox CSP), so the bucket stays private. Earlier pages stay in the database (`storage = 'database'`).
+`S3ArtifactBlobs` sets what R2 needs: path-style URLs, the region `auto`, no default checksums, no streaming payload
+signature (HTTPS only). An upload that fails is an error to the agent ("publish it again"); an object missing later
+answers 502. Expiring an S3 page deletes its object too.
+
 **Retention** (decided 2026-10-10): a page expires `Agentd:Artifacts:RetentionDays` (default 30; 0 = never) after its
 last update. The hourly sweep (`WorktreeSweepWorker`) calls `artifact_expire`, which drops the HTML and keeps a
 tombstone (name, title, `expired_at`). Its link then answers **410 Gone** with "This artifact expired on <date>. Ask

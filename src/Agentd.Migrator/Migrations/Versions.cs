@@ -100,3 +100,6 @@ public sealed class ReviewSessionBrief : SqlMigration;
 
 [Migration(2026_10_29_0001, "Artifacts come from any agent turn: a source kind and id replace job_id / chat_id")]
 public sealed class ArtifactSources : SqlMigration;
+
+[Migration(2026_10_30_0001, "Artifacts can be stored in S3-compatible storage (Cloudflare R2)")]
+public sealed class ArtifactStorage : SqlMigration;

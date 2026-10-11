@@ -27,11 +27,14 @@ public static partial class ArtifactEndpoints
 
     public static IEndpointRouteBuilder MapArtifactPages(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapGet(SecurityHeaders.ArtifactsPath + "/{file}", async Task<IResult> (string file, [FromServices] IArtifactStore store, CancellationToken ct) =>
-            File().Match(file) is { Success: true } m && await store.GetAsync(m.Groups["name"].Value, ct).ConfigureAwait(false) is { } artifact
-                ? artifact.Html is { } html
-                    ? TypedResults.Content(html, "text/html; charset=utf-8")
-                    : TypedResults.Content(Expired(artifact), "text/html; charset=utf-8", statusCode: StatusCodes.Status410Gone)
+        endpoints.MapGet(SecurityHeaders.ArtifactsPath + "/{file}", async Task<IResult> (string file, [FromServices] ArtifactService artifacts, CancellationToken ct) =>
+            File().Match(file) is { Success: true } m && await artifacts.ReadAsync(m.Groups["name"].Value, ct).ConfigureAwait(false) is { } page
+                ? page switch
+                {
+                    { Html: { } html } => TypedResults.Content(html, "text/html; charset=utf-8"),
+                    { Expired: true } => TypedResults.Content(Expired(page.Artifact), "text/html; charset=utf-8", statusCode: StatusCodes.Status410Gone),
+                    _ => TypedResults.Problem("The page isn't in storage anymore; ask the agent to publish it again.", statusCode: StatusCodes.Status502BadGateway),
+                }
                 : TypedResults.NotFound())
             .RequireAuthorization().ExcludeFromDescription();
         return endpoints;

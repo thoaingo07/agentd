@@ -1,13 +1,17 @@
 -- Artifacts (HTML pages agents publish).
 
 DROP FUNCTION IF EXISTS agentd.artifact_publish(text, text, text, bigint, bigint, text);
+DROP FUNCTION IF EXISTS agentd.artifact_publish(text, text, text, text, bigint, text);
+DROP FUNCTION IF EXISTS agentd.artifact_expire(timestamptz);
 DROP FUNCTION IF EXISTS agentd.artifact_list(int);
 
 -- Publishes a page: a new one gets p_name; the same source (p_source: job, chat, idea, review, review-session, watch,
 -- web, with its id) publishing the same title again replaces the HTML and
 -- keeps the first name (its link), and brings an expired page back. Parallel publishes of one title make one row. A job's page is announced on its
 -- event stream (name and title only).
-CREATE OR REPLACE FUNCTION agentd.artifact_publish(p_name text, p_title text, p_html text, p_source text, p_source_id bigint, p_author text)
+-- p_storage: 'database' (p_html is the page) or 's3' (the page is in S3-compatible storage under the name; p_html is null).
+CREATE OR REPLACE FUNCTION agentd.artifact_publish(p_name text, p_title text, p_html text, p_source text, p_source_id bigint, p_author text,
+                                                   p_storage text DEFAULT 'database')
 RETURNS TABLE (name text, created boolean)
 LANGUAGE plpgsql
 AS $$
@@ -15,9 +19,10 @@ DECLARE
     v_name    text;
     v_created boolean;
 BEGIN
-    INSERT INTO agentd.artifacts AS a (name, title, html, source, source_id, author)
-    VALUES (p_name, p_title, p_html, p_source, p_source_id, p_author)
-    ON CONFLICT (source, source_id, title) DO UPDATE SET html = excluded.html, author = excluded.author, updated_at = now(), expired_at = NULL
+    INSERT INTO agentd.artifacts AS a (name, title, html, source, source_id, author, storage)
+    VALUES (p_name, p_title, p_html, p_source, p_source_id, p_author, p_storage)
+    ON CONFLICT (source, source_id, title) DO UPDATE
+        SET html = excluded.html, author = excluded.author, storage = excluded.storage, updated_at = now(), expired_at = NULL
     RETURNING a.name, (a.xmax = 0) INTO v_name, v_created;
 
     IF p_source = 'job' THEN
@@ -41,21 +46,19 @@ LANGUAGE sql STABLE
 AS $$
     SELECT a.name, a.title, a.source, a.source_id, a.author, a.created_at, a.updated_at
       FROM agentd.artifacts AS a
-     WHERE a.html IS NOT NULL
+     WHERE a.expired_at IS NULL
      ORDER BY a.updated_at DESC, a.id DESC
      LIMIT p_limit
 $$;
 
 -- Expires pages last updated before p_before: drops the HTML and keeps a tombstone (the link answers "expired").
--- Returns how many expired now; parallel callers never count a page twice.
+-- Returns the pages that expired now and where they were stored (S3 objects are then deleted); parallel callers never
+-- return a page twice.
 CREATE OR REPLACE FUNCTION agentd.artifact_expire(p_before timestamptz)
-RETURNS int
+RETURNS TABLE (name text, storage text)
 LANGUAGE sql
 AS $$
-    WITH expired AS (
-        UPDATE agentd.artifacts SET html = NULL, expired_at = now()
-         WHERE html IS NOT NULL AND updated_at < p_before
-        RETURNING 1
-    )
-    SELECT count(*)::int FROM expired
+    UPDATE agentd.artifacts AS a SET html = NULL, expired_at = now()
+     WHERE a.expired_at IS NULL AND a.updated_at < p_before
+    RETURNING a.name, a.storage
 $$;

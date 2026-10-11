@@ -5,6 +5,7 @@
     <PackageVersion Include="Aspire.Hosting.JavaScript" Version="13.6.0" />
     <PackageVersion Include="Aspire.Hosting.Testing" Version="13.5.4" />
     <PackageVersion Include="Aspire.Npgsql" Version="13.6.0" />
+    <PackageVersion Include="AWSSDK.S3" Version="4.0.104.2" />
   </ItemGroup>
   <ItemGroup Label="Service defaults">
     <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.10.0" />
