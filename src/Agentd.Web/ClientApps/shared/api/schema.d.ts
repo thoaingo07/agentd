@@ -372,6 +372,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/system-log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetSystemLog"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/workitems/{id}": {
         parameters: {
             query?: never;
@@ -1822,6 +1838,24 @@ export interface components {
             effort: null | string;
             profile: null | string;
         };
+        /** @description One entry; `level` is Trace … Critical, `category` the logger's (e.g. Agentd.Application.Jobs.Scheduler). */
+        SystemLogEntryVm: {
+            /** Format: int64 */
+            id: number;
+            /** Format: date-time */
+            at: string;
+            level: string;
+            category: string;
+            message: string;
+            exception: null | string;
+            /** Format: int64 */
+            jobId: null | number;
+        };
+        /** @description A page, newest first; `hasMore`: older entries exist (ask again with `before` = the last id). */
+        SystemLogPageVm: {
+            entries: components["schemas"]["SystemLogEntryVm"][];
+            hasMore: boolean;
+        };
         UsageVm: {
             /** Format: double */
             fiveHour: null | number;
@@ -2735,6 +2769,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ArtifactVm"][];
+                };
+            };
+        };
+    };
+    GetSystemLog: {
+        parameters: {
+            query?: {
+                before?: number;
+                level?: string;
+                category?: string;
+                q?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemLogPageVm"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
         };

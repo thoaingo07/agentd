@@ -14,6 +14,7 @@ export const router = createRouter({
     { path: '/reviews', name: 'reviews', component: () => import('./views/ReviewsView.vue') },
     { path: '/reviews/:id(\\d+)', name: 'review', component: () => import('./views/ReviewView.vue'), props: (r) => ({ id: Number(r.params.id) }) },
     { path: '/settings', name: 'settings', component: () => import('./views/SettingsView.vue') },
+    { path: '/settings/log', name: 'system-log', component: () => import('./views/SystemLogView.vue') },
     { path: '/settings/:area', name: 'settings-area', component: () => import('./views/SettingsAreaView.vue'), props: true },
     { path: '/:pathMatch(.*)*', name: 'not-found', component: () => import('./views/NotFoundView.vue') },
   ],

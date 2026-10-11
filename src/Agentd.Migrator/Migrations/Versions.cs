@@ -88,3 +88,6 @@ public sealed class Artifacts : SqlMigration;
 
 [Migration(2026_10_25_0001, "Artifacts expire: the HTML is dropped after the retention, a tombstone keeps the link answering")]
 public sealed class ArtifactRetention : SqlMigration;
+
+[Migration(2026_10_26_0001, "System log: the daemon's own log in the database, shown in Settings")]
+public sealed class SystemLogs : SqlMigration;

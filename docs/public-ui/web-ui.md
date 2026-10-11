@@ -118,6 +118,9 @@ The review page:
   **Test** button, and secrets show only "set · updated … by …". Saved changes apply after `agentd daemon restart`.
   - **Health**: every area checked with its saved settings (including a tiny Claude test prompt).
   - **Database**, **Azure DevOps**, **Git access** (agentd's SSH key), **Claude**, **Chat**, **Repositories**.
+- **System log** (Admins): agentd's own log, newest first: what it did (jobs claimed, PRs opened, …) and what went
+  wrong, with filters for level, source and text, and links to the job an entry is about. Kept 14 days
+  (`SystemLog:RetentionDays`).
 - **Your Azure DevOps** (everyone): **Connect with Microsoft** once, or paste a **personal access token** (Code and
   Work Items, read & write), and agentd acts as you in Azure DevOps: commits, PRs, comments and updates for work items
   assigned to you, and the `!review` findings you post, show your name instead of agentd's. The token is stored

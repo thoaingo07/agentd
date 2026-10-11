@@ -66,6 +66,7 @@ In containers, environment variables work too (`ConnectionStrings__agentd`, `AGE
 | `Jobs:WaitForHumanTimeout` | `3.00:00:00` | a question nobody answers fails the job after this |
 | `Jobs:StuckAfter` | `00:05:00` | quiet this long → a "no activity" warning in the thread |
 | `Jobs:RetainFailedWorktrees` · `Jobs:RetainFinishedWorktrees` | `3.00:00:00` · `1.00:00:00` | how long worktrees are kept after a failure / after the merge |
+| `SystemLog:RetentionDays` · `SystemLog:MinimumLevel` | `14` · `Information` | how long Settings → System log keeps agentd's log, and from which level (other libraries: Warning and up); `SystemLog:Enabled=false` keeps none |
 | `Artifacts:RetentionDays` | `30` | days after its last update that an artifact (a page an agent published) expires; `0` keeps them forever |
 | `Claude:CommandTimeout` | `00:10:00` | the longest one shell command may run |
 | `Claude:AllowedTools` | (git, read-only and build tools) | extra commands agents may run without asking, e.g. `"Bash(make:*)"` |

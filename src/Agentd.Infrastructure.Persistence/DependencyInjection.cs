@@ -33,6 +33,7 @@ public static class DependencyInjection
         services.AddSingleton<Application.Reviews.IReviewSessionStore, ReviewSessionStore>();
         services.AddSingleton<Application.Monitor.IPrWatchStore, PrWatchStore>();
         services.AddSingleton<Application.Artifacts.IArtifactStore, ArtifactStore>();
+        services.AddSingleton<Application.SystemLog.ISystemLogStore, SystemLogStore>();
         services.AddSingleton<JobSessionStore>();
         services.AddSingleton<Application.Jobs.IJobSessions>(sp => sp.GetRequiredService<JobSessionStore>());
         services.AddSingleton<Application.Jobs.IJobPlans>(sp => sp.GetRequiredService<JobSessionStore>());

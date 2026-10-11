@@ -1,17 +1,19 @@
 using Agentd.Application.Abstractions;
 using Agentd.Application.Artifacts;
 using Agentd.Application.Jobs;
+using Agentd.Application.SystemLog;
 using Microsoft.Extensions.Options;
 
 namespace Agentd.Host.Workers;
 
 /// <summary>
 /// Housekeeping shortly after startup, then every <see cref="JobOptions.WorktreeSweepInterval"/>: <see cref="SweepWorktrees"/>,
-/// then expiring old artifacts (<see cref="ArtifactService.ExpireAsync"/>).
+/// then expiring old artifacts (<see cref="ArtifactService.ExpireAsync"/>) and system log entries (<see cref="SystemLogOptions.RetentionDays"/>).
 /// </summary>
 internal sealed partial class WorktreeSweepWorker(
     IServiceScopeFactory scopes,
     IOptions<JobOptions> options,
+    IOptions<SystemLogOptions> systemLog,
     ILogger<WorktreeSweepWorker> logger) : BackgroundService
 {
     /// <summary>Give startup recovery and the first scheduler pass time first.</summary>
@@ -41,6 +43,11 @@ internal sealed partial class WorktreeSweepWorker(
                             && await artifacts.ExpireAsync(stoppingToken).ConfigureAwait(false) is > 0 and var expired)
                         {
                             LogExpired(logger, expired);
+                        }
+
+                        if (systemLog.Value.RetentionDays > 0 && scope.ServiceProvider.GetService<ISystemLogStore>() is { } log)
+                        {
+                            await log.DeleteBeforeAsync(DateTimeOffset.UtcNow.AddDays(-systemLog.Value.RetentionDays), stoppingToken).ConfigureAwait(false);
                         }
                     }
                 }

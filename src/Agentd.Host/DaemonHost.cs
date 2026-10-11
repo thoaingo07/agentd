@@ -29,6 +29,11 @@ internal static class DaemonHost
         builder.Services.AddAgentdMcp();
         builder.Services.AddBff();
 
+        // Settings → System log: the daemon's own log, stored in batches (the console and journald keep theirs).
+        builder.Services.AddSingleton<Logging.SystemLogWriter>();
+        builder.Services.AddHostedService(sp => sp.GetRequiredService<Logging.SystemLogWriter>());
+        builder.Services.AddSingleton<ILoggerProvider, Logging.SystemLogProvider>();
+
         builder.Services.AddHostedService<SetupLinkAnnouncer>();
         builder.Services.AddHostedService<Control.ControlSocket>();   // ~/.agentd/run/agentd.sock: live status and run for the CLI   // not set up yet: logs the one-time setup link
 

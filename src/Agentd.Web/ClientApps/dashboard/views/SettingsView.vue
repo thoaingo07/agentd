@@ -50,6 +50,14 @@ onMounted(() => {
             {{ area.title }}
           </RouterLink>
         </li>
+        <li>
+          <RouterLink
+            :to="{ name: 'system-log' }"
+            class="btn btn-sm btn-outline"
+          >
+            System log
+          </RouterLink>
+        </li>
       </ul>
     </nav>
     <div class="grid gap-2">
