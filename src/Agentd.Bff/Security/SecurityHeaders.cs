@@ -42,6 +42,33 @@ public static class SecurityHeaders
                 "report-to csp",
             }.OfType<string>());
 
+    /// <summary>Where artifacts (agent-written HTML pages) are served: they get <see cref="ArtifactPolicy"/>, not the app's.</summary>
+    public const string ArtifactsPath = "/artifacts";
+
+    /// <summary>
+    /// An artifact is agent-written HTML on agentd's origin, so it runs in a CSP sandbox without <c>allow-same-origin</c>:
+    /// an opaque origin with no access to agentd's cookies, storage or API, and no network (<c>connect-src 'none'</c>).
+    /// Its own inline scripts and styles run, and libraries load from the same CDNs claude.ai artifacts use.
+    /// </summary>
+    public static readonly string ArtifactPolicy = string.Join("; ",
+        "sandbox allow-scripts allow-popups allow-popups-to-escape-sandbox",
+        "default-src 'none'",
+        "script-src 'unsafe-inline' 'unsafe-eval' " + ArtifactCdns,
+        "style-src 'unsafe-inline' https://fonts.googleapis.com " + ArtifactCdns,
+        "font-src data: https://fonts.gstatic.com " + ArtifactCdns,
+        "img-src data: blob: " + ArtifactCdns,
+        "connect-src 'none'",
+        "form-action 'none'",
+        "base-uri 'none'",
+        "frame-ancestors 'none'",
+        "object-src 'none'");
+
+    /// <summary>An artifact's page (<c>/artifacts/&lt;name&gt;.html</c>), not the app's Artifacts list at <c>/artifacts</c> itself.</summary>
+    public static bool IsArtifact(PathString path) =>
+        path.StartsWithSegments(ArtifactsPath, StringComparison.Ordinal, out var rest) && rest.Value is { Length: > 1 };
+
+    private const string ArtifactCdns = "https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com";
+
     /// <summary>Trusted Types are reported, not enforced, until Vue, base-ui-vue and SignalR are confirmed clean (Phase 10).</summary>
     public const string ReportOnlyPolicy = "require-trusted-types-for 'script'; trusted-types vue; report-uri " + ReportPath + "; report-to csp";
 
@@ -65,8 +92,16 @@ public static class SecurityHeaders
     {
         var request = context.Request;
         var headers = context.Response.Headers;
-        headers.ContentSecurityPolicy = Policy(request.IsHttps, options.AllowInlineStylesForDevServer);
-        headers.ContentSecurityPolicyReportOnly = ReportOnlyPolicy;
+        if (IsArtifact(request.Path))
+        {
+            headers.ContentSecurityPolicy = ArtifactPolicy;
+        }
+        else
+        {
+            headers.ContentSecurityPolicy = Policy(request.IsHttps, options.AllowInlineStylesForDevServer);
+            headers.ContentSecurityPolicyReportOnly = ReportOnlyPolicy;
+        }
+
         headers["Reporting-Endpoints"] = $"csp=\"{ReportPath}\"";
         headers.XContentTypeOptions = "nosniff";
         headers["Referrer-Policy"] = "no-referrer";

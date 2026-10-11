@@ -8,6 +8,7 @@ export const router = createRouter({
     { path: '/jobs/:id(\\d+)', name: 'job', component: () => import('./views/JobView.vue'), props: (r) => ({ id: Number(r.params.id) }) },
     { path: '/workitems/:id(\\d+)', name: 'work-item', component: () => import('./views/WorkItemView.vue'), props: (r) => ({ id: Number(r.params.id) }) },
     { path: '/history', name: 'history', component: () => import('./views/HistoryView.vue') },
+    { path: '/artifacts', name: 'artifacts', component: () => import('./views/ArtifactsView.vue') },
     { path: '/ideas', name: 'ideas', component: () => import('./views/IdeasView.vue') },
     { path: '/ideas/:id(\\d+)', name: 'idea', component: () => import('./views/IdeaView.vue'), props: (r) => ({ id: Number(r.params.id) }) },
     { path: '/reviews', name: 'reviews', component: () => import('./views/ReviewsView.vue') },

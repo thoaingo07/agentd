@@ -64,6 +64,12 @@ public static class TestSeedEndpoints
             return TypedResults.Ok(new { lastSeq = last });
         });
 
+        // An artifact, as if an agent had published it.
+        test.MapPost("/artifacts", async (SeedArtifact body, [FromServices] Application.Artifacts.ArtifactService artifacts, CancellationToken ct) =>
+            (await artifacts.PublishAsync(body.Title, body.Html, null, null, "e2e", ct).ConfigureAwait(false)) is { IsSuccess: true } published
+                ? Results.Ok(new { url = published.Value.Path })
+                : Results.BadRequest());
+
         test.MapPost("/jobs/{id:long}/permissions", async (long id, [FromServices] IPermissionStore store, CancellationToken ct) =>
             TypedResults.Ok(new { id = await store.InsertAsync(new JobId(id), "Bash", "npm install --no-audit", ["Bash(npm install:*)"], ct).ConfigureAwait(false) }));
 
@@ -73,6 +79,8 @@ public static class TestSeedEndpoints
     public sealed record SeedJob(int WorkItemId, string Title, bool Waiting = false);
 
     public sealed record SeedEvents(int Count, int From = 1);
+
+    public sealed record SeedArtifact(string Title, string Html);
 }
 
 /// <summary>The latest CSP reports the browser sent (also logged), so the E2E suite can assert there were none.</summary>

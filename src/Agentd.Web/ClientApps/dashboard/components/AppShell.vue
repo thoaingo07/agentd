@@ -17,6 +17,7 @@ const links = [
   { to: '/history', label: 'History' },
   { to: '/ideas', label: 'Ideas' },
   { to: '/reviews', label: 'Reviews' },
+  { to: '/artifacts', label: 'Artifacts' },
   { to: '/settings', label: 'Settings' },
 ]
 </script>

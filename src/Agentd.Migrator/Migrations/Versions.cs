@@ -82,3 +82,6 @@ public sealed class WebIdeas : SqlMigration;
 
 [Migration(2026_10_23_0001, "PRs can be watched from the Web UI, without a 👀 thread; the monitor's notices are kept")]
 public sealed class WebWatches : SqlMigration;
+
+[Migration(2026_10_24_0001, "Artifacts: HTML pages agents publish, served at /artifacts/<slug>-<hash>.html")]
+public sealed class Artifacts : SqlMigration;

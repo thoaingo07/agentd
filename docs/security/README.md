@@ -262,6 +262,13 @@ Vue 3.5+ creates a Trusted Types policy named `vue` for its own internal use, wh
 warnings with the blocked URI, directive and document URL. It is exempt from the antiforgery filter
 because browsers send these reports without our header.
 
+### 3.6 Artifacts
+
+Agent-written HTML pages at `/artifacts/<name>.html` get their own policy instead of 3.1: a CSP `sandbox` without
+`allow-same-origin` (an opaque origin: no access to agentd's cookies, storage or API), `connect-src 'none'`,
+inline scripts and styles plus three CDNs, and `frame-ancestors 'none'`. See
+[architect/artifacts.md](../architect/artifacts.md#3-serving-and-isolation).
+
 ---
 
 ## 4. Other security headers
