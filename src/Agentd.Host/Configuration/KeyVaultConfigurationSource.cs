@@ -10,13 +10,15 @@ namespace Agentd.Host.Configuration;
 /// <c>Agentd:Artifacts:S3:SecretAccessKey</c>, <c>ConnectionStrings--agentd</c> → <c>ConnectionStrings:agentd</c>. With
 /// <c>Agentd:KeyVault:Prefix</c> (e.g. <c>agentd-</c>) only names that start with it are read, so a shared vault works.
 /// Sign-in is <see cref="DefaultAzureCredential"/>: a managed identity, a service principal (<c>AZURE_TENANT_ID</c>,
-/// <c>AZURE_CLIENT_ID</c>, <c>AZURE_CLIENT_SECRET</c>) or <c>az login</c>. A vault that can't be read is a warning (names,
+/// <c>AZURE_CLIENT_ID</c>, <c>AZURE_CLIENT_SECRET</c>) or <c>az login</c>. <c>Agentd:KeyVault:TenantId</c> names the vault's
+/// directory when it isn't the sign-in's default (e.g. <c>az login</c>'s default subscription is another tenant's). A vault that can't be read is a warning (names,
 /// never values), so <c>agentd doctor</c> still runs.
 /// </summary>
 internal sealed class KeyVaultConfigurationSource(SecretClient client, string? prefix, string vault, TextWriter? warnings = null) : IConfigurationSource
 {
     public const string UriKey = "Agentd:KeyVault:Uri";
     public const string PrefixKey = "Agentd:KeyVault:Prefix";
+    public const string TenantIdKey = "Agentd:KeyVault:TenantId";
 
     public IConfigurationProvider Build(IConfigurationBuilder builder) => new Provider(client, prefix, vault, warnings ?? Console.Error);
 
@@ -33,8 +35,20 @@ internal sealed class KeyVaultConfigurationSource(SecretClient client, string? p
             throw new InvalidOperationException($"{UriKey} must be the vault's https URL, e.g. https://my-vault.vault.azure.net/.");
         }
 
-        var credential = new DefaultAzureCredential(new DefaultAzureCredentialOptions { ExcludeInteractiveBrowserCredential = true });
+        var credential = new DefaultAzureCredential(CredentialOptions(configuration));
         return new KeyVaultConfigurationSource(new SecretClient(vault, credential), configuration[PrefixKey], vault.Host);
+    }
+
+    /// <summary>How to sign in: never a browser prompt; in <see cref="TenantIdKey"/>'s directory when set.</summary>
+    internal static DefaultAzureCredentialOptions CredentialOptions(IConfiguration configuration)
+    {
+        var options = new DefaultAzureCredentialOptions { ExcludeInteractiveBrowserCredential = true };
+        if (configuration[TenantIdKey] is { Length: > 0 } tenant)
+        {
+            options.TenantId = tenant;
+        }
+
+        return options;
     }
 
     /// <summary>The configuration key a secret named <paramref name="name"/> fills, or null when it isn't agentd's (the prefix).</summary>

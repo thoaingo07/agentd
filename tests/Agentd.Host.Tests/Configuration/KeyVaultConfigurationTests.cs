@@ -72,6 +72,18 @@ public sealed class KeyVaultConfigurationTests : IDisposable
     }
 
     [TestMethod]
+    public void The_tenant_setting_signs_in_to_the_vaults_directory_and_never_opens_a_browser()
+    {
+        var withTenant = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { [KeyVaultConfigurationSource.TenantIdKey] = "7e31a6e4-0a80-4f6a-abd2-a482c4a6724c" }).Build();
+
+        var tenant = KeyVaultConfigurationSource.CredentialOptions(withTenant);
+        var none = KeyVaultConfigurationSource.CredentialOptions(new ConfigurationBuilder().Build());
+
+        Assert.AreEqual(("7e31a6e4-0a80-4f6a-abd2-a482c4a6724c", true), (tenant.TenantId, tenant.ExcludeInteractiveBrowserCredential));
+        Assert.AreEqual(Environment.GetEnvironmentVariable("AZURE_TENANT_ID"), none.TenantId, "unset: the sign-in's own default");
+    }
+
+    [TestMethod]
     public void Only_an_https_vault_url_is_accepted_and_none_means_no_vault()
     {
         var none = new ConfigurationBuilder().Build();
