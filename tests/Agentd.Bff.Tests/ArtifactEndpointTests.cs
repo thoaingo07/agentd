@@ -37,6 +37,23 @@ public sealed class ArtifactEndpointTests
         Assert.AreEqual((HttpStatusCode.NotFound, HttpStatusCode.NotFound, HttpStatusCode.NotFound), (missing.StatusCode, odd.StatusCode, noExtension.StatusCode));
     }
 
+    private static readonly Artifact s_expired = new("old-notes-99887766", "Old <notes>", null, 3, null, "job #3", DateTimeOffset.UnixEpoch, new DateTimeOffset(2026, 11, 9, 0, 0, 0, TimeSpan.Zero));
+
+    [TestMethod]
+    public async Task An_expired_artifacts_link_says_so()
+    {
+        await using var app = await StartAsync();
+        using var client = app.GetTestClient();
+
+        using var gone = await client.GetAsync(new Uri("/artifacts/old-notes-99887766.html", UriKind.Relative));
+        var body = await gone.Content.ReadAsStringAsync();
+
+        Assert.AreEqual(HttpStatusCode.Gone, gone.StatusCode);
+        StringAssert.Contains(body, "<h1>Old &lt;notes&gt;</h1>");
+        StringAssert.Contains(body, "This artifact expired on 2026-11-09.");
+        StringAssert.StartsWith(gone.Headers.GetValues("Content-Security-Policy").Single(), "sandbox ");
+    }
+
     [TestMethod]
     public async Task Artifacts_are_listed_with_their_links()
     {
@@ -78,7 +95,10 @@ public sealed class ArtifactEndpointTests
         public Task<PublishedArtifact> PublishAsync(string name, string title, string html, long? jobId, long? chatId, string author, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public Task<Artifact?> GetAsync(string name, CancellationToken cancellationToken) => Task.FromResult(name == s_page.Name ? s_page : null);
+        public Task<Artifact?> GetAsync(string name, CancellationToken cancellationToken) =>
+            Task.FromResult(name == s_page.Name ? s_page : name == s_expired.Name ? s_expired : null);
+
+        public Task<int> ExpireAsync(DateTimeOffset updatedBefore, CancellationToken cancellationToken) => throw new NotSupportedException();
 
         public Task<IReadOnlyList<ArtifactSummary>> ListAsync(int limit, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<ArtifactSummary>>([new(s_page.Name, s_page.Title, s_page.JobId, null, s_page.Author, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch)]);

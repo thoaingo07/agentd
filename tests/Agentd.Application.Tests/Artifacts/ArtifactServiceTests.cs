@@ -37,6 +37,19 @@ public sealed class ArtifactServiceTests
     }
 
     [TestMethod]
+    public async Task Pages_expire_after_the_retention_and_zero_keeps_them_forever()
+    {
+        var clock = new Fakes.FakeClock();
+        var thirty = new ArtifactService(_store, clock, Microsoft.Extensions.Options.Options.Create(new ArtifactOptions()));
+        var forever = new ArtifactService(_store, clock, Microsoft.Extensions.Options.Options.Create(new ArtifactOptions { RetentionDays = 0 }));
+
+        Assert.AreEqual(3, await thirty.ExpireAsync(default));
+        Assert.AreEqual(0, await forever.ExpireAsync(default));
+
+        Assert.AreEqual(clock.UtcNow.AddDays(-30), _store.Expired.Single(), "30 days after the last update, by default");
+    }
+
+    [TestMethod]
     [DataRow("Café — Crème & Co", "caf-crme-co")]
     [DataRow("!!!", "artifact")]
     [DataRow("A very long title that keeps going well past the forty-eight character limit", "a-very-long-title-that-keeps-going-well-past-the")]
@@ -55,5 +68,13 @@ public sealed class ArtifactServiceTests
         public Task<Artifact?> GetAsync(string name, CancellationToken cancellationToken) => throw new NotSupportedException();
 
         public Task<IReadOnlyList<ArtifactSummary>> ListAsync(int limit, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public List<DateTimeOffset> Expired { get; } = [];
+
+        public Task<int> ExpireAsync(DateTimeOffset updatedBefore, CancellationToken cancellationToken)
+        {
+            Expired.Add(updatedBefore);
+            return Task.FromResult(3);
+        }
     }
 }

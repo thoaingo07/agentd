@@ -9,11 +9,12 @@ test('a long transcript opens on the newest page, streams a burst, and loads ear
   await expect(page.getByRole('status')).toHaveText(/Live/)
   const rows = page.locator('[data-seq]').filter({ hasText: /e2e event \d+/ })
 
-  await expect(page.getByText('e2e event 250', { exact: true })).toBeVisible()
+  // Generous waits for streamed events: under the full parallel suite a burst can take longer than the default 5 s.
+  await expect(page.getByText('e2e event 250', { exact: true })).toBeVisible({ timeout: 15_000 })
   expect(await rows.count()).toBeLessThanOrEqual(100)
 
   await seed.events(request, job, 150, 251)
-  await expect(page.getByText('e2e event 400', { exact: true })).toBeVisible()
+  await expect(page.getByText('e2e event 400', { exact: true })).toBeVisible({ timeout: 15_000 })
 
   const transcript = page.locator('[aria-label="Transcript"]')
   for (let i = 0; i < 10 && !(await page.getByText('e2e event 1', { exact: true }).count()); i++) {

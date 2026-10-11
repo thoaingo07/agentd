@@ -1,10 +1,14 @@
 using Agentd.Application.Abstractions;
+using Agentd.Application.Artifacts;
 using Agentd.Application.Jobs;
 using Microsoft.Extensions.Options;
 
 namespace Agentd.Host.Workers;
 
-/// <summary>Runs <see cref="SweepWorktrees"/> shortly after startup, then every <see cref="JobOptions.WorktreeSweepInterval"/>.</summary>
+/// <summary>
+/// Housekeeping shortly after startup, then every <see cref="JobOptions.WorktreeSweepInterval"/>: <see cref="SweepWorktrees"/>,
+/// then expiring old artifacts (<see cref="ArtifactService.ExpireAsync"/>).
+/// </summary>
 internal sealed partial class WorktreeSweepWorker(
     IServiceScopeFactory scopes,
     IOptions<JobOptions> options,
@@ -32,6 +36,12 @@ internal sealed partial class WorktreeSweepWorker(
                         {
                             LogRemoved(logger, removed.Value);
                         }
+
+                        if (scope.ServiceProvider.GetService<ArtifactService>() is { } artifacts
+                            && await artifacts.ExpireAsync(stoppingToken).ConfigureAwait(false) is > 0 and var expired)
+                        {
+                            LogExpired(logger, expired);
+                        }
                     }
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
@@ -49,6 +59,9 @@ internal sealed partial class WorktreeSweepWorker(
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Removed {Count} unused checkout(s)")]
     private static partial void LogRemoved(ILogger logger, int count);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Expired {Count} artifact(s)")]
+    private static partial void LogExpired(ILogger logger, int count);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Sweeping worktrees failed; retrying next interval")]
     private static partial void LogFailed(ILogger logger, Exception exception);

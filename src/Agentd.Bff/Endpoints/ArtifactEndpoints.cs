@@ -29,11 +29,20 @@ public static partial class ArtifactEndpoints
     {
         endpoints.MapGet(SecurityHeaders.ArtifactsPath + "/{file}", async Task<IResult> (string file, [FromServices] IArtifactStore store, CancellationToken ct) =>
             File().Match(file) is { Success: true } m && await store.GetAsync(m.Groups["name"].Value, ct).ConfigureAwait(false) is { } artifact
-                ? TypedResults.Content(artifact.Html, "text/html; charset=utf-8")
+                ? artifact.Html is { } html
+                    ? TypedResults.Content(html, "text/html; charset=utf-8")
+                    : TypedResults.Content(Expired(artifact), "text/html; charset=utf-8", statusCode: StatusCodes.Status410Gone)
                 : TypedResults.NotFound())
             .RequireAuthorization().ExcludeFromDescription();
         return endpoints;
     }
+
+    /// <summary>What an expired page's link shows (a link in a PR or chat outlives the page).</summary>
+    private static string Expired(Artifact a) =>
+        "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Expired: " + System.Net.WebUtility.HtmlEncode(a.Title) + "</title>\n</head>\n<body>\n" +
+        "<h1>" + System.Net.WebUtility.HtmlEncode(a.Title) + "</h1>\n<p>This artifact expired" +
+        (a.ExpiredAt is { } at ? " on " + at.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) : string.Empty) +
+        ". Ask the agent to publish it again.</p>\n</body>\n</html>\n";
 
     [GeneratedRegex("^(?<name>[a-z0-9][a-z0-9-]{0,63})\\.html$")]
     private static partial Regex File();
