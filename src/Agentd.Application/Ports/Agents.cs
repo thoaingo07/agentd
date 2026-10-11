@@ -94,4 +94,17 @@ public interface IMcpTokenIssuer
     long? ValidateChat(string token);
 
     void RevokeChat(long chatId);
+
+    /// <summary>
+    /// A token for one agent turn that may only publish artifacts, as <paramref name="source"/> (one of
+    /// <c>ArtifactSources</c>) <paramref name="id"/>. Several can live at once (parallel turns of one source); revoke it with
+    /// <see cref="RevokeToken"/> when the turn ends. Null when tokens aren't issued here (the turn runs without MCP).
+    /// </summary>
+    string? IssueArtifacts(string source, long id) => null;
+
+    (string Source, long Id)? ValidateArtifacts(string token) => null;
+
+    void RevokeToken(string token)
+    {
+    }
 }

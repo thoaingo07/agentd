@@ -137,5 +137,8 @@ public sealed class ClaudeOptionsTests
         CollectionAssert.Contains(withTools, "--strict-mcp-config", "only agentd's server, never the user's");
         CollectionAssert.DoesNotContain(without, "--mcp-config");
         Assert.DoesNotContain("mcp__", without[without.IndexOf("--allowedTools") + 1]);
+        StringAssert.EndsWith(withTools[withTools.IndexOf("--append-system-prompt") + 1], ClaudeBrainstormAgent.ArtifactRule, "a turn with tools is told to publish artifacts when asked");
+        Assert.AreEqual(ClaudeBrainstormAgent.Rules, without[without.IndexOf("--append-system-prompt") + 1]);
+        StringAssert.Contains(new ClaudeOptions().SystemPromptRules, "publish it with `publish_artifact` right away");
     }
 }

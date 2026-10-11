@@ -97,3 +97,6 @@ public sealed class WebChats : SqlMigration;
 
 [Migration(2026_10_28_0001, "Review sessions keep the focus and instructions they were started with")]
 public sealed class ReviewSessionBrief : SqlMigration;
+
+[Migration(2026_10_29_0001, "Artifacts come from any agent turn: a source kind and id replace job_id / chat_id")]
+public sealed class ArtifactSources : SqlMigration;

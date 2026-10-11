@@ -10,8 +10,8 @@ using ModelContextProtocol.Server;
 namespace Agentd.Mcp;
 
 /// <summary>
-/// <c>publish_artifact</c> for jobs and chats: an HTML page served by agentd to anyone who can open the Web UI. The source
-/// (the job or the chat) comes from the bearer token, never from an argument.
+/// <c>publish_artifact</c> for every agent (jobs, chats, ideas, reviews, follow-ups, fix rounds): an HTML page served by
+/// agentd to anyone who can open the Web UI. The source comes from the bearer token, never from an argument.
 /// </summary>
 [McpServerToolType]
 [Authorize(Policy = McpHosting.AgentPolicy)]
@@ -27,16 +27,8 @@ public sealed class ArtifactTools(IHttpContextAccessor http, ArtifactService art
         [Description("The HTML: a complete document, or the content of <body>.")] string html,
         CancellationToken cancellationToken)
     {
-        var user = http.HttpContext?.User;
-        var jobId = Id(user?.FindFirst(McpJobAuthenticationHandler.JobIdClaim)?.Value);
-        var chatId = jobId is null ? Id(user?.FindFirst(McpJobAuthenticationHandler.ChatIdClaim)?.Value) : null;
-        if (jobId is null && chatId is null)
-        {
-            throw new McpException("Not authenticated as an agentd job or chat.");
-        }
-
-        var author = jobId is { } j ? $"job #{j}" : $"chat #{chatId}";
-        var result = await artifacts.PublishAsync(title, html, jobId, chatId, author, cancellationToken).ConfigureAwait(false);
+        var (source, id) = Source(http.HttpContext?.User) ?? throw new McpException("Not authenticated as an agentd agent.");
+        var result = await artifacts.PublishAsync(title, html, source, id, $"{source} #{id}", cancellationToken).ConfigureAwait(false);
         if (!result.IsSuccess)
         {
             throw new McpException($"publish_artifact failed: {result.Error.Message}");
@@ -44,6 +36,25 @@ public sealed class ArtifactTools(IHttpContextAccessor http, ArtifactService art
 
         var link = (configuration["Agentd:Web:PublicOrigin"]?.TrimEnd('/') ?? string.Empty) + result.Value.Path;
         return result.Value.Created ? $"Published: {link}" : $"Updated (same link): {link}";
+    }
+
+    /// <summary>Which agent is publishing: the job's or chat's token, or a turn's artifact token (<c>idea:5</c>).</summary>
+    private static (string Source, long Id)? Source(System.Security.Claims.ClaimsPrincipal? user)
+    {
+        if (Id(user?.FindFirst(McpJobAuthenticationHandler.JobIdClaim)?.Value) is { } job)
+        {
+            return (ArtifactSources.Job, job);
+        }
+
+        if (Id(user?.FindFirst(McpJobAuthenticationHandler.ChatIdClaim)?.Value) is { } chat)
+        {
+            return (ArtifactSources.Chat, chat);
+        }
+
+        return user?.FindFirst(McpJobAuthenticationHandler.ArtifactSourceClaim)?.Value is { } claim && claim.LastIndexOf(':') is > 0 and var at
+            && Id(claim[(at + 1)..]) is { } id
+            ? (claim[..at], id)
+            : null;
     }
 
     private static long? Id(string? value) => long.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var id) ? id : null;

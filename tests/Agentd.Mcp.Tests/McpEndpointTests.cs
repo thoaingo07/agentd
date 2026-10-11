@@ -188,11 +188,32 @@ public sealed class McpEndpointTests
 
         StringAssert.Matches(Text(fromJob), new System.Text.RegularExpressions.Regex("^Published: https://agentd\\.example/artifacts/mcp-job-report-[0-9a-f]{8}\\.html$"));
         var published = McpTestHost.Artifacts.Published.Where(p => p.Title.StartsWith("MCP ", StringComparison.Ordinal)).ToList();
-        CollectionAssert.AreEquivalent(new[] { ((long?)42, (long?)null, "job #42"), ((long?)null, (long?)7, "chat #7") }, published.Select(p => (p.JobId, p.ChatId, p.Author)).ToList());
+        CollectionAssert.AreEquivalent(new[] { ("job", 42L, "job #42"), ("chat", 7L, "chat #7") }, published.Select(p => (p.Source, p.SourceId, p.Author)).ToList());
         Assert.IsFalse(fromChat.IsError ?? false, Text(fromChat));
         Assert.IsTrue(noTitle.IsError ?? false);
         var schema = (await job.ListToolsAsync()).Single(t => t.Name == "publish_artifact").JsonSchema.GetProperty("properties").EnumerateObject().Select(p => p.Name).ToList();
         CollectionAssert.AreEquivalent(new[] { "title", "html" }, schema, "the source is the token's, never an argument");
+    }
+
+    [TestMethod]
+    public async Task A_turns_artifact_token_only_publishes_as_its_source_and_dies_when_revoked()
+    {
+        await using var host = await McpTestHost.StartAsync();
+        var token = host.Tokens.IssueArtifacts("idea", 5)!;
+        var other = host.Tokens.IssueArtifacts("idea", 5)!;   // a parallel turn of the same idea keeps its own
+        await using var client = await host.ClientAsync(token);
+
+        var tools = (await client.ListToolsAsync()).Select(t => t.Name).ToList();
+        var published = await client.CallToolAsync("publish_artifact", Args(("title", "Idea sketch from an artifact token"), ("html", "<p>idea</p>")));
+        host.Tokens.RevokeToken(token);
+        using var revoked = await host.Http.SendAsync(Post(token));
+        using var stillAlive = await host.Http.SendAsync(Post(other));
+
+        CollectionAssert.AreEqual(new[] { "publish_artifact" }, tools, "no job tools, no Azure DevOps tools");
+        Assert.IsFalse(published.IsError ?? false, Text(published));
+        Assert.AreEqual(("idea", 5L, "idea #5"), McpTestHost.Artifacts.Published.Where(p => p.Title == "Idea sketch from an artifact token").Select(p => (p.Source, p.SourceId, p.Author)).Single());
+        Assert.AreEqual(HttpStatusCode.Unauthorized, revoked.StatusCode);
+        Assert.AreNotEqual(HttpStatusCode.Unauthorized, stillAlive.StatusCode);
     }
 
     [TestMethod]

@@ -189,6 +189,9 @@ wrapper. The XSRF header and its one retry stay built in, so no middleware can d
   per-job bearer token) and **no cookie scheme**, and it is excluded from the `/api` group and the
   antiforgery filter.
 - It rejects any request that carries an `Origin` header (browsers always send one; the CLI does not).
+- Three kinds of bearer token, each seeing only its own tools: a **job's** (the job tools and `publish_artifact`), a
+  **chat's** (the read-only Azure DevOps tools and `publish_artifact`), and a turn's **artifact-only** token (only
+  `publish_artifact`, revoked when the turn ends). All are random, stored as hashes, and expire after 12 hours.
 
 ---
 

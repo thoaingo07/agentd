@@ -1242,15 +1242,14 @@ export interface components {
         AntiforgeryTokenVm: {
             token: string;
         };
-        /** @description An artifact: open `url` (a page of its own); `jobId` / `chatId` say which agent published it. */
+        /** @description An artifact: open `url` (a page of its own); `source` (job, chat, idea, review, review-session, watch, web) and `sourceId` say which agent published it. */
         ArtifactVm: {
             name: string;
             title: string;
             url: string;
+            source: string;
             /** Format: int64 */
-            jobId: null | number;
-            /** Format: int64 */
-            chatId: null | number;
+            sourceId: number;
             author: string;
             /** Format: date-time */
             createdAt: string;

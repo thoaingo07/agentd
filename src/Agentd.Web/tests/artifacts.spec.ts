@@ -8,19 +8,23 @@ import ArtifactsView from '../ClientApps/dashboard/views/ArtifactsView.vue'
 const router = () => createRouter({ history: createMemoryHistory(), routes: [
   { path: '/', component: { template: '<div />' } },
   { path: '/jobs/:id', name: 'job', component: { template: '<div />' } },
+  { path: '/ideas/:id', name: 'idea', component: { template: '<div />' } },
+  { path: '/chats/:id', name: 'chat', component: { template: '<div />' } },
+  { path: '/reviews/:id', name: 'review', component: { template: '<div />' } },
 ] })
 
 beforeEach(() => {
   setActivePinia(createPinia())
   vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify([
-    { name: 'sync-report-1a2b3c4d', title: 'Sync report', url: '/artifacts/sync-report-1a2b3c4d.html', jobId: 12, chatId: null, author: 'job #12', createdAt: '2026-10-10T10:00:00Z', updatedAt: '2026-10-10T11:00:00Z' },
-    { name: 'diagram-00ff00ff', title: 'Diagram', url: '/artifacts/diagram-00ff00ff.html', jobId: null, chatId: 7, author: 'chat #7', createdAt: '2026-10-10T09:00:00Z', updatedAt: '2026-10-10T09:00:00Z' },
+    { name: 'sync-report-1a2b3c4d', title: 'Sync report', url: '/artifacts/sync-report-1a2b3c4d.html', source: 'job', sourceId: 12, author: 'job #12', createdAt: '2026-10-10T10:00:00Z', updatedAt: '2026-10-10T11:00:00Z' },
+    { name: 'diagram-00ff00ff', title: 'Diagram', url: '/artifacts/diagram-00ff00ff.html', source: 'idea', sourceId: 7, author: 'idea #7', createdAt: '2026-10-10T09:00:00Z', updatedAt: '2026-10-10T09:00:00Z' },
+    { name: 'pr-notes-12345678', title: 'PR notes', url: '/artifacts/pr-notes-12345678.html', source: 'review', sourceId: 3, author: 'review #3', createdAt: '2026-10-10T08:00:00Z', updatedAt: '2026-10-10T08:00:00Z' },
   ]))))
 })
 afterEach(() => vi.unstubAllGlobals())
 
 describe('Artifacts', () => {
-  it('lists the pages, each opening on its own (new tab, no opener), with the job or chat that published it', async () => {
+  it('lists the pages, each opening on its own (new tab, no opener), with the agent that published it', async () => {
     const w = mount(ArtifactsView, { global: { plugins: [router()] } })
     await flushPromises()
 
@@ -28,7 +32,9 @@ describe('Artifacts', () => {
     const link = rows[0]!.get('a')
     expect([link.text(), link.attributes('href'), link.attributes('target'), link.attributes('rel')]).toEqual(['Sync report', '/artifacts/sync-report-1a2b3c4d.html', '_blank', 'noopener noreferrer'])
     expect(rows[0]!.findAll('a')[1]!.attributes('href')).toBe('/jobs/12')
-    expect(rows[1]!.text()).toContain('chat #7')
+    expect(rows[1]!.findAll('a')[1]!.attributes('href')).toBe('/ideas/7')
+    expect(rows[2]!.findAll('a')).toHaveLength(1)   // a PR review thread has no page here
+    expect(rows[2]!.text()).toContain('PR review #3')
   })
 
   it('a job\'s transcript says when it published or updated one, with a link', () => {

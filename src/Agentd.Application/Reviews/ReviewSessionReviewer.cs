@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Globalization;
+using Agentd.Application.Artifacts;
 using Agentd.Application.Ideas;
 using Agentd.Application.Ports;
 using Agentd.Domain.Jobs.ValueObjects;
@@ -19,7 +20,8 @@ public sealed partial class ReviewSessionReviewer(
     IWorktreeManager worktrees,
     IBrainstormAgent agent,
     ILogger<ReviewSessionReviewer>? logger = null,
-    IServiceProvider? services = null) : IDisposable
+    IServiceProvider? services = null,
+    IMcpTokenIssuer? tokens = null) : IDisposable
 {
     /// <summary>Reviews running at once (each is a Claude Code process).</summary>
     public const int MaxConcurrent = 2;
@@ -76,7 +78,7 @@ public sealed partial class ReviewSessionReviewer(
 
             var worktree = await worktrees.CheckoutCommitAsync(repo, $"review-session-{id}", head, cancellationToken).ConfigureAwait(false);
             await store.PinAsync(id, baseCommit, head, worktree, cancellationToken).ConfigureAwait(false);
-            var reply = await agent.RunAsync(new BrainstormTurn(id, worktree, Guid.NewGuid(), false, Prompt(session, repo.Name.Value), session.Model, session.Effort, ThreadTurnKind.ReviewSession),
+            var reply = await ArtifactTurn.RunAsync(agent, tokens, ArtifactSources.ReviewSession, id, new BrainstormTurn(id, worktree, Guid.NewGuid(), false, Prompt(session, repo.Name.Value), session.Model, session.Effort, ThreadTurnKind.ReviewSession),
                 cancellationToken).ConfigureAwait(false);
             if (reply.UsageLimitedUntil is { } until)
             {

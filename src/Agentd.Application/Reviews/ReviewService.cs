@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Globalization;
 using System.Text.RegularExpressions;
+using Agentd.Application.Artifacts;
 using Agentd.Application.Ideas;
 using Agentd.Application.Messaging;
 using Agentd.Application.Ports;
@@ -26,7 +27,8 @@ public sealed partial class ReviewService(
     IMessagingProviderRegistry providers,
     ILogger<ReviewService> logger,
     IWorkItemSource? workItems = null,
-    Microsoft.Extensions.Options.IOptions<Jobs.JobOptions>? jobs = null) : IDisposable
+    Microsoft.Extensions.Options.IOptions<Jobs.JobOptions>? jobs = null,
+    IMcpTokenIssuer? tokens = null) : IDisposable
 {
     public const int MaxConcurrentReviews = 2;
 
@@ -588,7 +590,7 @@ public sealed partial class ReviewService(
 
         var worktree = await worktrees.CheckoutCommitAsync(repo, $"review-{review.Id}", head, ct).ConfigureAwait(false);
         var session = review.Session ?? Guid.NewGuid();
-        var reply = await agent.RunAsync(new BrainstormTurn(review.Id, worktree, session, review.Session is not null, prompt, review.Model, review.Effort, ThreadTurnKind.Review), ct).ConfigureAwait(false);
+        var reply = await ArtifactTurn.RunAsync(agent, tokens, ArtifactSources.Review, review.Id, new BrainstormTurn(review.Id, worktree, session, review.Session is not null, prompt, review.Model, review.Effort, ThreadTurnKind.Review), ct).ConfigureAwait(false);
         review = review with { Session = session, Worktree = worktree, HeadCommit = head };
 
         if (reply.UsageLimitedUntil is { } until || reply.Text is null)

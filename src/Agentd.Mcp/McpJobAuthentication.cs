@@ -21,6 +21,9 @@ public sealed class McpJobAuthenticationHandler(
     public const string JobIdClaim = "agentd:job_id";
     public const string ChatIdClaim = "agentd:chat_id";
 
+    /// <summary>An artifact-only turn token: <c>&lt;source&gt;:&lt;id&gt;</c> (e.g. <c>idea:5</c>).</summary>
+    public const string ArtifactSourceClaim = "agentd:artifact_source";
+
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
         var header = Request.Headers.Authorization.ToString();
@@ -32,6 +35,7 @@ public sealed class McpJobAuthenticationHandler(
         var token = header["Bearer ".Length..].Trim();
         Claim? claim = tokens.Validate(token) is { } jobId ? new Claim(JobIdClaim, jobId.ToString())
             : tokens.ValidateChat(token) is { } chatId ? new Claim(ChatIdClaim, chatId.ToString(System.Globalization.CultureInfo.InvariantCulture))
+            : tokens.ValidateArtifacts(token) is { } source ? new Claim(ArtifactSourceClaim, string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{source.Source}:{source.Id}"))
             : null;
         if (claim is null)
         {

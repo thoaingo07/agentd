@@ -7,6 +7,9 @@ import type { Artifact } from '../../shared/api/types'
 import { dateTime } from '../../shared/utils/format'
 
 const artifacts = ref<Artifact[] | null>(null)
+/** The page of what published it, when it has one (a PR review thread or a watched PR's fix round lives in chat). */
+const pages: Record<string, string> = { job: 'job', chat: 'chat', idea: 'idea', 'review-session': 'review' }
+const labels: Record<string, string> = { job: 'job', chat: 'chat', idea: 'idea', review: 'PR review', 'review-session': 'review', watch: 'watched PR', web: 'agentd' }
 const error = ref(false)
 onMounted(async () => {
   try {
@@ -24,7 +27,7 @@ onMounted(async () => {
         Artifacts
       </h1>
       <p class="text-sm text-muted">
-        Pages agents published: reports, diagrams, explainers. Ask an agent in a job or <code class="font-mono">!chat</code> to "publish an artifact"; anyone who can open agentd can read them.
+        Pages agents published: reports, diagrams, explainers. Ask any agent (a job, a chat, an idea, a review) to "publish an artifact"; anyone who can open agentd can read them.
       </p>
     </div>
     <p
@@ -64,11 +67,11 @@ onMounted(async () => {
         >{{ a.title }}</a>
         <span class="text-xs text-muted">
           <RouterLink
-            v-if="a.jobId"
-            :to="{ name: 'job', params: { id: a.jobId } }"
+            v-if="pages[a.source]"
+            :to="{ name: pages[a.source]!, params: { id: a.sourceId } }"
             class="link"
-          >job #{{ a.jobId }}</RouterLink><template v-else>
-            {{ a.author }}
+          >{{ labels[a.source] }} #{{ a.sourceId }}</RouterLink><template v-else>
+            {{ labels[a.source] ?? a.source }}{{ a.sourceId ? ` #${a.sourceId}` : '' }}
           </template>
           · {{ dateTime(a.updatedAt) }}
         </span>

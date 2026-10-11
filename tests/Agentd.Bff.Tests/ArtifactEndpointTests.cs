@@ -12,7 +12,7 @@ namespace Agentd.Bff.Tests;
 [TestClass]
 public sealed class ArtifactEndpointTests
 {
-    private static readonly Artifact s_page = new("sync-report-1a2b3c4d", "Sync report", "<!doctype html><html><body><script>alert(1)</script></body></html>", 12, null, "job #12",
+    private static readonly Artifact s_page = new("sync-report-1a2b3c4d", "Sync report", "<!doctype html><html><body><script>alert(1)</script></body></html>", "job", 12, "job #12",
         DateTimeOffset.UnixEpoch);
 
     [TestMethod]
@@ -37,7 +37,7 @@ public sealed class ArtifactEndpointTests
         Assert.AreEqual((HttpStatusCode.NotFound, HttpStatusCode.NotFound, HttpStatusCode.NotFound), (missing.StatusCode, odd.StatusCode, noExtension.StatusCode));
     }
 
-    private static readonly Artifact s_expired = new("old-notes-99887766", "Old <notes>", null, 3, null, "job #3", DateTimeOffset.UnixEpoch, new DateTimeOffset(2026, 11, 9, 0, 0, 0, TimeSpan.Zero));
+    private static readonly Artifact s_expired = new("old-notes-99887766", "Old <notes>", null, "job", 3, "job #3", DateTimeOffset.UnixEpoch, new DateTimeOffset(2026, 11, 9, 0, 0, 0, TimeSpan.Zero));
 
     [TestMethod]
     public async Task An_expired_artifacts_link_says_so()
@@ -62,7 +62,7 @@ public sealed class ArtifactEndpointTests
 
         var list = JsonDocument.Parse(await client.GetStringAsync(new Uri("/api/artifacts", UriKind.Relative))).RootElement;
 
-        CollectionAssert.AreEqual(new[] { "name", "title", "url", "jobId", "chatId", "author", "createdAt", "updatedAt" }, list[0].EnumerateObject().Select(p => p.Name).ToArray(), "the TS contract");
+        CollectionAssert.AreEqual(new[] { "name", "title", "url", "source", "sourceId", "author", "createdAt", "updatedAt" }, list[0].EnumerateObject().Select(p => p.Name).ToArray(), "the TS contract");
         Assert.AreEqual("/artifacts/sync-report-1a2b3c4d.html", list[0].GetProperty("url").GetString());
     }
 
@@ -92,7 +92,7 @@ public sealed class ArtifactEndpointTests
 
     private sealed class Store : IArtifactStore
     {
-        public Task<PublishedArtifact> PublishAsync(string name, string title, string html, long? jobId, long? chatId, string author, CancellationToken cancellationToken) =>
+        public Task<PublishedArtifact> PublishAsync(string name, string title, string html, string source, long sourceId, string author, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
         public Task<Artifact?> GetAsync(string name, CancellationToken cancellationToken) =>
@@ -101,6 +101,6 @@ public sealed class ArtifactEndpointTests
         public Task<int> ExpireAsync(DateTimeOffset updatedBefore, CancellationToken cancellationToken) => throw new NotSupportedException();
 
         public Task<IReadOnlyList<ArtifactSummary>> ListAsync(int limit, CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<ArtifactSummary>>([new(s_page.Name, s_page.Title, s_page.JobId, null, s_page.Author, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch)]);
+            Task.FromResult<IReadOnlyList<ArtifactSummary>>([new(s_page.Name, s_page.Title, s_page.Source, s_page.SourceId, s_page.Author, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch)]);
     }
 }

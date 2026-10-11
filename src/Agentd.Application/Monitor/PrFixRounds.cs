@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Globalization;
 using System.Text;
+using Agentd.Application.Artifacts;
 using Agentd.Application.Ideas;
 using Agentd.Application.Jobs;
 using Agentd.Application.Messaging;
@@ -29,7 +30,8 @@ public sealed partial class PrFixRounds(
     IMessagingProviderRegistry providers,
     IClock clock,
     IOptions<JobOptions>? jobs = null,
-    ILogger<PrFixRounds>? logger = null) : IPrFixRounds, IDisposable
+    ILogger<PrFixRounds>? logger = null,
+    IMcpTokenIssuer? tokens = null) : IPrFixRounds, IDisposable
 {
     public static readonly TimeSpan Expiry = TimeSpan.FromHours(24);
     private const int MaxLogTail = 3000;
@@ -75,7 +77,7 @@ public sealed partial class PrFixRounds(
             await Post(w, $"🔧 Preparing a fix for PR !{w.PullRequestId}…", ct).ConfigureAwait(false);
             path = await worktrees.CheckoutCommitAsync(repo, $"pr-fix-{w.Id}", pr.SourceCommit, ct).ConfigureAwait(false);
             var conflicted = request.Conflicts ? await worktrees.MergeAsync(path, $"origin/{pr.TargetBranch}", ct).ConfigureAwait(false) : [];
-            var reply = await agent.RunAsync(new BrainstormTurn(w.Id, path, Guid.NewGuid(), false, Prompt(request, conflicted), Model(), Effort(), ThreadTurnKind.ReviewFix), ct)
+            var reply = await ArtifactTurn.RunAsync(agent, tokens, ArtifactSources.Watch, w.Id, new BrainstormTurn(w.Id, path, Guid.NewGuid(), false, Prompt(request, conflicted), Model(), Effort(), ThreadTurnKind.ReviewFix), ct)
                 .ConfigureAwait(false);
             if (reply.UsageLimitedUntil is not null || reply.Text is null)
             {
