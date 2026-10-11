@@ -58,9 +58,11 @@ public sealed class EventsHubTests
         await using var host = await HubHost.StartAsync();
         host.Append(7, 20);
         using var writing = new CancellationTokenSource();
+        // Bounded: the subscription still lands mid-write, but an unbounded tight loop could write so many events on a fast
+        // machine that delivering them all outlasts the timeout.
         var writer = Task.Run(async () =>
         {
-            while (!writing.IsCancellationRequested)
+            for (var i = 0; i < 1_000 && !writing.IsCancellationRequested; i++)
             {
                 host.Append(7, 1);
                 await Task.Yield();
