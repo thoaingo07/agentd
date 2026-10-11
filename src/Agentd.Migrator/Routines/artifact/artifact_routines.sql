@@ -39,12 +39,12 @@ RETURNS SETOF agentd.artifacts
 LANGUAGE sql STABLE
 AS $$ SELECT * FROM agentd.artifacts WHERE artifacts.name = p_name $$;
 
--- The newest live pages first, without their HTML (the Web UI's list); expired ones aren't listed.
+-- The newest live pages first, without their HTML (the Web UI's list), and where each is stored (its link); expired ones aren't listed.
 CREATE OR REPLACE FUNCTION agentd.artifact_list(p_limit int)
-RETURNS TABLE (name text, title text, source text, source_id bigint, author text, created_at timestamptz, updated_at timestamptz)
+RETURNS TABLE (name text, title text, source text, source_id bigint, author text, created_at timestamptz, updated_at timestamptz, storage text)
 LANGUAGE sql STABLE
 AS $$
-    SELECT a.name, a.title, a.source, a.source_id, a.author, a.created_at, a.updated_at
+    SELECT a.name, a.title, a.source, a.source_id, a.author, a.created_at, a.updated_at, a.storage
       FROM agentd.artifacts AS a
      WHERE a.expired_at IS NULL
      ORDER BY a.updated_at DESC, a.id DESC

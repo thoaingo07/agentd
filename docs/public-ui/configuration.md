@@ -90,6 +90,7 @@ hold other apps' secrets too. Disabled secrets are skipped.
 | `Jobs:RetainFailedWorktrees` · `Jobs:RetainFinishedWorktrees` | `3.00:00:00` · `1.00:00:00` | how long worktrees are kept after a failure / after the merge |
 | `SystemLog:RetentionDays` · `SystemLog:MinimumLevel` | `14` · `Information` | how long Settings → System log keeps agentd's log, and from which level (other libraries: Warning and up); `SystemLog:Enabled=false` keeps none |
 | `Artifacts:S3:Url` | (none: in the database) | store artifacts in S3-compatible storage, e.g. Cloudflare R2: the S3 API URL ending with the bucket (`https://<account>.r2.cloudflarestorage.com/agentd`); set the keys with `agentd secrets set Artifacts:S3:AccessKeyId` and `agentd secrets set Artifacts:S3:SecretAccessKey` (hidden prompt, stored encrypted). Links stay on agentd, so the bucket can stay private |
+| `Artifacts:S3:PublicUrl` | (none: links on agentd) | where the bucket is public, e.g. its custom domain `https://agentd.thoaingo.com` (R2 → bucket → Settings → Custom Domains): links to pages in S3 become `<PublicUrl>/artifacts/<name>.html`, readable by anyone with the link. Pages kept in the database stay on agentd |
 | `Artifacts:RetentionDays` | `30` | days after its last update that an artifact (a page an agent published) expires; `0` keeps them forever |
 | `Claude:CommandTimeout` | `00:10:00` | the longest one shell command may run |
 | `Claude:AllowedTools` | (git, read-only and build tools) | extra commands agents may run without asking, e.g. `"Bash(make:*)"` |

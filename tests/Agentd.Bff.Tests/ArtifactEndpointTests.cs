@@ -69,7 +69,7 @@ public sealed class ArtifactEndpointTests
     }
 
     [TestMethod]
-    public async Task Artifacts_are_listed_with_their_links()
+    public async Task Artifacts_are_listed_with_their_links_on_agentd_or_the_buckets_public_domain()
     {
         await using var app = await StartAsync();
         using var client = app.GetTestClient();
@@ -77,7 +77,8 @@ public sealed class ArtifactEndpointTests
         var list = JsonDocument.Parse(await client.GetStringAsync(new Uri("/api/artifacts", UriKind.Relative))).RootElement;
 
         CollectionAssert.AreEqual(new[] { "name", "title", "url", "source", "sourceId", "author", "createdAt", "updatedAt" }, list[0].EnumerateObject().Select(p => p.Name).ToArray(), "the TS contract");
-        Assert.AreEqual("/artifacts/sync-report-1a2b3c4d.html", list[0].GetProperty("url").GetString());
+        CollectionAssert.AreEqual(new[] { "/artifacts/sync-report-1a2b3c4d.html", "https://agentd.thoaingo.com/artifacts/lost-11223344.html" },
+            list.EnumerateArray().Select(a => a.GetProperty("url").GetString()).ToArray());
     }
 
     [TestMethod]
@@ -95,7 +96,8 @@ public sealed class ArtifactEndpointTests
         builder.WebHost.UseTestServer();
         builder.Services.AddBff();
         builder.Services.AddSingleton<IArtifactStore>(new Store());
-        builder.Services.AddSingleton(sp => new ArtifactService(sp.GetRequiredService<IArtifactStore>()));
+        builder.Services.AddSingleton(sp => new ArtifactService(sp.GetRequiredService<IArtifactStore>(), null,
+            Microsoft.Extensions.Options.Options.Create(new ArtifactOptions { S3 = { PublicUrl = "https://agentd.thoaingo.com/" } })));
         var app = builder.Build();
         app.UseSecurityHeaders();
         app.UseAuthentication();
@@ -116,6 +118,8 @@ public sealed class ArtifactEndpointTests
         public Task<IReadOnlyList<ExpiredArtifact>> ExpireAsync(DateTimeOffset updatedBefore, CancellationToken cancellationToken) => throw new NotSupportedException();
 
         public Task<IReadOnlyList<ArtifactSummary>> ListAsync(int limit, CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<ArtifactSummary>>([new(s_page.Name, s_page.Title, s_page.Source, s_page.SourceId, s_page.Author, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch)]);
+            Task.FromResult<IReadOnlyList<ArtifactSummary>>([
+                new(s_page.Name, s_page.Title, s_page.Source, s_page.SourceId, s_page.Author, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch),
+                new(s_lost.Name, s_lost.Title, s_lost.Source, s_lost.SourceId, s_lost.Author, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, ArtifactStorage.S3)]);
     }
 }

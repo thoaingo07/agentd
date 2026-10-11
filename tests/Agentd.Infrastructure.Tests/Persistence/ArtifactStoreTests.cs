@@ -105,7 +105,8 @@ public sealed class ArtifactStoreTests
         var expired = await store.ExpireAsync(DateTimeOffset.UtcNow.AddMinutes(1), default);
 
         Assert.AreEqual(((string?)null, "s3", (DateTimeOffset?)null), (page.Html, page.Storage, page.ExpiredAt), "alive, with its HTML in S3");
-        Assert.HasCount(2, listed, "an S3 page is listed like any other");
+        CollectionAssert.AreEquivalent(new[] { ("r2-page-0000aaaa", "s3"), ("db-page-0000bbbb", "database") }, listed.Select(a => (a.Name, a.Storage)).ToArray(),
+            "an S3 page is listed like any other, with where it's stored (its link)");
         CollectionAssert.AreEquivalent(new[] { ("r2-page-0000aaaa", "s3"), ("db-page-0000bbbb", "database") }, expired.Select(e => (e.Name, e.Storage)).ToArray());
         Assert.IsEmpty(await store.ListAsync(10, default));
     }

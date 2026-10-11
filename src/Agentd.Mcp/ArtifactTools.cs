@@ -34,7 +34,7 @@ public sealed class ArtifactTools(IHttpContextAccessor http, ArtifactService art
             throw new McpException($"publish_artifact failed: {result.Error.Message}");
         }
 
-        var link = (configuration["Agentd:Web:PublicOrigin"]?.TrimEnd('/') ?? string.Empty) + result.Value.Path;
+        var link = artifacts.Link(result.Value.Name, result.Value.Storage, configuration["Agentd:Web:PublicOrigin"]);
         return result.Value.Created ? $"Published: {link}" : $"Updated (same link): {link}";
     }
 

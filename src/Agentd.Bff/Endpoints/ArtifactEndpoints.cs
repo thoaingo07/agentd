@@ -18,9 +18,9 @@ public static partial class ArtifactEndpoints
 
     public static RouteGroupBuilder MapArtifacts(this RouteGroupBuilder api)
     {
-        api.MapGet("/artifacts", async ([FromServices] IArtifactStore store, CancellationToken ct) =>
+        api.MapGet("/artifacts", async ([FromServices] IArtifactStore store, [FromServices] ArtifactService artifacts, CancellationToken ct) =>
             TypedResults.Ok((await store.ListAsync(ListLimit, ct).ConfigureAwait(false))
-                .Select(a => new ArtifactVm(a.Name, a.Title, $"{SecurityHeaders.ArtifactsPath}/{a.Name}.html", a.Source, a.SourceId, a.Author, a.CreatedAt, a.UpdatedAt)).ToList()))
+                .Select(a => new ArtifactVm(a.Name, a.Title, artifacts.Link(a.Name, a.Storage, null), a.Source, a.SourceId, a.Author, a.CreatedAt, a.UpdatedAt)).ToList()))
             .WithName("ListArtifacts");
         return api;
     }
@@ -51,5 +51,5 @@ public static partial class ArtifactEndpoints
     private static partial Regex File();
 }
 
-/// <summary>An artifact: open <c>url</c> (a page of its own); <c>source</c> (job, chat, idea, review, review-session, watch, web) and <c>sourceId</c> say which agent published it.</summary>
+/// <summary>An artifact: open <c>url</c> (a page of its own: agentd's, or the bucket's public domain for a page in S3); <c>source</c> (job, chat, idea, review, review-session, watch, web) and <c>sourceId</c> say which agent published it.</summary>
 public sealed record ArtifactVm(string Name, string Title, string Url, string Source, long SourceId, string Author, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);

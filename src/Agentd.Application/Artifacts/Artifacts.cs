@@ -27,7 +27,8 @@ public static class ArtifactSources
 }
 
 /// <summary>An artifact without its HTML, as the Web UI lists it. Its page is <c>/artifacts/{Name}.html</c>.</summary>
-public sealed record ArtifactSummary(string Name, string Title, string Source, long SourceId, string Author, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
+public sealed record ArtifactSummary(string Name, string Title, string Source, long SourceId, string Author, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt,
+    string Storage = ArtifactStorage.Database);
 
 /// <summary>Where an artifact's HTML is kept.</summary>
 public static class ArtifactStorage
@@ -69,6 +70,12 @@ public sealed class ArtifactS3Options
 {
     public string? Url { get; set; }
 
+    /// <summary>
+    /// Where the bucket's pages are public, e.g. its custom domain <c>https://agentd.example.com</c>: an S3 page's link is then
+    /// <c>{PublicUrl}/artifacts/&lt;name&gt;.html</c> instead of agentd's. Unset links every page to agentd.
+    /// </summary>
+    public string? PublicUrl { get; set; }
+
     public string? AccessKeyId { get; set; }
 
     public string? SecretAccessKey { get; set; }
@@ -92,7 +99,7 @@ public interface IArtifactBlobs
 public sealed record ArtifactPage(Artifact Artifact, string? Html, bool Expired, bool Missing);
 
 /// <summary>What publishing did: the page's name (its link) and whether it's new or replaced an earlier version.</summary>
-public sealed record PublishedArtifact(string Name, bool Created)
+public sealed record PublishedArtifact(string Name, bool Created, string Storage = ArtifactStorage.Database)
 {
     public string Path => $"/artifacts/{Name}.html";
 }
@@ -163,7 +170,18 @@ public sealed class ArtifactService(IArtifactStore store, IClock? clock = null, 
             return DomainError.Validation($"The page couldn't be uploaded to storage ({ex.Message}). Publish it again.");
         }
 
-        return published;
+        return published with { Storage = ArtifactStorage.S3 };
+    }
+
+    /// <summary>
+    /// A page's link: an S3 page's is on <see cref="ArtifactS3Options.PublicUrl"/> when that's set; any other is on agentd at
+    /// <paramref name="origin"/> (<c>Agentd:Web:PublicOrigin</c>), or relative without one. agentd serves every page either way.
+    /// </summary>
+    public string Link(string name, string storage, string? origin)
+    {
+        var publicUrl = options?.Value.S3.PublicUrl;
+        var root = storage == ArtifactStorage.S3 && Uri.TryCreate(publicUrl, UriKind.Absolute, out var url) && url.Scheme is "https" or "http" ? publicUrl : origin;
+        return (root?.TrimEnd('/') ?? string.Empty) + $"/artifacts/{name}.html";
     }
 
     /// <summary>A page to serve: its HTML from the row or from S3, or that it expired or is missing in storage.</summary>
