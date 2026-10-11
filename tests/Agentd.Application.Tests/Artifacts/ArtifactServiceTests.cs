@@ -90,6 +90,30 @@ public sealed class ArtifactServiceTests
     }
 
     [TestMethod]
+    [DataRow("https://agentd.thoaingo.com/", "s3", "https://agentd.thoaingo.com/artifacts/a-1.html")]
+    [DataRow("https://agentd.thoaingo.com", "database", "https://web.example/artifacts/a-1.html")]
+    [DataRow(null, "s3", "https://web.example/artifacts/a-1.html")]
+    [DataRow("not a url", "s3", "https://web.example/artifacts/a-1.html")]
+    [DataRow("ftp://agentd.thoaingo.com", "s3", "https://web.example/artifacts/a-1.html")]
+    public void An_s3_pages_link_is_on_the_public_url_when_set_and_any_other_on_agentd(string? publicUrl, string storage, string link)
+    {
+        var options = S3Options();
+        options.Value.S3.PublicUrl = publicUrl;
+
+        Assert.AreEqual(link, new ArtifactService(_store, null, options).Link("a-1", storage, "https://web.example/"));
+        Assert.AreEqual("/artifacts/a-1.html", new ArtifactService(_store).Link("a-1", ArtifactStorage.S3, null), "relative without an origin");
+    }
+
+    [TestMethod]
+    public async Task Publishing_to_s3_says_where_the_page_went()
+    {
+        var published = (await new ArtifactService(_store, null, S3Options(), new Blobs()).PublishAsync("Sync", "<p>x</p>", ArtifactSources.Job, 1, "job #1", default)).Value!;
+        var inDatabase = (await new ArtifactService(_store).PublishAsync("Other", "<p>x</p>", ArtifactSources.Job, 1, "job #1", default)).Value!;
+
+        Assert.AreEqual((ArtifactStorage.S3, ArtifactStorage.Database), (published.Storage, inDatabase.Storage));
+    }
+
+    [TestMethod]
     public async Task Without_s3_keys_pages_stay_in_the_database()
     {
         var options = S3Options();

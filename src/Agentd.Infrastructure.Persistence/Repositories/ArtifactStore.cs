@@ -29,13 +29,13 @@ public sealed class ArtifactStore(NpgsqlDataSource dataSource) : IArtifactStore
 
     public async Task<IReadOnlyList<ArtifactSummary>> ListAsync(int limit, CancellationToken cancellationToken)
     {
-        await using var cmd = dataSource.CreateCommand("SELECT name, title, source, source_id, author, created_at, updated_at FROM agentd.artifact_list($1)");
+        await using var cmd = dataSource.CreateCommand("SELECT name, title, source, source_id, author, created_at, updated_at, storage FROM agentd.artifact_list($1)");
         cmd.Parameters.Add(P(limit, NpgsqlDbType.Integer));
         await using var r = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         var rows = new List<ArtifactSummary>();
         while (await r.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
-            rows.Add(new ArtifactSummary(r.GetString(0), r.GetString(1), r.GetString(2), r.GetInt64(3), r.GetString(4), r.GetFieldValue<DateTimeOffset>(5), r.GetFieldValue<DateTimeOffset>(6)));
+            rows.Add(new ArtifactSummary(r.GetString(0), r.GetString(1), r.GetString(2), r.GetInt64(3), r.GetString(4), r.GetFieldValue<DateTimeOffset>(5), r.GetFieldValue<DateTimeOffset>(6), r.GetString(7)));
         }
 
         return rows;

@@ -42,6 +42,15 @@ same sign-in and sandbox CSP), so the bucket stays private. Earlier pages stay i
 signature (HTTPS only). An upload that fails is an error to the agent ("publish it again"); an object missing later
 answers 502. Expiring an S3 page deletes its object too.
 
+**Public links** (decided 2026-10-11): `Agentd:Artifacts:S3:PublicUrl` (e.g. `https://agentd.thoaingo.com`, the
+bucket's custom domain in Cloudflare) puts an S3 page's link on that domain: `{PublicUrl}/artifacts/<name>.html` is the
+object's key, so R2 serves it directly, to anyone with the link, without agentd. `ArtifactService.Link` builds every
+link: `publish_artifact`'s answer and `/api/artifacts`' `url` (`artifact_list` returns `storage` for it). Pages kept in
+the database stay on agentd (`Agentd:Web:PublicOrigin`), and agentd still serves S3 pages at its own
+`/artifacts/<name>.html`. A page on its own domain can't reach agentd's cookies or API (another origin), but R2 doesn't
+send agentd's sandbox CSP; a Cloudflare response-header rule on the domain can add it. An expired page's object is
+deleted, so its public link answers 404 instead of 410.
+
 **Retention** (decided 2026-10-10): a page expires `Agentd:Artifacts:RetentionDays` (default 30; 0 = never) after its
 last update. The hourly sweep (`WorktreeSweepWorker`) calls `artifact_expire`, which drops the HTML and keeps a
 tombstone (name, title, `expired_at`). Its link then answers **410 Gone** with "This artifact expired on <date>. Ask
