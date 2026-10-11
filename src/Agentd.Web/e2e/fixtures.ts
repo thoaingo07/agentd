@@ -40,6 +40,10 @@ export async function serverCspReports(request: APIRequestContext): Promise<{ di
 
 /** No serious or critical accessibility violations on the current page. */
 export async function expectAccessible(page: Page): Promise<void> {
+  // Let colour transitions finish first (e.g. a button turning enabled when its data arrives): axe measuring a
+  // half-faded button reports a contrast failure that isn't there. Infinite animations (spinners) are skipped.
+  await page.evaluate(() =>
+    Promise.all(document.getAnimations().filter((a) => a.effect?.getTiming().iterations !== Infinity).map((a) => a.finished.catch(() => undefined))))
   const results = await new AxeBuilder({ page }).analyze()
   const bad = results.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical')
   expect(bad.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([])
