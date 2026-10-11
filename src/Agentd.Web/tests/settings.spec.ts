@@ -16,6 +16,7 @@ const router = () => createRouter({
   history: createMemoryHistory(),
   routes: [
     { path: '/settings', name: 'settings', component: { template: '<div />' } },
+    { path: '/settings/log', name: 'system-log', component: { template: '<div />' } },
     { path: '/settings/:area', name: 'settings-area', component: { template: '<div />' } },
   ],
 })
@@ -76,7 +77,7 @@ describe('Settings', () => {
 
     session.user = { name: 'local', roles: ['Admin'], provider: 'local' }
     await flushPromises()
-    expect(view.findAll('a').map((a) => a.text())).toEqual(expect.arrayContaining(['Health', 'Database', 'Azure DevOps', 'Models', 'Repositories']))
+    expect(view.findAll('a').map((a) => a.text())).toEqual(expect.arrayContaining(['Health', 'Database', 'Azure DevOps', 'Models', 'Repositories', 'System log']))
   })
 
   it('your Azure DevOps: shows the result of the sign-in, who you are connected as, and disconnects', async () => {
