@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { useSetupStore } from '../../shared/setup/stores/setup'
 import { settingsAreas } from '../settingsAreas'
+import RestartButton from '../components/RestartButton.vue'
 
 // Settings → <area>: the setup wizard's steps on /api/settings (Admins, the normal session and antiforgery).
 const props = defineProps<{ area: string }>()
@@ -17,10 +18,11 @@ const current = computed(() => settingsAreas.find((a) => a.name === props.area))
     </h1>
     <div
       v-if="setup.restartRequired"
-      class="alert alert-info text-sm"
+      class="alert alert-info grid gap-2 text-sm"
       role="status"
     >
-      Saved. The daemon reads these settings when it starts: run <code>agentd daemon restart</code> to use them.
+      <p>Saved. agentd reads these settings when it starts: restart it to use them.</p>
+      <RestartButton />
     </div>
     <component
       :is="current.component"

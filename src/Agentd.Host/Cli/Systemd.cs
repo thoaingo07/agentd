@@ -51,7 +51,8 @@ internal static class SystemdUnit
             .AppendLine("Restart=on-failure")
             .AppendLine("RestartSec=5")
             .AppendLine("KillSignal=SIGTERM")
-            .AppendLine("TimeoutStopSec=60");
+            .AppendLine("TimeoutStopSec=60")
+            .AppendLine("Environment=AGENTD_Daemon__Supervised=true");   // Settings → Restart now: systemd starts it again
         if (!string.IsNullOrWhiteSpace(agentdHome))
         {
             unit.Append("Environment=").AppendLine(Quote($"{ConfigHome.Variable}={agentdHome}"));

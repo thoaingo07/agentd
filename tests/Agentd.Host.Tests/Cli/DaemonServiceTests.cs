@@ -20,6 +20,7 @@ public sealed class DaemonServiceTests : IDisposable
         StringAssert.Contains(unit, "ExecStart=\"/opt/my apps/agentd\" \"daemon\" \"run\"");
         StringAssert.Contains(unit, "Environment=\"AGENTD_HOME=/srv/agentd 100%%\"", "% starts a systemd specifier");
         StringAssert.Contains(unit, "Restart=on-failure");
+        StringAssert.Contains(unit, "Environment=AGENTD_Daemon__Supervised=true", "Settings → Restart now: systemd starts it again");
         StringAssert.Contains(unit, "WantedBy=default.target");
         Assert.DoesNotContain("PAT", unit.Replace("Description", string.Empty, StringComparison.Ordinal));
         Assert.DoesNotContain("AGENTD_HOME", SystemdUnit.Render(SystemdUnit.ExecStart("/usr/bin/agentd", null), null), "the default home needs no variable");

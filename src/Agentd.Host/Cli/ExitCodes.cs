@@ -12,6 +12,9 @@ internal static class ExitCodes
     public const int Conflict = 4;
     public const int DoctorFailed = 5;
 
+    /// <summary>The daemon stopped to be restarted (Settings → Restart now): EX_TEMPFAIL, non-zero for <c>Restart=on-failure</c>.</summary>
+    public const int Restart = 75;
+
     public static int From(DomainError error) => error.Code switch
     {
         "not_found" => NotFound,
