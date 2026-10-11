@@ -126,6 +126,7 @@ public static class BffModule
         api.MapWatches();
         api.MapArtifacts();
         api.MapSystemLog();
+        api.MapChats();
         endpoints.MapArtifactPages();   // /artifacts/<name>.html: signed in like /api; sandboxed (SecurityHeaders.ArtifactPolicy)
         api.MapWorkItems();
         api.MapMyAdoConnections();

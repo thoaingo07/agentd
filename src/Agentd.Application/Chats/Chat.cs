@@ -16,7 +16,7 @@ public sealed record Chat(
     long Id,
     string Author,
     ProviderKey Provider,
-    string ThreadId,
+    string? ThreadId,
     string? SpaceId,
     string Status,
     IReadOnlyList<string> Repositories,
@@ -28,7 +28,7 @@ public sealed record Chat(
 /// <summary>Chats and their conversation (PostgreSQL routines).</summary>
 public interface IChatStore
 {
-    Task<long> InsertAsync(string author, ProviderKey provider, string threadId, string? spaceId, IReadOnlyList<string> repositories, CancellationToken cancellationToken);
+    Task<long> InsertAsync(string author, ProviderKey provider, string? threadId, string? spaceId, IReadOnlyList<string> repositories, CancellationToken cancellationToken);
 
     Task<Chat?> GetAsync(long id, CancellationToken cancellationToken);
 
@@ -38,6 +38,18 @@ public interface IChatStore
 
     Task AddMessageAsync(long chatId, string direction, string author, string text, CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<ChatMessage>> ListMessagesAsync(long chatId, CancellationToken cancellationToken);
+
+    /// <summary>The newest chats first, as the Web UI lists them.</summary>
+    Task<IReadOnlyList<ChatSummary>> ListAsync(int limit, CancellationToken cancellationToken);
+
     /// <summary>The open chats' thread ids: the chat poller reads them.</summary>
     Task<IReadOnlyList<string>> ListOpenThreadsAsync(ProviderKey provider, CancellationToken cancellationToken);
 }
+
+/// <summary>One message: <c>in</c> from a person, <c>out</c> from the agent (<c>agent</c>) or agentd itself (<c>agentd</c>).</summary>
+public sealed record ChatMessage(string Direction, string Author, string Text, DateTimeOffset At);
+
+/// <summary>A chat as the Web UI lists it: its first question is the title; <c>InChat</c>: it has a chat thread.</summary>
+public sealed record ChatSummary(long Id, string Author, string Status, IReadOnlyList<string> Repositories, string? Model, string? Effort, bool InChat, string Title,
+    int Messages, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);

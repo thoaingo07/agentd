@@ -15,6 +15,7 @@ namespace Agentd.Application.Chats;
 /// Chat threads: <c>!chat &lt;question&gt;</c> opens one with a read-only agent session over every registered repository
 /// (a detached checkout of each base branch; <c>--repo</c> narrows it). Every message in the thread resumes the same
 /// session; <c>close</c> ends it. One turn at a time per chat, and at most <see cref="MaxConcurrentChats"/> chats think at once.
+/// A chat started on the Web UI (<see cref="Web"/>) has no thread: its conversation is only in agentd, with agentd's notices.
 /// </summary>
 public sealed partial class ChatService(
     IChatStore chats,
@@ -27,6 +28,9 @@ public sealed partial class ChatService(
     IMcpTokenIssuer? tokens = null) : IDisposable
 {
     public const int MaxConcurrentChats = 2;
+
+    /// <summary>The provider of chats started on the Web UI (no chat thread).</summary>
+    public static ProviderKey Web => IdeaService.Web;
 
     private readonly ConcurrentDictionary<long, Queue> _queues = new();
     private readonly SemaphoreSlim _slots = new(MaxConcurrentChats, MaxConcurrentChats);
@@ -48,6 +52,36 @@ public sealed partial class ChatService(
             return DomainError.Validation("Ask something after `!chat`, e.g. `!chat where do we validate the login token?`.");
         }
 
+        var started = await StartCoreAsync(provider, author, question, repoName, model, effort, ct).ConfigureAwait(false);
+        return started.IsSuccess ? $"💬 Opened a chat thread for your question (chat #{started.Value})." : started.Error;
+    }
+
+    /// <summary>A question from the Web UI: a chat with no thread, talked through on its page. Returns its id.</summary>
+    public async Task<Result<long>> StartOnWebAsync(string author, string question, string? repository, string? model, string? effort, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(question))
+        {
+            return DomainError.Validation("Ask a question.");
+        }
+
+        if (model is not null && !BrainstormSettings.IsModel(model))
+        {
+            return DomainError.Validation($"`{model}` isn't a model name (use fable, opus, sonnet or a full model name).");
+        }
+
+        if (effort is not null && !BrainstormSettings.IsEffort(effort))
+        {
+            return DomainError.Validation($"`{effort}` isn't an effort level ({string.Join(", ", BrainstormSettings.Efforts)}).");
+        }
+
+        return await StartCoreAsync(Web, author, question, repository, model, effort?.ToLowerInvariant(), ct).ConfigureAwait(false);
+    }
+
+    /// <summary>Whether the agent is writing an answer for chat <paramref name="chatId"/> (its page says "thinking…").</summary>
+    public bool IsThinking(long chatId) => _queues.TryGetValue(chatId, out var queue) && queue.Running;
+
+    private async Task<Result<long>> StartCoreAsync(ProviderKey provider, string author, string question, string? repoName, string? model, string? effort, CancellationToken ct)
+    {
         var all = await repositories.ListAsync(ct).ConfigureAwait(false);
         var repos = repoName is null ? all : [.. all.Where(r => string.Equals(r.Name.Value, repoName, StringComparison.OrdinalIgnoreCase))];
         if (repos.Count == 0)
@@ -62,9 +96,11 @@ public sealed partial class ChatService(
         var opening = new OutboundMessage(MessageKind.Info,
             $"💬 **{author} asks:** {question.Trim()}\n\nI'm reading the code of {string.Join(", ", repos.Select(r => $"`{r.Name}`"))} (read-only). " +
             "Ask follow-ups in this thread; say **close** when you're done.\n" + Jobs.StepAnnouncer.ModelNote(model, effort));
-        var thread = await providers.Resolve(provider).OpenConversationAsync(
-            new ConversationSpec(default, default, title, repos[0].Name, opening, $"💬 Chat: {title}"), ct).ConfigureAwait(false);
-        var id = await chats.InsertAsync(author, provider, thread.ExternalConversationId, thread.ExternalSpaceId, [.. repos.Select(r => r.Name.Value)], ct).ConfigureAwait(false);
+        var thread = provider == Web
+            ? null
+            : await providers.Resolve(provider).OpenConversationAsync(
+                new ConversationSpec(default, default, title, repos[0].Name, opening, $"💬 Chat: {title}"), ct).ConfigureAwait(false);
+        var id = await chats.InsertAsync(author, provider, thread?.ExternalConversationId, thread?.ExternalSpaceId, [.. repos.Select(r => r.Name.Value)], ct).ConfigureAwait(false);
         if ((model ?? effort) is not null && await chats.GetAsync(id, ct).ConfigureAwait(false) is { } created)
         {
             await chats.SaveAsync(created with { Model = model, Effort = effort }, ct).ConfigureAwait(false);
@@ -72,17 +108,25 @@ public sealed partial class ChatService(
 
         await chats.AddMessageAsync(id, "in", author, question.Trim(), ct).ConfigureAwait(false);
         Enqueue(id, $"{author} asks:\n\n{question.Trim()}");
-        return $"💬 Opened a chat thread for your question (chat #{id}).";
+        return id;
     }
 
-    /// <summary>A message in a chat's thread. Returns false when the chat no longer takes messages.</summary>
-    public async Task<bool> HandleMessageAsync(Chat chat, string author, string text, CancellationToken ct)
+    /// <summary>
+    /// A message in a chat's thread, or from its Web UI page (<paramref name="fromWeb"/>: also posted to its chat thread, if it
+    /// has one, so the thread keeps the whole conversation). Returns false when the chat no longer takes messages.
+    /// </summary>
+    public async Task<bool> HandleMessageAsync(Chat chat, string author, string text, CancellationToken ct, bool fromWeb = false)
     {
         ArgumentNullException.ThrowIfNull(chat);
         ArgumentNullException.ThrowIfNull(text);
         if (chat.Status == ChatStatus.Closed)
         {
             return false;
+        }
+
+        if (fromWeb && chat.ThreadId is not null)
+        {
+            await PostAsync(chat, new OutboundMessage(MessageKind.Info, $"💬 **{author}** (web): {text.Trim()}"), ct, record: false).ConfigureAwait(false);
         }
 
         if (text.Trim().TrimEnd('.', '!').ToLowerInvariant() is "close" or "done" or "end")
@@ -222,17 +266,31 @@ public sealed partial class ChatService(
         }
 
         await chats.AddMessageAsync(chat.Id, "out", "agent", reply.Text, ct).ConfigureAwait(false);
-        await PostAsync(chat, new OutboundMessage(MessageKind.Info, reply.Text.Trim()), ct).ConfigureAwait(false);
+        await PostAsync(chat, new OutboundMessage(MessageKind.Info, reply.Text.Trim()), ct, record: false).ConfigureAwait(false);   // stored above, as the agent's
     }
 
-    private async Task PostAsync(Chat chat, OutboundMessage message, CancellationToken ct)
+    /// <summary>
+    /// agentd's own message about the chat: kept in its conversation (<paramref name="record"/>; the Web UI shows it) and
+    /// posted to its chat thread, if it has one.
+    /// </summary>
+    private async Task PostAsync(Chat chat, OutboundMessage message, CancellationToken ct, bool record = true)
     {
         try
         {
+            if (record)
+            {
+                await chats.AddMessageAsync(chat.Id, "out", "agentd", message.Markdown, ct).ConfigureAwait(false);
+            }
+
+            if (chat.ThreadId is not { } threadId)
+            {
+                return;
+            }
+
             var provider = providers.Resolve(chat.Provider);
             foreach (var part in MessageChunker.Prepare(message, provider.Capabilities))
             {
-                await provider.SendAsync(new ConversationRef(chat.Provider, chat.ThreadId, chat.SpaceId), part, ct).ConfigureAwait(false);
+                await provider.SendAsync(new ConversationRef(chat.Provider, threadId, chat.SpaceId), part, ct).ConfigureAwait(false);
             }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
