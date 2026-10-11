@@ -1,7 +1,11 @@
 using System.Security.Claims;
+using Agentd.Application.Abstractions;
+using Agentd.Application.Repositories;
 using Agentd.Application.Setup;
 using Agentd.Bff.Http;
 using Agentd.Bff.ViewModels;
+using Agentd.Domain.Common;
+using Agentd.Domain.Jobs.ValueObjects;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -90,6 +94,15 @@ public static class SetupEndpoints
                 .ToHttpResult(r => TypedResults.Ok(RepositoryEntryVm.From(r))))
             .WithName($"Add{prefix}Repository").Accepts<RepositoryRequest>("application/json").Produces<RepositoryEntryVm>()
             .ProducesProblem(StatusCodes.Status400BadRequest).ProducesProblem(StatusCodes.Status409Conflict);
+        setup.MapDelete("/repositories/{name}", async Task<IResult> (string name, ClaimsPrincipal user, [FromServices] SetupService service,
+            [FromServices] ICommandHandler<RemoveRepository, Unit>? unregister, CancellationToken ct) =>
+        {
+            // Out of agentd.json (so it isn't registered again at the next start) and out of the running registry; job history stays.
+            var fromConfig = await service.RemoveRepositoryAsync(name, By(user), ct).ConfigureAwait(false);
+            var fromRegistry = unregister is not null && RepositoryName.Create(name) is { IsSuccess: true } valid
+                && (await unregister.Handle(new RemoveRepository(valid.Value), ct).ConfigureAwait(false)).IsSuccess;
+            return fromConfig || fromRegistry ? TypedResults.NoContent() : DomainError.NotFound($"Repository '{name}'").ToProblem();
+        }).WithName($"Remove{prefix}Repository").Produces(StatusCodes.Status204NoContent).ProducesProblem(StatusCodes.Status404NotFound);
         setup.MapPost("/repositories/test", async (GitTestRequest? body, [FromServices] SetupService service, CancellationToken ct) =>
             Check(await service.TestRepositoryAsync(body?.Url, ct).ConfigureAwait(false)))
             .WithName($"Test{prefix}Repository").Accepts<GitTestRequest>("application/json").Produces<StepCheckVm>();

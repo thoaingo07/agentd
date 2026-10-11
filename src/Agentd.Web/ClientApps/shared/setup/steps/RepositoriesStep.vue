@@ -13,6 +13,19 @@ const check = ref<StepCheck | null>(null)
 const error = ref<string | null>(null)
 onMounted(() => void setup.loadRepositories())
 
+/** A listed repository's name: its own, else the last part of its URL (its Azure DevOps name, as it was registered). */
+const nameOf = (r: { name?: string | null; url: string }) => r.name ?? r.url.split('/').at(-1) ?? r.url
+
+async function remove(name: string): Promise<void> {
+  if (!window.confirm(`Remove ${name}? agentd stops picking up its work items; job history is kept.`)) return
+  error.value = null
+  try {
+    await setup.removeRepository(name)
+  } catch (err) {
+    error.value = err instanceof ApiError ? err.message : 'The repository wasn’t removed.'
+  }
+}
+
 async function run(action: 'test' | 'add'): Promise<void> {
   busy.value = action
   check.value = null
@@ -58,8 +71,16 @@ async function run(action: 'test' | 'add'): Promise<void> {
         :key="r.url"
         class="rounded-box border border-base-300 p-3 text-sm"
       >
-        <p class="font-medium">
-          {{ r.name }} <span class="text-muted">· {{ r.baseBranch }}</span>
+        <p class="flex items-center gap-2 font-medium">
+          {{ nameOf(r) }} <span class="text-muted">· {{ r.baseBranch }}</span>
+          <button
+            type="button"
+            class="btn btn-ghost btn-xs ml-auto"
+            :aria-label="`Remove ${nameOf(r)}`"
+            @click="remove(nameOf(r))"
+          >
+            Remove
+          </button>
         </p>
         <p class="font-mono text-xs break-all text-muted">
           {{ r.url }}

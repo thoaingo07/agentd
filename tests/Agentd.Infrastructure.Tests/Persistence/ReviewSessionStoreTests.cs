@@ -87,6 +87,22 @@ public sealed class ReviewSessionStoreTests
     }
 
     [TestMethod]
+    public async Task A_review_keeps_the_focus_and_instructions_it_was_started_with()
+    {
+        await using var db = await Database.CreateMigratedAsync("review_session_brief");
+        var store = new ReviewSessionStore(db);
+        var id = await store.InsertAsync("sysmin", ReviewTargets.Branch, null, "x", "develop", "dev@example.com", "sonnet", "low", default);
+        var plain = await store.InsertAsync("sysmin", ReviewTargets.Branch, null, "y", "develop", "dev@example.com", null, null, default);
+
+        await store.SetBriefAsync(id, "security, tests", "the paging change matters most", default);
+
+        var s = (await store.GetAsync(id, default))!;
+        Assert.AreEqual(("security, tests", "the paging change matters most", "sonnet"), (s.Focus, s.Instructions, s.Model));
+        Assert.AreEqual(((string?)null, (string?)null), ((await store.GetAsync(plain, default))!.Focus, (await store.GetAsync(plain, default))!.Instructions));
+        Assert.AreEqual("security, tests", (await store.ListByStatusAsync(ReviewSessionStatus.Reviewing, default)).Single(r => r.Id == id).Focus, "a resumed review is asked the same");
+    }
+
+    [TestMethod]
     public async Task Only_its_author_rewords_a_comment_in_its_session_and_parallel_rewords_of_different_comments_all_land()
     {
         await using var db = await Database.CreateMigratedAsync("review_comment_update");

@@ -3095,6 +3095,39 @@
         }
       }
     },
+    "/api/setup/repositories/{name}": {
+      "delete": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "RemoveSetupRepository",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/setup/repositories/test": {
       "post": {
         "tags": [
@@ -6011,6 +6044,34 @@
               "string"
             ],
             "description": "\u2026to this commit."
+          },
+          "model": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The reviewer\u0027s model; none = the review step\u0027s default."
+          },
+          "effort": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "low, medium, high, xhigh or max; none = the default."
+          },
+          "focus": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "What to look at most, e.g. \u0022security, tests\u0022."
+          },
+          "instructions": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Anything else for the reviewer."
           }
         }
       },

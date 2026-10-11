@@ -144,6 +144,14 @@ public sealed class ReviewSessionEndpointTests
         public Task<IReadOnlyList<ReviewSession>> ListByStatusAsync(string status, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<ReviewSession>>([.. All.Values.Where(s => s.Status == status).OrderBy(s => s.Id)]);
 
+        public Task SetBriefAsync(long id, string? focus, string? instructions, CancellationToken cancellationToken)
+        {
+            Briefs[id] = (focus, instructions);
+            return Task.CompletedTask;
+        }
+
+        public Dictionary<long, (string? Focus, string? Instructions)> Briefs { get; } = [];
+
         public Task PinAsync(long id, string baseCommit, string headCommit, string? worktree, CancellationToken cancellationToken) => Update(id, s => s with { BaseCommit = baseCommit, HeadCommit = headCommit });
 
         public Task SetStatusAsync(long id, string status, string? reason, string? sentTo, CancellationToken cancellationToken) => Update(id, s => s with { Status = status });

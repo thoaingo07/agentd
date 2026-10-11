@@ -394,6 +394,55 @@ public sealed class SetupService(
     }
 
     /// <summary>
+    /// Takes repository <paramref name="name"/> (its name, or its Azure DevOps name when it has none) out of <c>agentd.json</c>,
+    /// moving the ones after it up, so the daemon doesn't register it again at its next start. False when it isn't there.
+    /// </summary>
+    public async Task<bool> RemoveRepositoryAsync(string name, string by, CancellationToken cancellationToken)
+    {
+        var existing = GetRepositories();
+        var index = existing.ToList().FindIndex(r => string.Equals(NameOf(r), name, StringComparison.OrdinalIgnoreCase));
+        if (index < 0)
+        {
+            return false;
+        }
+
+        // Clear every slot from the removed one on, then write the later repositories one slot up.
+        var values = new Dictionary<string, string?>(StringComparer.Ordinal);
+        for (var i = index; i < existing.Count; i++)
+        {
+            foreach (var key in new[] { "Url", "Name", "BaseBranch", "MatchTag" })
+            {
+                values[$"Repositories:Items:{i}:{key}"] = null;
+            }
+
+            for (var j = 0; j < existing[i].MatchAreaPaths.Count; j++)
+            {
+                values[$"Repositories:Items:{i}:MatchAreaPaths:{j}"] = null;
+            }
+        }
+
+        for (var i = index + 1; i < existing.Count; i++)
+        {
+            var (r, at) = (existing[i], $"Repositories:Items:{i - 1}");
+            values[$"{at}:Url"] = r.Url;
+            values[$"{at}:Name"] = r.Name;
+            values[$"{at}:BaseBranch"] = r.BaseBranch;
+            values[$"{at}:MatchTag"] = r.MatchTag;
+            for (var j = 0; j < r.MatchAreaPaths.Count; j++)
+            {
+                values[$"{at}:MatchAreaPaths:{j}"] = r.MatchAreaPaths[j];
+            }
+        }
+
+        await config.SetAsync(values, cancellationToken).ConfigureAwait(false);
+        await audit.RecordAsync([Change($"Repositories:Items:{index}", "config", "removed", by)], cancellationToken).ConfigureAwait(false);
+        return true;
+    }
+
+    /// <summary>A listed repository's name: its own, else its Azure DevOps name (what <c>agentd repo add</c> registers it as).</summary>
+    private static string? NameOf(RepositoryEntry r) => r.Name ?? (RemoteUrl.Parse(r.Url) is { IsSuccess: true } url ? url.Value.AzureDevOps.Name : null);
+
+    /// <summary>
     /// Adds a repository to <c>agentd.json</c> after reaching it (the default branch is detected, as in <c>agentd repo add</c>).
     /// The daemon registers and clones it at its next start.
     /// </summary>
