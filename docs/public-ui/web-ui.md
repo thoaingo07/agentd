@@ -71,7 +71,8 @@ Brainstorming itself happens in chat.
 
 Ask an agent in a job or in `!chat` to "publish an artifact" (a report, a diagram, an explainer) and it becomes a page
 at `/artifacts/<name>.html`; the agent replies with the link. **Artifacts** lists every page, newest first, with the
-job or chat that made it. Publishing again with the same title updates the page and keeps its link. Anyone who can
+job or chat that made it. Publishing again with the same title updates the page and keeps its link. A page expires
+30 days after its last update (`Artifacts:RetentionDays`); its link then says so. Anyone who can
 open agentd can read them. Pages run in a sandbox: their scripts work, but can't reach agentd or send data anywhere.
 
 ## Reviews

@@ -85,3 +85,6 @@ public sealed class WebWatches : SqlMigration;
 
 [Migration(2026_10_24_0001, "Artifacts: HTML pages agents publish, served at /artifacts/<slug>-<hash>.html")]
 public sealed class Artifacts : SqlMigration;
+
+[Migration(2026_10_25_0001, "Artifacts expire: the HTML is dropped after the retention, a tombstone keeps the link answering")]
+public sealed class ArtifactRetention : SqlMigration;

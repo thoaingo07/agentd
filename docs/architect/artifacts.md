@@ -21,8 +21,16 @@ it in the browser at **`/artifacts/<slug>-<hash>.html`** and find every page und
 
 ## 2. Storage
 
-`agentd.artifacts` (name, title, html, job_id or chat_id, author, created/updated), through `artifact_publish`,
-`artifact_get` and `artifact_list` (newest first, without the HTML).
+`agentd.artifacts` (name, title, html, job_id or chat_id, author, created/updated, expired_at), through
+`artifact_publish`, `artifact_get`, `artifact_list` (live pages, newest first, without the HTML) and `artifact_expire`.
+The HTML is kept in the database on purpose: when the Web UI is hosted apart from the daemon (e.g. in the cloud), the
+database is what both share, so the web serves pages without the daemon's disk.
+
+**Retention** (decided 2026-10-10): a page expires `Agentd:Artifacts:RetentionDays` (default 30; 0 = never) after its
+last update. The hourly sweep (`WorktreeSweepWorker`) calls `artifact_expire`, which drops the HTML and keeps a
+tombstone (name, title, `expired_at`). Its link then answers **410 Gone** with "This artifact expired on <date>. Ask
+the agent to publish it again." Publishing the same title again from the same job or chat brings it back under the
+same link. Expired pages aren't listed.
 
 ## 3. Serving and isolation
 
@@ -43,4 +51,5 @@ it in the browser at **`/artifacts/<slug>-<hash>.html`** and find every page und
 ## 4. Later
 
 - Ideas and review Asks publishing (they need an MCP token like `!chat`'s).
+- A **Keep** toggle that exempts a page from expiry, if links in PRs need to outlive the retention.
 - Viewers by email domain (e.g. `*@ermsystem.com`) and a read-only role; today, whoever can sign in sees everything.

@@ -18,11 +18,12 @@ public sealed class ArtifactStore(NpgsqlDataSource dataSource) : IArtifactStore
 
     public async Task<Artifact?> GetAsync(string name, CancellationToken cancellationToken)
     {
-        await using var cmd = dataSource.CreateCommand("SELECT name, title, html, job_id, chat_id, author, updated_at FROM agentd.artifact_get($1)");
+        await using var cmd = dataSource.CreateCommand("SELECT name, title, html, job_id, chat_id, author, updated_at, expired_at FROM agentd.artifact_get($1)");
         cmd.Parameters.Add(T(name));
         await using var r = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         return await r.ReadAsync(cancellationToken).ConfigureAwait(false)
-            ? new Artifact(r.GetString(0), r.GetString(1), r.GetString(2), Long(r, 3), Long(r, 4), r.GetString(5), r.GetFieldValue<DateTimeOffset>(6))
+            ? new Artifact(r.GetString(0), r.GetString(1), r.IsDBNull(2) ? null : r.GetString(2), Long(r, 3), Long(r, 4), r.GetString(5), r.GetFieldValue<DateTimeOffset>(6),
+                r.IsDBNull(7) ? null : r.GetFieldValue<DateTimeOffset>(7))
             : null;
     }
 
@@ -38,6 +39,13 @@ public sealed class ArtifactStore(NpgsqlDataSource dataSource) : IArtifactStore
         }
 
         return rows;
+    }
+
+    public async Task<int> ExpireAsync(DateTimeOffset updatedBefore, CancellationToken cancellationToken)
+    {
+        await using var cmd = dataSource.CreateCommand("SELECT agentd.artifact_expire($1)");
+        cmd.Parameters.Add(P(updatedBefore, NpgsqlDbType.TimestampTz));
+        return (int)(await cmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false))!;
     }
 
     private static long? Long(NpgsqlDataReader r, int i) => r.IsDBNull(i) ? null : r.GetInt64(i);

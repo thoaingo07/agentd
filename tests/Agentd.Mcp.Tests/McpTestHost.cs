@@ -246,5 +246,7 @@ internal sealed class McpTestHost : IAsyncDisposable
         public Task<Artifact?> GetAsync(string name, CancellationToken cancellationToken) => throw new NotSupportedException();
 
         public Task<IReadOnlyList<ArtifactSummary>> ListAsync(int limit, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<int> ExpireAsync(DateTimeOffset updatedBefore, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 }

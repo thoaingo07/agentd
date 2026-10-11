@@ -2,14 +2,24 @@ using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using Agentd.Domain.Common;
+using Microsoft.Extensions.Options;
 
 namespace Agentd.Application.Artifacts;
 
 /// <summary>An artifact without its HTML, as the Web UI lists it. Its page is <c>/artifacts/{Name}.html</c>.</summary>
 public sealed record ArtifactSummary(string Name, string Title, long? JobId, long? ChatId, string Author, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
 
-/// <summary>A published page.</summary>
-public sealed record Artifact(string Name, string Title, string Html, long? JobId, long? ChatId, string Author, DateTimeOffset UpdatedAt);
+/// <summary>A published page; an expired one has no <see cref="Html"/> (its link says it expired).</summary>
+public sealed record Artifact(string Name, string Title, string? Html, long? JobId, long? ChatId, string Author, DateTimeOffset UpdatedAt, DateTimeOffset? ExpiredAt = null);
+
+/// <summary><c>Agentd:Artifacts</c>.</summary>
+public sealed class ArtifactOptions
+{
+    public const string Section = "Agentd:Artifacts";
+
+    /// <summary>Days after its last update that a page expires (its HTML is dropped); 0 keeps pages forever.</summary>
+    public int RetentionDays { get; set; } = 30;
+}
 
 /// <summary>What publishing did: the page's name (its link) and whether it's new or replaced an earlier version.</summary>
 public sealed record PublishedArtifact(string Name, bool Created)
@@ -26,6 +36,9 @@ public interface IArtifactStore
     Task<Artifact?> GetAsync(string name, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<ArtifactSummary>> ListAsync(int limit, CancellationToken cancellationToken);
+
+    /// <summary>Expires pages last updated before <paramref name="updatedBefore"/>; returns how many expired now.</summary>
+    Task<int> ExpireAsync(DateTimeOffset updatedBefore, CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -33,7 +46,7 @@ public interface IArtifactStore
 /// anyone who can open the Web UI, sandboxed so its scripts can't reach agentd. A job or chat publishing the same title
 /// again updates the page in place.
 /// </summary>
-public sealed class ArtifactService(IArtifactStore store)
+public sealed class ArtifactService(IArtifactStore store, IClock? clock = null, IOptions<ArtifactOptions>? options = null)
 {
     public const int MaxTitle = 120;
 
@@ -55,6 +68,15 @@ public sealed class ArtifactService(IArtifactStore store)
         var name = $"{Slug(title)}-{Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(4))}";
         return await store.PublishAsync(name, title.Trim(), Document(title.Trim(), html), jobId, chatId, author, ct).ConfigureAwait(false);
     }
+
+    /// <summary>
+    /// Expires pages not updated for <see cref="ArtifactOptions.RetentionDays"/> (run by the hourly sweep). Their HTML is
+    /// dropped; the link then answers that the page expired. Returns how many expired.
+    /// </summary>
+    public async Task<int> ExpireAsync(CancellationToken ct) =>
+        options?.Value.RetentionDays is > 0 and var days && clock is not null
+            ? await store.ExpireAsync(clock.UtcNow.AddDays(-days), ct).ConfigureAwait(false)
+            : 0;
 
     /// <summary>
     /// Lower-case ASCII words joined by dashes, at most 48 characters; "artifact" when nothing is left. Other letters are
