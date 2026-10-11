@@ -34,6 +34,8 @@ internal static class DaemonHost
         builder.Services.AddHostedService(sp => sp.GetRequiredService<Logging.SystemLogWriter>());
         builder.Services.AddSingleton<ILoggerProvider, Logging.SystemLogProvider>();
 
+        builder.Services.AddSingleton<DaemonRestart>();
+        builder.Services.AddSingleton<Application.Setup.IDaemonRestart>(sp => sp.GetRequiredService<DaemonRestart>());
         builder.Services.AddHostedService<SetupLinkAnnouncer>();
         builder.Services.AddHostedService<Control.ControlSocket>();   // ~/.agentd/run/agentd.sock: live status and run for the CLI   // not set up yet: logs the one-time setup link
 
@@ -75,7 +77,7 @@ internal static class DaemonHost
         });
 
         await app.RunAsync(cancellationToken).ConfigureAwait(false);
-        return 0;
+        return app.Services.GetRequiredService<DaemonRestart>().Requested ? Cli.ExitCodes.Restart : Cli.ExitCodes.Ok;
     }
 
     /// <summary>

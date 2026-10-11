@@ -548,6 +548,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/settings/restart": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetRestart"];
+        put?: never;
+        post: operations["RestartDaemon"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/chats": {
         parameters: {
             query?: never;
@@ -1859,6 +1875,11 @@ export interface components {
         ResourcesVm: {
             machine: null | components["schemas"]["MachineVm"];
             jobs: components["schemas"]["JobResourcesVm"][];
+        };
+        /** @description Whether Settings can restart agentd; `reason` says why not. */
+        RestartVm: {
+            available: boolean;
+            reason: null | string;
         };
         /** @description A question and its answer; `threadId` names the thread's first question (none: this one starts a thread). */
         ReviewAskVm: {
@@ -3325,6 +3346,55 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetRestart: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RestartVm"];
+                };
+            };
+        };
+    };
+    RestartDaemon: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RestartVm"];
                 };
             };
             /** @description Conflict */

@@ -7,6 +7,7 @@ import { useSessionStore } from '../stores/session'
 import AdoConnectionPanel from '../components/AdoConnectionPanel.vue'
 import HostPanel from '../components/HostPanel.vue'
 import ThemeToggle from '../components/ThemeToggle.vue'
+import RestartButton from '../components/RestartButton.vue'
 
 const config = useConfigStore()
 const connection = useConnectionStore()
@@ -26,6 +27,18 @@ onMounted(() => {
     </h1>
     <HostPanel />
     <AdoConnectionPanel />
+    <div
+      v-if="isAdmin"
+      class="grid gap-2"
+    >
+      <h2 class="text-base font-semibold">
+        Restart agentd
+      </h2>
+      <p class="text-sm text-muted">
+        Settings apply when agentd starts. Running agents stop and pick up where they were.
+      </p>
+      <RestartButton />
+    </div>
     <div class="grid gap-2">
       <h2 class="text-base font-semibold">
         Appearance

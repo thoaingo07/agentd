@@ -36,6 +36,8 @@ WORKDIR /home/agentd
 # Config, secrets, keys, clones, worktrees and logs: keep this volume. No secret is baked into the image.
 # The folder exists (agentd's, 0700) before the VOLUME, so a new volume gets that owner instead of root.
 ENV AGENTD_HOME=/home/agentd/.agentd
+# Settings → Restart now exits; the container's restart policy (compose: unless-stopped) starts agentd again.
+ENV AGENTD_Daemon__Supervised=true
 VOLUME /home/agentd/.agentd
 ENTRYPOINT ["tini", "--", "agentd"]
 CMD ["daemon", "run"]

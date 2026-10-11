@@ -220,6 +220,13 @@ A value supplied over agentd.json or the secret store (Key Vault, an `AGENTD_*` 
 in the form (`overriddenBy`, from `ConfigurationLayers`: the last configuration provider holding the key), and its
 secret field has no Replace: saving there would change nothing (added 2026-10-11).
 
+**Restart now** (decided 2026-10-11; production runs agentd in a container): settings apply at start, so the save banner
+and Settings → General offer an Admin-only restart (`POST /api/settings/restart`, audited). agentd stops gracefully
+(running agents end as on `docker stop`; startup recovery resumes their jobs) and `agentd daemon run` exits with **75**
+(EX_TEMPFAIL, non-zero for `Restart=on-failure`); the supervisor starts it again and the page reloads once it answers.
+It's offered only with `Agentd:Daemon:Supervised` (`ENV AGENTD_Daemon__Supervised=true` in the image; `Environment=` in
+the unit `agentd daemon install` writes); otherwise Settings says to run `agentd daemon restart`.
+
 How it's built: `/api/settings/*` mounts the same step endpoints for **Admins** (the normal session with
 antiforgery; the setup cookie doesn't count) without Finish, and **Health** is `GET /api/settings/review`. The
 dashboard's `/settings/<area>` pages reuse the wizard's step components (`ClientApps/shared/setup`), with their store
