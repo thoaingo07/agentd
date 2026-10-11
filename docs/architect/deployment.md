@@ -136,7 +136,8 @@ Repositories aren't local folders in config. agentd **clones and owns** them:
 - **Azure Key Vault** (decided 2026-10-10): `KeyVaultConfigurationSource` reads every enabled secret once at start with
   `DefaultAzureCredential` (managed identity, service principal env vars, or `az login`). Names use `--` for `:` and map
   like `secrets.json` keys (`Agentd:` prefixed, except `ConnectionStrings:*`); `Agentd:KeyVault:Prefix` limits it to
-  names that start with the prefix. A vault that can't be read is a warning naming only the vault; agentd starts without it.
+  names that start with the prefix, and `Agentd:KeyVault:TenantId` signs in to the vault's directory when it isn't the
+  sign-in's default (decided 2026-10-11). A vault that can't be read is a warning naming only the vault; agentd starts without it.
 
 ---
 

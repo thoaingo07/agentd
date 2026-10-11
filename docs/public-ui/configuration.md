@@ -66,7 +66,9 @@ hold other apps' secrets too. Disabled secrets are skipped.
 
 - **Sign-in:** a managed identity (agentd in Azure), a service principal (`AZURE_TENANT_ID`, `AZURE_CLIENT_ID`,
   `AZURE_CLIENT_SECRET` in the service's environment), or your `az login`. It needs to **list and get** secrets (the
-  *Key Vault Secrets User* role).
+  *Key Vault Secrets User* role). If the vault is in another directory than your sign-in's default (e.g. `az login`'s
+  default subscription is your company's), set `"TenantId": "<the vault's directory id>"` under `KeyVault`
+  (`AGENTD_KeyVault__TenantId`).
 - **Which wins:** the vault beats `secrets.json` and `agentd.json`; an `AGENTD_*` environment variable still beats the
   vault.
 - **Read at start:** a changed secret applies after `agentd daemon restart`. If the vault can't be read, agentd says so
