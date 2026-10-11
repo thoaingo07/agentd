@@ -45,6 +45,8 @@ Adding anything else needs a note in this section explaining why.
 | `/workitems/:id` | `WorkItemView` | **everything about one work item on one page**: the picked run's live transcript (tool calls), diff and actions, plus the timeline across runs, conversation, PRs, plan vs actual and usage |
 | `/ideas` | `IdeasView` | brainstormed ideas (`!idea`), newest first: status, repo, author, the work items they created |
 | `/ideas/:id` | `IdeaView` | one idea: drafts as stories with their tasks and the choices, created work items, the whole conversation, and a box to talk to the agent |
+| `/chats` | `ChatsView` | code questions (like `!chat`): ask one (every repository or one, model, effort), and every chat, newest first |
+| `/chats/:id` | `ChatView` | one chat: the conversation (the agent's answers as Markdown, "thinking…" while it writes), follow-ups, **Close chat**; a chat asked here has no chat thread |
 | `/prs` | `PullRequestsView` | **PR dashboard**: all open PRs across repos, with run review / fix now / monitor / hotfix |
 | `/prs/:repo/:id` | `PullRequestView` | review runs & findings per reviewer, fix rounds, live trace |
 | `/learnings` | `LearningsView` | approved learnings per repo, pending candidates, distill runs and Learnings PRs, and global-learning approval cards |

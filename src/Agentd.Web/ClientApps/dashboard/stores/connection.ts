@@ -4,6 +4,7 @@ import { createEventConnection, type EventConnection } from '../../shared/api/hu
 import type { AgentEvent } from '../../shared/api/types'
 import { useEventsStore } from './events'
 import { useIdeasStore } from './ideas'
+import { useChatsStore } from './chats'
 import { useJobsStore } from './jobs'
 import { useWatchesStore } from './watches'
 import { useWorkItemsStore } from './workItems'
@@ -33,6 +34,7 @@ export const useConnectionStore = defineStore('connection', () => {
       useJobsStore().apply(evt)
       useIdeasStore().apply(evt)
       useWatchesStore().apply(evt)
+      useChatsStore().apply(evt)
     } else {
       useEventsStore().append(evt)
       useWorkItemsStore().append(evt)

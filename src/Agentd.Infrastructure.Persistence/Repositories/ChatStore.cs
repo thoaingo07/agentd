@@ -8,7 +8,7 @@ namespace Agentd.Infrastructure.Persistence.Repositories;
 /// <summary>Chats and their conversation via <c>agentd.chat_*</c> routines.</summary>
 public sealed class ChatStore(NpgsqlDataSource dataSource) : IChatStore
 {
-    public async Task<long> InsertAsync(string author, ProviderKey provider, string threadId, string? spaceId, IReadOnlyList<string> repositories, CancellationToken cancellationToken)
+    public async Task<long> InsertAsync(string author, ProviderKey provider, string? threadId, string? spaceId, IReadOnlyList<string> repositories, CancellationToken cancellationToken)
     {
         await using var cmd = dataSource.CreateCommand("SELECT agentd.chat_insert($1, $2, $3, $4, $5)");
         cmd.Parameters.AddRange(new[] { T(author), T(provider.Value), T(threadId), T(spaceId), P(repositories.ToArray(), NpgsqlDbType.Array | NpgsqlDbType.Text) });
@@ -40,6 +40,36 @@ public sealed class ChatStore(NpgsqlDataSource dataSource) : IChatStore
         await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task<IReadOnlyList<ChatMessage>> ListMessagesAsync(long chatId, CancellationToken cancellationToken)
+    {
+        await using var cmd = dataSource.CreateCommand("SELECT direction, author, text, at FROM agentd.chat_message_list($1)");
+        cmd.Parameters.Add(P(chatId, NpgsqlDbType.Bigint));
+        await using var r = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        var rows = new List<ChatMessage>();
+        while (await r.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            rows.Add(new ChatMessage(r.GetString(0), r.GetString(1), r.GetString(2), r.GetFieldValue<DateTimeOffset>(3)));
+        }
+
+        return rows;
+    }
+
+    public async Task<IReadOnlyList<ChatSummary>> ListAsync(int limit, CancellationToken cancellationToken)
+    {
+        await using var cmd = dataSource.CreateCommand(
+            "SELECT id, author, status, repos, model, effort, in_chat, title, messages, created_at, updated_at FROM agentd.chat_list($1)");
+        cmd.Parameters.Add(P(limit, NpgsqlDbType.Integer));
+        await using var r = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        var rows = new List<ChatSummary>();
+        while (await r.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            rows.Add(new ChatSummary(r.GetInt64(0), r.GetString(1), r.GetString(2), r.GetFieldValue<string[]>(3), r.IsDBNull(4) ? null : r.GetString(4),
+                r.IsDBNull(5) ? null : r.GetString(5), r.GetBoolean(6), r.GetString(7), r.GetInt32(8), r.GetFieldValue<DateTimeOffset>(9), r.GetFieldValue<DateTimeOffset>(10)));
+        }
+
+        return rows;
+    }
+
     public async Task<IReadOnlyList<string>> ListOpenThreadsAsync(ProviderKey provider, CancellationToken cancellationToken)
     {
         await using var cmd = dataSource.CreateCommand("SELECT * FROM agentd.chat_open_threads($1)");
@@ -66,7 +96,7 @@ public sealed class ChatStore(NpgsqlDataSource dataSource) : IChatStore
             var session = r.GetOrdinal("session_id");
             rows.Add(new Chat(
                 r.GetInt64(r.GetOrdinal("id")), r.GetString(r.GetOrdinal("author")), ProviderKey.From(r.GetString(r.GetOrdinal("provider"))),
-                r.GetString(r.GetOrdinal("thread_id")), Str("space_id"), r.GetString(r.GetOrdinal("status")),
+                Str("thread_id"), Str("space_id"), r.GetString(r.GetOrdinal("status")),
                 r.GetFieldValue<string[]>(r.GetOrdinal("repos")), r.IsDBNull(session) ? null : r.GetGuid(session),
                 Str("model"), Str("effort"), r.GetFieldValue<string[]>(r.GetOrdinal("worktrees"))));
         }

@@ -9,6 +9,34 @@ namespace Agentd.Infrastructure.Tests.Persistence;
 public sealed class ChatStoreTests
 {
     [TestMethod]
+    public async Task Web_chats_have_no_thread_and_list_with_their_first_question_messages_and_events()
+    {
+        await using var db = await Database.CreateMigratedAsync("chats_web");
+        var store = new ChatStore(db);
+        var events = new EventStore(db);
+        var web = ProviderKey.From("web");
+        var from = await events.LatestSeqAsync(default);
+
+        var id = await store.InsertAsync("dev@example.com", web, null, null, ["sysmin", "portal"], default);
+        await store.AddMessageAsync(id, "in", "dev@example.com", "what does the sync do?", default);
+        await Task.WhenAll(Enumerable.Range(0, 8).Select(i => Task.Run(() => store.AddMessageAsync(id, i % 2 == 0 ? "out" : "in", i % 2 == 0 ? "agent" : "dev@example.com", $"m{i}", default))));
+        var other = await store.InsertAsync("tngo", ProviderKey.From("discord"), "t-1", null, ["sysmin"], default);
+
+        var list = await store.ListAsync(10, default);
+        Assert.AreEqual((other, id), (list[0].Id, list[1].Id), "newest first");
+        Assert.AreEqual(("what does the sync do?", 9, false, "Open"), (list[1].Title, list[1].Messages, list[1].InChat, list[1].Status));
+        CollectionAssert.AreEqual(new[] { "sysmin", "portal" }, list[1].Repositories.ToList());
+        Assert.AreEqual((true, ""), (list[0].InChat, list[0].Title), "no question yet: an empty title");
+        var messages = await store.ListMessagesAsync(id, default);
+        Assert.HasCount(9, messages, "parallel adds all land");
+        Assert.AreEqual(("in", "what does the sync do?"), (messages[0].Direction, messages[0].Text));
+        Assert.IsNull((await store.GetAsync(id, default))!.ThreadId);
+        Assert.IsEmpty(await store.ListOpenThreadsAsync(web, default), "chat providers never read web chats");
+        var announced = (await events.ReadAfterAsync(null, from, 100, default)).Count(e => e.Type == "chat.message");
+        Assert.AreEqual(9, announced, "each message is announced (ids only) for the Web UI");
+    }
+
+    [TestMethod]
     public async Task A_chat_round_trips_and_only_open_chats_are_polled()
     {
         await using var db = await Database.CreateMigratedAsync("chats_round_trip");

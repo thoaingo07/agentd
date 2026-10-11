@@ -79,6 +79,10 @@ last 40 lines of its log; and **search the wiki** and read a page (the project w
 It reads Azure DevOps through agentd's own read-only tools: agentd answers them with its credentials, so the agent
 never sees the access token. A chat's tools stop working when it's closed. The wiki needs the PAT's **Wiki (Read)** scope.
 
+**On the Web UI:** **Chat → Ask** does the same without a chat thread (pick one repository or all, a model and an
+effort). The conversation is on its page: follow up there, and **Close chat** when you're done. A chat started in
+Discord can be continued on its page too; your messages from there are posted in the thread.
+
 ## In an idea's or a review's thread
 
 | Command | What it does |

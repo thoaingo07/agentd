@@ -548,6 +548,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/chats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ListChats"];
+        put?: never;
+        post: operations["StartChat"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/chats/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetChat"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/chats/{id}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["SendChatMessage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/chats/{id}/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["CloseChat"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/reviews": {
         parameters: {
             query?: never;
@@ -1220,6 +1284,31 @@ export interface components {
             clientId: null | string;
             clientSecret: components["schemas"]["SecretStatusVm"];
         };
+        /** @description A chat and its whole conversation; `thinking`: the agent is writing an answer. */
+        ChatDetailVm: {
+            /** Format: int64 */
+            id: number;
+            author: string;
+            status: string;
+            repos: string[];
+            model: null | string;
+            effort: null | string;
+            inChat: boolean;
+            messages: components["schemas"]["ChatMessageVm"][];
+            thinking: boolean;
+        };
+        ChatMessageRequest: {
+            /** @description A follow-up ("close" closes the chat). */
+            text: null | string;
+        };
+        /** @description One message: `in` from a person; `out` from the agent (author `agent`, Markdown) or agentd (`agentd`). */
+        ChatMessageVm: {
+            direction: string;
+            author: string;
+            text: string;
+            /** Format: date-time */
+            at: string;
+        };
         /** @description Discord settings. An empty `BotToken` keeps the saved one; `UserName` + `UserDiscordId` add you as a user. */
         ChatRequest: {
             enabled: boolean;
@@ -1229,6 +1318,11 @@ export interface components {
             userName: null | string;
             userDiscordId: null | string;
         };
+        /** @description A new chat: its page is `/chats/{id}`. */
+        ChatStartedVm: {
+            /** Format: int64 */
+            id: number;
+        };
         /** @description The chat step (Discord): the server and channel IDs, the bot token's status, and who agentd answers there. */
         ChatStepVm: {
             enabled: boolean;
@@ -1236,6 +1330,24 @@ export interface components {
             channelId: null | string;
             botToken: components["schemas"]["SecretStatusVm"];
             users: components["schemas"]["ChatUserVm"][];
+        };
+        /** @description A chat: its first question is the title; `inChat`: it also has a chat thread. */
+        ChatSummaryVm: {
+            /** Format: int64 */
+            id: number;
+            author: string;
+            status: string;
+            repos: string[];
+            model: null | string;
+            effort: null | string;
+            inChat: boolean;
+            title: string;
+            /** Format: int32 */
+            messages: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
         };
         ChatUserVm: {
             name: string;
@@ -1815,6 +1927,16 @@ export interface components {
         SetupSessionVm: {
             /** Format: date-time */
             expiresAt: null | string;
+        };
+        StartChatRequest: {
+            /** @description The question. */
+            text: null | string;
+            /** @description Only this repository (none: every registered one). */
+            repo: null | string;
+            /** @description fable, opus, sonnet or a full name; none = the chat step's default. */
+            model: null | string;
+            /** @description low, medium, high, xhigh or max. */
+            effort: null | string;
         };
         StartIdeaRequest: {
             /** @description The idea, in your words. */
@@ -3137,6 +3259,179 @@ export interface operations {
                 content: {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    ListChats: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatSummaryVm"][];
+                };
+            };
+        };
+    };
+    StartChat: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": null | components["schemas"]["StartChatRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatStartedVm"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetChat: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatDetailVm"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    SendChatMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": null | components["schemas"]["ChatMessageRequest"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    CloseChat: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Not Found */
             404: {

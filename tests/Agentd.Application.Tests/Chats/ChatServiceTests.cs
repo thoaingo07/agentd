@@ -74,6 +74,50 @@ public sealed class ChatServiceTests
         StringAssert.Contains(empty.Error!.Message, "Ask something");
     }
 
+    [TestMethod]
+    public async Task A_web_question_has_no_thread_its_page_keeps_agentds_notices_and_close_ends_it()
+    {
+        var h = new Harness();
+        h.Agent.Replies.Enqueue("It syncs sysmin nightly.");
+
+        var id = (await h.Service.StartOnWebAsync("dev@example.com", "what does the sync do?", "portal", "sonnet", "LOW", default)).Value;
+        for (var i = 0; i < 300 && (h.Service.IsThinking(id) || h.Store.Messages.Count < 2); i++)
+        {
+            await Task.Delay(10);
+        }
+
+        Assert.IsTrue(await h.Service.HandleMessageAsync(h.Store.Rows[id], "dev@example.com", "close", default, fromWeb: true));
+        var late = await h.Service.HandleMessageAsync(h.Store.Rows[id], "dev@example.com", "one more", default, fromWeb: true);
+
+        var chat = h.Store.Rows[id];
+        Assert.AreEqual((ChatService.Web, null, "sonnet", "low", ChatStatus.Closed), (chat.Provider, chat.ThreadId, chat.Model, chat.Effort, chat.Status));
+        CollectionAssert.AreEqual(new[] { "portal" }, chat.Repositories.ToList());
+        Assert.IsEmpty(h.Chat.Opened);
+        Assert.IsEmpty(h.Chat.SentText, "nothing goes to a chat thread");
+        Assert.IsFalse(late);
+        CollectionAssert.AreEqual(new[] { "in:dev@example.com", "out:agent", "out:agentd" }, h.Store.Messages.Select(m => $"{m.Direction}:{m.Author}").ToArray(),
+            "the question, the agent's answer (once), and agentd's close notice");
+        StringAssert.Contains(h.Store.Messages.Last().Text, "Chat closed by dev@example.com");
+        Assert.IsFalse(h.Service.IsThinking(id));
+    }
+
+    [TestMethod]
+    public async Task A_web_follow_up_on_a_chat_thread_is_posted_there_too_and_bad_input_is_refused()
+    {
+        var h = new Harness();
+        await h.Service.StartAsync(s_discord, "tngo", ["what", "is", "sysmin?"], default);
+        await h.WaitForSentAsync(1);
+
+        await h.Service.HandleMessageAsync(h.Store.Rows[1], "dev@example.com", "and who calls it?", default, fromWeb: true);
+        await h.WaitForSentAsync(3);
+        var empty = await h.Service.StartOnWebAsync("dev@example.com", " ", null, null, null, default);
+        var model = await h.Service.StartOnWebAsync("dev@example.com", "x", null, "gpt 4!", null, default);
+
+        Assert.AreEqual("💬 **dev@example.com** (web): and who calls it?", h.Chat.SentText[1]);
+        Assert.AreEqual("dev@example.com: and who calls it?", h.Agent.Turns[^1].Prompt);
+        Assert.AreEqual(("validation", "validation"), (empty.Error!.Code, model.Error!.Code));
+    }
+
     private sealed class Harness
     {
         public Harness()
@@ -147,7 +191,7 @@ public sealed class ChatServiceTests
     {
         public ConcurrentDictionary<long, Chat> Rows { get; } = new();
 
-        public Task<long> InsertAsync(string author, ProviderKey provider, string threadId, string? spaceId, IReadOnlyList<string> repositories, CancellationToken cancellationToken)
+        public Task<long> InsertAsync(string author, ProviderKey provider, string? threadId, string? spaceId, IReadOnlyList<string> repositories, CancellationToken cancellationToken)
         {
             var id = Rows.Count + 1;
             Rows[id] = new Chat(id, author, provider, threadId, spaceId, ChatStatus.Open, repositories, null, null, null, []);
@@ -165,9 +209,19 @@ public sealed class ChatServiceTests
             return Task.CompletedTask;
         }
 
-        public Task AddMessageAsync(long chatId, string direction, string author, string text, CancellationToken cancellationToken) => Task.CompletedTask;
+        public ConcurrentQueue<(long Chat, string Direction, string Author, string Text)> Messages { get; } = new();
+
+        public Task AddMessageAsync(long chatId, string direction, string author, string text, CancellationToken cancellationToken)
+        {
+            Messages.Enqueue((chatId, direction, author, text));
+            return Task.CompletedTask;
+        }
+
+        public Task<IReadOnlyList<ChatMessage>> ListMessagesAsync(long chatId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<IReadOnlyList<ChatSummary>> ListAsync(int limit, CancellationToken cancellationToken) => throw new NotSupportedException();
 
         public Task<IReadOnlyList<string>> ListOpenThreadsAsync(ProviderKey provider, CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<string>>([.. Rows.Values.Where(c => c.Status == ChatStatus.Open).Select(c => c.ThreadId)]);
+            Task.FromResult<IReadOnlyList<string>>([.. Rows.Values.Where(c => c.Status == ChatStatus.Open && c.ThreadId is not null).Select(c => c.ThreadId!)]);
     }
 }
