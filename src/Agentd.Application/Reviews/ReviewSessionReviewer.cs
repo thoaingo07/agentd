@@ -117,7 +117,9 @@ public sealed partial class ReviewSessionReviewer(
             $"Review {what} in {repository}, requested by {s.CreatedBy} on agentd's review page. Your checkout is the head, {s.HeadCommit}. ") +
             $"The change is exactly `git diff {s.BaseCommit} {s.HeadCommit}` (and `git log {s.BaseCommit}..{s.HeadCommit}`): review that, not later commits on the base. " +
             "There are no PR threads or linked work items to read here unless the commit messages name one. " +
-            "End with the review-findings block as usual; the developer keeps, edits or drops each finding on the page.";
+            "End with the review-findings block as usual; the developer keeps, edits or drops each finding on the page." +
+            (s.Focus is { Length: > 0 } focus ? $" Focus on: {focus}." : string.Empty) +
+            (s.Instructions is { Length: > 0 } instructions ? $"\n\nInstructions from {s.CreatedBy}: {instructions}" : string.Empty);
     }
 
     public void Dispose() => _slots.Dispose();

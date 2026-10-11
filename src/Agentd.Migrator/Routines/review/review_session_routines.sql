@@ -10,6 +10,12 @@ AS $$
     RETURNING id
 $$;
 
+-- The focus and instructions a review was started with (both optional).
+CREATE OR REPLACE FUNCTION agentd.review_session_set_brief(p_id bigint, p_focus text, p_instructions text)
+RETURNS void
+LANGUAGE sql
+AS $$ UPDATE agentd.review_sessions SET focus = p_focus, instructions = p_instructions, updated_at = now() WHERE id = p_id $$;
+
 CREATE OR REPLACE FUNCTION agentd.review_session_get(p_id bigint)
 RETURNS SETOF agentd.review_sessions
 LANGUAGE sql STABLE

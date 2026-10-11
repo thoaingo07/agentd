@@ -86,6 +86,8 @@ them with **Push / Discard** when a fix waits, **Unwatch**, and **Log** (what ag
 **Reviews → New review**: pick a repository, then a **pull request**, a **pushed branch** (against its base, or
 another branch you name) or **two commits**. agentd fetches it with its own access, pins the commits, and its
 reviewer (the `review` step's model) looks for what can break the app or slow it down, with a fix for each.
+**Options** set the reviewer's model and effort, a **focus** ("security, tests") and **instructions**, like
+`!review --model … --effort … --focus …` and its free text.
 
 The review page:
 - the **files** on the left, the **diff** in the middle, and each **finding at its line** (🔴 can break the app,
@@ -117,7 +119,9 @@ The review page:
 - **Configuration** (Admins): the same pages as the setup wizard, to change settings after setup. Each has a
   **Test** button, and secrets show only "set · updated … by …". Saved changes apply after `agentd daemon restart`.
   - **Health**: every area checked with its saved settings (including a tiny Claude test prompt).
-  - **Database**, **Azure DevOps**, **Git access** (agentd's SSH key), **Claude**, **Chat**, **Repositories**.
+  - **Database**, **Azure DevOps**, **Git access** (agentd's SSH key), **Claude**, **Chat**, **Repositories** (add, test,
+    or **Remove**: agentd stops picking up its work items, it isn't registered again at the next start, and job
+    history is kept; like `agentd repo remove`).
 - **System log** (Admins): agentd's own log, newest first: what it did (jobs claimed, PRs opened, …) and what went
   wrong, with filters for level, source and text, and links to the job an entry is about. Kept 14 days
   (`SystemLog:RetentionDays`).

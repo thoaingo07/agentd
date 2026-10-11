@@ -160,7 +160,7 @@ Server (`/api`, signed in, antiforgery on writes):
 
 | | |
 |---|---|
-| `POST /api/reviews` | start: `{ repo, target: { pr } | { branch, base? } | { base, head } }` → the session |
+| `POST /api/reviews` | start: `{ repo, target: { pr } | { branch, base? } | { base, head }, model?, effort?, focus?, instructions? }` → the session. Model and effort override the `review` step's defaults; focus and instructions (like `!review --focus` and its free text, decided 2026-10-10) are kept on the session (`review_session_set_brief`), so a review resumed after a restart is asked the same |
 | `GET /api/reviews` · `GET /api/reviews/{id}` | list (mine, recent) · one session: target, commits, summary, findings with decisions, comments, asks, status |
 | `GET /api/reviews/{id}/diff` | the unified diff and file list (pinned commits) |
 | `PUT /api/reviews/{id}/findings/{n}` | `{ decision: kept | dropped | edited, text? }` |

@@ -138,6 +138,12 @@ export const useSetupStore = defineStore('setup', () => {
     return added
   }
 
+  /** Out of agentd.json and the running registry (job history stays). */
+  async function removeRepository(name: string): Promise<void> {
+    await send<void>('DELETE', `${base.value}/repositories/${encodeURIComponent(name)}`)
+    await loadRepositories()
+  }
+
   function testRepository(url: string): Promise<StepCheck> {
     return send<StepCheck>('POST', `${base.value}/repositories/test`, { url })
   }
@@ -187,7 +193,7 @@ export const useSetupStore = defineStore('setup', () => {
     base, session, expiresAt, database, azureDevOps, gitKey, claude, chat, repositories, models, review, completedAt, restartRequired,
     loadSession, loadDatabase, saveDatabase, testDatabase, migrateDatabase, loadAzureDevOps, saveAzureDevOps, testAzureDevOps,
     loadGitKey, generateGitKey, testGitAccess, loadClaude, saveClaudeToken, removeClaudeToken, testClaude,
-    loadChat, saveChat, testChat, loadRepositories, addRepository, testRepository,
+    loadChat, saveChat, testChat, loadRepositories, addRepository, removeRepository, testRepository,
     loadModels, saveProfile, removeProfile, testProfile, saveSteps, loadReview, finish,
   }
 })

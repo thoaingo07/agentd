@@ -7,6 +7,7 @@ import { AgButton } from '../../shared/components/ui'
 import MarkdownText from '../../shared/components/MarkdownText.vue'
 import { dateTime } from '../../shared/utils/format'
 import { useConfigStore } from '../stores/config'
+import { ideaEfforts, ideaModels } from '../stores/ideas'
 import { useReviewsStore } from '../stores/reviews'
 import { useUiStore } from '../stores/ui'
 import { useWatchesStore } from '../stores/watches'
@@ -18,7 +19,7 @@ const watches = useWatchesStore()
 const ui = useUiStore()
 const config = useConfigStore()
 const router = useRouter()
-const form = reactive({ repo: '', kind: 'branch' as 'pr' | 'branch' | 'range', pr: '', branch: '', base: '', head: '' })
+const form = reactive({ repo: '', kind: 'branch' as 'pr' | 'branch' | 'range', pr: '', branch: '', base: '', head: '', model: '', effort: '', focus: '', instructions: '' })
 const busy = ref(false)
 const error = ref<string | null>(null)
 const repos = computed(() => config.config?.repositories.map((r) => r.name) ?? [])
@@ -75,6 +76,10 @@ async function start(): Promise<void> {
     branch: form.kind === 'branch' ? form.branch.trim() : null,
     base: form.kind === 'pr' ? null : form.base.trim() || null,
     head: form.kind === 'range' ? form.head.trim() : null,
+    model: form.model || null,
+    effort: form.effort || null,
+    focus: form.focus.trim() || null,
+    instructions: form.instructions.trim() || null,
   })
   busy.value = false
 }
@@ -376,6 +381,60 @@ async function start(): Promise<void> {
           >
         </label>
       </div>
+      <details class="grid gap-2 text-sm">
+        <summary class="cursor-pointer text-muted">
+          Options: model, effort, focus, instructions
+        </summary>
+        <div class="mt-2 grid gap-2 sm:grid-cols-2">
+          <select
+            v-model="form.model"
+            class="select select-sm w-full"
+            aria-label="Reviewer model"
+          >
+            <option value="">
+              Default model
+            </option>
+            <option
+              v-for="m in ideaModels"
+              :key="m"
+              :value="m"
+            >
+              {{ m }}
+            </option>
+          </select>
+          <select
+            v-model="form.effort"
+            class="select select-sm w-full"
+            aria-label="Reviewer effort"
+          >
+            <option value="">
+              Default effort
+            </option>
+            <option
+              v-for="e in ideaEfforts"
+              :key="e"
+              :value="e"
+            >
+              {{ e }}
+            </option>
+          </select>
+          <input
+            v-model="form.focus"
+            class="input input-sm w-full sm:col-span-2"
+            maxlength="200"
+            placeholder="Focus, e.g. security, tests"
+            aria-label="Focus"
+          >
+          <textarea
+            v-model="form.instructions"
+            class="textarea w-full text-sm sm:col-span-2"
+            rows="2"
+            maxlength="4000"
+            placeholder="Instructions for the reviewer (optional)"
+            aria-label="Instructions for the reviewer"
+          />
+        </div>
+      </details>
       <div>
         <AgButton
           type="submit"

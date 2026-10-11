@@ -91,3 +91,6 @@ public sealed class ArtifactRetention : SqlMigration;
 
 [Migration(2026_10_26_0001, "System log: the daemon's own log in the database, shown in Settings")]
 public sealed class SystemLogs : SqlMigration;
+
+[Migration(2026_10_28_0001, "Review sessions keep the focus and instructions they were started with")]
+public sealed class ReviewSessionBrief : SqlMigration;

@@ -268,6 +268,21 @@ public sealed class SetupEndpointTests : IDisposable
     }
 
     [TestMethod]
+    public async Task Admins_remove_a_repository_from_settings()
+    {
+        _config["Repositories:Items:0:Url"] = "git@ssh.dev.azure.com:v3/ermsystem/Portal/sysmin";
+        _config["Repositories:Items:0:Name"] = "sysmin";
+        await using var app = await StartAsync();
+        var admin = await new AntiforgeryClient(app).InitAsync();
+
+        using var removed = await admin.SendAsync(HttpMethod.Delete, "/api/settings/repositories/sysmin");
+        using var gone = await admin.SendAsync(HttpMethod.Delete, "/api/settings/repositories/sysmin");
+
+        Assert.AreEqual((HttpStatusCode.NoContent, HttpStatusCode.NotFound), (removed.StatusCode, gone.StatusCode));
+        Assert.IsNull(_config["Repositories:Items:0:Url"], "out of agentd.json: not registered again at the next start");
+    }
+
+    [TestMethod]
     public async Task The_setup_session_is_not_an_admin_session()
     {
         await using var app = await StartAsync();

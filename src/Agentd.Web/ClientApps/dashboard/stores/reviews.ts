@@ -11,7 +11,11 @@ export const reviewPollMs = 3000
 export const openPrsPollMs = 60_000
 
 /** What to review: a PR, a branch (against its base or a chosen one), or two commits. */
-export interface StartReview { repo: string; pullRequestId?: number | null; branch?: string | null; base?: string | null; head?: string | null }
+export interface StartReview {
+  repo: string; pullRequestId?: number | null; branch?: string | null; base?: string | null; head?: string | null
+  /** Like `!review --model / --effort / --focus` and its free text; none = the review step's defaults. */
+  model?: string | null; effort?: string | null; focus?: string | null; instructions?: string | null
+}
 
 /** Review sessions: my recent ones, and the one open on the page (its detail and pinned diff). */
 export const useReviewsStore = defineStore('reviews', () => {
