@@ -18,6 +18,18 @@ export function dateTime(iso: string): string {
 }
 
 /** "JobStarted" → "Job started", "phase.set" → "Phase set". */
+/** "just now", "5 min ago", "2h ago", "yesterday", "3d ago"; older than a week: the date. */
+export function ago(iso: string, now: number = Date.now()): string {
+  const minutes = Math.floor((now - new Date(iso).getTime()) / 60_000)
+  if (minutes < 1) return 'just now'
+  if (minutes < 60) return `${minutes} min ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  if (days === 1) return 'yesterday'
+  return days < 7 ? `${days}d ago` : new Date(iso).toLocaleDateString()
+}
+
 export function humanize(type: string): string {
   const words = type.replace(/[._]/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase()
   return words.charAt(0).toUpperCase() + words.slice(1)

@@ -70,6 +70,9 @@ describe('Ideas', () => {
     expect(rows.map((r) => r.find('a').text())).toEqual(['#5 Idea 5', '#4 Idea 4'])
     expect(rows[1]!.text()).toContain('Created')
     expect(rows[1]!.findAll('a').slice(1).map((a) => a.attributes('href'))).toEqual(['/workitems/5701', '/workitems/5702'])
+    expect(rows[1]!.findAll('a').slice(1).map((a) => a.text())).toEqual(['WI-5701', 'WI-5702'])
+    expect(rows[0]!.text()).toContain('sysmin · tngo · 2 messages')
+    expect(w.find('table').exists()).toBe(false)
   })
 
   it('shows drafts as stories with their tasks, and the conversation (people as plain text, agentd as Markdown)', async () => {
