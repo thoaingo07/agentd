@@ -17,6 +17,7 @@ namespace Agentd.Infrastructure.Messaging.Discord;
 /// (commands only), and hands them to <see cref="IInboundMessageSink"/>. At startup each thread's
 /// recent messages are replayed so replies sent while agentd was down are picked up; inbound dedupe
 /// makes the replay safe. The parent channel starts from its newest message, so old commands never run.
+/// A thread that answers 404 was deleted by hand: <see cref="IDeletedThreads"/> stops treating it as open.
 /// </summary>
 public sealed partial class DiscordPoller(
     DiscordRest rest,
@@ -91,9 +92,17 @@ public sealed partial class DiscordPoller(
                 {
                     await PollChannelAsync(thread, commandsOnly: false, sink, ct).ConfigureAwait(false);
                 }
+                catch (MessagingDeliveryException ex) when (DiscordRest.IsNotFound(ex) && scope.ServiceProvider.GetService<IDeletedThreads>() is { } deleted)
+                {
+                    // Deleted by hand in Discord: stop polling it, and agentd stops showing it as open.
+                    var at = scope.ServiceProvider.GetService<Domain.Common.IClock>()?.UtcNow ?? DateTimeOffset.UtcNow;
+                    var changed = await deleted.MarkDeletedAsync(provider.Key, thread, at, ct).ConfigureAwait(false);
+                    LogThreadDeleted(logger, thread, changed);
+                    _lastSeen.TryRemove(thread, out _);
+                }
                 catch (MessagingDeliveryException ex)
                 {
-                    // A deleted thread or a lost permission must not stop the other threads.
+                    // A lost permission must not stop the other threads.
                     LogThreadFailed(logger, thread, ex.Message);
                 }
             }
@@ -122,6 +131,9 @@ public sealed partial class DiscordPoller(
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Polling Discord failed; retrying")]
     private static partial void LogPollFailed(ILogger logger, Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Discord thread {ThreadId} was deleted; closed what used it ({Count})")]
+    private static partial void LogThreadDeleted(ILogger logger, string threadId, int count);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Polling Discord thread {ThreadId} failed: {Reason}")]
     private static partial void LogThreadFailed(ILogger logger, string threadId, string reason);

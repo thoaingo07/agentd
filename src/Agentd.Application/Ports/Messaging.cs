@@ -26,3 +26,13 @@ public interface IConversationStore
     /// <summary>Open conversations on a provider (what a polling provider watches).</summary>
     Task<IReadOnlyList<Conversation>> ListOpenAsync(ProviderKey provider, CancellationToken cancellationToken);
 }
+
+/// <summary>Chat threads deleted on the provider by hand, found while reading them.</summary>
+public interface IDeletedThreads
+{
+    /// <summary>
+    /// Stops treating <paramref name="threadId"/> as open anywhere: a job's conversation closes, a chat or idea carries
+    /// on in the Web UI without a thread, a PR review closes. Returns how many were changed (0: nothing used it).
+    /// </summary>
+    Task<int> MarkDeletedAsync(ProviderKey provider, string threadId, DateTimeOffset at, CancellationToken cancellationToken);
+}
