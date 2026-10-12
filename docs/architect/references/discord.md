@@ -58,3 +58,6 @@ Read Message History, Attach Files and Embed Links: invite permissions `32641763
 **Manage Threads** is required to **delete** a thread at close-out; without it Discord answers
 `403 Missing Permissions` (code 50013) and agentd archives the thread instead and says why. The bot
 can archive and delete its own messages without extra permissions.
+A job's thread is started from agentd's opening message in the channel (same id). Deleting the thread
+leaves that message in the channel for everyone, so close-out deletes it too (a 404 means it was
+already deleted by hand).

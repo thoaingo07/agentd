@@ -15,6 +15,8 @@ namespace Agentd.Infrastructure.Messaging.Discord;
 /// </summary>
 public sealed class DiscordRest(Func<HttpClient> client)
 {
+    private const string Returned = "Discord returned ";
+
     public Task<JsonNode?> GetAsync(string path, CancellationToken ct) => SendAsync(HttpMethod.Get, path, null, ct);
 
     public Task<JsonNode?> PostAsync(string path, JsonNode body, CancellationToken ct) => SendAsync(HttpMethod.Post, path, Json(body), ct);
@@ -61,7 +63,7 @@ public sealed class DiscordRest(Func<HttpClient> client)
             }
 
             var body = TryParse(text);
-            var message = $"Discord returned {(int)response.StatusCode}: {body?["message"]?.GetValue<string>() ?? response.ReasonPhrase}";
+            var message = $"{Returned}{(int)response.StatusCode}: {body?["message"]?.GetValue<string>() ?? response.ReasonPhrase}";
             if (response.StatusCode == HttpStatusCode.TooManyRequests)
             {
                 var seconds = body?["retry_after"]?.GetValue<double>() ?? response.Headers.RetryAfter?.Delta?.TotalSeconds ?? 1;
@@ -71,6 +73,10 @@ public sealed class DiscordRest(Func<HttpClient> client)
             throw new MessagingDeliveryException(message, permanent: (int)response.StatusCode is >= 400 and < 500);
         }
     }
+
+    /// <summary>A 404: the channel or message doesn't exist (any more).</summary>
+    public static bool IsNotFound(MessagingDeliveryException ex) =>
+        ex is { Permanent: true } && ex.Message.StartsWith(Returned + "404", StringComparison.Ordinal);
 
     private static StringContent Json(JsonNode body) => new(body.ToJsonString(), Encoding.UTF8, "application/json");
 

@@ -87,6 +87,33 @@ public sealed class DiscordProviderTests : IDisposable
     }
 
     [TestMethod]
+    public async Task Deleting_a_thread_also_deletes_its_opening_message_in_the_channel()
+    {
+        _discord.Respond(HttpMethod.Delete, "channels/t1", "");
+        _discord.Respond(HttpMethod.Delete, "channels/555/messages/t1", "", HttpStatusCode.NoContent);
+        var provider = Provider();
+
+        await provider.DeleteConversationAsync(new ConversationRef(provider.Key, "t1", "777"), default);
+
+        CollectionAssert.AreEqual(new[] { "DELETE channels/t1", "DELETE channels/555/messages/t1" }, _discord.Requests.Select(r => $"{r.Method} {r.Path}").ToArray());
+    }
+
+    [TestMethod]
+    public async Task An_opening_message_already_deleted_is_fine_but_a_thread_that_cannot_be_deleted_fails()
+    {
+        _discord.Respond(HttpMethod.Delete, "channels/t1", "");
+        _discord.Respond(HttpMethod.Delete, "channels/555/messages/t1", """{"message":"Unknown Message","code":10008}""", HttpStatusCode.NotFound);
+        _discord.Respond(HttpMethod.Delete, "channels/t2", """{"message":"Missing Permissions","code":50013}""", HttpStatusCode.Forbidden);
+        var provider = Provider();
+
+        await provider.DeleteConversationAsync(new ConversationRef(provider.Key, "t1", "777"), default);
+        var denied = await Assert.ThrowsExactlyAsync<MessagingDeliveryException>(() => provider.DeleteConversationAsync(new ConversationRef(provider.Key, "t2", "777"), default));
+
+        StringAssert.Contains(denied.Message, "Missing Permissions");
+        Assert.IsFalse(_discord.Requests.Any(r => r.Path == "channels/555/messages/t2"), "the opening message stays while the thread does");
+    }
+
+    [TestMethod]
     public async Task Editing_and_health_use_the_right_endpoints()
     {
         _discord.Respond(new HttpMethod("PATCH"), "channels/t1/messages/m9", """{"id":"m9"}""");

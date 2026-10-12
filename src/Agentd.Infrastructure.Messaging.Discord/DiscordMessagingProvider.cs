@@ -71,6 +71,16 @@ public sealed class DiscordMessagingProvider(DiscordRest rest, IOptions<DiscordO
     {
         ArgumentNullException.ThrowIfNull(conversation);
         await rest.DeleteAsync($"channels/{conversation.ExternalConversationId}", cancellationToken).ConfigureAwait(false);
+        try
+        {
+            // The thread was started from agentd's opening message in the channel (same id). Deleting the thread
+            // leaves that message, so everyone else still sees it in the channel.
+            await rest.DeleteAsync($"channels/{options.Value.ChannelId}/messages/{conversation.ExternalConversationId}", cancellationToken).ConfigureAwait(false);
+        }
+        catch (MessagingDeliveryException ex) when (DiscordRest.IsNotFound(ex))
+        {
+            // Already deleted by hand.
+        }
     }
 
     public async Task CloseConversationAsync(ConversationRef conversation, string reason, CancellationToken cancellationToken)
