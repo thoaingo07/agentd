@@ -6,6 +6,7 @@ import { AgButton } from '../../shared/components/ui'
 import MarkdownText from '../../shared/components/MarkdownText.vue'
 import DiffFileReview from '../../shared/review/DiffFileReview.vue'
 import FindingCard from '../../shared/review/FindingCard.vue'
+import { fileName, folder } from '../../shared/utils/paths'
 import { useReviewsStore } from '../stores/reviews'
 
 // The review page (docs/architect/review-sessions.md §2): files, the diff with findings and comments at their lines,
@@ -265,19 +266,24 @@ const where = (a: { file?: string | null; line?: number | null; endLine?: number
       <div class="grid gap-4 lg:grid-cols-[14rem_minmax(0,1fr)_20rem]">
         <nav
           aria-label="Files"
-          class="hidden lg:block"
+          class="hidden min-w-0 lg:block"
         >
-          <ul class="sticky top-4 grid gap-1 text-xs">
+          <ul class="sticky top-4 grid gap-2 text-xs">
             <li
               v-for="f in reviews.files"
               :key="f.newPath"
+              class="min-w-0"
             >
               <a
                 :href="`#file-${f.newPath}`"
-                class="flex gap-1 font-mono hover:underline"
+                :title="f.newPath"
+                class="flex min-w-0 gap-1 font-mono hover:underline"
               >
                 <span>{{ forFile(f.newPath).findings.some((x) => x.severity === 'breaks') ? '🔴' : forFile(f.newPath).findings.length ? '🟠' : '·' }}</span>
-                <span class="truncate">{{ f.newPath }}</span>
+                <span class="grid min-w-0">
+                  <span class="truncate">{{ fileName(f.newPath) }}</span>
+                  <span class="truncate text-muted">{{ folder(f.newPath) }}</span>
+                </span>
               </a>
             </li>
           </ul>
