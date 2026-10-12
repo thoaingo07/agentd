@@ -39,6 +39,42 @@ public sealed class DiscordPollerTests : IDisposable
         Assert.AreEqual(1, _fake.RequestUris.Count(u => u.Contains("channels/job-t/messages", StringComparison.Ordinal)));
     }
 
+    [TestMethod]
+    public async Task A_thread_deleted_by_hand_is_marked_deleted_and_the_others_are_still_read()
+    {
+        _fake.Respond(HttpMethod.Get, "channels/555/messages", "[]");
+        _fake.Respond(HttpMethod.Get, "channels/gone-t/messages", """{"message":"Unknown Channel","code":10003}""", System.Net.HttpStatusCode.NotFound);
+        _fake.Respond(HttpMethod.Get, "channels/denied-t/messages", """{"message":"Missing Access","code":50001}""", System.Net.HttpStatusCode.Forbidden);
+        _fake.Respond(HttpMethod.Get, "channels/idea-t/messages", """[{"id":"12","content":"still here","author":{"id":"7","username":"dev"}}]""");
+        var sink = new Sink();
+        var deleted = new Deleted();
+        var services = new ServiceCollection()
+            .AddSingleton<IInboundMessageSink>(sink)
+            .AddSingleton<IConversationStore>(new JobThreads("gone-t"))
+            .AddSingleton<IIdeaStore>(new IdeaThreads("denied-t", "idea-t"))
+            .AddSingleton<IDeletedThreads>(deleted)
+            .BuildServiceProvider();
+        var options = Microsoft.Extensions.Options.Options.Create(new DiscordOptions { Enabled = true, BotToken = "t", GuildId = "777", ChannelId = "555" });
+        var rest = new DiscordRest(() => new HttpClient(_fake) { BaseAddress = new Uri("https://discord.test/api/v10/") });
+        var poller = new DiscordPoller(rest, new DiscordMessagingProvider(rest, options), services.GetRequiredService<IServiceScopeFactory>(), options, NullLogger<DiscordPoller>.Instance);
+
+        await poller.PollOnceAsync(default);
+
+        CollectionAssert.AreEqual(new[] { "discord gone-t" }, deleted.Marked, "a lost permission isn't a deleted thread");
+        CollectionAssert.AreEqual(new[] { "idea-t: still here" }, sink.Received.Select(m => $"{m.ExternalConversationId}: {m.Text}").ToArray());
+    }
+
+    private sealed class Deleted : IDeletedThreads
+    {
+        public List<string> Marked { get; } = [];
+
+        public Task<int> MarkDeletedAsync(ProviderKey provider, string threadId, DateTimeOffset at, CancellationToken cancellationToken)
+        {
+            Marked.Add($"{provider.Value} {threadId}");
+            return Task.FromResult(1);
+        }
+    }
+
     private sealed class Sink : IInboundMessageSink
     {
         public List<InboundMessage> Received { get; } = [];

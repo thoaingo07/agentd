@@ -90,3 +90,32 @@ AS $$
     SELECT * FROM agentd.conversations
      WHERE conversations.provider = p_provider AND conversations.external_conversation_id = p_external_conversation_id
 $$;
+
+-- A chat thread was deleted on the provider (by hand): stop treating it as open anywhere. A job's conversation
+-- closes, a chat or idea carries on in the Web UI without a thread, a PR review closes. Returns how many rows changed.
+CREATE OR REPLACE FUNCTION agentd.thread_deleted(p_provider text, p_thread_id text, p_at timestamptz)
+RETURNS int
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_total int := 0;
+    v_count int;
+BEGIN
+    UPDATE agentd.conversations SET closed_at = p_at
+     WHERE provider = p_provider AND external_conversation_id = p_thread_id AND closed_at IS NULL;
+    GET DIAGNOSTICS v_count = ROW_COUNT;
+    v_total := v_total + v_count;
+
+    UPDATE agentd.chats SET thread_id = NULL, updated_at = p_at WHERE provider = p_provider AND thread_id = p_thread_id;
+    GET DIAGNOSTICS v_count = ROW_COUNT;
+    v_total := v_total + v_count;
+
+    UPDATE agentd.ideas SET thread_id = NULL, updated_at = p_at WHERE provider = p_provider AND thread_id = p_thread_id;
+    GET DIAGNOSTICS v_count = ROW_COUNT;
+    v_total := v_total + v_count;
+
+    UPDATE agentd.pr_reviews SET status = 'Closed', updated_at = p_at WHERE provider = p_provider AND thread_id = p_thread_id AND status <> 'Closed';
+    GET DIAGNOSTICS v_count = ROW_COUNT;
+    RETURN v_total + v_count;
+END
+$$;

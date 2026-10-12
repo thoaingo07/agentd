@@ -46,6 +46,44 @@ public sealed class ConversationStoreTests
     }
 
     [TestMethod]
+    public async Task A_deleted_thread_closes_the_job_conversation_detaches_chats_and_ideas_and_closes_reviews()
+    {
+        var job = await NewJobAsync();
+        var thread = "deleted-" + job;
+        await new ConversationStore(s_db).AddAsync(Open(job, s_discord, thread), default);
+        var chat = await new ChatStore(s_db).InsertAsync("tngo", s_discord, thread, null, ["sysmin"], default);
+        var idea = await new IdeaStore(s_db).InsertAsync("sysmin", "Dark mode", "tngo", s_discord, thread, null, default);
+        var review = await new ReviewStore(s_db).InsertAsync("sysmin", (int)job.Value, "Health checks", "tngo", s_discord, thread, null, default);
+        var keep = await new IdeaStore(s_db).InsertAsync("sysmin", "Other", "tngo", s_telegram, thread, null, default);
+        var store = new DeletedThreadStore(s_db);
+        var at = new DateTimeOffset(2026, 10, 12, 3, 0, 0, TimeSpan.Zero);
+
+        var changed = await store.MarkDeletedAsync(s_discord, thread, at, default);
+        var again = await store.MarkDeletedAsync(s_discord, thread, at.AddMinutes(1), default);
+
+        Assert.AreEqual((4, 0), (changed, again));
+        Assert.AreEqual(at, (await new ConversationStore(s_db).FindExternalAsync(s_discord, thread, default))!.ClosedAt);
+        Assert.IsNull((await new ChatStore(s_db).GetAsync(chat, default))!.ThreadId);
+        Assert.IsNull((await new IdeaStore(s_db).GetAsync(idea, default))!.ThreadId);
+        Assert.AreEqual(thread, (await new IdeaStore(s_db).GetAsync(keep, default))!.ThreadId, "another provider's thread with the same id stays");
+        var closed = await new ReviewStore(s_db).FindByThreadAsync(s_discord, thread, default);
+        Assert.AreEqual((review, Application.Reviews.ReviewStatus.Closed), (closed!.Id, closed.Status));
+    }
+
+    [TestMethod]
+    public async Task Pollers_marking_the_same_thread_deleted_in_parallel_change_it_once()
+    {
+        var job = await NewJobAsync();
+        var thread = "parallel-" + job;
+        await new ConversationStore(s_db).AddAsync(Open(job, s_discord, thread), default);
+        var store = new DeletedThreadStore(s_db);
+
+        var counts = await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => Task.Run(() => store.MarkDeletedAsync(s_discord, thread, DateTimeOffset.UtcNow, default))));
+
+        Assert.AreEqual(1, counts.Sum());
+    }
+
+    [TestMethod]
     public async Task The_same_external_thread_cannot_be_used_twice()
     {
         var store = new ConversationStore(s_db);

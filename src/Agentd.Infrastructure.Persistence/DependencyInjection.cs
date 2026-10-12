@@ -40,6 +40,7 @@ public static class DependencyInjection
         services.AddSingleton<Application.Jobs.IJobSessions>(sp => sp.GetRequiredService<JobSessionStore>());
         services.AddSingleton<Application.Jobs.IJobPlans>(sp => sp.GetRequiredService<JobSessionStore>());
         services.AddSingleton<IConversationStore, ConversationStore>();
+        services.AddSingleton<IDeletedThreads, DeletedThreadStore>();
         services.AddSingleton<IUserDirectory, UserDirectory>();
         services.AddSingleton<IOutbox, Outbox>();
         services.AddSingleton<IOutboxDelivery, OutboxDelivery>();

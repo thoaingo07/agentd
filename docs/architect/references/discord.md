@@ -61,3 +61,6 @@ can archive and delete its own messages without extra permissions.
 A job's thread is started from agentd's opening message in the channel (same id). Deleting the thread
 leaves that message in the channel for everyone, so close-out deletes it too (a 404 means it was
 already deleted by hand).
+A thread deleted by hand answers the poller with `404 Unknown Channel`; agentd then stops treating it as open
+(`agentd.thread_deleted`): the job's conversation closes, a chat or idea carries on in the Web UI without a
+thread, and a PR review closes.
