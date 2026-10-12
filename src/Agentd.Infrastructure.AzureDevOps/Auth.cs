@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
@@ -109,14 +110,21 @@ public sealed class PatAuthProvider(IOptions<AzureDevOpsOptions> options) : IAdo
 /// <list type="bullet">
 /// <item><c>X-TFS-FedAuthRedirect: Suppress</c>: a rejected credential gets a 401 with a reason instead of a 302 to the sign-in page.</item>
 /// <item><c>X-VSS-ForceMsaPassThrough: true</c>: lets a Microsoft-account (MSA) identity that signed in to Entra as a guest
-/// (<c>live.com#…</c>) use its MSA identity in MSA-backed organizations. The Azure DevOps SDKs send the same header.</item>
+/// (<c>live.com#…</c>) use its MSA identity in MSA-backed organizations. The Azure DevOps SDKs send the same header.
+/// An organization connected to Entra ID refuses it (TF400813), so when the refreshed retry is still 401 the request is
+/// tried once more with the header flipped, and what worked is remembered per organization.</item>
 /// </list>
 /// </summary>
 public sealed class AdoAuthHandler(IAdoAuthProvider auth) : DelegatingHandler
 {
+    /// <summary>Whether each organization takes <c>X-VSS-ForceMsaPassThrough</c>: learned from responses, shared by every handler.</summary>
+    private static readonly ConcurrentDictionary<string, bool> s_msaPassThrough = new(StringComparer.OrdinalIgnoreCase);
+
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
-        AddAdoHeaders(request);
+        var organization = Organization(request.RequestUri);
+        var msa = s_msaPassThrough.GetValueOrDefault(organization, true);
+        AddAdoHeaders(request, msa);
         request.Headers.Authorization = await auth.GetAsync(forceRefresh: false, cancellationToken).ConfigureAwait(false);
         var response = await base.SendAsync(request, cancellationToken).ConfigureAwait(false);
         if (response.StatusCode != HttpStatusCode.Unauthorized)
@@ -126,18 +134,44 @@ public sealed class AdoAuthHandler(IAdoAuthProvider auth) : DelegatingHandler
 
         response.Dispose();
         using var retry = await CloneAsync(request).ConfigureAwait(false);
-        AddAdoHeaders(retry);
+        AddAdoHeaders(retry, msa);
         retry.Headers.Authorization = await auth.GetAsync(forceRefresh: true, cancellationToken).ConfigureAwait(false);
-        return await base.SendAsync(retry, cancellationToken).ConfigureAwait(false);
+        response = await base.SendAsync(retry, cancellationToken).ConfigureAwait(false);
+        if (response.StatusCode != HttpStatusCode.Unauthorized)
+        {
+            return response;
+        }
+
+        response.Dispose();
+        using var flipped = await CloneAsync(request).ConfigureAwait(false);
+        AddAdoHeaders(flipped, !msa);
+        flipped.Headers.Authorization = retry.Headers.Authorization;
+        response = await base.SendAsync(flipped, cancellationToken).ConfigureAwait(false);
+        if (response.StatusCode != HttpStatusCode.Unauthorized)
+        {
+            s_msaPassThrough[organization] = !msa;
+        }
+
+        return response;
     }
 
-    private static void AddAdoHeaders(HttpRequestMessage request)
+    /// <summary>The organization a request goes to: <c>[vssps.]dev.azure.com/{org}</c>, or the host (<c>{org}.visualstudio.com</c>).</summary>
+    internal static string Organization(Uri? uri) =>
+        uri is null ? string.Empty
+        : uri.Host.EndsWith("dev.azure.com", StringComparison.OrdinalIgnoreCase) ? uri.Host + "/" + uri.Segments.ElementAtOrDefault(1)?.Trim('/')
+        : uri.Host;
+
+    private static void AddAdoHeaders(HttpRequestMessage request, bool msaPassThrough)
     {
         // Set, not append: a value repeated by another handler ("true, true") is not recognized.
         request.Headers.Remove("X-TFS-FedAuthRedirect");
         request.Headers.Remove("X-VSS-ForceMsaPassThrough");
         request.Headers.TryAddWithoutValidation("X-TFS-FedAuthRedirect", "Suppress");
-        request.Headers.TryAddWithoutValidation("X-VSS-ForceMsaPassThrough", "true");
+        if (msaPassThrough)
+        {
+            request.Headers.TryAddWithoutValidation("X-VSS-ForceMsaPassThrough", "true");
+        }
+
         if (!request.Headers.Accept.Any(a => a.MediaType == "application/json"))
         {
             request.Headers.Accept.ParseAdd("application/json");

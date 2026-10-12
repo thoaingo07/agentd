@@ -82,6 +82,52 @@ public sealed class PullRequestsAndAuthTests
         Assert.AreEqual("Bearer", seen.Headers.Authorization!.Scheme);
     }
 
+    [TestMethod]
+    public async Task An_entra_backed_organization_that_refuses_the_msa_header_is_retried_without_it_and_remembered()
+    {
+        var sent = new List<bool>();
+        using var provider = new AzCliAuthProvider(new CountingCredential());
+        using var handler = new AdoAuthHandler(provider)
+        {
+            InnerHandler = new Responder(req =>
+            {
+                var msa = req.Headers.Contains("X-VSS-ForceMsaPassThrough");
+                sent.Add(msa);
+                return msa ? HttpStatusCode.Unauthorized : HttpStatusCode.OK;
+            }),
+        };
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://dev.azure.com/") };
+
+        using var first = await http.GetAsync(new Uri("entra-org/_apis/projects", UriKind.Relative));
+        using var second = await http.GetAsync(new Uri("entra-org/_apis/projects", UriKind.Relative));
+        using var other = await http.GetAsync(new Uri("msa-org/_apis/projects", UriKind.Relative));
+
+        Assert.AreEqual((HttpStatusCode.OK, HttpStatusCode.OK), (first.StatusCode, second.StatusCode));
+        CollectionAssert.AreEqual(new[] { true, true, false, false, true, true, false }, sent, "header, refreshed, without; then without; another org starts with it");
+    }
+
+    [TestMethod]
+    public async Task A_credential_refused_both_ways_stays_401_and_keeps_the_header()
+    {
+        var sent = new List<bool>();
+        using var provider = new AzCliAuthProvider(new CountingCredential());
+        using var handler = new AdoAuthHandler(provider) { InnerHandler = new Responder(req => { sent.Add(req.Headers.Contains("X-VSS-ForceMsaPassThrough")); return HttpStatusCode.Unauthorized; }) };
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://dev.azure.com/") };
+
+        using var first = await http.GetAsync(new Uri("no-access-org/_apis/projects", UriKind.Relative));
+        using var second = await http.GetAsync(new Uri("no-access-org/_apis/projects", UriKind.Relative));
+
+        Assert.AreEqual(HttpStatusCode.Unauthorized, second.StatusCode);
+        CollectionAssert.AreEqual(new[] { true, true, false, true, true, false }, sent);
+    }
+
+    [TestMethod]
+    [DataRow("https://dev.azure.com/ermsystem/Portal/_apis/wit/wiql", "dev.azure.com/ermsystem")]
+    [DataRow("https://ermsystem.visualstudio.com/_apis/projects", "ermsystem.visualstudio.com")]
+    [DataRow("https://vssps.dev.azure.com/ermsystem/_apis/identities", "vssps.dev.azure.com/ermsystem")]
+    public void The_organization_comes_from_the_url(string url, string organization) =>
+        Assert.AreEqual(organization, AdoAuthHandler.Organization(new Uri(url)));
+
     private sealed class CountingCredential : TokenCredential
     {
         public int Calls { get; private set; }
