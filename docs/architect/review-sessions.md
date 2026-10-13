@@ -135,7 +135,15 @@ Delivery (one PR each, under 1000 lines):
 1. `git fetch` in the repository's bare clone (agentd's SSH key), resolve and pin `base` and `head`.
 2. A read-only checkout of `head` (`worktrees/<repo>/review-<id>`), as `!review` does today.
 3. The reviewer turn: the server's Claude with `ReviewRules`, the diff, and the repo's `AGENTS.md` / `.agentd/`
-   rules. Findings arrive as JSON (today's format) and stream into the session.
+   rules. Findings arrive as JSON (today's format) and stream into the session. What it's measured against
+   (added 2026-10-12, the same for a chat `!review`):
+   - **the team's review guide**: `ReviewRules` has the reviewer read `docs/reviewers/README.md` first when the
+     repository has one, with the files it points to; a problem it describes counts as a finding (`breaks`, or
+     `performance` when it's about speed), even where the default list would leave it out;
+   - **the work items** (`ReviewWorkItems`): a PR's linked work items, or the one its branch names
+     (`ai/5617-…`, `feature/5617-…`) when it links none, at most three, each with its type, acceptance criteria and
+     description; a **Task's parent user story** comes right after it (once, even for several tasks). Two commits get
+     none.
 4. `Ready`. The checkout stays until the session is Sent or Closed (Ask uses it), then it's removed.
 
 At most two reviews run at once (`ReviewSessionReviewer.MaxConcurrent`). A session left `Reviewing` by a restart is

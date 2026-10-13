@@ -17,7 +17,9 @@ public sealed record WorkItemDetails(
     IReadOnlyList<WorkItemComment> Comments,
     Uri? Url,
     Guid? AssignedToId = null,
-    string? AssignedTo = null);
+    string? AssignedTo = null,
+    string? Type = null,
+    int? ParentId = null);
 
 /// <summary>Azure DevOps work items (implemented in Infrastructure.AzureDevOps).</summary>
 public interface IWorkItemSource

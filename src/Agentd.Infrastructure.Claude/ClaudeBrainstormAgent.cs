@@ -49,7 +49,11 @@ public sealed class ClaudeBrainstormAgent(IOptions<ClaudeOptions> options) : IBr
         "Leave everything else out: style, naming, formatting, comments, docs, missing tests, refactors, \"could be cleaner\". If it can't " +
         "break the app or slow it down, it isn't a finding.\n\n" +
         "How to review:\n" +
-        "1. Read the PR description and the linked work items, then the change: git diff origin/<target>...HEAD, git log " +
+        "0. If the repository has docs/reviewers/README.md, read it first, with the files it points to: it's this team's review " +
+        "guide. Check the change against it too; a problem it describes counts as a finding (breaks, or performance when it's about " +
+        "speed), even where the list above would leave it out.\n" +
+        "1. Read the PR description and the linked work items (a task's parent user story too: its acceptance criteria say what " +
+        "\"done\" means), then the change: git diff origin/<target>...HEAD, git log " +
         "origin/<target>..HEAD. Read the code around each change, not just the diff. When the developer names a focus, start there.\n" +
         "2. Verify before you claim: search for callers, read the code paths, and only report what you could confirm. If you aren't " +
         "sure it breaks, leave it out. Skip anything already raised in the open comment threads.\n\n" +

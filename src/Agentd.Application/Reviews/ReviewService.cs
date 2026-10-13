@@ -34,8 +34,7 @@ public sealed partial class ReviewService(
 {
     public const int MaxConcurrentReviews = 2;
 
-    /// <summary>How much context goes into the first prompt (the agent reads the rest itself).</summary>
-    public const int MaxLinkedWorkItems = 3;
+    /// <summary>How many open threads go into the first prompt (the agent reads the rest itself); work items: <see cref="ReviewWorkItems.MaxLinked"/>.</summary>
     public const int MaxOpenThreads = 20;
 
     private readonly ConcurrentDictionary<long, Turns> _queues = new();
@@ -164,34 +163,9 @@ public sealed partial class ReviewService(
         }
     }
 
-    /// <summary>The linked work items' acceptance criteria and description: what the PR is supposed to do.</summary>
-    private async Task<string> WorkItemContextAsync(PullRequestDetails pr, CancellationToken ct)
-    {
-        if (workItems is null || pr.WorkItems is not { Count: > 0 } ids)
-        {
-            return "\n\nLinked work items: none (judge the PR by its title and description).";
-        }
-
-        var parts = new List<string>();
-        foreach (var id in ids.Take(MaxLinkedWorkItems))
-        {
-            try
-            {
-                if (await workItems.GetAsync(id, ct).ConfigureAwait(false) is { } item)
-                {
-                    parts.Add($"WI-{item.Id} \"{item.Title}\" ({item.State})"
-                        + (string.IsNullOrWhiteSpace(item.AcceptanceCriteria) ? "\nAcceptance criteria: none written." : $"\nAcceptance criteria:\n{Clip(item.AcceptanceCriteria, 2000)}")
-                        + (string.IsNullOrWhiteSpace(item.Description) ? string.Empty : $"\nDescription:\n{Clip(item.Description, 1500)}"));
-                }
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                parts.Add($"WI-{id}: couldn't be read ({ex.Message}).");
-            }
-        }
-
-        return "\n\nLinked work items:\n" + string.Join("\n\n", parts);
-    }
+    /// <summary>The linked work items (a task's parent user story too): what the PR is supposed to do.</summary>
+    private Task<string> WorkItemContextAsync(PullRequestDetails pr, CancellationToken ct) =>
+        new ReviewWorkItems(workItems).ContextAsync(pr.WorkItems ?? [], ct);
 
     /// <summary>What reviewers already said (open human threads), so the agent doesn't repeat it.</summary>
     private async Task<string> OpenThreadsContextAsync(Repository repo, int id, CancellationToken ct)

@@ -84,6 +84,32 @@ public sealed class ReviewSessionReviewerTests
     }
 
     [TestMethod]
+    public async Task The_reviewer_gets_the_work_items_a_pr_links_or_its_branch_names_with_a_tasks_parent_story()
+    {
+        var workItems = new Fakes.FakeWorkItems();
+        workItems.Items[5617] = new Ports.WorkItemDetails(5617, 1, "Deploy the API", "Active", "a", [], null, "Helm chart", null, [], null, Type: "Task", ParentId: 5600);
+        workItems.Items[5600] = new Ports.WorkItemDetails(5600, 1, "Deploy to AKS", "Active", "a", [], "All services on AKS.", "Prod on main", null, [], null, Type: "User Story");
+        _t.PullRequests.Details[3944] = new Ports.PullRequestDetails(3944, "Deploy", null, "Dev", "feature/deploy", "develop", "h1", Ports.PullRequestStatus.Active, false, new Uri("https://x/pr/3944"), [5617]);
+        var pr = await _store.InsertAsync("sysmin", ReviewTargets.PullRequest, 3944, "feature/deploy", "develop", "dev@example.com", null, null, default);
+        await _store.PinAsync(pr, "m1", "h1", null, default);
+        var branch = await _store.InsertAsync("sysmin", ReviewTargets.Branch, null, "ai/5617-deploy-the-api", "develop", "dev@example.com", null, null, default);
+        await _store.PinAsync(branch, "m1", "h1", null, default);
+        _agent.Reply = new BrainstormReply(Findings, null, null);
+        var reviewer = new ReviewSessionReviewer(_store, _t.Registry, _t.Worktrees, _agent, workItems: workItems, pullRequests: _t.PullRequests);
+
+        await reviewer.RunAsync(pr, default);
+        await reviewer.RunAsync(branch, default);
+
+        foreach (var turn in _agent.Turns)
+        {
+            StringAssert.Contains(turn.Prompt, "WI-5617 (Task) \"Deploy the API\"");
+            StringAssert.Contains(turn.Prompt, "Parent of WI-5617: WI-5600 (User Story) \"Deploy to AKS\" (Active)\nAcceptance criteria:\nProd on main\nDescription:\nAll services on AKS.");
+        }
+
+        Assert.HasCount(2, _agent.Turns);
+    }
+
+    [TestMethod]
     [DataRow("no block", "couldn't be read")]
     [DataRow(null, "didn't answer")]
     public async Task A_reply_without_findings_fails_the_session_with_why(string? text, string expected)
