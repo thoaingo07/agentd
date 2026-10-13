@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import type { GuideNote, ReviewComment, ReviewFinding } from '../api/types'
 import type { DiffFile } from '../utils/diff'
+import { isGenerated } from '../utils/generated'
 import { AgButton } from '../components/ui'
 import FindingCard from './FindingCard.vue'
 
@@ -19,6 +20,9 @@ const emit = defineEmits<{
 const tint = { add: 'bg-success/10', del: 'bg-error/10', context: '' } as const
 const mark = { add: '+', del: '-', context: ' ' } as const
 const at = ref<number | null>(null)
+const generated = computed(() => isGenerated(props.file.newPath))
+/** A generated file's diff is hidden until asked, unless the reviewer found something in it. */
+const shown = ref(!generated.value || props.findings.length > 0)
 const draft = ref('')
 
 /** Findings and comments by the new-side line they're on; ones off the diff go at the top. */
@@ -59,6 +63,10 @@ function send(kind: 'comment' | 'ask'): void {
     <h3 class="flex items-center gap-2 border-b border-base-300 px-3 py-2 font-mono text-xs">
       <span class="font-semibold">{{ file.newPath }}</span>
       <span class="text-success">+{{ file.additions }}</span><span class="text-error">−{{ file.deletions }}</span>
+      <span
+        v-if="generated"
+        class="badge badge-sm font-sans"
+      >generated</span>
       <AgButton
         v-if="!readonly"
         size="sm"
@@ -84,13 +92,27 @@ function send(kind: 'comment' | 'ask'): void {
       />
     </div>
     <p
-      v-if="file.binary"
+      v-if="!shown"
+      class="flex flex-wrap items-center gap-2 px-3 pb-2 text-sm"
+      data-testid="generated-hidden"
+    >
+      A generated file (a lockfile, built output or generated code): its diff is hidden.
+      <AgButton
+        size="sm"
+        variant="outline"
+        @click="shown = true"
+      >
+        Show the diff
+      </AgButton>
+    </p>
+    <p
+      v-else-if="file.binary"
       class="px-3 pb-2 text-sm text-muted"
     >
       Binary file.
     </p>
     <table
-      v-for="(h, hi) in file.hunks"
+      v-for="(h, hi) in shown ? file.hunks : []"
       :key="hi"
       class="w-full border-collapse font-mono text-[12px] leading-5"
     >

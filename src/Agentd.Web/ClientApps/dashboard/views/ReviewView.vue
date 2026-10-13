@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ApiError } from '../../shared/api/http'
 import type { GuideChapter, ReviewAsk, ReviewFinding, ReviewSent } from '../../shared/api/types'
 import { AgButton } from '../../shared/components/ui'
@@ -39,6 +39,20 @@ const suggestions = computed(() => s.value?.guide?.suggestions ?? [])
 
 watch(() => props.id, (id) => void reviews.open(id).catch((err) => (error.value = err instanceof ApiError ? err.message : 'This review can\'t be opened.')), { immediate: true })
 onBeforeUnmount(() => reviews.close())
+
+/** j / k: the next / previous finding on the page, in reading order (not while typing). */
+function onFindingKey(e: KeyboardEvent): void {
+  const typing = e.target instanceof Element && e.target.closest('input, textarea, select, [contenteditable="true"]')
+  if (e.ctrlKey || e.metaKey || e.altKey || typing || (e.key !== 'j' && e.key !== 'k')) return
+  const cards = [...document.querySelectorAll<HTMLElement>('[data-finding]')]
+  if (!cards.length) return
+  const at = document.activeElement instanceof Element ? cards.findIndex((c) => c.contains(document.activeElement)) : -1
+  const next = e.key === 'j' ? (at < 0 ? 0 : Math.min(at + 1, cards.length - 1)) : (at < 0 ? cards.length - 1 : Math.max(at - 1, 0))
+  cards[next]!.focus({ preventScroll: true })
+  cards[next]!.scrollIntoView?.({ block: 'center' })
+}
+onMounted(() => window.addEventListener('keydown', onFindingKey))
+onBeforeUnmount(() => window.removeEventListener('keydown', onFindingKey))
 
 async function act(work: () => Promise<unknown>): Promise<void> {
   error.value = null
@@ -440,6 +454,12 @@ const where = (a: { file?: string | null; line?: number | null; endLine?: number
             >
               Findings · {{ s.findings.length }}
             </h2>
+            <p
+              v-if="s.findings.length"
+              class="text-xs text-muted"
+            >
+              <kbd>j</kbd> next · <kbd>k</kbd> previous
+            </p>
             <FindingCard
               v-for="f in elsewhere"
               :key="f.number"

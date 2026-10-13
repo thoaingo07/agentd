@@ -147,6 +147,25 @@ describe('guided review', () => {
     view.unmount()
   })
 
+  it('j and k step through the findings on the page', async () => {
+    session = { ...session, findings: [finding, { ...finding, number: 2, file: null, line: null, title: 'PR description is empty' }] }
+    const view = await open()
+    await view.findAll('button').find((b) => b.text() === 'All files')!.trigger('click')
+    const cards = view.findAll('[data-finding]')
+    expect(cards).toHaveLength(2)
+
+    const key = (k: string) => window.dispatchEvent(new KeyboardEvent('keydown', { key: k }))
+    key('j')
+    expect(document.activeElement).toBe(cards[0]!.element)
+    key('j')
+    expect(document.activeElement).toBe(cards[1]!.element)
+    key('j')
+    expect(document.activeElement, 'stays on the last').toBe(cards[1]!.element)
+    key('k')
+    expect(document.activeElement).toBe(cards[0]!.element)
+    view.unmount()
+  })
+
   it('a review without a guide has no Guided view', async () => {
     session = { ...session, guide: null }
     const view = await open()

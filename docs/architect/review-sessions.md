@@ -69,6 +69,10 @@ Diff · Findings), and the inline cards in the diff.
 
 - **Findings** sit inline at their line and in the side list (worst first). Keep is the default; **Edit** rewrites the
   text you send; **Drop** removes it from Send (it stays visible, struck through).
+- **Reading aids** (added 2026-10-13): `j` / `k` move focus to the next / previous finding on the page (`]` / `[`
+  move between a guide's chapters). Generated files (lockfiles, minified or built output, `*.g.cs`, migration
+  snapshots, `dist/`, `vendor/`) are tagged **generated** and their diff is hidden until **Show the diff**, unless
+  the reviewer found something in them.
 - **Comment**: select lines (or a file, or nothing for the whole change) and write a note. It's sent with the kept
   findings.
 - **Ask**: select code and ask ("why is this here?", "explain this flow"). The answer appears in the side panel and is
