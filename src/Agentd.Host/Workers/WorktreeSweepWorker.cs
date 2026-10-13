@@ -8,7 +8,7 @@ namespace Agentd.Host.Workers;
 
 /// <summary>
 /// Housekeeping shortly after startup, then every <see cref="JobOptions.WorktreeSweepInterval"/>: <see cref="SweepWorktrees"/>,
-/// then expiring old artifacts (<see cref="ArtifactService.ExpireAsync"/>) and system log entries (<see cref="SystemLogOptions.RetentionDays"/>).
+/// then expiring old artifacts (<see cref="ArtifactService.ExpireAsync"/>) system log entries (<see cref="SystemLogOptions.RetentionDays"/>) and old prompts (<see cref="Application.Prompts.PromptLogOptions.RetentionDays"/>).
 /// </summary>
 internal sealed partial class WorktreeSweepWorker(
     IServiceScopeFactory scopes,
@@ -48,6 +48,12 @@ internal sealed partial class WorktreeSweepWorker(
                         if (systemLog.Value.RetentionDays > 0 && scope.ServiceProvider.GetService<ISystemLogStore>() is { } log)
                         {
                             await log.DeleteBeforeAsync(DateTimeOffset.UtcNow.AddDays(-systemLog.Value.RetentionDays), stoppingToken).ConfigureAwait(false);
+                        }
+
+                        if (scope.ServiceProvider.GetService<IOptions<Application.Prompts.PromptLogOptions>>()?.Value is { RetentionDays: > 0 } prompts
+                            && scope.ServiceProvider.GetService<Application.Prompts.IPromptLog>() is { } promptLog)
+                        {
+                            await promptLog.DeleteBeforeAsync(DateTimeOffset.UtcNow.AddDays(-prompts.RetentionDays), stoppingToken).ConfigureAwait(false);
                         }
                     }
                 }

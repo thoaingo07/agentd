@@ -217,6 +217,85 @@ public sealed class ClaudeCodeRunnerTests
         CollectionAssert.AreEqual(new[] { "implement:deepseek-flash", "implement:" }, steps.Calls, "once per run: the first init, else when the run ends");
     }
 
+    [TestMethod]
+    public async Task Every_turn_goes_in_the_prompt_log_with_its_rules_settings_and_how_it_ended()
+    {
+        var log = new RecordingPromptLog();
+        var recorder = new PromptRecorder(log);
+        var job = Runner(Script("cat \"$FIXTURE\""), prompts: recorder).Runner;
+        var limited = Runner(Script("""
+            echo '{"type":"rate_limit_event","rate_limit_info":{"status":"rejected","resetsAt":1790752800}}'
+            exit 1
+            """), prompts: recorder).Runner;
+        var thread = new ClaudeBrainstormAgent(Options.Create(new ClaudeOptions { Binary = Script("""
+            echo '{"type":"result","subtype":"success","is_error":false,"result":"Which pages first?","num_turns":1}'
+            """), TranscriptRoot = Path.Combine(_dir, "logs") }), recorder);
+
+        await job.RunAsync(Request(resume: false) with { Step = "implement", Model = "opus", Effort = "high" }, default);
+        await limited.RunAsync(Request(resume: true), default);
+        var reply = await thread.RunAsync(new Application.Ideas.BrainstormTurn(7, _dir, Guid.NewGuid(), false, "Review !3944", "sonnet", null, Application.Ideas.ThreadTurnKind.ReviewSession), default);
+
+        var (started, finished) = (log.Started, log.Finished);
+        Assert.AreEqual(("job", 42L, "implement", "opus", "high", false), (started[0].Source, started[0].SourceId, started[0].Step, started[0].Model, started[0].Effort, started[0].Resume));
+        Assert.AreEqual(("Fix the login redirect; don't break `$HOME` or \"quotes\"", new ClaudeOptions().SystemPromptRules), (started[0].Prompt, started[0].Rules));
+        Assert.AreEqual(("ok", (string?)null), (finished[0].Outcome, finished[0].Reply), "a job's transcript is on its page");
+        Assert.AreEqual(("usage-limit", true), (finished[1].Outcome, started[1].Resume));
+        Assert.AreEqual(("review-session", 7L, ClaudeBrainstormAgent.ReviewRules, "Review !3944"), (started[2].Source, started[2].SourceId, started[2].Rules, started[2].Prompt));
+        Assert.AreEqual(("ok", "Which pages first?"), (finished[2].Outcome, finished[2].Reply));
+        Assert.AreEqual("Which pages first?", reply.Text);
+    }
+
+    [TestMethod]
+    public async Task A_prompt_log_that_fails_or_is_off_never_fails_the_turn_and_long_text_is_cut()
+    {
+        var broken = new RecordingPromptLog { Fail = true };
+        var off = new RecordingPromptLog();
+        var cut = new RecordingPromptLog();
+
+        var outcome = await Runner(Script("cat \"$FIXTURE\""), prompts: new PromptRecorder(broken)).Runner.RunAsync(Request(resume: false), default);
+        await Runner(Script("cat \"$FIXTURE\""), prompts: new PromptRecorder(off, Options.Create(new Application.Prompts.PromptLogOptions { Enabled = false }))).Runner.RunAsync(Request(resume: false), default);
+        await Runner(Script("cat \"$FIXTURE\""), prompts: new PromptRecorder(cut, Options.Create(new Application.Prompts.PromptLogOptions { MaxChars = 10 }))).Runner.RunAsync(Request(resume: false), default);
+
+        Assert.IsInstanceOfType<AgentRunOutcome.Exited>(outcome);
+        Assert.IsEmpty(off.Started);
+        StringAssert.StartsWith(cut.Started.Single().Prompt, "Fix the lo\n… (cut");
+    }
+
+    [TestMethod]
+    [DataRow(0, false, "ok")]
+    [DataRow(1, false, "error")]
+    [DataRow(0, true, "error")]
+    public void A_job_turns_exit_is_its_outcome(int exitCode, bool isError, string expected) =>
+        Assert.AreEqual(expected, ClaudeCodeRunner.Recorded(new AgentRunOutcome.Exited(exitCode, new AgentResultSummary(1, isError ? "error_max_turns" : null, isError))).Outcome);
+
+    private sealed class RecordingPromptLog : Application.Prompts.IPromptLog
+    {
+        public List<Application.Prompts.PromptStart> Started { get; } = [];
+
+        public List<(long Id, string Outcome, string? Failure, string? Reply)> Finished { get; } = [];
+
+        public bool Fail { get; set; }
+
+        public Task<long> StartAsync(Application.Prompts.PromptStart prompt, CancellationToken cancellationToken)
+        {
+            if (Fail)
+            {
+                throw new InvalidOperationException("the database is down");
+            }
+
+            Started.Add(prompt);
+            return Task.FromResult((long)Started.Count);
+        }
+
+        public Task FinishAsync(long id, string outcome, string? failure, string? reply, CancellationToken cancellationToken)
+        {
+            Finished.Add((id, outcome, failure, reply));
+            return Task.CompletedTask;
+        }
+
+        public Task<int> DeleteBeforeAsync(DateTimeOffset before, CancellationToken cancellationToken) => Task.FromResult(0);
+    }
+
     private sealed class RecordingSteps : IStepAnnouncer
     {
         public List<string> Calls { get; } = [];
@@ -230,12 +309,12 @@ public sealed class ClaudeCodeRunnerTests
 
     private readonly Application.Jobs.JobActivity _activity = new();
 
-    private (ClaudeCodeRunner Runner, RecordingEvents Events, FakeTokens Tokens) Runner(string binary, TimeSpan? idle = null, string? mcpUrl = null, IStepAnnouncer? steps = null)
+    private (ClaudeCodeRunner Runner, RecordingEvents Events, FakeTokens Tokens) Runner(string binary, TimeSpan? idle = null, string? mcpUrl = null, IStepAnnouncer? steps = null, PromptRecorder? prompts = null)
     {
         var options = new ClaudeOptions { Binary = binary, TranscriptRoot = Path.Combine(_dir, "logs"), IdleTimeout = idle ?? TimeSpan.FromMinutes(1), McpUrl = mcpUrl };
         var events = new RecordingEvents();
         var tokens = new FakeTokens();
-        return (new ClaudeCodeRunner(Options.Create(options), events, tokens, _activity, NullLogger<ClaudeCodeRunner>.Instance, steps: steps), events, tokens);
+        return (new ClaudeCodeRunner(Options.Create(options), events, tokens, _activity, NullLogger<ClaudeCodeRunner>.Instance, steps: steps, prompts: prompts), events, tokens);
     }
 
     private AgentRunRequest Request(bool resume) =>
