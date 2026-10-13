@@ -23,9 +23,11 @@ function save(): void {
 
 <template>
   <article
-    class="grid gap-1 rounded-box border border-base-300 bg-base-100 p-3 text-sm"
+    class="grid scroll-mt-4 gap-1 rounded-box border border-base-300 bg-base-100 p-3 text-sm focus:outline-2 focus:outline-primary"
     :class="finding.decision === 'dropped' ? 'opacity-60' : ''"
     :data-decision="finding.decision"
+    data-finding
+    tabindex="-1"
   >
     <header class="flex flex-wrap items-baseline gap-2">
       <span :aria-label="finding.severity === 'breaks' ? 'can break the app' : 'performance'">{{ finding.severity === 'breaks' ? '🔴' : '🟠' }}</span>
