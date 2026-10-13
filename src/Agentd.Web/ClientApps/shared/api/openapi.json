@@ -5034,6 +5034,23 @@
               "$ref": "#/components/schemas/GuideFile"
             },
             "description": "The changed files it covers, in reading order."
+          },
+          "attention": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "string GuideAttention.Core (read closely) or string GuideAttention.Skim."
+          },
+          "focus": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "What to check while reading it, a few short points."
           }
         }
       },
@@ -5074,9 +5091,13 @@
           },
           "text": {
             "type": "string"
+          },
+          "critical": {
+            "type": "boolean",
+            "default": false
           }
         },
-        "description": "What a line does and why, for someone new to the code."
+        "description": "What a line does and why, for someone new to the code; Critical: a spot that needs care."
       },
       "GuideSuggestion": {
         "required": [
@@ -6449,13 +6470,15 @@
         "type": "object",
         "properties": {
           "overview": {
-            "type": "string"
+            "type": "string",
+            "description": "What the change does and how it fits together."
           },
           "chapters": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/GuideChapter"
-            }
+            },
+            "description": "In reading order, by importance."
           },
           "notes": {
             "type": [
@@ -6464,7 +6487,8 @@
             ],
             "items": {
               "$ref": "#/components/schemas/GuideNote"
-            }
+            },
+            "description": "Explanations at lines."
           },
           "suggestions": {
             "type": [
@@ -6473,7 +6497,22 @@
             ],
             "items": {
               "$ref": "#/components/schemas/GuideSuggestion"
-            }
+            },
+            "description": "Optional improvements."
+          },
+          "before": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "How it worked before the change, in a sentence or two."
+          },
+          "after": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "How it works after."
           }
         },
         "description": "A guided review (docs/architect/review-sessions.md \u00A72a): the change explained in reading order. Chapters go by importance\n(the heart of the change, then its consequences, then the glue), each with why it matters and a line per file; notes\nexplain lines (not problems); suggestions are optional improvements (not findings: nothing breaks without them)."

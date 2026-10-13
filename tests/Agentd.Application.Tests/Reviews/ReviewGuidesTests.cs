@@ -65,6 +65,21 @@ public sealed class ReviewGuidesTests
     }
 
     [TestMethod]
+    public void Attention_is_core_unless_skim_focus_is_kept_short_and_before_after_trimmed()
+    {
+        var guide = new ReviewGuide("o", [
+            new GuideChapter("Heart", null, [new GuideFile("a.cs", null)], " SKIM ", [" check paging ", "", "b", "c", "d", "e", "f"]),
+            new GuideChapter("Glue", null, [new GuideFile("b.cs", null)], "important?"),
+        ], [new GuideNote("a.cs", 3, "careful", Critical: true)], Before: " all at once ", After: " ");
+
+        var fitted = ReviewGuides.Fit(guide, ["a.cs", "b.cs", "c.cs"]);
+
+        CollectionAssert.AreEqual(new[] { GuideAttention.Skim, GuideAttention.Core, GuideAttention.Skim }, fitted.Chapters.Select(c => c.Attention).ToList(), "anything else reads as core; Everything else is skim");
+        CollectionAssert.AreEqual(new[] { "check paging", "b", "c", "d", "e" }, fitted.Chapters[0].Focus!.ToList(), "blank points dropped, at most 5");
+        Assert.AreEqual(("all at once", (string?)null, true), (fitted.Before, fitted.After, fitted.Notes!.Single().Critical));
+    }
+
+    [TestMethod]
     public void A_guide_naming_no_changed_file_still_lists_them_all()
     {
         var fitted = ReviewGuides.Fit(Guide(Chapter("Other", "src/Gone.cs")), ["src/A.cs"]);

@@ -6,6 +6,7 @@ import { AgButton } from '../../shared/components/ui'
 import MarkdownText from '../../shared/components/MarkdownText.vue'
 import DiffFileReview from '../../shared/review/DiffFileReview.vue'
 import FindingCard from '../../shared/review/FindingCard.vue'
+import GuidedReview from '../../shared/review/GuidedReview.vue'
 import { fileName, folder } from '../../shared/utils/paths'
 import { useReviewsStore } from '../stores/reviews'
 
@@ -31,6 +32,10 @@ const forFile = (path: string) => ({
 })
 const elsewhere = computed(() => s.value?.findings.filter((f) => !f.file || !reviews.files.some((x) => x.newPath === f.file)) ?? [])
 const short = (sha?: string | null) => (sha ? sha.slice(0, 7) : '…')
+/** With a guide (a guided review, §2a) the page opens on it; All files is the plain list. */
+const mode = ref<'guided' | 'files'>('guided')
+const guided = computed(() => mode.value === 'guided' && !!s.value?.guide)
+const suggestions = computed(() => s.value?.guide?.suggestions ?? [])
 
 watch(() => props.id, (id) => void reviews.open(id).catch((err) => (error.value = err instanceof ApiError ? err.message : 'This review can\'t be opened.')), { immediate: true })
 onBeforeUnmount(() => reviews.close())
@@ -275,54 +280,138 @@ const where = (a: { file?: string | null; line?: number | null; endLine?: number
         </div>
       </header>
 
-      <div class="grid gap-4 lg:grid-cols-[14rem_minmax(0,1fr)_20rem]">
-        <nav
-          aria-label="Files"
-          class="hidden min-w-0 lg:block"
+      <div
+        v-if="s.guide"
+        class="flex gap-1"
+        role="group"
+        aria-label="How to read it"
+      >
+        <AgButton
+          v-for="m in [{ v: 'guided', t: 'Guided' }, { v: 'files', t: 'All files' }] as const"
+          :key="m.v"
+          size="sm"
+          :variant="mode === m.v ? 'primary' : 'ghost'"
+          :aria-pressed="mode === m.v"
+          @click="mode = m.v"
         >
-          <ul class="sticky top-4 grid gap-2 text-xs">
-            <li
+          {{ m.t }}
+        </AgButton>
+      </div>
+
+      <div
+        class="grid gap-4"
+        :class="guided ? 'lg:grid-cols-[minmax(0,1fr)_20rem]' : 'lg:grid-cols-[14rem_minmax(0,1fr)_20rem]'"
+      >
+        <GuidedReview
+          v-if="guided && s.guide"
+          :session-id="s.id"
+          :guide="s.guide"
+          :files="reviews.files"
+          :findings="s.findings"
+        >
+          <template #file="{ file, notes }">
+            <DiffFileReview
+              :file="file"
+              :findings="forFile(file.newPath).findings"
+              :comments="forFile(file.newPath).comments"
+              :notes="notes"
+              :readonly="readonly"
+              @decide="decide"
+              @comment="(line, text) => commentAt(file.newPath, line, text)"
+              @ask="(line, text) => askAt(file.newPath, line, text)"
+              @remove-comment="(c) => act(() => reviews.removeComment(c))"
+            />
+          </template>
+        </GuidedReview>
+        <template v-else>
+          <nav
+            aria-label="Files"
+            class="hidden min-w-0 lg:block"
+          >
+            <ul class="sticky top-4 grid gap-2 text-xs">
+              <li
+                v-for="f in reviews.files"
+                :key="f.newPath"
+                class="min-w-0"
+              >
+                <a
+                  :href="`#file-${f.newPath}`"
+                  :title="f.newPath"
+                  class="flex min-w-0 gap-1 font-mono hover:underline"
+                >
+                  <span>{{ forFile(f.newPath).findings.some((x) => x.severity === 'breaks') ? '🔴' : forFile(f.newPath).findings.length ? '🟠' : '·' }}</span>
+                  <span class="grid min-w-0">
+                    <span class="truncate">{{ fileName(f.newPath) }}</span>
+                    <span class="truncate text-muted">{{ folder(f.newPath) }}</span>
+                  </span>
+                </a>
+              </li>
+            </ul>
+          </nav>
+
+          <div class="grid min-w-0 content-start gap-4">
+            <p
+              v-if="reviews.diff?.truncated"
+              class="alert text-sm"
+            >
+              The change is too big to show ({{ reviews.diff.files.length }} files); the findings and comments still work.
+            </p>
+            <DiffFileReview
               v-for="f in reviews.files"
               :key="f.newPath"
-              class="min-w-0"
-            >
-              <a
-                :href="`#file-${f.newPath}`"
-                :title="f.newPath"
-                class="flex min-w-0 gap-1 font-mono hover:underline"
-              >
-                <span>{{ forFile(f.newPath).findings.some((x) => x.severity === 'breaks') ? '🔴' : forFile(f.newPath).findings.length ? '🟠' : '·' }}</span>
-                <span class="grid min-w-0">
-                  <span class="truncate">{{ fileName(f.newPath) }}</span>
-                  <span class="truncate text-muted">{{ folder(f.newPath) }}</span>
-                </span>
-              </a>
-            </li>
-          </ul>
-        </nav>
-
-        <div class="grid min-w-0 content-start gap-4">
-          <p
-            v-if="reviews.diff?.truncated"
-            class="alert text-sm"
-          >
-            The change is too big to show ({{ reviews.diff.files.length }} files); the findings and comments still work.
-          </p>
-          <DiffFileReview
-            v-for="f in reviews.files"
-            :key="f.newPath"
-            :file="f"
-            :findings="forFile(f.newPath).findings"
-            :comments="forFile(f.newPath).comments"
-            :readonly="readonly"
-            @decide="decide"
-            @comment="(line, text) => commentAt(f.newPath, line, text)"
-            @ask="(line, text) => askAt(f.newPath, line, text)"
-            @remove-comment="(c) => act(() => reviews.removeComment(c))"
-          />
-        </div>
+              :file="f"
+              :findings="forFile(f.newPath).findings"
+              :comments="forFile(f.newPath).comments"
+              :readonly="readonly"
+              @decide="decide"
+              @comment="(line, text) => commentAt(f.newPath, line, text)"
+              @ask="(line, text) => askAt(f.newPath, line, text)"
+              @remove-comment="(c) => act(() => reviews.removeComment(c))"
+            />
+          </div>
+        </template>
 
         <aside class="grid content-start gap-4">
+          <section
+            v-if="suggestions.length"
+            aria-labelledby="suggestions-title"
+            class="grid gap-2 text-sm"
+            data-testid="suggestions"
+          >
+            <h2
+              id="suggestions-title"
+              class="font-semibold"
+            >
+              Suggestions · {{ suggestions.length }}
+            </h2>
+            <p class="text-xs text-muted">
+              Optional improvements: nothing breaks without them, and they aren't posted.
+            </p>
+            <div
+              v-for="(g, gi) in suggestions"
+              :key="gi"
+              class="grid gap-1 rounded-box border border-base-300 p-2"
+            >
+              <p class="font-medium">
+                ✨ {{ g.title }}
+              </p>
+              <p
+                v-if="g.file"
+                class="font-mono text-xs text-muted"
+              >
+                {{ g.file }}{{ g.line ? `:${g.line}` : '' }}
+              </p>
+              <p v-if="g.detail">
+                {{ g.detail }}
+              </p>
+              <p
+                v-if="g.suggestion"
+                class="whitespace-pre-wrap font-mono text-xs"
+              >
+                {{ g.suggestion }}
+              </p>
+            </div>
+          </section>
           <section
             aria-labelledby="findings-title"
             class="grid gap-2"

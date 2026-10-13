@@ -9,19 +9,38 @@ namespace Agentd.Application.Reviews;
 /// (the heart of the change, then its consequences, then the glue), each with why it matters and a line per file; notes
 /// explain lines (not problems); suggestions are optional improvements (not findings: nothing breaks without them).
 /// </summary>
+/// <param name="Overview">What the change does and how it fits together.</param>
+/// <param name="Chapters">In reading order, by importance.</param>
+/// <param name="Notes">Explanations at lines.</param>
+/// <param name="Suggestions">Optional improvements.</param>
+/// <param name="Before">How it worked before the change, in a sentence or two.</param>
+/// <param name="After">How it works after.</param>
 public sealed record ReviewGuide(
     [property: JsonPropertyName("overview")] string Overview,
     [property: JsonPropertyName("chapters")] IReadOnlyList<GuideChapter> Chapters,
     [property: JsonPropertyName("notes")] IReadOnlyList<GuideNote>? Notes = null,
-    [property: JsonPropertyName("suggestions")] IReadOnlyList<GuideSuggestion>? Suggestions = null);
+    [property: JsonPropertyName("suggestions")] IReadOnlyList<GuideSuggestion>? Suggestions = null,
+    [property: JsonPropertyName("before")] string? Before = null,
+    [property: JsonPropertyName("after")] string? After = null);
 
 /// <param name="Title">What this part of the change is, in a few words.</param>
 /// <param name="Why">What it does and why it matters, in one to three sentences.</param>
 /// <param name="Files">The changed files it covers, in reading order.</param>
+/// <param name="Attention"><see cref="GuideAttention.Core"/> (read closely) or <see cref="GuideAttention.Skim"/>.</param>
+/// <param name="Focus">What to check while reading it, a few short points.</param>
 public sealed record GuideChapter(
     [property: JsonPropertyName("title")] string Title,
     [property: JsonPropertyName("why")] string? Why,
-    [property: JsonPropertyName("files")] IReadOnlyList<GuideFile> Files);
+    [property: JsonPropertyName("files")] IReadOnlyList<GuideFile> Files,
+    [property: JsonPropertyName("attention")] string? Attention = null,
+    [property: JsonPropertyName("focus")] IReadOnlyList<string>? Focus = null);
+
+/// <summary>How closely to read a chapter.</summary>
+public static class GuideAttention
+{
+    public const string Core = "core";
+    public const string Skim = "skim";
+}
 
 /// <param name="Path">Relative to the repository root.</param>
 /// <param name="Summary">What changed in it, in one sentence (none for files agentd added to "Everything else").</param>
@@ -29,11 +48,12 @@ public sealed record GuideFile(
     [property: JsonPropertyName("path")] string Path,
     [property: JsonPropertyName("summary")] string? Summary);
 
-/// <summary>What a line does and why, for someone new to the code.</summary>
+/// <summary>What a line does and why, for someone new to the code; <paramref name="Critical"/>: a spot that needs care.</summary>
 public sealed record GuideNote(
     [property: JsonPropertyName("file")] string File,
     [property: JsonPropertyName("line")] int Line,
-    [property: JsonPropertyName("text")] string Text);
+    [property: JsonPropertyName("text")] string Text,
+    [property: JsonPropertyName("critical")] bool Critical = false);
 
 /// <summary>An improvement worth considering: clearer, simpler, safer later. Shown apart from findings.</summary>
 public sealed record GuideSuggestion(
@@ -114,14 +134,16 @@ public static partial class ReviewGuides
                 .ToList();
             if (files.Count > 0)
             {
-                chapters.Add(new GuideChapter(chapter.Title.Trim(), Blank(chapter.Why), files));
+                chapters.Add(new GuideChapter(chapter.Title.Trim(), Blank(chapter.Why), files,
+                    string.Equals(chapter.Attention?.Trim(), GuideAttention.Skim, StringComparison.OrdinalIgnoreCase) ? GuideAttention.Skim : GuideAttention.Core,
+                    [.. (chapter.Focus ?? []).Select(Blank).OfType<string>().Take(5)]));
             }
         }
 
         var rest = changedFiles.Where(f => !placed.Contains(f)).Select(f => new GuideFile(f, null)).ToList();
         if (rest.Count > 0)
         {
-            chapters.Add(new GuideChapter(Rest, null, rest));
+            chapters.Add(new GuideChapter(Rest, null, rest, GuideAttention.Skim, []));
         }
 
         return new ReviewGuide(
@@ -133,7 +155,9 @@ public static partial class ReviewGuides
                 File = s.File is { } f && changed.Contains(Clean(f)) ? Clean(f) : null,
                 Line = s.File is { } g && changed.Contains(Clean(g)) ? s.Line : null,
                 Title = s.Title.Trim(),
-            })]);
+            })],
+            Blank(guide.Before),
+            Blank(guide.After));
     }
 
     private static string Clean(string? path) => (path ?? string.Empty).Trim().TrimStart('/');

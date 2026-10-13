@@ -1587,6 +1587,10 @@ export interface components {
             why: null | string;
             /** @description The changed files it covers, in reading order. */
             files: components["schemas"]["GuideFile"][];
+            /** @description string GuideAttention.Core (read closely) or string GuideAttention.Skim. */
+            attention?: null | string;
+            /** @description What to check while reading it, a few short points. */
+            focus?: null | string[];
         };
         GuideFile: {
             /** @description Relative to the repository root. */
@@ -1594,12 +1598,14 @@ export interface components {
             /** @description What changed in it, in one sentence (none for files agentd added to "Everything else"). */
             summary: null | string;
         };
-        /** @description What a line does and why, for someone new to the code. */
+        /** @description What a line does and why, for someone new to the code; Critical: a spot that needs care. */
         GuideNote: {
             file: string;
             /** Format: int32 */
             line: number;
             text: string;
+            /** @default false */
+            critical: boolean;
         };
         /** @description An improvement worth considering: clearer, simpler, safer later. Shown apart from findings. */
         GuideSuggestion: {
@@ -1969,10 +1975,18 @@ export interface components {
          *     explain lines (not problems); suggestions are optional improvements (not findings: nothing breaks without them).
          */
         ReviewGuide: {
+            /** @description What the change does and how it fits together. */
             overview: string;
+            /** @description In reading order, by importance. */
             chapters: components["schemas"]["GuideChapter"][];
+            /** @description Explanations at lines. */
             notes?: null | components["schemas"]["GuideNote"][];
+            /** @description Optional improvements. */
             suggestions?: null | components["schemas"]["GuideSuggestion"][];
+            /** @description How it worked before the change, in a sentence or two. */
+            before?: null | string;
+            /** @description How it works after. */
+            after?: null | string;
         };
         /** @description One review line: a step, whether finishing needs it, and its check. */
         ReviewItemVm: {
