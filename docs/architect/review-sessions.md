@@ -136,6 +136,18 @@ Delivery (one PR each, under 1000 lines):
 2. A read-only checkout of `head` (`worktrees/<repo>/review-<id>`), as `!review` does today.
 3. The reviewer turn: the server's Claude with `ReviewRules`, the diff, and the repo's `AGENTS.md` / `.agentd/`
    rules. Findings arrive as JSON (today's format) and stream into the session.
+   `ReviewRules` ends with `ReviewChecks` (revised 2026-10-13, adapted from
+   [pi-review](https://github.com/earendil-works/pi-review/blob/main/review.ts)'s rubric). It keeps agentd's two kinds,
+   and adds:
+   - what qualifies: introduced by this change, provable (name the affected code), unintended, and one problem the
+     author would fix;
+   - what to look hard at: silent failure (a catch or fallback that hides an error, errors matched by message text),
+     untrusted input (string-built SQL, unchecked redirects, server-side fetches that can reach internal addresses,
+     sanitizing where escaping works), and unbounded queues or retries;
+   - how to write a finding: why and when it happens, not overstated, the most relevant line, and a concrete fix.
+
+   Cleaner-code points (duplication, needless helpers, checks that hide programming errors) go to the guide's
+   suggestions (`CleanCodeSuggestions`), never to the findings.
 4. `Ready`. The checkout stays until the session is Sent or Closed (Ask uses it), then it's removed.
 
 At most two reviews run at once (`ReviewSessionReviewer.MaxConcurrent`). A session left `Reviewing` by a restart is

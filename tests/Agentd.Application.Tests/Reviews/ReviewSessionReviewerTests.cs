@@ -62,6 +62,7 @@ public sealed class ReviewSessionReviewerTests
 
         var guide = _store.Sessions[id].Guide!;
         StringAssert.Contains(_agent.Turns.Single().Prompt, "```review-guide");
+        StringAssert.Contains(_agent.Turns.Single().Prompt, "Suggestions are also where cleaner-code points go");
         Assert.AreEqual("Reads the table in keyset chunks instead of all at once.", guide.Overview);
         CollectionAssert.AreEqual(new[] { "Keyset paging", "Lookups", ReviewGuides.Rest }, guide.Chapters.Select(c => c.Title).ToList());
         CollectionAssert.AreEqual(new[] { "src/Lookup.cs" }, guide.Chapters[1].Files.Select(f => f.Path).ToList(), "unchanged files dropped, paths cleaned");

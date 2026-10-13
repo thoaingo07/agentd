@@ -143,7 +143,7 @@ public sealed partial class ReviewSessionReviewer(
             $"The change is exactly `git diff {s.BaseCommit} {s.HeadCommit}` (and `git log {s.BaseCommit}..{s.HeadCommit}`): review that, not later commits on the base. " +
             "There are no PR threads or linked work items to read here unless the commit messages name one. " +
             "End with the review-findings block as usual; the developer keeps, edits or drops each finding on the page." +
-            GuideRequest +
+            GuideRequest + CleanCodeSuggestions +
             (s.Focus is { Length: > 0 } focus ? $" Focus on: {focus}." : string.Empty) +
             (s.Instructions is { Length: > 0 } instructions ? $"\n\nInstructions from {s.CreatedBy}: {instructions}" : string.Empty);
     }
@@ -164,6 +164,15 @@ public sealed partial class ReviewSessionReviewer(
         "tests, docs). Put every changed file in exactly one chapter, in the order to read them; at most 10 chapters. Notes explain " +
         "the non-obvious lines (at most 40, on the new side); they aren't problems. Suggestions are optional improvements that don't " +
         "break anything without them (clearer, simpler, safer later; at most 10); never repeat a finding as a suggestion.";
+
+    /// <summary>
+    /// Cleaner-code points (from pi-review's rubric) aren't findings here: they go to the guide's suggestions, so they never
+    /// reach the pull request unless the developer keeps them.
+    /// </summary>
+    internal const string CleanCodeSuggestions =
+        " Suggestions are also where cleaner-code points go, when the change adds them: new code that duplicates something " +
+        "already in the codebase (name where), a one-off helper or abstraction with no use in this change, a defensive check or " +
+        "fallback that hides a programming error the callers already rule out.";
 
     public void Dispose() => _slots.Dispose();
 

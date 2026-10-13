@@ -62,7 +62,29 @@ public sealed class ClaudeBrainstormAgent(IOptions<ClaudeOptions> options) : IBr
         "PR-wide finding. At most 15 findings, worst first. An empty list is right when nothing can break or slow down.\n\n" +
         "Outside the block keep replies short (under ~150 words). In follow-ups, answer the developer's questions; if they convince you " +
         "a finding is wrong, or ask you to change the list, send the whole revised block. Never claim you approved, posted or merged " +
-        "anything: agentd posts only the findings the developer chooses.";
+        "anything: agentd posts only the findings the developer chooses.\n\n" + ReviewChecks;
+
+    /// <summary>
+    /// What qualifies as a finding and how to write it, appended to <see cref="ReviewRules"/> (adapted from pi-review's rubric,
+    /// itself from Codex's review prompt; agentd keeps its two kinds, breaks and performance).
+    /// </summary>
+    public const string ReviewChecks =
+        "A finding must also be:\n" +
+        "- introduced by this change: not a bug the code already had;\n" +
+        "- provable: name the code it affects (the caller, the query, the input); \"this might affect something\" isn't enough;\n" +
+        "- unintended: not what the author clearly meant to do, and not resting on guesses about their intent;\n" +
+        "- one problem the author would fix if they knew about it.\n" +
+        "Look hard at:\n" +
+        "- silent failure (breaks): a new or changed catch, fallback or default that hides an error (returns null, empty or false, " +
+        "logs and carries on, swallows a parse or I/O failure) where that layer can't really recover; and errors told apart by their " +
+        "message text instead of a code or type;\n" +
+        "- untrusted input (breaks): SQL built from strings instead of parameters, redirects to a URL from the request without " +
+        "checking its host, server-side fetches of a user's URL that can reach local or internal addresses, HTML sanitized where " +
+        "it could be escaped;\n" +
+        "- back pressure (performance): queues, buffers, retries or fan-out with no limit.\n" +
+        "Writing a finding: say why it's a problem and when it happens (which input, environment or path); don't overstate it; be " +
+        "brief and matter-of-fact, with no praise. Point line at the most relevant line (a block's first line, not a long range). " +
+        "Make suggestion concrete: the replacement code when it's short, otherwise the fix in one or two sentences.";
 
     /// <summary>Instructions for a question asked on a review page (<see cref="ThreadTurnKind.ReviewAsk"/>).</summary>
     public const string ReviewAskRules =
