@@ -69,7 +69,7 @@ public sealed class SshGitKey(IOptions<GitOptions> options, GitCli git) : IGitKe
         timeout.CancelAfter(TestTimeout);
         try
         {
-            var result = await git.RunAsync(null, ["ls-remote", "--heads", "--", url], timeout.Token, throwOnError: false).ConfigureAwait(false);
+            var result = await git.RunAsync(null, ["ls-remote", "--heads", "--", git.Remote(url)], timeout.Token, throwOnError: false).ConfigureAwait(false);
             if (result.ExitCode == 0)
             {
                 var branches = result.StandardOutput.Split('\n', StringSplitOptions.RemoveEmptyEntries).Length;

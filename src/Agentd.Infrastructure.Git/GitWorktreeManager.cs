@@ -364,7 +364,7 @@ public sealed partial class GitWorktreeManager(GitCli git, IOptions<GitOptions> 
         if (!Directory.Exists(Path.Combine(clone, "objects")))
         {
             Directory.CreateDirectory(Path.GetDirectoryName(clone)!);
-            await git.RunAsync(null, ["clone", "--bare", "--", repository.RemoteUrl, clone], ct).ConfigureAwait(false);
+            await git.RunAsync(null, ["clone", "--bare", "--", git.Remote(repository.RemoteUrl), clone], ct).ConfigureAwait(false);
             // Remote-tracking refs (origin/*) so worktrees can start from origin/<base>.
             await git.RunAsync(clone, ["config", "remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*"], ct).ConfigureAwait(false);
             await git.RunAsync(clone, ["config", "user.name", options.Value.CommitName], ct).ConfigureAwait(false);
@@ -372,8 +372,19 @@ public sealed partial class GitWorktreeManager(GitCli git, IOptions<GitOptions> 
         }
 
         await EnableWorktreeConfigAsync(clone, ct).ConfigureAwait(false);
+        await UseRemoteAsync(clone, git.Remote(repository.RemoteUrl), ct).ConfigureAwait(false);
         await git.RunAsync(clone, ["fetch", "--prune", "origin"], ct).ConfigureAwait(false);
         return clone;
+    }
+
+    /// <summary>A clone made over SSH moves to the address agentd uses now (Azure DevOps over HTTPS), and back if that's turned off.</summary>
+    private async Task UseRemoteAsync(string clone, string url, CancellationToken ct)
+    {
+        var current = await git.RunAsync(clone, ["config", "--get", "remote.origin.url"], ct, throwOnError: false).ConfigureAwait(false);
+        if (current.StandardOutput != url)
+        {
+            await git.RunAsync(clone, ["remote", "set-url", "origin", url], ct).ConfigureAwait(false);
+        }
     }
 
     /// <summary>

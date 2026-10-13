@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using System.Text;
+using System.Text.RegularExpressions;
+using Agentd.Application.Ports;
 using Microsoft.Extensions.Options;
 
 namespace Agentd.Infrastructure.Git;
@@ -36,14 +38,33 @@ public sealed class GitException : Exception
 public sealed record GitResult(int ExitCode, string StandardOutput, string StandardError);
 
 /// <summary>
-/// Runs <c>git</c> with an argument list (never a shell string), no interactive prompts, a timeout, and
-/// agentd's SSH key when present. Arguments are never logged with credentials because none are passed.
+/// Runs <c>git</c> with an argument list (never a shell string), no interactive prompts, a timeout, and agentd's SSH key
+/// when present. Commands that reach a remote also get the HTTPS credentials (<see cref="IGitHttpCredentials"/>) as
+/// environment config, so they're never in the arguments, a log or a clone's config.
 /// </summary>
-public sealed class GitCli(IOptions<GitOptions> options)
+public sealed partial class GitCli(IOptions<GitOptions> options, IGitHttpCredentials? http = null)
 {
+    /// <summary>Where Azure DevOps is served over HTTPS (the HTTPS credentials go only there).</summary>
+    public const string AzureDevOpsPrefix = "https://dev.azure.com/";
+
+    private static readonly HashSet<string> s_network = new(StringComparer.Ordinal) { "clone", "fetch", "pull", "push", "ls-remote" };
+
+    /// <summary>The address agentd uses for <paramref name="url"/>: an Azure DevOps SSH remote's HTTPS address (<see cref="GitOptions.AzureDevOpsOverHttps"/>).</summary>
+    public string Remote(string url) => options.Value.AzureDevOpsOverHttps && AzureDevOpsHttps(url) is { } https ? https : url;
+
+    /// <summary>
+    /// <c>git@ssh.dev.azure.com:v3/org/project/repo</c>, <c>ssh://git@ssh.dev.azure.com/v3/…</c> or an SSH host alias with a
+    /// <c>v3/</c> path → <c>https://dev.azure.com/org/project/_git/repo</c>; null for anything else.
+    /// </summary>
+    public static string? AzureDevOpsHttps(string url) =>
+        AdoSsh().Match(url?.Trim() ?? string.Empty) is { Success: true } m
+            ? $"{AzureDevOpsPrefix}{m.Groups["org"].Value}/{m.Groups["project"].Value}/_git/{m.Groups["repo"].Value}"
+            : null;
+
     public async Task<GitResult> RunAsync(string? workingDirectory, IReadOnlyList<string> args, CancellationToken cancellationToken, bool throwOnError = true)
     {
         ArgumentNullException.ThrowIfNull(args);
+        var headers = await HeadersAsync(workingDirectory, args, cancellationToken).ConfigureAwait(false);
         var psi = new ProcessStartInfo("git")
         {
             RedirectStandardOutput = true,
@@ -60,6 +81,13 @@ public sealed class GitCli(IOptions<GitOptions> options)
         foreach (var arg in args)
         {
             psi.ArgumentList.Add(arg);
+        }
+
+        psi.Environment["GIT_CONFIG_COUNT"] = headers.Count.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        for (var i = 0; i < headers.Count; i++)
+        {
+            psi.Environment[$"GIT_CONFIG_KEY_{i}"] = $"http.{headers[i].UrlPrefix}.extraHeader";
+            psi.Environment[$"GIT_CONFIG_VALUE_{i}"] = headers[i].Header;
         }
 
         psi.Environment["GIT_TERMINAL_PROMPT"] = "0";
@@ -107,4 +135,35 @@ public sealed class GitCli(IOptions<GitOptions> options)
     }
 
     private static string Describe(IReadOnlyList<string> args) => args.Count > 0 ? args[0] : string.Empty;
+
+    /// <summary>
+    /// The HTTPS credentials for a command that reaches Azure DevOps over HTTPS (its URL in the arguments, or the clone's
+    /// origin); none for local commands, other remotes, or when SSH is kept.
+    /// </summary>
+    private async ValueTask<IReadOnlyList<GitHttpHeader>> HeadersAsync(string? workingDirectory, IReadOnlyList<string> args, CancellationToken ct)
+    {
+        if (http is null || !options.Value.AzureDevOpsOverHttps || !s_network.Contains(Describe(args)))
+        {
+            return [];
+        }
+
+        var remote = args.FirstOrDefault(a => a.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            ?? (workingDirectory is null ? null : (await RunAsync(workingDirectory, ["config", "--get", "remote.origin.url"], ct, throwOnError: false).ConfigureAwait(false)).StandardOutput);
+        if (!Uri.TryCreate(remote, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps || !uri.Host.Equals("dev.azure.com", StringComparison.OrdinalIgnoreCase))
+        {
+            return [];
+        }
+
+        try
+        {
+            return await http.GetAsync(ct).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            throw new GitException($"git {Describe(args)}: signing in to Azure DevOps failed: {ex.Message}", ex);
+        }
+    }
+
+    [GeneratedRegex(@"^(?:ssh://)?(?:[^@/\s]+@)?[^:/\s]+(?::\d+)?[:/]v3/(?<org>[^/\s]+)/(?<project>[^/\s]+)/(?<repo>[^/\s]+?)/?$")]
+    private static partial Regex AdoSsh();
 }

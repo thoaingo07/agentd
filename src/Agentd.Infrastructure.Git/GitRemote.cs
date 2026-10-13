@@ -7,7 +7,7 @@ public sealed class GitRemote(GitCli git) : IGitRemote
 {
     public async Task<string> GetDefaultBranchAsync(string remoteUrl, CancellationToken cancellationToken)
     {
-        var result = await git.RunAsync(null, ["ls-remote", "--symref", "--", remoteUrl, "HEAD"], cancellationToken).ConfigureAwait(false);
+        var result = await git.RunAsync(null, ["ls-remote", "--symref", "--", git.Remote(remoteUrl), "HEAD"], cancellationToken).ConfigureAwait(false);
         return ParseDefaultBranch(result.StandardOutput)
             ?? throw new GitException($"Could not determine the default branch of {remoteUrl}.");
     }
