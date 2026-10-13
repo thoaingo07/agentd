@@ -6435,7 +6435,9 @@
           "findings",
           "createdBy",
           "sentTo",
-          "createdAt"
+          "createdAt",
+          "chatLink",
+          "postsFromChat"
         ],
         "type": "object",
         "properties": {
@@ -6525,6 +6527,16 @@
           "createdAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "chatLink": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uri"
+          },
+          "postsFromChat": {
+            "type": "boolean"
           }
         },
         "description": "A review session: what it looks at (pinned commits), its state, the reviewer\u0027s summary and findings."

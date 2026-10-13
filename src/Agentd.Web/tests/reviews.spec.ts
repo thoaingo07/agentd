@@ -29,7 +29,7 @@ beforeEach(() => {
   asks = []
   watched = []
   session = { id: 7, repo: 'sysmin', target: 'branch', pullRequestId: null, headRef: 'feature/keyset', baseRef: 'develop', baseCommit: 'a1b2c3d4', headCommit: 'f9e8d7c6',
-    status: 'Ready', error: null, model: 'claude-opus-5-5', effort: 'high', summary: 'One real bug.', findings: [finding], createdBy: 'local', sentTo: null, createdAt: '2026-10-09T10:00:00Z' }
+    status: 'Ready', error: null, model: 'claude-opus-5-5', effort: 'high', summary: 'One real bug.', findings: [finding], createdBy: 'local', sentTo: null, createdAt: '2026-10-09T10:00:00Z', chatLink: null, postsFromChat: false }
   vi.stubGlobal('fetch', vi.fn(async (req: Request) => {
     const path = new URL(req.url).pathname
     const body = req.method === 'GET' ? undefined : await req.text().then((t) => (t ? JSON.parse(t) : undefined))
@@ -324,6 +324,17 @@ describe('reviews', () => {
     expect(view.get('[role=status]').text()).toContain('3 thread(s), under your name')
     expect(view.get('a[href="https://dev.azure.com/o/p/_git/sysmin/pullrequest/3944"]').text()).toBe('Open it')
     expect(view.find('[data-testid=send]').exists()).toBe(false)
+  })
+
+  it('links a chat review to its thread, where it is posted to the PR', async () => {
+    session = { ...session, target: 'pr', pullRequestId: 3944, createdBy: 'Kelvin', chatLink: 'https://discord.com/channels/1/2', postsFromChat: true }
+    const view = mount(ReviewView, { props: { id: 7 }, global: { plugins: [router()] } })
+    await flushPromises()
+
+    expect(view.get('[data-testid=chat-link]').attributes('href')).toBe('https://discord.com/channels/1/2')
+    expect(view.get('[data-testid=chat-link]').text()).toContain('Kelvin')
+    expect(view.get('[data-testid=send]').text()).not.toContain('Post to the PR')
+    expect(view.get('[data-testid=send]').text()).toContain('from its chat thread')
   })
 
   it('copies a branch review as text, and the laptop page has no server Send', async () => {

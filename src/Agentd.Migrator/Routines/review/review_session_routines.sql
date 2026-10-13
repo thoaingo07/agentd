@@ -21,11 +21,44 @@ RETURNS SETOF agentd.review_sessions
 LANGUAGE sql STABLE
 AS $$ SELECT * FROM agentd.review_sessions WHERE id = p_id $$;
 
--- Someone's recent sessions, newest first.
+-- Someone's recent sessions and every review started in chat (the team sees those in its channel anyway), newest first.
 CREATE OR REPLACE FUNCTION agentd.review_session_list(p_created_by text, p_limit int)
 RETURNS SETOF agentd.review_sessions
 LANGUAGE sql STABLE
-AS $$ SELECT * FROM agentd.review_sessions WHERE created_by = p_created_by ORDER BY id DESC LIMIT p_limit $$;
+AS $$
+    SELECT * FROM agentd.review_sessions WHERE created_by = p_created_by OR chat_link IS NOT NULL ORDER BY id DESC LIMIT p_limit
+$$;
+
+-- A session started from chat: the conversation's link, and for a PR's !review the chat review whose findings fill it.
+CREATE OR REPLACE FUNCTION agentd.review_session_link_chat(p_id bigint, p_chat_link text, p_pr_review_id bigint)
+RETURNS void
+LANGUAGE sql
+AS $$ UPDATE agentd.review_sessions SET chat_link = p_chat_link, pr_review_id = p_pr_review_id, updated_at = now() WHERE id = p_id $$;
+
+CREATE OR REPLACE FUNCTION agentd.review_session_find_by_pr_review(p_pr_review_id bigint)
+RETURNS SETOF agentd.review_sessions
+LANGUAGE sql STABLE
+AS $$ SELECT * FROM agentd.review_sessions WHERE pr_review_id = p_pr_review_id $$;
+
+-- The chat review's latest findings replace the session's (one atomic update); a finding with the same file and title
+-- keeps the decision made on the page. Returns how many there are now.
+CREATE OR REPLACE FUNCTION agentd.review_session_set_findings(p_id bigint, p_findings jsonb, p_summary text)
+RETURNS int
+LANGUAGE sql
+AS $$
+    UPDATE agentd.review_sessions s
+       SET findings = COALESCE((
+               SELECT jsonb_agg(n.f || COALESCE((
+                          SELECT jsonb_build_object('decision', o.f -> 'decision', 'edited', o.f -> 'edited')
+                            FROM jsonb_array_elements(s.findings) AS o(f)
+                           WHERE o.f ->> 'title' = n.f ->> 'title' AND o.f ->> 'file' IS NOT DISTINCT FROM n.f ->> 'file'
+                           LIMIT 1), '{}'::jsonb) ORDER BY n.i)
+                 FROM jsonb_array_elements(p_findings) WITH ORDINALITY AS n(f, i)), '[]'::jsonb),
+           summary = COALESCE(p_summary, summary),
+           updated_at = now()
+     WHERE s.id = p_id
+    RETURNING jsonb_array_length(findings)
+$$;
 
 -- Sessions in one status (e.g. the reviews to resume after a restart), oldest first.
 CREATE OR REPLACE FUNCTION agentd.review_session_list_by_status(p_status text)

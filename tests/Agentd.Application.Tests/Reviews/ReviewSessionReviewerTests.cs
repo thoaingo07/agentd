@@ -80,12 +80,16 @@ public sealed class ReviewSessionReviewerTests
         await reviewer.Start(started.Id);
         var leftOver = await _store.InsertAsync("sysmin", ReviewTargets.Range, null, "h1", "m1", "dev@example.com", null, null, default);
         await _store.PinAsync(leftOver, "m1", "h1", null, default);
+        var chat = await _store.InsertAsync("sysmin", ReviewTargets.PullRequest, 3944, "ai/deploy", "develop", "Kelvin", null, null, default);
+        await _store.PinAsync(chat, "m1", "h1", null, default);
+        await _store.LinkChatAsync(chat, new Uri("https://chat.example/t1"), 7, default);
         await reviewer.ResumeAsync(default);
         await WaitUntil(() => _store.Sessions[leftOver].Status == ReviewSessionStatus.Ready);
 
         Assert.AreEqual(ReviewSessionStatus.Reviewing, started.Status, "it starts reviewing");
         Assert.AreEqual(ReviewSessionStatus.Ready, _store.Sessions[started.Id].Status);
         Assert.HasCount(2, _agent.Turns, "one turn each, never twice for the same session");
+        Assert.AreEqual(ReviewSessionStatus.Reviewing, _store.Sessions[chat].Status, "a chat review's session is reviewed in its thread");
     }
 
     private async Task<long> ReviewingAsync()

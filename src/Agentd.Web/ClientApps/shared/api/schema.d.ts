@@ -1978,6 +1978,9 @@ export interface components {
             sentTo: null | string;
             /** Format: date-time */
             createdAt: string;
+            /** Format: uri */
+            chatLink: null | string;
+            postsFromChat: boolean;
         };
         RunAcceptedVm: {
             /** Format: int64 */

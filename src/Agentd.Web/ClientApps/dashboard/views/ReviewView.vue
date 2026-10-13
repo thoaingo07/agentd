@@ -149,6 +149,14 @@ const where = (a: { file?: string | null; line?: number | null; endLine?: number
           <span v-if="s.model">{{ s.model }}{{ s.effort ? ` · ${s.effort}` : '' }}</span>
           <span class="font-mono">{{ short(s.baseCommit) }}…{{ short(s.headCommit) }}</span>
           <span class="font-medium text-base-content">{{ s.status }}</span>
+          <a
+            v-if="s.chatLink"
+            :href="s.chatLink"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="link"
+            data-testid="chat-link"
+          >💬 From chat ({{ s.createdBy }}): open the thread</a>
         </p>
         <p
           v-if="s.status === 'Reviewing'"
@@ -176,7 +184,7 @@ const where = (a: { file?: string | null; line?: number | null; endLine?: number
           data-testid="send"
         >
           <AgButton
-            v-if="s.target === 'pr'"
+            v-if="s.target === 'pr' && !s.postsFromChat"
             :loading="sending"
             @click="sendTo('pr')"
           >
@@ -197,6 +205,10 @@ const where = (a: { file?: string | null; line?: number | null; endLine?: number
           >
             Copy as text
           </AgButton>
+          <span
+            v-if="s.postsFromChat"
+            class="self-center text-xs text-muted"
+          >Post it to the PR from its chat thread: agentd keeps re-checking it there.</span>
           <span class="self-center text-xs text-muted">Sends what's under To post: {{ toPost.length }} finding(s) and {{ reviews.current?.comments.length ?? 0 }} comment(s).</span>
         </div>
         <p

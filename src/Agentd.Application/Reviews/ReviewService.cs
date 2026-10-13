@@ -28,7 +28,9 @@ public sealed partial class ReviewService(
     ILogger<ReviewService> logger,
     IWorkItemSource? workItems = null,
     Microsoft.Extensions.Options.IOptions<Jobs.JobOptions>? jobs = null,
-    IMcpTokenIssuer? tokens = null) : IDisposable
+    IMcpTokenIssuer? tokens = null,
+    ReviewSessionService? sessions = null,
+    Microsoft.Extensions.Options.IOptions<WebLinkOptions>? web = null) : IDisposable
 {
     public const int MaxConcurrentReviews = 2;
 
@@ -98,7 +100,8 @@ public sealed partial class ReviewService(
             new ConversationSpec(default, default, title, repo.Value.Name, opening, $"🔍 Review: {IdeaService.Title(title)}"), ct).ConfigureAwait(false);
         var reviewId = await reviews.InsertAsync(repo.Value.Name.Value, id, details.Title, author, provider, thread.ExternalConversationId, thread.ExternalSpaceId, ct).ConfigureAwait(false);
         var review = (await reviews.GetAsync(reviewId, ct).ConfigureAwait(false))! with { HeadCommit = details.SourceCommit, Focus = focus, Model = model, Effort = effort };
-        await reviews.SaveAsync(review, ct).ConfigureAwait(false);
+        await SaveAsync(review, ct).ConfigureAwait(false);
+        var page = await OpenSessionAsync(review, thread, instructions, ct).ConfigureAwait(false);
 
         var prompt = string.Create(CultureInfo.InvariantCulture,
             $"Review pull request !{id} \"{details.Title}\" by {details.Author} in {repo.Value.Name}: `{details.SourceBranch}` → `{details.TargetBranch}` " +
@@ -110,7 +113,55 @@ public sealed partial class ReviewService(
             + await OpenThreadsContextAsync(repo.Value, id, ct).ConfigureAwait(false);
         await reviews.AddMessageAsync(reviewId, "in", author, $"!review {string.Join(' ', args)}", ct).ConfigureAwait(false);
         Enqueue(reviewId, prompt);
-        return $"🔍 Started a review thread for PR !{id} (review #{reviewId}).";
+        return $"🔍 Started a review thread for PR !{id} (review #{reviewId})." + (page is null ? string.Empty : $" It's also on the Reviews page: {page}");
+    }
+
+    /// <summary>
+    /// The same review on the Reviews page (docs/architect/review-sessions.md §1): a session that this review's findings fill
+    /// (no second reviewer). Its link, or null when there's no page here or it couldn't be opened (the chat review goes on).
+    /// </summary>
+    private async Task<string?> OpenSessionAsync(Review review, ConversationRef thread, string? instructions, CancellationToken ct)
+    {
+        if (sessions is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            var request = new StartReview(review.Repository, PullRequestId: review.PullRequestId, Model: review.Model, Effort: review.Effort,
+                Focus: review.Focus is null ? null : Clip(review.Focus, 200), Instructions: instructions is null ? null : Clip(instructions, ReviewSessionService.MaxText));
+            var started = await sessions.StartAsync(request, review.Author, new ChatOrigin(providers.Resolve(review.Provider).GetLink(thread), review.Id), ct).ConfigureAwait(false);
+            return started.IsSuccess ? (web?.Value ?? new WebLinkOptions()).Link($"/reviews/{started.Value!.Id}") : null;
+        }
+#pragma warning disable CA1031 // the page is extra: the chat review never fails because of it
+        catch (Exception ex) when (ex is not OperationCanceledException)
+#pragma warning restore CA1031
+        {
+            LogSessionFailed(logger, ex, review.Id);
+            return null;
+        }
+    }
+
+    /// <summary>Saves the review, then brings its session on the Reviews page up to date.</summary>
+    private async Task SaveAsync(Review review, CancellationToken ct)
+    {
+        await reviews.SaveAsync(review, ct).ConfigureAwait(false);
+        if (sessions is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await sessions.MirrorAsync(review, ct).ConfigureAwait(false);
+        }
+#pragma warning disable CA1031 // the page is extra: the chat review never fails because of it
+        catch (Exception ex) when (ex is not OperationCanceledException)
+#pragma warning restore CA1031
+        {
+            LogSessionFailed(logger, ex, review.Id);
+        }
     }
 
     /// <summary>The linked work items' acceptance criteria and description: what the PR is supposed to do.</summary>
@@ -185,7 +236,7 @@ public sealed partial class ReviewService(
         }
 
         var updated = review with { Model = model ?? review.Model, Effort = effort?.ToLowerInvariant() ?? review.Effort };
-        await reviews.SaveAsync(updated, ct).ConfigureAwait(false);
+        await SaveAsync(updated, ct).ConfigureAwait(false);
         return $"⚙️ From my next reply: model **{updated.Model ?? "default"}**, effort **{updated.Effort ?? "default"}**.";
     }
 
@@ -247,16 +298,16 @@ public sealed partial class ReviewService(
         {
             case ReviewChoiceKind.Drop:
                 var kept = result with { Findings = [.. result.Findings.Where((_, i) => !choice.Numbers.Contains(i + 1))] };
-                await reviews.SaveAsync(review with { Result = kept }, ct).ConfigureAwait(false);
+                await SaveAsync(review with { Result = kept }, ct).ConfigureAwait(false);
                 await PostAsync(review, Choices(kept, $"🗑 Dropped {string.Join(", ", choice.Numbers.Select(n => $"#{n}"))} ({author}). Renumbered:\n\n"), ct).ConfigureAwait(false);
                 return;
             case ReviewChoiceKind.Keep:
-                await reviews.SaveAsync(review with { Status = ReviewStatus.Kept }, ct).ConfigureAwait(false);
+                await SaveAsync(review with { Status = ReviewStatus.Kept }, ct).ConfigureAwait(false);
                 await PostAsync(review, new OutboundMessage(MessageKind.Info, $"💬 Kept in chat ({author}); nothing was posted to the PR."), ct).ConfigureAwait(false);
                 await AskCloseOutAsync(review, ct).ConfigureAwait(false);
                 return;
             case ReviewChoiceKind.Discard:
-                await reviews.SaveAsync(review with { Status = ReviewStatus.Discarded }, ct).ConfigureAwait(false);
+                await SaveAsync(review with { Status = ReviewStatus.Discarded }, ct).ConfigureAwait(false);
                 await PostAsync(review, new OutboundMessage(MessageKind.Info, $"🗑 Discarded by {author}; nothing was posted."), ct).ConfigureAwait(false);
                 await AskCloseOutAsync(review, ct).ConfigureAwait(false);
                 return;
@@ -313,7 +364,7 @@ public sealed partial class ReviewService(
         }
 
         var count = findings.Count;
-        await reviews.SaveAsync(review with
+        await SaveAsync(review with
         {
             Status = count > 0 || failure is null ? ReviewStatus.Posted : review.Status,
             PostedThreads = posted,
@@ -346,7 +397,7 @@ public sealed partial class ReviewService(
             var pr = await pullRequests.GetAsync(repo, review.PullRequestId, ct).ConfigureAwait(false);
             if (pr is null || pr.Status != PullRequestStatus.Active)
             {
-                await reviews.SaveAsync(review with { Status = ReviewStatus.Closed }, ct).ConfigureAwait(false);
+                await SaveAsync(review with { Status = ReviewStatus.Closed }, ct).ConfigureAwait(false);
                 await PostAsync(review, new OutboundMessage(MessageKind.Info,
                     $"🏁 PR !{review.PullRequestId} is {(pr is null ? "gone" : pr.Status.ToString().ToLowerInvariant())}: this review is done."), ct).ConfigureAwait(false);
                 await RemoveCheckoutAsync(review.Repository, review.Worktree, ct).ConfigureAwait(false);
@@ -412,7 +463,7 @@ public sealed partial class ReviewService(
         var fresh = comments.Where(c => posted.RepliesSeenUntil is not { } seen || c.PublishedAt > seen).ToList();
         if (comments.Count > 0)
         {
-            await reviews.SaveAsync(review with { Result = posted with { RepliesSeenUntil = comments.Max(c => c.PublishedAt) } }, ct).ConfigureAwait(false);
+            await SaveAsync(review with { Result = posted with { RepliesSeenUntil = comments.Max(c => c.PublishedAt) } }, ct).ConfigureAwait(false);
         }
 
         var sb = new System.Text.StringBuilder();
@@ -510,7 +561,7 @@ public sealed partial class ReviewService(
         }
 
         var current = await reviews.GetAsync(review.Id, ct).ConfigureAwait(false) ?? review;   // keeps RepliesSeenUntil
-        await reviews.SaveAsync(review with { Result = result with { RepliesSeenUntil = current.Result?.RepliesSeenUntil } }, ct).ConfigureAwait(false);
+        await SaveAsync(review with { Result = result with { RepliesSeenUntil = current.Result?.RepliesSeenUntil } }, ct).ConfigureAwait(false);
         var open = findings.Count(f => (f.Status ?? ReviewFindings.Open) == ReviewFindings.Open);
         var line = $"🔄 **PR !{review.PullRequestId} re-checked at {at}:** {findings.Count(f => f.Status == ReviewFindings.Fixed)} fixed ✅, {open} open" +
             $"{(findings.Any(f => f.Status == ReviewFindings.Closed) ? $", {findings.Count(f => f.Status == ReviewFindings.Closed)} closed" : string.Empty)}" +
@@ -598,7 +649,7 @@ public sealed partial class ReviewService(
             var why = reply.UsageLimitedUntil is { } u
                 ? $"⏸ The Claude usage limit is reached until {u:HH:mm} UTC. Send your message again after that."
                 : $"⚠️ I couldn't finish that reply ({reply.Error ?? "no answer"}). Send it again to retry.";
-            await reviews.SaveAsync(review, ct).ConfigureAwait(false);
+            await SaveAsync(review, ct).ConfigureAwait(false);
             await PostAsync(review, new OutboundMessage(MessageKind.Info, why), ct).ConfigureAwait(false);
             return;
         }
@@ -608,7 +659,7 @@ public sealed partial class ReviewService(
             var (said, recheck, wrong) = ReviewFindings.ExtractRecheck(reply.Text, posted.Findings.Count);
             if (recheck is not null || wrong is not null)
             {
-                await reviews.SaveAsync(review, ct).ConfigureAwait(false);
+                await SaveAsync(review, ct).ConfigureAwait(false);
                 await reviews.AddMessageAsync(review.Id, "out", "agent", reply.Text, ct).ConfigureAwait(false);
                 if (recheck is not null)
                 {
@@ -634,7 +685,7 @@ public sealed partial class ReviewService(
             review = review with { Result = result, Status = review.Status is ReviewStatus.Reviewing or ReviewStatus.Reviewed ? ReviewStatus.Reviewed : review.Status };
         }
 
-        await reviews.SaveAsync(review, ct).ConfigureAwait(false);
+        await SaveAsync(review, ct).ConfigureAwait(false);
         await reviews.AddMessageAsync(review.Id, "out", "agent", reply.Text, ct).ConfigureAwait(false);
         if (text.Length > 0)
         {
@@ -669,7 +720,7 @@ public sealed partial class ReviewService(
 
     private async Task CloseOutAsync(Review review, bool delete, string author, CancellationToken ct)
     {
-        await reviews.SaveAsync(review with { Status = ReviewStatus.Closed }, ct).ConfigureAwait(false);
+        await SaveAsync(review with { Status = ReviewStatus.Closed }, ct).ConfigureAwait(false);
         await RemoveCheckoutAsync(review.Repository, review.Worktree, ct).ConfigureAwait(false);
         var provider = providers.Resolve(review.Provider);
         var thread = new ConversationRef(review.Provider, review.ThreadId, review.SpaceId);
@@ -787,6 +838,9 @@ public sealed partial class ReviewService(
 
         public bool Running { get; set; }
     }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Review {ReviewId}: updating its session on the Reviews page failed")]
+    private static partial void LogSessionFailed(ILogger logger, Exception exception, long reviewId);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Review {ReviewId}: the review turn failed")]
     private static partial void LogTurnFailed(ILogger logger, Exception exception, long reviewId);
