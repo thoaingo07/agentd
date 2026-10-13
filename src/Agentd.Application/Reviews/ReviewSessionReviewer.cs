@@ -21,7 +21,9 @@ public sealed partial class ReviewSessionReviewer(
     IBrainstormAgent agent,
     ILogger<ReviewSessionReviewer>? logger = null,
     IServiceProvider? services = null,
-    IMcpTokenIssuer? tokens = null) : IDisposable
+    IMcpTokenIssuer? tokens = null,
+    IWorkItemSource? workItems = null,
+    IPullRequestService? pullRequests = null) : IDisposable
 {
     /// <summary>Reviews running at once (each is a Claude Code process).</summary>
     public const int MaxConcurrent = 2;
@@ -83,7 +85,8 @@ public sealed partial class ReviewSessionReviewer(
 
             var worktree = await worktrees.CheckoutCommitAsync(repo, $"review-session-{id}", head, cancellationToken).ConfigureAwait(false);
             await store.PinAsync(id, baseCommit, head, worktree, cancellationToken).ConfigureAwait(false);
-            var reply = await ArtifactTurn.RunAsync(agent, tokens, ArtifactSources.ReviewSession, id, new BrainstormTurn(id, worktree, Guid.NewGuid(), false, Prompt(session, repo.Name.Value), session.Model, session.Effort, ThreadTurnKind.ReviewSession),
+            var context = await WorkItemContextAsync(session, repo, cancellationToken).ConfigureAwait(false);
+            var reply = await ArtifactTurn.RunAsync(agent, tokens, ArtifactSources.ReviewSession, id, new BrainstormTurn(id, worktree, Guid.NewGuid(), false, Prompt(session, repo.Name.Value, context), session.Model, session.Effort, ThreadTurnKind.ReviewSession),
                 cancellationToken).ConfigureAwait(false);
             if (reply.UsageLimitedUntil is { } until)
             {
@@ -129,8 +132,25 @@ public sealed partial class ReviewSessionReviewer(
         await store.SetGuideAsync(id, ReviewGuides.Fit(guide, change.Files), ct).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// What the change is supposed to do: a PR's linked work items, or the one its branch names (<c>ai/5617-…</c>), with a
+    /// task's parent user story. Nothing for two commits.
+    /// </summary>
+    private async Task<string> WorkItemContextAsync(ReviewSession session, Domain.Repositories.Repository repo, CancellationToken ct)
+    {
+        if (session.Target is not (ReviewTargets.PullRequest or ReviewTargets.Branch))
+        {
+            return string.Empty;
+        }
+
+        var linked = session is { PullRequestId: { } pr } && pullRequests is not null
+            ? (await pullRequests.GetAsync(repo, pr, ct).ConfigureAwait(false))?.WorkItems ?? []
+            : [];
+        return await new ReviewWorkItems(workItems).ContextAsync(linked.Count > 0 ? linked : ReviewWorkItems.FromBranch(session.HeadRef), ct).ConfigureAwait(false);
+    }
+
     /// <summary>What to review: the pinned change, compared like a PR with its target (the review rules' frame).</summary>
-    internal static string Prompt(ReviewSession s, string repository)
+    internal static string Prompt(ReviewSession s, string repository, string workItemContext = "")
     {
         var what = s.Target switch
         {
@@ -141,11 +161,12 @@ public sealed partial class ReviewSessionReviewer(
         return string.Create(CultureInfo.InvariantCulture,
             $"Review {what} in {repository}, requested by {s.CreatedBy} on agentd's review page. Your checkout is the head, {s.HeadCommit}. ") +
             $"The change is exactly `git diff {s.BaseCommit} {s.HeadCommit}` (and `git log {s.BaseCommit}..{s.HeadCommit}`): review that, not later commits on the base. " +
-            "There are no PR threads or linked work items to read here unless the commit messages name one. " +
+            "There are no PR threads to read here. " +
             "End with the review-findings block as usual; the developer keeps, edits or drops each finding on the page." +
             GuideRequest +
             (s.Focus is { Length: > 0 } focus ? $" Focus on: {focus}." : string.Empty) +
-            (s.Instructions is { Length: > 0 } instructions ? $"\n\nInstructions from {s.CreatedBy}: {instructions}" : string.Empty);
+            (s.Instructions is { Length: > 0 } instructions ? $"\n\nInstructions from {s.CreatedBy}: {instructions}" : string.Empty) +
+            workItemContext;
     }
 
     /// <summary>

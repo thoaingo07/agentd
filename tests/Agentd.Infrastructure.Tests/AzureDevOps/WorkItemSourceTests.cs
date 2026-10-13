@@ -13,6 +13,8 @@ public sealed class WorkItemSourceTests
           "id": 1234, "rev": 7,
           "fields": {
             "System.Title": "Fix login redirect",
+            "System.WorkItemType": "Task",
+            "System.Parent": 1200,
             "System.State": "Active",
             "System.AreaPath": "Portal\\Platform",
             "System.Tags": "ai-workflow; repo:sysmin",
@@ -74,6 +76,7 @@ public sealed class WorkItemSourceTests
         Assert.AreEqual("tngo", item.Comments.Single().Author);
         Assert.AreEqual("Keep it simple", item.Comments.Single().Text);
         Assert.AreEqual((Guid.Parse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"), "Dev One"), (item.AssignedToId, item.AssignedTo), "whose name the job's actions go under");
+        Assert.AreEqual(("Task", (int?)1200), (item.Type, item.ParentId), "a task and its parent user story, for reviewers");
     }
 
     [TestMethod]
