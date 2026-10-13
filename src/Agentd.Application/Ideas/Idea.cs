@@ -69,6 +69,9 @@ public interface IIdeaStore
 
     /// <summary>The thread ids of a provider's ideas that aren't closed: the chat poller reads them like job threads.</summary>
     Task<IReadOnlyList<string>> ListOpenThreadsAsync(ProviderKey provider, CancellationToken cancellationToken);
+
+    /// <summary>Open ideas with a person's message the agent hasn't answered yet (picked up after a restart), oldest first.</summary>
+    Task<IReadOnlyList<long>> ListAwaitingReplyAsync(CancellationToken cancellationToken);
 }
 
 /// <summary>

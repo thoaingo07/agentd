@@ -210,14 +210,73 @@ public sealed class IdeaServiceTests
         Assert.IsEmpty(h.Store.Rows);
     }
 
+    [TestMethod]
+    public async Task A_first_turn_that_failed_is_retried_with_the_idea_itself()
+    {
+        var h = new Harness();
+        h.Worktrees.NextCheckoutFails = new InvalidOperationException("git fetch failed (128)");
+        await h.Service.StartAsync(s_discord, "Kelvin", "a pipeline runner for datasync", null, default);
+        await WaitUntil(() => !h.Service.IsThinking(1));
+        h.Agent.Replies.Enqueue("Which pipelines?");
+
+        await h.Service.HandleMessageAsync(h.Store.Rows[1], "tngo", "are you still working on it?", default);
+        await h.WaitForSentAsync(1);
+
+        var turn = h.Agent.Turns.Single();
+        StringAssert.StartsWith(turn.Prompt, "Brainstorm this idea with the developer, Kelvin:\n\na pipeline runner for datasync");
+        StringAssert.EndsWith(turn.Prompt, "tngo: are you still working on it?");
+        Assert.IsFalse(turn.Resume, "a new session: the failed turn never started one");
+        h.Agent.Replies.Enqueue("Got it.");
+        await h.Service.HandleMessageAsync(h.Store.Rows[1], "tngo", "the full build", default);
+        await h.WaitForSentAsync(2);
+        Assert.AreEqual("tngo: the full build", h.Agent.Turns[1].Prompt, "once answered, only the new message");
+    }
+
+    [TestMethod]
+    public async Task After_a_restart_ideas_the_agent_never_answered_are_picked_up_and_answered_ones_are_not()
+    {
+        var h = new Harness();
+        h.Agent.Replies.Enqueue("Question?");
+        await h.Service.StartAsync(s_discord, "tngo", "dark mode", null, default);
+        await h.WaitForSentAsync(1);
+        h.Worktrees.NextCheckoutFails = new InvalidOperationException("git fetch failed (128)");
+        await h.Service.StartAsync(s_discord, "Kelvin", "a pipeline runner", null, default);
+        await WaitUntil(() => !h.Service.IsThinking(2));
+        await h.Store.AddMessageAsync(2, "out", "agentd", "💭 Still thinking about the last message", default);   // agentd's notice isn't an answer
+        await h.Store.AddMessageAsync(2, "in", "tngo", "are you still working on it?", default);
+
+        var restarted = new IdeaService(h.Store, h.Registry, h.Worktrees, h.Agent, h.Providers, NullLogger<IdeaService>.Instance, h.WorkItems);
+        h.Agent.Replies.Enqueue("Which pipelines?");
+        await restarted.ResumeAsync(default);
+        await h.WaitForSentAsync(2);
+
+        Assert.HasCount(2, h.Agent.Turns, "idea 1 was answered: left alone");
+        StringAssert.StartsWith(h.Agent.Turns[1].Prompt, "Brainstorm this idea with the developer, Kelvin:\n\na pipeline runner");
+        StringAssert.EndsWith(h.Agent.Turns[1].Prompt, "tngo: are you still working on it?");
+        CollectionAssert.AreEqual(Array.Empty<long>(), (await h.Store.ListAwaitingReplyAsync(default)).ToArray(), "answered now");
+    }
+
+    private static async Task WaitUntil(Func<bool> condition)
+    {
+        for (var i = 0; i < 300 && !condition(); i++)
+        {
+            await Task.Delay(10);
+        }
+
+        Assert.IsTrue(condition());
+    }
+
     private sealed class Harness
     {
         public Harness()
         {
             var options = Microsoft.Extensions.Options.Options.Create(new MessagingOptions());
             options.Value.Providers["discord"] = new MessagingProviderSettings { Enabled = true };
-            Service = new IdeaService(Store, Registry, Worktrees, Agent, new MessagingProviderRegistry([Chat], options), NullLogger<IdeaService>.Instance, WorkItems);
+            Providers = new MessagingProviderRegistry([Chat], options);
+            Service = new IdeaService(Store, Registry, Worktrees, Agent, Providers, NullLogger<IdeaService>.Instance, WorkItems);
         }
+
+        public MessagingProviderRegistry Providers { get; }
 
         public FakeChat Chat { get; } = new("discord");
 
@@ -314,7 +373,30 @@ public sealed class IdeaServiceTests
             return Task.CompletedTask;
         }
 
-        public Task<IReadOnlyList<IdeaMessage>> ListMessagesAsync(long ideaId, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<IdeaMessage>>([]);
+        public Task<IReadOnlyList<IdeaMessage>> ListMessagesAsync(long ideaId, CancellationToken cancellationToken)
+        {
+            lock (Messages)
+            {
+                return Task.FromResult<IReadOnlyList<IdeaMessage>>([.. Messages.Select((m, i) => (m, i)).Where(x => x.m.Idea == ideaId)
+                    .Select(x => new IdeaMessage(x.m.Direction, Authored[x.i].Author, x.m.Text, DateTimeOffset.UnixEpoch))]);
+            }
+        }
+
+        public async Task<IReadOnlyList<long>> ListAwaitingReplyAsync(CancellationToken cancellationToken)
+        {
+            var waiting = new List<long>();
+            foreach (var idea in Rows.Values.Where(i => i.Status is IdeaStatus.Brainstorming or IdeaStatus.Proposed).OrderBy(i => i.Id))
+            {
+                var messages = await ListMessagesAsync(idea.Id, cancellationToken);
+                var lastReply = messages.Select((m, i) => (m, i)).LastOrDefault(x => x.m is { Direction: "out", Author: "agent" }, (default!, -1)).i;
+                if (messages.Skip(lastReply + 1).Any(m => m.Direction == "in"))
+                {
+                    waiting.Add(idea.Id);
+                }
+            }
+
+            return waiting;
+        }
 
         public Task<IReadOnlyList<string>> ListOpenThreadsAsync(ProviderKey provider, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<string>>(Rows.Values.Where(i => i.Status != IdeaStatus.Closed && i.ThreadId is not null).Select(i => i.ThreadId!).ToList());

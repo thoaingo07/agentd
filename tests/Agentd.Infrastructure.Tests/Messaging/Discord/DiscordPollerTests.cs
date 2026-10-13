@@ -90,6 +90,8 @@ public sealed class DiscordPollerTests : IDisposable
     {
         public Task<IReadOnlyList<string>> ListOpenThreadsAsync(ProviderKey provider, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<string>>(threads);
 
+        public Task<IReadOnlyList<long>> ListAwaitingReplyAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
         public Task<long> InsertAsync(string repository, string title, string author, ProviderKey provider, string? threadId, string? spaceId, CancellationToken cancellationToken) => throw new NotSupportedException();
 
         public Task<Idea?> GetAsync(long id, CancellationToken cancellationToken) => throw new NotSupportedException();

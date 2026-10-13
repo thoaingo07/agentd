@@ -72,6 +72,19 @@ public sealed class IdeaStore(NpgsqlDataSource dataSource) : IIdeaStore
         return rows;
     }
 
+    public async Task<IReadOnlyList<long>> ListAwaitingReplyAsync(CancellationToken cancellationToken)
+    {
+        await using var cmd = dataSource.CreateCommand("SELECT * FROM agentd.idea_list_awaiting_reply()");
+        await using var r = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        var ids = new List<long>();
+        while (await r.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            ids.Add(r.GetInt64(0));
+        }
+
+        return ids;
+    }
+
     public async Task<IReadOnlyList<string>> ListOpenThreadsAsync(ProviderKey provider, CancellationToken cancellationToken)
     {
         await using var cmd = dataSource.CreateCommand("SELECT * FROM agentd.idea_list_open_threads($1)");

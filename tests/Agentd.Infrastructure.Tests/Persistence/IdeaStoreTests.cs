@@ -9,6 +9,38 @@ namespace Agentd.Infrastructure.Tests.Persistence;
 public sealed class IdeaStoreTests
 {
     [TestMethod]
+    public async Task Ideas_awaiting_the_agent_are_the_open_ones_with_a_message_after_its_last_reply()
+    {
+        await using var db = await Database.CreateMigratedAsync("ideas_awaiting_reply");
+        var store = new IdeaStore(db);
+        var discord = ProviderKey.From("discord");
+        async Task<long> IdeaAsync(string thread, string status, params (string Direction, string Author)[] messages)
+        {
+            var id = await store.InsertAsync("sysmin", thread, "tngo", discord, thread, null, default);
+            await store.SaveAsync((await store.GetAsync(id, default))! with { Status = status }, default);
+            foreach (var (direction, author) in messages)
+            {
+                await store.AddMessageAsync(id, direction, author, "text", default);
+            }
+
+            return id;
+        }
+
+        var neverAnswered = await IdeaAsync("t1", IdeaStatus.Brainstorming, ("in", "Kelvin"), ("out", "agentd"), ("in", "tngo"));
+        await IdeaAsync("t2", IdeaStatus.Brainstorming, ("in", "tngo"), ("out", "agent"));
+        var newMessage = await IdeaAsync("t3", IdeaStatus.Proposed, ("in", "tngo"), ("out", "agent"), ("in", "tngo"));
+        await IdeaAsync("t4", IdeaStatus.Closed, ("in", "tngo"));
+        await IdeaAsync("t5", IdeaStatus.Brainstorming);
+
+        var lists = await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => Task.Run(() => store.ListAwaitingReplyAsync(default))));
+
+        foreach (var list in lists)
+        {
+            CollectionAssert.AreEqual(new[] { neverAnswered, newMessage }, list.ToArray(), "agentd's notices aren't answers; closed and answered ideas wait for nothing");
+        }
+    }
+
+    [TestMethod]
     public async Task An_idea_round_trips_with_its_drafts_settings_and_conversation()
     {
         await using var db = await Database.CreateMigratedAsync("ideas_round_trip");
