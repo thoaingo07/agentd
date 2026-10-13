@@ -15,13 +15,15 @@ namespace Agentd.Application.Reviews;
 /// <param name="Suggestions">Optional improvements.</param>
 /// <param name="Before">How it worked before the change, in a sentence or two.</param>
 /// <param name="After">How it works after.</param>
+/// <param name="Callouts">Heads-ups for the human reviewer (a migration, a new dependency…): facts, not problems.</param>
 public sealed record ReviewGuide(
     [property: JsonPropertyName("overview")] string Overview,
     [property: JsonPropertyName("chapters")] IReadOnlyList<GuideChapter> Chapters,
     [property: JsonPropertyName("notes")] IReadOnlyList<GuideNote>? Notes = null,
     [property: JsonPropertyName("suggestions")] IReadOnlyList<GuideSuggestion>? Suggestions = null,
     [property: JsonPropertyName("before")] string? Before = null,
-    [property: JsonPropertyName("after")] string? After = null);
+    [property: JsonPropertyName("after")] string? After = null,
+    [property: JsonPropertyName("callouts")] IReadOnlyList<GuideCallout>? Callouts = null);
 
 /// <param name="Title">What this part of the change is, in a few words.</param>
 /// <param name="Why">What it does and why it matters, in one to three sentences.</param>
@@ -40,6 +42,28 @@ public static class GuideAttention
 {
     public const string Core = "core";
     public const string Skim = "skim";
+}
+
+/// <summary>
+/// Something the human reviewer should know about the change even when nothing is wrong (from pi-review's "human reviewer
+/// callouts"): <paramref name="Kind"/> is one of <see cref="GuideCalloutKinds"/>, <paramref name="Detail"/> says what and where.
+/// </summary>
+public sealed record GuideCallout(
+    [property: JsonPropertyName("kind")] string Kind,
+    [property: JsonPropertyName("detail")] string Detail);
+
+/// <summary>The heads-ups a guide can carry.</summary>
+public static class GuideCalloutKinds
+{
+    public const string Migration = "migration";
+    public const string Dependency = "dependency";
+    public const string Auth = "auth";
+    public const string Contract = "contract";
+    public const string Destructive = "destructive";
+    public const string FeatureFlag = "feature-flag";
+    public const string Config = "config";
+
+    public static readonly IReadOnlyList<string> All = [Migration, Dependency, Auth, Contract, Destructive, FeatureFlag, Config];
 }
 
 /// <param name="Path">Relative to the repository root.</param>
@@ -72,6 +96,7 @@ public static partial class ReviewGuides
     public const int MaxChapters = 10;
     public const int MaxNotes = 40;
     public const int MaxSuggestions = 10;
+    public const int MaxCallouts = 8;
 
     /// <summary>The chapter agentd adds for changed files the reviewer left out.</summary>
     public const string Rest = "Everything else";
@@ -157,8 +182,17 @@ public static partial class ReviewGuides
                 Title = s.Title.Trim(),
             })],
             Blank(guide.Before),
-            Blank(guide.After));
+            Blank(guide.After),
+            Callouts(guide.Callouts));
     }
+
+    /// <summary>Known kinds only (lower case), with a detail, one per kind and detail, at most <see cref="MaxCallouts"/>.</summary>
+    private static List<GuideCallout> Callouts(IReadOnlyList<GuideCallout>? callouts) =>
+        [.. (callouts ?? [])
+            .Select(c => new GuideCallout((c.Kind ?? string.Empty).Trim().ToLowerInvariant(), (c.Detail ?? string.Empty).Trim()))
+            .Where(c => GuideCalloutKinds.All.Contains(c.Kind) && c.Detail.Length > 0)
+            .Distinct()
+            .Take(MaxCallouts)];
 
     private static string Clean(string? path) => (path ?? string.Empty).Trim().TrimStart('/');
 

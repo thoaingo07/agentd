@@ -39,6 +39,16 @@ const notesFor = (path: string) => (props.guide.notes ?? []).filter((n) => n.fil
 const paths = (c: GuideChapter) => c.files.map((f) => f.path)
 const critical = (c: GuideChapter) => (props.guide.notes ?? []).filter((n) => n.critical && paths(c).includes(n.file)).length
 const findingsIn = (c: GuideChapter) => props.findings.filter((f) => f.file && paths(c).includes(f.file)).length
+/** pi-review's human reviewer callouts, in words. */
+const calloutLabels: Record<string, string> = {
+  migration: 'Adds a database migration',
+  dependency: 'Adds or changes a dependency',
+  auth: 'Changes auth or permissions',
+  contract: 'Breaks a contract (API, schema)',
+  destructive: 'Irreversible or destructive',
+  'feature-flag': 'Feature flags',
+  config: 'Changes a configuration default',
+}
 const firstUnread = computed(() => chapters.value.findIndex((_, i) => !reviewed.value.has(i + 1)) + 1)
 
 function go(to: number): void {
@@ -228,6 +238,30 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           {{ guide.after }}
         </div>
       </div>
+      <section
+        v-if="guide.callouts?.length"
+        aria-labelledby="guide-callouts"
+        class="grid gap-1 rounded-box border border-warning/50 bg-warning/10 p-3 text-sm"
+        data-testid="guide-callouts"
+      >
+        <h3
+          id="guide-callouts"
+          class="font-semibold"
+        >
+          Heads-up for you
+        </h3>
+        <p class="text-xs">
+          Not problems: things worth knowing before you approve.
+        </p>
+        <ul class="grid list-disc gap-0.5 pl-5">
+          <li
+            v-for="(c, ci) in guide.callouts"
+            :key="ci"
+          >
+            <strong>{{ calloutLabels[c.kind] ?? c.kind }}:</strong> {{ c.detail }}
+          </li>
+        </ul>
+      </section>
       <h3 class="font-semibold">
         Read it in {{ chapters.length }} chapter{{ chapters.length === 1 ? '' : 's' }}: the core first, what to skim last
       </h3>

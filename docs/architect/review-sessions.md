@@ -108,6 +108,10 @@ the developer through the change, and they can ask about anything.
   - `notes`: what non-obvious lines do and why (explanations, not problems);
   - `suggestions`: optional improvements (clearer, simpler, safer later). Never a finding again: findings stay
     `breaks` / `performance` only.
+  - `callouts` (added 2026-10-13, from pi-review's "human reviewer callouts"): heads-ups that aren't problems, each a
+    `kind` and a one-sentence `detail`: `migration`, `dependency`, `auth`, `contract`, `destructive`,
+    `feature-flag` or `config`. Fit keeps the known kinds with a detail, once each, at most 8. The overview shows them
+    as **Heads-up for you**.
 - **Fitted to the change** (`ReviewGuides.Fit`): every changed file sits in exactly one chapter (the first that names
   it); files that didn't change are dropped; files the reviewer left out go to **Everything else**; notes stay only on
   changed files. A missing or unreadable guide never fails the review: the page falls back to the file list.

@@ -5009,6 +5009,22 @@
         },
         "description": "A repository\u0027s clone URL (SSH for agentd\u0027s key)."
       },
+      "GuideCallout": {
+        "required": [
+          "kind",
+          "detail"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "detail": {
+            "type": "string"
+          }
+        },
+        "description": "Something the human reviewer should know about the change even when nothing is wrong (from pi-review\u0027s \u0022human reviewer\ncallouts\u0022): Kind is one of GuideCalloutKinds, Detail says what and where."
+      },
       "GuideChapter": {
         "required": [
           "title",
@@ -6513,6 +6529,16 @@
               "string"
             ],
             "description": "How it works after."
+          },
+          "callouts": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/GuideCallout"
+            },
+            "description": "Heads-ups for the human reviewer (a migration, a new dependency\u2026): facts, not problems."
           }
         },
         "description": "A guided review (docs/architect/review-sessions.md \u00A72a): the change explained in reading order. Chapters go by importance\n(the heart of the change, then its consequences, then the glue), each with why it matters and a line per file; notes\nexplain lines (not problems); suggestions are optional improvements (not findings: nothing breaks without them)."

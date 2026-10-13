@@ -163,7 +163,7 @@ public sealed partial class ReviewSessionReviewer(
             $"The change is exactly `git diff {s.BaseCommit} {s.HeadCommit}` (and `git log {s.BaseCommit}..{s.HeadCommit}`): review that, not later commits on the base. " +
             "There are no PR threads to read here. " +
             "End with the review-findings block as usual; the developer keeps, edits or drops each finding on the page." +
-            GuideRequest + CleanCodeSuggestions +
+            GuideRequest + CleanCodeSuggestions + CalloutRequest +
             (s.Focus is { Length: > 0 } focus ? $" Focus on: {focus}." : string.Empty) +
             (s.Instructions is { Length: > 0 } instructions ? $"\n\nInstructions from {s.CreatedBy}: {instructions}" : string.Empty) +
             workItemContext;
@@ -193,6 +193,15 @@ public sealed partial class ReviewSessionReviewer(
     /// Cleaner-code points (from pi-review's rubric) aren't findings here: they go to the guide's suggestions, so they never
     /// reach the pull request unless the developer keeps them.
     /// </summary>
+    /// <summary>Heads-ups for the human reviewer (from pi-review's rubric): facts about the change, never findings.</summary>
+    internal const string CalloutRequest =
+        " Add \"callouts\" to the guide too: [{\"kind\":\"migration\",\"detail\":\"what and where, one sentence\"}], heads-ups the " +
+        "human reviewer should know even when nothing is wrong. kind is migration (adds a database migration), dependency (adds " +
+        "or changes a dependency or a lockfile), auth (changes authentication or permissions), contract (a backwards-incompatible " +
+        "API, schema or contract change), destructive (an irreversible or destructive operation), feature-flag (adds or removes " +
+        "one; say if it reuses a dormant flag) or config (changes a configuration default). Only the ones that apply, at most 8; " +
+        "an empty list when none do. They aren't findings: list a real problem as a finding as well.";
+
     internal const string CleanCodeSuggestions =
         " Suggestions are also where cleaner-code points go, when the change adds them: new code that duplicates something " +
         "already in the codebase (name where), a one-off helper or abstraction with no use in this change, a defensive check or " +

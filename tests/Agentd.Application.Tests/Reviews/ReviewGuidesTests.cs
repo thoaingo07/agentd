@@ -80,6 +80,29 @@ public sealed class ReviewGuidesTests
     }
 
     [TestMethod]
+    public void Callouts_keep_known_kinds_with_a_detail_once_each_at_most_eight()
+    {
+        var guide = Guide(Chapter("Heart", "a.cs")) with
+        {
+            Callouts =
+            [
+                new GuideCallout(" Migration ", " adds review_sessions.guide "),
+                new GuideCallout("migration", "adds review_sessions.guide"),
+                new GuideCallout("vibes", "unknown kind"),
+                new GuideCallout("config", " "),
+                .. Enumerable.Range(1, 10).Select(i => new GuideCallout("dependency", $"package {i}")),
+            ],
+        };
+
+        var fitted = ReviewGuides.Fit(guide, ["a.cs"]);
+
+        Assert.HasCount(ReviewGuides.MaxCallouts, fitted.Callouts!);
+        Assert.AreEqual(new GuideCallout("migration", "adds review_sessions.guide"), fitted.Callouts![0], "trimmed, lower case, the duplicate dropped");
+        Assert.IsTrue(fitted.Callouts.Skip(1).All(c => c.Kind == GuideCalloutKinds.Dependency), "unknown kinds and blank details left out");
+        Assert.IsEmpty(ReviewGuides.Fit(Guide(Chapter("Heart", "a.cs")), ["a.cs"]).Callouts!, "none given: an empty list");
+    }
+
+    [TestMethod]
     public void A_guide_naming_no_changed_file_still_lists_them_all()
     {
         var fitted = ReviewGuides.Fit(Guide(Chapter("Other", "src/Gone.cs")), ["src/A.cs"]);
