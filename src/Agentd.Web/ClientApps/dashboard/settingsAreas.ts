@@ -8,6 +8,7 @@ import ChatStep from '../shared/setup/steps/ChatStep.vue'
 import RepositoriesStep from '../shared/setup/steps/RepositoriesStep.vue'
 import ReviewStep from '../shared/setup/steps/ReviewStep.vue'
 import ArtifactStorageStep from '../shared/setup/steps/ArtifactStorageStep.vue'
+import FoldersStep from '../shared/setup/steps/FoldersStep.vue'
 
 /** Settings pages (Admins): the setup wizard's forms, and Health (its review, live). */
 export const settingsAreas: { name: string; title: string; component: Component }[] = [
@@ -20,4 +21,5 @@ export const settingsAreas: { name: string; title: string; component: Component 
   { name: 'chat', title: 'Chat', component: ChatStep },
   { name: 'repositories', title: 'Repositories', component: RepositoriesStep },
   { name: 'artifacts', title: 'Artifacts', component: ArtifactStorageStep },
+  { name: 'folders', title: 'Folders', component: FoldersStep },
 ]

@@ -29,6 +29,16 @@ public sealed record ArtifactStorageStepVm(string? Url, string? PublicUrl, strin
     }
 }
 
+/// <summary>Settings → Folders: the worktree root and the clones' folder as written (<c>~</c> not expanded), and what overrides each.</summary>
+public sealed record FoldersStepVm(string? Worktrees, string? Repositories, string? WorktreesOverriddenBy, string? RepositoriesOverriddenBy)
+{
+    public static FoldersStepVm From(Application.Setup.FoldersStep s)
+    {
+        ArgumentNullException.ThrowIfNull(s);
+        return new(s.Worktrees, s.Repositories, s.WorktreesOverriddenBy, s.RepositoriesOverriddenBy);
+    }
+}
+
 public sealed record DatabaseStepVm(SecretStatusVm ConnectionString);
 
 /// <summary><c>Auth</c> is <c>Pat</c>, <c>AzCli</c> or <c>ServicePrincipal</c> (tenant and client ids; the client secret as a status only).</summary>
