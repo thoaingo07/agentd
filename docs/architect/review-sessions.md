@@ -138,7 +138,11 @@ Delivery (one PR each, under 1000 lines):
 2. The page: a **Guided** view, the default when there's a guide. Chapters replace the file list; each shows its
    overview, the file summaries and the real diffs, with 💡 notes and findings inline (Nuxt UI).
 3. Suggestions: shown apart from findings, off the PR unless kept; a suggested change Fix it can apply.
-4. Ask, made easier: Explain this chapter / file / finding, and "why is this a problem?" on a finding (the Ask threads).
+4. Ask, made easier (done 2026-10-13): **Explain this chapter** in a chapter's story column, **Explain this file** on
+   each file's header, and **Why is this a problem?** on each finding. Each asks a ready-made question through Ask,
+   the whole change, the file, or the finding's line. The answer is a normal thread in Questions (scrolled into
+   view), and the agent already has the guide and the findings in its prompt (§2, Ask). Hidden once the review is
+   Sent or Closed.
 5. A chat `!review` gets the guide too; keyboard navigation (next chapter / finding); generated files hidden.
 
 ## 3. On the server

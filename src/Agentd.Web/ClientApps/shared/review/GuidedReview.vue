@@ -8,8 +8,10 @@ import { fileName, folder } from '../utils/paths'
 
 // The guided review (docs/architect/review-sessions.md §2a): the reviewer's guide to the change, one chapter at a time.
 // Step 0 is the overview; each chapter shows its story beside its own files' real diffs (rendered by the page through the
-// `file` slot, with the chapter's notes). Reviewed chapters are remembered in this browser.
-const props = defineProps<{ sessionId: number; guide: ReviewGuide; files: DiffFile[]; findings: ReviewFinding[] }>()
+// `file` slot, with the chapter's notes). Reviewed chapters are remembered in this browser. Explain this chapter asks the
+// reviewer's agent (the page does the asking: the answer lands in its Questions).
+const props = defineProps<{ sessionId: number; guide: ReviewGuide; files: DiffFile[]; findings: ReviewFinding[]; readonly?: boolean }>()
+const emit = defineEmits<{ explainChapter: [chapter: GuideChapter] }>()
 defineSlots<{ file(props: { file: DiffFile; notes: GuideNote[] }): unknown }>()
 
 const step = ref(0)
@@ -134,6 +136,18 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
                 {{ f }}
               </li>
             </ul>
+          </div>
+          <div v-if="!readonly">
+            <UButton
+              size="sm"
+              variant="soft"
+              color="neutral"
+              icon="i-lucide-message-circle-question"
+              data-testid="explain-chapter"
+              @click="emit('explainChapter', chapter)"
+            >
+              Explain this chapter
+            </UButton>
           </div>
           <ul class="grid gap-1 text-xs">
             <li
