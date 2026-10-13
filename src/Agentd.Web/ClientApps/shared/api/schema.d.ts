@@ -1060,6 +1060,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/setup/folders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetSetupFolders"];
+        put: operations["SaveSetupFolders"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/setup/folders/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["TestSetupFolders"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/setup/chat": {
         parameters: {
             query?: never;
@@ -1568,6 +1600,19 @@ export interface components {
         FinishVm: {
             /** Format: date-time */
             completedAt: string;
+        };
+        FoldersRequest: {
+            /** @description The worktree root; empty: the default in agentd's home. */
+            worktrees: null | string;
+            /** @description The clones' folder; empty: the default. */
+            repositories: null | string;
+        };
+        /** @description Settings → Folders: the worktree root and the clones' folder as written (`~` not expanded), and what overrides each. */
+        FoldersStepVm: {
+            worktrees: null | string;
+            repositories: null | string;
+            worktreesOverriddenBy: null | string;
+            repositoriesOverriddenBy: null | string;
         };
         /** @description agentd's SSH key for git: the public key to add in Azure DevOps or GitHub, and its fingerprint. Never the private key. */
         GitKeyStepVm: {
@@ -4687,6 +4732,92 @@ export interface operations {
         requestBody?: {
             content: {
                 "application/json": null | components["schemas"]["ArtifactStorageRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StepCheckVm"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetSetupFolders: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FoldersStepVm"];
+                };
+            };
+        };
+    };
+    SaveSetupFolders: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": null | components["schemas"]["FoldersRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SaveResultVm"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    TestSetupFolders: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": null | components["schemas"]["FoldersRequest"];
             };
         };
         responses: {

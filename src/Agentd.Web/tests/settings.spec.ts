@@ -52,6 +52,9 @@ beforeEach(() => {
     if (path === '/api/settings/artifact-storage' && req.method === 'GET') return json(storage)
     if (path === '/api/settings/artifact-storage') return json({ restartRequired: true })
     if (path === '/api/settings/artifact-storage/test') return json({ ok: true, message: 'Uploaded, read back and deleted a test page.', fix: null })
+    if (path === '/api/settings/folders' && req.method === 'GET') return json({ worktrees: '~/.agentd/worktrees', repositories: '/srv/repos', worktreesOverriddenBy: null, repositoriesOverriddenBy: 'an environment variable or the command line' })
+    if (path === '/api/settings/folders') return json({ restartRequired: true })
+    if (path === '/api/settings/folders/test') return json({ ok: true, message: 'agentd can use both folders.', fix: null })
     if (path === '/api/settings/database') return json({ connectionString: { set: true, updatedAt: '2026-10-07T10:00:00Z', updatedBy: 'local' } })
     return new Response(JSON.stringify({ title: 'Not found' }), { status: 404 })
   }))
@@ -87,7 +90,7 @@ describe('Settings', () => {
     session.user = { name: 'local', roles: ['Admin'], provider: 'local' }
     await flushPromises()
     const menu = view.get('nav[aria-label=Settings] ul.menu')
-    expect(menu.findAll('a').map((a) => a.text())).toEqual(['General', 'Health', 'Database', 'Azure DevOps', 'Git access', 'Claude', 'Models', 'Chat', 'Repositories', 'Artifacts', 'System log'])
+    expect(menu.findAll('a').map((a) => a.text())).toEqual(['General', 'Health', 'Database', 'Azure DevOps', 'Git access', 'Claude', 'Models', 'Chat', 'Repositories', 'Artifacts', 'Folders', 'System log'])
   })
 
   it('an area page has the vertical menu with its own entry current', async () => {
@@ -122,6 +125,24 @@ describe('Settings', () => {
     expect([bodies['POST /api/settings/artifact-storage/test'], bodies['PUT /api/settings/artifact-storage']]).toEqual([body, body])
     expect((view.get('input[type=password]').element as HTMLInputElement).value).toBe('')
     expect(view.text()).toContain('agentd daemon restart')
+  })
+
+  it('Folders: shows the worktree root and clones folder, what overrides them, and tests and saves', async () => {
+    const view = mount(SettingsAreaView, { props: { area: 'folders' }, global: { plugins: [router()] } })
+    await flushPromises()
+
+    expect((view.get('[data-testid=folders-worktrees]').element as HTMLInputElement).value).toBe('~/.agentd/worktrees')
+    expect(view.text()).toContain("From an environment variable or the command line: saving here doesn't change it.")
+    await view.get('[data-testid=folders-worktrees]').setValue(' /srv/agentd/worktrees ')
+    await view.findAll('button').find((b) => b.text() === 'Test folders')!.trigger('click')
+    await flushPromises()
+    expect(view.text()).toContain('agentd can use both folders.')
+    await view.findAll('button').find((b) => b.text() === 'Save')!.trigger('click')
+    await flushPromises()
+
+    const body = { worktrees: '/srv/agentd/worktrees', repositories: '/srv/repos' }
+    expect([bodies['POST /api/settings/folders/test'], bodies['PUT /api/settings/folders']]).toEqual([body, body])
+    expect(view.text()).toContain('restart agentd to use them')
   })
 
   it('your Azure DevOps: shows the result of the sign-in, who you are connected as, and disconnects', async () => {

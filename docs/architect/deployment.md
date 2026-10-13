@@ -216,6 +216,15 @@ The same forms stay available under **Settings → Access, Azure DevOps, Git, Mo
 Repositories**, plus **Artifacts** (storage; Settings only, not a wizard step), and **Health** shows the live `doctor`
 report. Settings pages share a vertical menu (`SettingsLayout`: General, the areas, System log; Admins only).
 
+**Folders** (added 2026-10-13; Settings only) sets where agentd works on disk: the **worktree root**
+(`Agentd:Git:WorktreeRoot`, each job's checkout at `{root}/{repository}/wi-{id}`) and the **repository clones**
+(`Agentd:Git:RepositoriesRoot`). Each is a full path or one under `~/`, without `..`; empty goes back to the default in
+agentd's home.
+- **Test folders** creates each folder if needed, then writes and removes a small file there (`FolderProbe`), and
+  reports the free space.
+- **Save** writes `agentd.json`, and the change applies after a restart. Existing worktrees and clones stay where they
+  are; new ones go to the new folders.
+
 A value supplied over agentd.json or the secret store (Key Vault, an `AGENTD_*` variable, the command line) is named
 in the form (`overriddenBy`, from `ConfigurationLayers`: the last configuration provider holding the key), and its
 secret field has no Replace: saving there would change nothing (added 2026-10-11).

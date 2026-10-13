@@ -86,6 +86,15 @@ public static class SetupEndpoints
             TooLong(body?.AccessKeyId) ?? TooLong(body?.SecretAccessKey) ?? Check(await settings.TestAsync(Storage(body), ct).ConfigureAwait(false)))
             .WithName($"Test{prefix}ArtifactStorage").Accepts<ArtifactStorageRequest>("application/json").Produces<StepCheckVm>().ProducesProblem(StatusCodes.Status400BadRequest);
 
+        setup.MapGet("/folders", ([FromServices] FolderSettings settings) => TypedResults.Ok(FoldersStepVm.From(settings.Get())))
+            .WithName($"Get{prefix}Folders");
+        setup.MapPut("/folders", async (FoldersRequest? body, ClaimsPrincipal user, [FromServices] FolderSettings settings, CancellationToken ct) =>
+            TooLong(body?.Worktrees) ?? TooLong(body?.Repositories) ?? (await settings.SaveAsync(new FoldersInput(body?.Worktrees, body?.Repositories), By(user), ct).ConfigureAwait(false)).ToHttpResult(Saved))
+            .WithName($"Save{prefix}Folders").Accepts<FoldersRequest>("application/json").Produces<SaveResultVm>().ProducesProblem(StatusCodes.Status400BadRequest);
+        setup.MapPost("/folders/test", (FoldersRequest? body, [FromServices] FolderSettings settings) =>
+            TooLong(body?.Worktrees) ?? TooLong(body?.Repositories) ?? Check(settings.Test(new FoldersInput(body?.Worktrees, body?.Repositories))))
+            .WithName($"Test{prefix}Folders").Accepts<FoldersRequest>("application/json").Produces<StepCheckVm>().ProducesProblem(StatusCodes.Status400BadRequest);
+
         setup.MapGet("/chat", ([FromServices] SetupService service) => TypedResults.Ok(ChatStepVm.From(service.GetChat())))
             .WithName($"Get{prefix}Chat");
         setup.MapPut("/chat", async (ChatRequest? body, ClaimsPrincipal user, [FromServices] SetupService service, CancellationToken ct) =>
@@ -164,6 +173,10 @@ public static class SetupEndpoints
 
     /// <summary>Discord settings. An empty <c>BotToken</c> keeps the saved one; <c>UserName</c> + <c>UserDiscordId</c> add you as a user.</summary>
     public sealed record ChatRequest(bool Enabled, string? GuildId, string? ChannelId, string? BotToken, string? UserName, string? UserDiscordId);
+
+    /// <param name="Worktrees">The worktree root; empty: the default in agentd's home.</param>
+    /// <param name="Repositories">The clones' folder; empty: the default.</param>
+    public sealed record FoldersRequest(string? Worktrees, string? Repositories);
 
     /// <summary>Artifact storage. An empty <c>Url</c> keeps new pages in the database; empty keys keep the saved ones.</summary>
     /// <param name="Url">The S3 API URL ending with the bucket (<c>https://&lt;account&gt;.r2.cloudflarestorage.com/agentd</c>).</param>

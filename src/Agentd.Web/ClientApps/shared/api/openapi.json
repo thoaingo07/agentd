@@ -3288,6 +3288,116 @@
         }
       }
     },
+    "/api/setup/folders": {
+      "get": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "GetSetupFolders",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FoldersStepVm"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "SaveSetupFolders",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/FoldersRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SaveResultVm"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/setup/folders/test": {
+      "post": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "TestSetupFolders",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/FoldersRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StepCheckVm"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/setup/chat": {
       "get": {
         "tags": [
@@ -4960,6 +5070,65 @@
           }
         },
         "description": "Setup is complete; the daemon uses the new settings after a restart."
+      },
+      "FoldersRequest": {
+        "required": [
+          "worktrees",
+          "repositories"
+        ],
+        "type": "object",
+        "properties": {
+          "worktrees": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The worktree root; empty: the default in agentd\u0027s home."
+          },
+          "repositories": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The clones\u0027 folder; empty: the default."
+          }
+        }
+      },
+      "FoldersStepVm": {
+        "required": [
+          "worktrees",
+          "repositories",
+          "worktreesOverriddenBy",
+          "repositoriesOverriddenBy"
+        ],
+        "type": "object",
+        "properties": {
+          "worktrees": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "repositories": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "worktreesOverriddenBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "repositoriesOverriddenBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "Settings \u2192 Folders: the worktree root and the clones\u0027 folder as written (\u0060~\u0060 not expanded), and what overrides each."
       },
       "GitKeyStepVm": {
         "required": [
