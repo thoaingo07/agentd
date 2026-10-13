@@ -163,7 +163,7 @@ public sealed partial class ReviewSessionReviewer(
             $"The change is exactly `git diff {s.BaseCommit} {s.HeadCommit}` (and `git log {s.BaseCommit}..{s.HeadCommit}`): review that, not later commits on the base. " +
             "There are no PR threads to read here. " +
             "End with the review-findings block as usual; the developer keeps, edits or drops each finding on the page." +
-            GuideRequest + CleanCodeSuggestions + CalloutRequest +
+            GuideAsk +
             (s.Focus is { Length: > 0 } focus ? $" Focus on: {focus}." : string.Empty) +
             (s.Instructions is { Length: > 0 } instructions ? $"\n\nInstructions from {s.CreatedBy}: {instructions}" : string.Empty) +
             workItemContext;
@@ -193,6 +193,9 @@ public sealed partial class ReviewSessionReviewer(
     /// Cleaner-code points (from pi-review's rubric) aren't findings here: they go to the guide's suggestions, so they never
     /// reach the pull request unless the developer keeps them.
     /// </summary>
+    /// <summary>Everything a reviewer is asked for the guide; a chat <c>!review</c> with a page asks for it too.</summary>
+    internal const string GuideAsk = GuideRequest + CleanCodeSuggestions + CalloutRequest;
+
     /// <summary>Heads-ups for the human reviewer (from pi-review's rubric): facts about the change, never findings.</summary>
     internal const string CalloutRequest =
         " Add \"callouts\" to the guide too: [{\"kind\":\"migration\",\"detail\":\"what and where, one sentence\"}], heads-ups the " +

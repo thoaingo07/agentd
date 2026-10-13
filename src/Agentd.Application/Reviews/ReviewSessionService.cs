@@ -152,6 +152,22 @@ public sealed class ReviewSessionService(
         }
     }
 
+    /// <summary>
+    /// A chat <c>!review</c>'s guide on its page (docs/architect/review-sessions.md §2a): fitted to the session's pinned change.
+    /// Nothing for a review without a session, or a session that can't diff.
+    /// </summary>
+    public async Task MirrorGuideAsync(long pullRequestReviewId, ReviewGuide guide, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(guide);
+        if (await store.FindByPullRequestReviewAsync(pullRequestReviewId, cancellationToken).ConfigureAwait(false) is not { } session
+            || await DiffAsync(session.Id, cancellationToken).ConfigureAwait(false) is not { IsSuccess: true } change)
+        {
+            return;
+        }
+
+        await store.SetGuideAsync(session.Id, ReviewGuides.Fit(guide, change.Value!.Files), cancellationToken).ConfigureAwait(false);
+    }
+
     public async Task<ReviewSessionView?> GetAsync(long id, CancellationToken cancellationToken) =>
         await store.GetAsync(id, cancellationToken).ConfigureAwait(false) is { } session
             ? new ReviewSessionView(session,

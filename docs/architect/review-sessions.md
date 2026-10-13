@@ -154,7 +154,12 @@ Delivery (one PR each, under 1000 lines):
    the whole change, the file, or the finding's line. The answer is a normal thread in Questions (scrolled into
    view), and the agent already has the guide and the findings in its prompt (§2, Ask). Hidden once the review is
    Sent or Closed.
-5. A chat `!review` gets the guide too; keyboard navigation (next chapter / finding); generated files hidden.
+5. A chat `!review` gets the guide too (done 2026-10-13). When the review has a page, its first prompt asks for the
+   guide (`ReviewSessionReviewer.GuideAsk`, the same request as a page review). Any reply with a `review-guide`
+   block updates the page's guide, fitted to the session's pinned change (`ReviewSessionService.MirrorGuideAsync`).
+   The block is stripped from what the thread shows (`ReviewGuides.Strip`). Without a page, nothing changes.
+   Still to come: keyboard navigation between findings (`]` / `[` already move between chapters), and generated
+   files hidden.
 
 ## 3. On the server
 
