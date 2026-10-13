@@ -10,6 +10,24 @@ public interface IGitRemote
     Task<string> GetDefaultBranchAsync(string remoteUrl, CancellationToken cancellationToken);
 }
 
+/// <summary>
+/// Credentials for git over HTTPS (docs/architect/deployment.md §5): Azure DevOps with agentd's own sign-in (the machine's
+/// <c>az login</c>, a service principal or a PAT). Given to each network git command, never written to a clone's config.
+/// </summary>
+public interface IGitHttpCredentials
+{
+    /// <summary>The headers to send, each only to URLs under its prefix (<c>http.&lt;prefix&gt;.extraHeader</c>).</summary>
+    ValueTask<IReadOnlyList<GitHttpHeader>> GetAsync(CancellationToken cancellationToken);
+}
+
+/// <param name="UrlPrefix">e.g. <c>https://dev.azure.com/</c>.</param>
+/// <param name="Header">e.g. <c>Authorization: Bearer …</c>.</param>
+public sealed record GitHttpHeader(string UrlPrefix, string Header)
+{
+    /// <summary>Never print the credential (records print every property).</summary>
+    public override string ToString() => $"GitHttpHeader {{ UrlPrefix = {UrlPrefix} }}";
+}
+
 /// <summary>Managed clones and per-job worktrees (implemented in Infrastructure.Git).</summary>
 public interface IWorktreeManager
 {

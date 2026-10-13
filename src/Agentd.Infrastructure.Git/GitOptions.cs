@@ -16,6 +16,12 @@ public sealed class GitOptions
 
     public string KnownHostsPath { get; set; } = "~/.agentd/ssh/known_hosts";
 
+    /// <summary>
+    /// Azure DevOps over HTTPS with agentd's Azure DevOps sign-in (the default): SSH remotes (<c>git@ssh.dev.azure.com:v3/…</c>,
+    /// or an SSH host alias with a <c>v3/</c> path) are used as their HTTPS address. False keeps SSH and the key above.
+    /// </summary>
+    public bool AzureDevOpsOverHttps { get; set; } = true;
+
     /// <summary>Keep worktrees after a job ends (debugging).</summary>
     public bool KeepWorktrees { get; set; }
 

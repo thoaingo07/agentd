@@ -53,6 +53,22 @@ public sealed class PullRequestsAndAuthTests
     }
 
     [TestMethod]
+    public async Task Git_gets_agentds_own_sign_in_for_azure_devops_only()
+    {
+        using var provider = new AzCliAuthProvider(new CountingCredential());
+        var pat = new PatAuthProvider(Options.Create(new AzureDevOpsOptions { Pat = "secret-pat" }));
+
+        var bearer = (await new AdoGitCredentials(provider).GetAsync(default)).Single();
+        var basic = (await new AdoGitCredentials(pat).GetAsync(default)).Single();
+        var again = (await new AdoGitCredentials(provider).GetAsync(default)).Single();
+
+        Assert.AreEqual(("https://dev.azure.com/", "Authorization: Bearer token-1"), (bearer.UrlPrefix, bearer.Header));
+        Assert.AreEqual("Authorization: Basic " + Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes(":secret-pat")), basic.Header);
+        Assert.AreEqual(bearer.Header, again.Header, "the cached token, not a new sign-in per git command");
+        Assert.DoesNotContain("token-1", bearer.ToString(), "never printed");
+    }
+
+    [TestMethod]
     public async Task A_401_refreshes_the_az_cli_token_once_and_retries()
     {
         var credential = new CountingCredential();
