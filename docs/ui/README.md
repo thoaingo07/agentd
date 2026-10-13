@@ -64,25 +64,36 @@ Adding anything else needs a note in this section explaining why.
 ## 3. App shell
 
 ```
-┌──────────────────────────────────────────────────────────────────────────────┐
-│ ● agentd        Dashboard   History   Settings          ⚠ 2 waiting   ◐ ● Live │  navbar
-├──────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│  <router-view />                                                             │
-│                                                                              │
-└──────────────────────────────────────────────────────────────────────────────┘
-                                                       ┌─────────────────────┐
-                                                       │ ✓ Retry queued      │  toast (ui store)
-                                                       └─────────────────────┘
+┌────────────────┬─────────────────────────────────────────────────────────────┐
+│ ● agentd       │                                                             │
+│                │  <router-view />                                            │
+│ ▦ Dashboard    │                                                             │
+│ ↺ History      │                                                             │
+│ 💡 Ideas        │                                                             │
+│ 💬 Chat         │                                                             │
+│▐ Reviews      │                                                             │
+│ 📄 Artifacts    │                                                             │
+│ ⚙ Settings     │                                                             │
+│                │                                                             │
+│ ⚠ 2 waiting    │                                                             │
+│ CPU 3% · RAM … │                                                             │
+│ ● Live         │                                                ┌──────────┐ │
+│ System Light Dark│                                              │ ✓ Retry … │ │  toast (ui store)
+└────────────────┴────────────────────────────────────────────────└──────────┘─┘
 ```
 
-- **Navbar:**
+- **Vertical menu** (decided 2026-10-12; replaced the top navbar), from `md` up: a sticky column on the left
+  (`AppShell`):
   - a green logo dot;
-  - nav links, where the active one is underlined with `primary`;
-  - a **waiting counter** (a `badge-warning` that links to the dashboard filtered to `WaitingForHuman`);
-  - a theme toggle (System / Light / Dark);
-  - a **connection indicator**: green "Live", amber "Reconnecting…", red "Offline".
-- **Mobile:** the nav collapses into a daisyUI `drawer`.
+  - Nuxt UI's `UNavigationMenu` (`orientation="vertical"`, `color="neutral"`) with Lucide icons. The active section is
+    bold on a `base-300` background, and stays active on its own pages (`/reviews/7` → Reviews; the dashboard only on
+    `/`), with `aria-current="page"`;
+  - at the bottom: a **waiting counter** (a `badge-warning` that links to the dashboard filtered to
+    `WaitingForHuman`), the machine's CPU/RAM/disk (links to the Host panel), a **connection indicator** (green "Live",
+    amber "Reconnecting…", red "Offline") and the theme toggle (System / Light / Dark).
+- **Phones:** a top bar instead: ☰ (the links in a dropdown), the logo, the short machine line and the connection
+  indicator.
+- Settings keeps its own vertical menu beside its pages (`SettingsLayout`).
 
 ---
 

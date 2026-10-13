@@ -72,6 +72,18 @@ describe('resources', () => {
     expect(machine.attributes('href')).toBe('/settings')   // the Host panel
   })
 
+  it('the vertical menu keeps a section highlighted on its own pages, and the dashboard only on itself', async () => {
+    const r = router()
+    await r.push('/reviews/7')
+    const w = mount(AppShell, { global: { plugins: [r] } })
+    await flushPromises()
+
+    const nav = w.get('nav[aria-label="Main"]')
+    expect(nav.findAll('a').map((a) => a.text())).toEqual(['Dashboard', 'History', 'Ideas', 'Chat', 'Reviews', 'Artifacts', 'Settings'])
+    expect(nav.get('a[href="/reviews"]').attributes('aria-current')).toBe('page')
+    expect(nav.get('a[href="/"]').attributes('aria-current')).toBeUndefined()
+  })
+
   it('the Host panel shows CPU and load, RAM, swap and every disk', async () => {
     const w = mount(HostPanel)
     await flushPromises()
