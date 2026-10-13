@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>agentd</title>
+    <link rel="stylesheet" href="style.css">
+    <script type="module" src="servers.js"></script>
+  </head>
+  <body>
+    <main>
+      <h1><span class="logo" aria-hidden="true"></span> agentd</h1>
+      <p class="muted" id="status" role="status"></p>
+      <p class="error" id="error" role="alert" hidden></p>
+
+      <section aria-labelledby="servers-title">
+        <h2 id="servers-title">Your servers</h2>
+        <p class="muted" id="empty" hidden>No servers yet. Add the address you open agentd's web UI at.</p>
+        <ul id="servers"></ul>
+      </section>
+
+      <form id="add" aria-labelledby="add-title" autocomplete="off">
+        <h2 id="add-title">Add a server</h2>
+        <label>Name <input name="name" required placeholder="Work"></label>
+        <label>URL <input name="url" required type="url" placeholder="https://agentd.example.com"></label>
+        <p class="muted">https://, or http:// for agentd on this computer or through an SSH tunnel (localhost).</p>
+        <button type="submit">Add</button>
+      </form>
+    </main>
+  </body>
+</html>
