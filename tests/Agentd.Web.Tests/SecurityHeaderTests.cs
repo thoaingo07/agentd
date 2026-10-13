@@ -27,13 +27,13 @@ public sealed class SecurityHeaderTests
         using var response = await client.GetAsync(new Uri(path, UriKind.Relative));
 
         var csp = Header(response, "Content-Security-Policy");
-        foreach (var directive in new[] { "default-src 'none'", "script-src 'self'", "style-src 'self'", "frame-ancestors 'none'", "object-src 'none'", "base-uri 'none'", "report-to csp" })
+        foreach (var directive in new[] { "default-src 'none'", "script-src 'self';", "style-src 'self' 'unsafe-inline';", "frame-ancestors 'none'", "object-src 'none'", "base-uri 'none'", "report-to csp" })
         {
             StringAssert.Contains(csp, directive);
         }
 
-        Assert.DoesNotContain("unsafe-inline", csp);
         Assert.DoesNotContain("unsafe-eval", csp);
+        Assert.AreEqual(1, csp.Split("unsafe-inline").Length - 1, "inline styles only (Nuxt UI's colors), never inline scripts");
         Assert.DoesNotContain("upgrade-insecure-requests", csp, "plain http on loopback");
         StringAssert.Contains(Header(response, "Content-Security-Policy-Report-Only"), "require-trusted-types-for 'script'");
         Assert.AreEqual("csp=\"/api/csp-report\"", Header(response, "Reporting-Endpoints"));

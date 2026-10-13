@@ -5,6 +5,7 @@ import { createMemoryHistory, createRouter } from 'vue-router'
 import { setAntiforgeryUrl } from '../ClientApps/shared/api/http'
 import ReviewView from '../ClientApps/dashboard/views/ReviewView.vue'
 import ReviewsView from '../ClientApps/dashboard/views/ReviewsView.vue'
+import USelect from '@nuxt/ui/components/Select.vue'
 import { openPrsPollMs, reviewPollMs } from '../ClientApps/dashboard/stores/reviews'
 
 type Call = { method: string; path: string; body: unknown }
@@ -121,8 +122,13 @@ describe('reviews', () => {
     const view = mount(ReviewsView, { global: { plugins: [router()] } })
     await flushPromises()
     await view.get('input[placeholder="feature/keyset-chunks"]').setValue('feature/keyset')
-    await view.get('select[aria-label="Reviewer model"]').setValue('opus')
-    await view.get('select[aria-label="Reviewer effort"]').setValue('max')
+    await view.findAll('button').find((b) => b.text().startsWith('Options'))!.trigger('click')
+    await flushPromises()
+    // Nuxt UI's select is a listbox, not a <select>: pick through its v-model.
+    const select = (label: string) => view.findAllComponents(USelect).find((c) => c.vm.$attrs['aria-label'] === label)!
+    select('Reviewer model').vm.$emit('update:modelValue', 'opus')
+    select('Reviewer effort').vm.$emit('update:modelValue', 'max')
+    await flushPromises()
     await view.get('input[aria-label="Focus"]').setValue(' security, tests ')
     await view.get('textarea[aria-label="Instructions for the reviewer"]').setValue('the paging change matters most')
     await view.get('form').trigger('submit')

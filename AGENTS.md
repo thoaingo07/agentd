@@ -55,6 +55,8 @@ The design lives in [`docs/architect`](docs/architect/README.md), and the phased
 - **Web UI:**
   - Vue 3 + TypeScript + Vite, Pinia setup stores (no TanStack or other data-fetching libraries),
     daisyUI 5 on Tailwind 4 (the agentd green theme), and base-ui-vue for reusable `Ag*` components;
+  - **Nuxt UI pilot (2026-10-12):** the Reviews page uses Nuxt UI 4 `U*` components to judge moving every screen to
+    it ([`docs/ui`](docs/ui/README.md) §1). Other screens keep daisyUI and `Ag*` until that's decided;
   - follow [`docs/ui`](docs/ui/README.md) and [`docs/design-system`](docs/design-system/README.md);
   - **`src/Agentd.Web`** holds all Vue apps (`ClientApps/<app>/main.ts`, one `package.json` at the
     project root), `Views/Shared/_Layout.cshtml` and `ViteHelper`. The HTML shell is a Razor view; there's no
@@ -62,7 +64,7 @@ The design lives in [`docs/architect`](docs/architect/README.md), and the phased
     Development proxies that prefix, including HMR, to the Vite dev server (`UseProxyToSpaDevelopmentServer`). Open the app on the Host URL, not
     the Vite port.
 - **Browser security:**
-  - strict CSP with no inline scripts or styles and no `eval`;
+  - strict CSP with no inline scripts and no `eval` (inline styles are allowed for Nuxt UI's colors);
   - never use `v-html`;
   - HttpOnly cookies only, and antiforgery on every unsafe `/api` or `/bff` request.
 

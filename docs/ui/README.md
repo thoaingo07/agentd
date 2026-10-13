@@ -6,7 +6,7 @@ Chat (Discord, Telegram, … through messaging providers) remains the main conve
 messages sent from the UI are mirrored into all of the job's chat conversations.
 
 - **Stack:** Vue 3 (`<script setup>`, TypeScript) · Vite · Vue Router · **Pinia (plain reactive
-  stores)** · daisyUI 5 / Tailwind CSS 4 · base-ui-vue primitives · `@microsoft/signalr`
+  stores)** · daisyUI 5 / Tailwind CSS 4 · base-ui-vue primitives · `@microsoft/signalr` · **Nuxt UI (pilot)**
 - **Look and feel:** [Design System](../design-system/README.md)
 - **Backend contract:** the **BFF** (`Agentd.Bff`); see [Clean Architecture + BFF §5.1](../architect/clean-architecture-bff.md#51-agentdbff-backend-for-frontend-browser) and [Architecture §3.9](../architect/README.md). The SPA calls only `/bff/*`, `/api/*` and `/hubs/*` on its own origin.
 - **Browser security:** [Security](../security/README.md): HttpOnly cookies, antiforgery, strict CSP
@@ -23,11 +23,13 @@ listed here. State and server data live in **Pinia setup stores** that call `fet
 | `vue`, `vue-router`, `pinia` | framework, routing, state |
 | `@microsoft/signalr` | live event stream (the backend protocol) |
 | `base-ui-vue` | accessible headless primitives for the `Ag*` components |
+| `@nuxt/ui` | **pilot (decided 2026-10-12):** Nuxt UI 4's `U*` components (Reka UI, Tailwind Variants) on the Reviews page (`ReviewsView`), to judge moving every screen to it. Imported explicitly (`@nuxt/ui/components/Button.vue`), set up by `@nuxt/ui/vite` (it brings `@tailwindcss/vite`) and `@nuxt/ui/vue-plugin`, under `<UApp>` in the dashboard. Primary color `agentd` (#42b883 as a palette in `app.css`), neutral `slate`; dark mode follows agentd's theme switch (the `dark` class, set by `theme-init.js` and `stores/ui.ts`). Needs `'unsafe-inline'` for styles (docs/security §3). Until the decision, the other screens keep daisyUI and `Ag*` |
 
 | Dev dependency | Why |
 |---|---|
 | `vite`, `@vitejs/plugin-vue`, `typescript`, `vue-tsc` | build and type-check |
 | `tailwindcss`, `@tailwindcss/vite`, `daisyui` | styling (compiled away; no runtime) |
+| `@iconify-json/lucide` | Nuxt UI's icons, bundled at build time (no Iconify API calls) |
 | `openapi-typescript` | generate `api/schema.d.ts` from the daemon's OpenAPI document (types only) |
 | `vitest`, `@vue/test-utils` | unit tests for stores and components |
 

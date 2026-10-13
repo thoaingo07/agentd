@@ -5,9 +5,6 @@ namespace Agentd.Bff.Security;
 
 public sealed class SecurityHeadersOptions
 {
-    /// <summary>The Vite dev server is proxied (Development + HMR): its client injects &lt;style&gt; elements, so styles need 'unsafe-inline'. Never in production.</summary>
-    public bool AllowInlineStylesForDevServer { get; set; }
-
     /// <summary>Path prefix of Vite's content-hashed build output, cached forever.</summary>
     public string ImmutableAssetsPath { get; set; } = "/_content/Agentd.Web/assets";
 }
@@ -21,14 +18,18 @@ public static class SecurityHeaders
 {
     public const string ReportPath = "/api/csp-report";
 
-    /// <summary>The enforced policy. <c>upgrade-insecure-requests</c> only over https (plain http is loopback only).</summary>
-    public static string Policy(bool https, bool inlineStyles) =>
+    /// <summary>
+    /// The enforced policy. <c>upgrade-insecure-requests</c> only over https (plain http is loopback only). Styles allow
+    /// 'unsafe-inline' (decided 2026-10-12 with the Nuxt UI pilot: it injects its color variables in a &lt;style&gt;, and the
+    /// Vite dev server injects its CSS the same way); scripts never do. See docs/security §3.
+    /// </summary>
+    public static string Policy(bool https) =>
         string.Join("; ",
             new[]
             {
                 "default-src 'none'",
                 "script-src 'self'",
-                inlineStyles ? "style-src 'self' 'unsafe-inline'" : "style-src 'self'",
+                "style-src 'self' 'unsafe-inline'",
                 "img-src 'self' data:",
                 "font-src 'self'",
                 "connect-src 'self'",
@@ -98,7 +99,7 @@ public static class SecurityHeaders
         }
         else
         {
-            headers.ContentSecurityPolicy = Policy(request.IsHttps, options.AllowInlineStylesForDevServer);
+            headers.ContentSecurityPolicy = Policy(request.IsHttps);
             headers.ContentSecurityPolicyReportOnly = ReportOnlyPolicy;
         }
 

@@ -1,4 +1,21 @@
 @import "tailwindcss";
+/* Nuxt UI (pilot, docs/ui §1): its components' styles, next to daisyUI while screens move over. */
+@import "@nuxt/ui";
+
+/* agentd green (#42b883) as a Tailwind palette, Nuxt UI's primary (vite.config.ts → ui.colors.primary). */
+@theme static {
+  --color-agentd-50: #effaf5;
+  --color-agentd-100: #d8f3e6;
+  --color-agentd-200: #b3e6cf;
+  --color-agentd-300: #84d4b2;
+  --color-agentd-400: #5ec59b;
+  --color-agentd-500: #42b883;
+  --color-agentd-600: #33996c;
+  --color-agentd-700: #2a7a57;
+  --color-agentd-800: #246147;
+  --color-agentd-900: #1f503b;
+  --color-agentd-950: #0f2d20;
+}
 
 /* The HTML shell is a Razor view in this project; scan the views for utility classes too. */
 @source "../../../Views";

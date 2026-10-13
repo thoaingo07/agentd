@@ -6,7 +6,6 @@ using Agentd.Infrastructure.Claude;
 using Agentd.Infrastructure.Persistence;
 using Agentd.Mcp;
 using Agentd.Web;
-using Agentd.Web.Vite;
 using Microsoft.Extensions.Options;
 
 namespace Agentd.Host;
@@ -61,7 +60,7 @@ internal static class DaemonHost
         var app = builder.Build();
 
         app.UseBffForwardedHeaders();             // Cloudflare Tunnel only: https + visitor IP from cloudflared
-        app.UseSecurityHeaders(o => o.AllowInlineStylesForDevServer = app.Services.GetRequiredService<ViteHelper>().UsesDevServer);   // first: every response
+        app.UseSecurityHeaders();                 // first: every response
 
         app.UseAgentdMcpOriginGuard();            // browsers never reach /mcp
         app.UseBffHubOriginGuard();               // /hubs: same-origin browsers only

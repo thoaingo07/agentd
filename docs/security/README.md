@@ -203,7 +203,7 @@ wrapper. The XSRF header and its one retry stay built in, so no middleware can d
 Content-Security-Policy:
   default-src 'none';
   script-src 'self';
-  style-src 'self';
+  style-src 'self' 'unsafe-inline';
   img-src 'self' data:;
   font-src 'self';
   connect-src 'self';
@@ -225,6 +225,10 @@ Reporting-Endpoints: csp="/api/csp-report"
   third-party hosts. Every script is a same-origin file emitted by Vite.
 - `default-src 'none'`: anything not listed explicitly is blocked.
 
+**Inline styles are allowed** (decided 2026-10-12, with the Nuxt UI pilot, docs/ui §1): Nuxt UI injects its color
+variables in a `<style>` element at runtime, and the Vite dev server injects its CSS the same way. Inline styles can't run
+code, so scripts stay as strict as before.
+
 ### 3.2 What the UI must do to comply
 
 | Rule | How |
@@ -232,7 +236,8 @@ Reporting-Endpoints: csp="/api/csp-report"
 | No inline `<script>` in the HTML shell | The shell is `Agentd.Web`'s Razor layout (`ViteHelper`); it only emits `<script src>`, `<link>` and `modulepreload` tags from Vite's manifest (`Agentd.Bff.Tests` checks for inline code). The pre-paint theme loader is an external file, `public/theme-init.js`, loaded with a plain `<script src>` in `<head>`. |
 | No `eval` / `new Function` | use the **runtime-only** Vue build (the Vite default: SFC templates are precompiled). Never alias `vue` to `vue/dist/vue.esm-bundler.js`, and never use in-DOM or string templates. |
 | No inline event handlers (`onclick="..."`) | Vue `@click` bindings are attached with `addEventListener`, so they are fine. |
-| No inline `<style>` / `style="..."` in HTML | all CSS comes from the built `/assets/*.css`. Vue `:style` bindings and base-ui-vue positioning set styles through the CSSOM (`el.style.*`), which `style-src 'self'` allows. |
+| Styles come from the built CSS | all CSS comes from the built `/assets/*.css`, plus Nuxt UI's color variables in one `<style>` it adds at runtime (`'unsafe-inline'` for styles only). Vue `:style` bindings and base-ui-vue / Reka UI positioning set styles through the CSSOM (`el.style.*`). |
+| No calls to icon or font CDNs | Nuxt UI's icons are bundled from `@iconify-json/*` at build time (`icon.clientBundle.scan`), so the Iconify API is never called (`connect-src 'self'` would block it). |
 | No external fonts, CDNs or analytics | system font stack (Design System §3), icons as inline SVG components |
 | `connect-src 'self'` | REST and SignalR are same-origin. CSP Level 3 browsers match `ws:`/`wss:` to the same origin under `'self'`. |
 | `form-action 'self'` | make **login a link** (`<a href="/bff/login">`, a GET navigation), not a form POST. A POST that redirects to the IdP (`login.microsoftonline.com`, `accounts.google.com`) would be blocked. Logout is a same-origin `POST /bff/logout` with the antiforgery header. |

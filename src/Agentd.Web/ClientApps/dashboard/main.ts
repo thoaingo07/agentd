@@ -1,5 +1,6 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
+import ui from '@nuxt/ui/vue-plugin'
 import App from './App.vue'
 import { router } from './router'
 import { use } from '../shared/api/http'
@@ -9,7 +10,7 @@ import { useSessionStore } from './stores/session'
 import { useUiStore } from './stores/ui'
 import '../shared/styles/app.css'
 
-const app = createApp(App).use(createPinia()).use(router)
+const app = createApp(App).use(createPinia()).use(router).use(ui)   // Nuxt UI (pilot, docs/ui §1)
 
 // App interceptors (http.ts already handles the antiforgery token and 401s).
 use({
