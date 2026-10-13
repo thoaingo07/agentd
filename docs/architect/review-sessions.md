@@ -148,6 +148,10 @@ Delivery (one PR each, under 1000 lines):
    view), and the agent already has the guide and the findings in its prompt (§2, Ask). Hidden once the review is
    Sent or Closed.
 5. A chat `!review` gets the guide too; keyboard navigation (next chapter / finding); generated files hidden.
+   Reading aids (done 2026-10-13): `j` / `k` move focus to the next / previous finding on the page, in both views
+   (`]` / `[` move between chapters). Generated files (lockfiles, minified or built output, `*.g.cs`, migration
+   snapshots, `dist/`, `vendor/`) are tagged **generated** and their diff is hidden until **Show the diff**, unless
+   the reviewer found something in them.
 
 ## 3. On the server
 
