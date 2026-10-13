@@ -7,10 +7,13 @@ import type { WorkItemDraft } from '../../shared/api/types'
 import { AgButton } from '../../shared/components/ui'
 import MarkdownText from '../../shared/components/MarkdownText.vue'
 import IdeaStatusBadge from '../components/IdeaStatusBadge.vue'
+import PromptsLink from '../components/prompts/PromptsLink.vue'
+import { useSessionStore } from '../stores/session'
 import { ideaChoices, ideaEfforts, ideaModels, useIdeasStore } from '../stores/ideas'
 
 const props = defineProps<{ id: number }>()
 const ideas = useIdeasStore()
+const session = useSessionStore()
 const idea = computed(() => (ideas.current?.idea.id === props.id ? ideas.current : null))
 
 /** Stories (and parentless tasks) in order, each with the tasks that name it as parent. */
@@ -92,6 +95,12 @@ onBeforeUnmount(() => ideas.close())
         <p class="text-sm text-muted">
           #{{ idea.idea.id }} · {{ idea.idea.repo }} · by {{ idea.idea.author }} · started {{ clock(idea.idea.createdAt) }}
           · model {{ idea.idea.model ?? 'default' }}, effort {{ idea.idea.effort ?? 'default' }}
+          <template v-if="session.user?.roles.includes('Admin')">
+            · <PromptsLink
+              source="idea"
+              :source-id="idea.idea.id"
+            />
+          </template>
         </p>
         <p
           v-if="idea.idea.createdWorkItems.length"

@@ -10,6 +10,7 @@ import GuidedReview from '../../shared/review/GuidedReview.vue'
 import { keptAs, suggestionComment } from '../../shared/review/suggestions'
 import { fileName, folder } from '../../shared/utils/paths'
 import { useReviewsStore } from '../stores/reviews'
+import PromptsLink from '../components/prompts/PromptsLink.vue'
 
 // The review page (docs/architect/review-sessions.md §2): files, the diff with findings and comments at their lines,
 // and the findings, your comments and a comment on the whole change at the side.
@@ -196,6 +197,10 @@ const where = (a: { file?: string | null; line?: number | null; endLine?: number
             class="link"
             data-testid="chat-link"
           >💬 From chat ({{ s.createdBy }}): open the thread</a>
+          <PromptsLink
+            source="review-session"
+            :source-id="s.id"
+          />
         </p>
         <p
           v-if="s.status === 'Reviewing'"

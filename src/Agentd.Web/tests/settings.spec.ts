@@ -18,6 +18,7 @@ const router = () => createRouter({
   routes: [
     { path: '/settings', name: 'settings', component: { template: '<div />' } },
     { path: '/settings/log', name: 'system-log', component: { template: '<div />' } },
+    { path: '/settings/prompts', name: 'prompts', component: { template: '<div />' } },
     { path: '/settings/:area', name: 'settings-area', component: { template: '<div />' } },
   ],
 })
@@ -90,7 +91,7 @@ describe('Settings', () => {
     session.user = { name: 'local', roles: ['Admin'], provider: 'local' }
     await flushPromises()
     const menu = view.get('nav[aria-label=Settings] ul.menu')
-    expect(menu.findAll('a').map((a) => a.text())).toEqual(['General', 'Health', 'Database', 'Azure DevOps', 'Git access', 'Claude', 'Models', 'Chat', 'Repositories', 'Artifacts', 'Folders', 'System log'])
+    expect(menu.findAll('a').map((a) => a.text())).toEqual(['General', 'Health', 'Database', 'Azure DevOps', 'Git access', 'Claude', 'Models', 'Chat', 'Repositories', 'Artifacts', 'Folders', 'System log', 'Prompts'])
   })
 
   it('an area page has the vertical menu with its own entry current', async () => {
