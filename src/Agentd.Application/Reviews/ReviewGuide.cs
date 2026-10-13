@@ -194,6 +194,13 @@ public static partial class ReviewGuides
             .Distinct()
             .Take(MaxCallouts)];
 
+    /// <summary><paramref name="text"/> without its review-guide block (for chat: the page shows the guide, the thread doesn't).</summary>
+    public static string Strip(string text)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        return Block().Replace(text, string.Empty).Trim();
+    }
+
     private static string Clean(string? path) => (path ?? string.Empty).Trim().TrimStart('/');
 
     private static string? Blank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();

@@ -305,6 +305,44 @@ public sealed class ReviewServiceTests
     }
 
     [TestMethod]
+    public async Task A_chat_review_with_a_page_writes_the_guide_for_the_page_and_the_thread_never_shows_it()
+    {
+        var h = new Harness(withPage: true);
+        h.Worktrees.ChangedFiles.Clear();
+        h.Worktrees.ChangedFiles.AddRange(["charts/api/values.yaml", "azure-pipelines.yml"]);
+        h.Agent.Replies.Enqueue(Findings + """
+
+            ```review-guide
+            {"overview":"Deploys to AKS from two pipelines.","chapters":[{"title":"The chart","why":"Probes decide traffic.","files":[{"path":"charts/api/values.yaml","summary":"probes"}]}],
+             "callouts":[{"kind":"config","detail":"replicas default to 2"}]}
+            ```
+            """);
+
+        await h.Service.StartAsync(s_discord, "Kelvin", ["3944"], default);
+        await h.WaitForSentAsync(2);
+
+        StringAssert.Contains(h.Agent.Turns.Single().Prompt, "```review-guide", "a chat review with a page is asked for the guide");
+        var guide = h.Sessions.Sessions[1].Guide!;
+        Assert.AreEqual("Deploys to AKS from two pipelines.", guide.Overview);
+        CollectionAssert.AreEqual(new[] { "The chart", ReviewGuides.Rest }, guide.Chapters.Select(c => c.Title).ToList(), "fitted to the PR's files");
+        Assert.AreEqual("replicas default to 2", guide.Callouts!.Single().Detail);
+        Assert.IsFalse(h.Chat.SentText.Any(t => t.Contains("review-guide", StringComparison.Ordinal) || t.Contains("Deploys to AKS", StringComparison.Ordinal)), "the guide is for the page");
+        StringAssert.Contains(h.Chat.SentText.Last(), "Readiness probe path is wrong");
+    }
+
+    [TestMethod]
+    public async Task A_chat_review_without_a_page_isnt_asked_for_a_guide()
+    {
+        var h = new Harness();
+        h.Agent.Replies.Enqueue(Findings);
+
+        await h.Service.StartAsync(s_discord, "tngo", ["3944"], default);
+        await h.WaitForSentAsync(2);
+
+        Assert.DoesNotContain("review-guide", h.Agent.Turns.Single().Prompt);
+    }
+
+    [TestMethod]
     public async Task Without_the_page_or_when_it_fails_the_chat_review_goes_on()
     {
         var plain = new Harness();

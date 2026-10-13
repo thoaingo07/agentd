@@ -107,6 +107,7 @@ public sealed partial class ReviewService(
             $"(head {details.SourceCommit}; the target is origin/{details.TargetBranch}). Requested by {author}.")
             + (focus is null ? string.Empty : $" Focus on: {focus}.")
             + (instructions is null ? string.Empty : $"\n\nInstructions from {author}: {instructions}")
+            + (page is null ? string.Empty : ReviewSessionReviewer.GuideAsk + " The guide goes to the review's page, not this thread.")
             + (string.IsNullOrWhiteSpace(details.Description) ? string.Empty : $"\n\nPR description:\n{Clip(details.Description, 3000)}")
             + await WorkItemContextAsync(details, ct).ConfigureAwait(false)
             + await OpenThreadsContextAsync(repo.Value, id, ct).ConfigureAwait(false);
@@ -139,6 +140,26 @@ public sealed partial class ReviewService(
         {
             LogSessionFailed(logger, ex, review.Id);
             return null;
+        }
+    }
+
+    /// <summary>The reply's guide, to the review's page (the chat thread never shows it); a bad or missing guide is left out.</summary>
+    private async Task MirrorGuideAsync(Review review, string reply, CancellationToken ct)
+    {
+        if (sessions is null || ReviewGuides.Extract(reply).Guide is not { } guide)
+        {
+            return;
+        }
+
+        try
+        {
+            await sessions.MirrorGuideAsync(review.Id, guide, ct).ConfigureAwait(false);
+        }
+#pragma warning disable CA1031 // the page is extra: the chat review never fails because of it
+        catch (Exception ex) when (ex is not OperationCanceledException)
+#pragma warning restore CA1031
+        {
+            LogSessionFailed(logger, ex, review.Id);
         }
     }
 
@@ -661,6 +682,8 @@ public sealed partial class ReviewService(
 
         await SaveAsync(review, ct).ConfigureAwait(false);
         await reviews.AddMessageAsync(review.Id, "out", "agent", reply.Text, ct).ConfigureAwait(false);
+        await MirrorGuideAsync(review, reply.Text, ct).ConfigureAwait(false);
+        text = ReviewGuides.Strip(text);
         if (text.Length > 0)
         {
             await PostAsync(review, new OutboundMessage(MessageKind.Info, text), ct).ConfigureAwait(false);
