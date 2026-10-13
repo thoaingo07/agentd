@@ -169,6 +169,19 @@ At most two reviews run at once (`ReviewSessionReviewer.MaxConcurrent`). A sessi
 started again by the review monitor's next pass. A usage limit, an unreadable reply or an error makes it `Failed`
 with the reason shown on the page.
 
+**The rubric:** `ReviewRules` ends with `ReviewChecks` (revised 2026-10-13, adapted from
+[pi-review](https://github.com/earendil-works/pi-review/blob/main/review.ts)'s rubric). It keeps agentd's two kinds,
+and adds:
+- what qualifies: introduced by this change, provable (name the affected code), unintended, and one problem the
+  author would fix;
+- what to look hard at: silent failure (a catch or fallback that hides an error, errors matched by message text),
+  untrusted input (string-built SQL, unchecked redirects, server-side fetches that can reach internal addresses,
+  sanitizing where escaping works), and unbounded queues or retries;
+- how to write a finding: why and when it happens, not overstated, the most relevant line, and a concrete fix.
+
+Cleaner-code points (duplication, needless helpers, checks that hide programming errors) go to the guide's
+suggestions (`CleanCodeSuggestions`), never to the findings.
+
 Who may start one: anyone signed in to the web UI (or allowed in chat), for registered repositories.
 
 ## 4. Send: where the feedback goes

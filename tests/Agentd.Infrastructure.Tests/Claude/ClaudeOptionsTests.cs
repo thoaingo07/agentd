@@ -56,6 +56,8 @@ public sealed class ClaudeOptionsTests
 
         Assert.AreEqual(ClaudeBrainstormAgent.ReviewRules, args[args.IndexOf("--append-system-prompt") + 1]);
         StringAssert.Contains(ClaudeBrainstormAgent.ReviewRules, "```review-findings");
+        StringAssert.EndsWith(ClaudeBrainstormAgent.ReviewRules, ClaudeBrainstormAgent.ReviewChecks, "what qualifies and how to write it, every review");
+        StringAssert.Contains(ClaudeBrainstormAgent.ReviewChecks, "introduced by this change");
         Assert.AreEqual("Edit,Write,MultiEdit,NotebookEdit", args[args.IndexOf("--disallowedTools") + 1]);
         Assert.AreEqual(("--resume", "sonnet"), (args[args.IndexOf("--resume")], args[args.IndexOf("--model") + 1]));
         CollectionAssert.DoesNotContain(args, "--effort", "no effort given: the CLI default");

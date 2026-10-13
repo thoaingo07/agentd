@@ -68,8 +68,15 @@ Only two kinds of problems, so the review stays short:
 - 🟠 **performance:** N+1 queries, unbounded loops or memory, blocking calls on hot paths, missing pagination or
   indexes for growing data.
 
-Style, naming, docs, missing tests and "could be cleaner" are left out. The reviewer reads the code around each
-change and **only reports what it could confirm**. It skips anything already raised in the PR's open comment threads.
+Inside those two, it looks hard at:
+- errors that are hidden, for example a `catch` that returns an empty list;
+- untrusted input: SQL built from strings, unchecked redirects, or the server fetching a URL a user supplied;
+- queues or retries with no limit.
+
+A finding must be new in this change, provable (it names the code that's affected), and something the author would
+fix. Style, naming, docs, missing tests and "could be cleaner" are left out of the findings. On the review page,
+cleaner-code ideas appear as **suggestions** instead. The reviewer reads the code around each change and **only
+reports what it could confirm**. It skips anything already raised in the PR's open comment threads.
 At most 15 findings, worst first.
 
 ## Findings
