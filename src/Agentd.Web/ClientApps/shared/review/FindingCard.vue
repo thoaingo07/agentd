@@ -3,9 +3,9 @@ import { ref } from 'vue'
 import type { ReviewFinding } from '../api/types'
 import { AgButton } from '../components/ui'
 
-// One finding: 🔴 breaks / 🟠 performance, why and the fix, and the person's Keep · Edit · Drop.
+// One finding: 🔴 breaks / 🟠 performance, why and the fix, the person's Keep · Edit · Drop, and Ask "why is this a problem?".
 const props = defineProps<{ finding: ReviewFinding; readonly?: boolean }>()
-const emit = defineEmits<{ decide: [decision: 'kept' | 'dropped' | 'edited', text?: string] }>()
+const emit = defineEmits<{ decide: [decision: 'kept' | 'dropped' | 'edited', text?: string]; explain: [] }>()
 const editing = ref(false)
 const text = ref('')
 
@@ -87,7 +87,7 @@ function save(): void {
     </div>
     <div
       v-else-if="!readonly"
-      class="flex gap-2"
+      class="flex flex-wrap gap-2"
     >
       <AgButton
         size="sm"
@@ -109,6 +109,14 @@ function save(): void {
         @click="emit('decide', 'dropped')"
       >
         Drop
+      </AgButton>
+      <AgButton
+        size="sm"
+        variant="ghost"
+        data-testid="explain-finding"
+        @click="emit('explain')"
+      >
+        ❓ Why is this a problem?
       </AgButton>
     </div>
   </article>

@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { ApiError } from '../../shared/api/http'
-import type { ReviewAsk, ReviewSent } from '../../shared/api/types'
+import type { GuideChapter, ReviewAsk, ReviewFinding, ReviewSent } from '../../shared/api/types'
 import { AgButton } from '../../shared/components/ui'
 import MarkdownText from '../../shared/components/MarkdownText.vue'
 import DiffFileReview from '../../shared/review/DiffFileReview.vue'
@@ -52,6 +52,18 @@ async function act(work: () => Promise<unknown>): Promise<void> {
 const decide = (n: number, d: 'kept' | 'dropped' | 'edited', t?: string) => act(() => reviews.decide(n, d, t))
 const commentAt = (file: string, line: number, text: string) => act(() => reviews.comment({ file, line, text }))
 const askAt = (file: string, line: number, text: string) => act(() => reviews.ask({ file, line, text }))
+/** The guided review's Ask shortcuts: a ready-made question (the agent gets the guide and findings with it), then its answer in view. */
+const asksBox = ref<HTMLElement | null>(null)
+const explain = (input: { file?: string | null; line?: number | null; text: string }) => act(async () => {
+  await reviews.ask(input)
+  await nextTick()
+  asksBox.value?.querySelector('[data-testid="ask"]:last-of-type')?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' })
+})
+const explainChapter = (c: GuideChapter) =>
+  explain({ text: `Explain the chapter "${c.title}": what it does, how its files fit together, and what I should check while reading it.` })
+const explainFile = (path: string) => explain({ file: path, text: 'Explain what changed in this file and why, and how it fits the rest of the change.' })
+const explainFinding = (f: ReviewFinding) =>
+  explain({ file: f.file, line: f.line, text: `Why is finding #${f.number} "${f.title}" a problem? When does it happen, and is the suggested fix right?` })
 const overallSend = (kind: 'comment' | 'ask') => act(async () => {
   if (!overall.value.trim()) return
   if (kind === 'comment') await reviews.comment({ text: overall.value.trim() })
@@ -308,6 +320,8 @@ const where = (a: { file?: string | null; line?: number | null; endLine?: number
           :guide="s.guide"
           :files="reviews.files"
           :findings="s.findings"
+          :readonly="readonly"
+          @explain-chapter="explainChapter"
         >
           <template #file="{ file, notes }">
             <DiffFileReview
@@ -319,6 +333,8 @@ const where = (a: { file?: string | null; line?: number | null; endLine?: number
               @decide="decide"
               @comment="(line, text) => commentAt(file.newPath, line, text)"
               @ask="(line, text) => askAt(file.newPath, line, text)"
+              @explain-file="explainFile(file.newPath)"
+              @explain-finding="explainFinding"
               @remove-comment="(c) => act(() => reviews.removeComment(c))"
             />
           </template>
@@ -366,6 +382,8 @@ const where = (a: { file?: string | null; line?: number | null; endLine?: number
               @decide="decide"
               @comment="(line, text) => commentAt(f.newPath, line, text)"
               @ask="(line, text) => askAt(f.newPath, line, text)"
+              @explain-file="explainFile(f.newPath)"
+              @explain-finding="explainFinding"
               @remove-comment="(c) => act(() => reviews.removeComment(c))"
             />
           </div>
@@ -428,6 +446,7 @@ const where = (a: { file?: string | null; line?: number | null; endLine?: number
               :finding="f"
               :readonly="readonly"
               @decide="(d, t) => decide(f.number, d, t)"
+              @explain="explainFinding(f)"
             />
             <ul class="grid gap-1 text-sm">
               <li
@@ -535,6 +554,7 @@ const where = (a: { file?: string | null; line?: number | null; endLine?: number
           </section>
           <section
             v-if="reviews.current?.asks.length"
+            ref="asksBox"
             aria-labelledby="asks-title"
             class="grid gap-3 text-sm"
           >

@@ -13,6 +13,8 @@ const emit = defineEmits<{
   comment: [line: number, text: string]
   ask: [line: number, text: string]
   removeComment: [id: number]
+  explainFile: []
+  explainFinding: [finding: ReviewFinding]
 }>()
 const tint = { add: 'bg-success/10', del: 'bg-error/10', context: '' } as const
 const mark = { add: '+', del: '-', context: ' ' } as const
@@ -57,6 +59,16 @@ function send(kind: 'comment' | 'ask'): void {
     <h3 class="flex items-center gap-2 border-b border-base-300 px-3 py-2 font-mono text-xs">
       <span class="font-semibold">{{ file.newPath }}</span>
       <span class="text-success">+{{ file.additions }}</span><span class="text-error">−{{ file.deletions }}</span>
+      <AgButton
+        v-if="!readonly"
+        size="sm"
+        variant="ghost"
+        class="ml-auto font-sans"
+        data-testid="explain-file"
+        @click="emit('explainFile')"
+      >
+        ❓ Explain this file
+      </AgButton>
     </h3>
     <div
       v-if="byLine.loose.length"
@@ -68,6 +80,7 @@ function send(kind: 'comment' | 'ask'): void {
         :finding="f"
         :readonly="readonly"
         @decide="(d, t) => emit('decide', f.number, d, t)"
+        @explain="emit('explainFinding', f)"
       />
     </div>
     <p
@@ -142,6 +155,7 @@ function send(kind: 'comment' | 'ask'): void {
                   :finding="f"
                   :readonly="readonly"
                   @decide="(d, t) => emit('decide', f.number, d, t)"
+                  @explain="emit('explainFinding', f)"
                 />
                 <div
                   v-for="c in byLine.comments.get(l.newNo) ?? []"

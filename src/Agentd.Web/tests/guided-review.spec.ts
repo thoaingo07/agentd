@@ -23,6 +23,7 @@ const guide = {
 }
 const finding = { number: 1, severity: 'breaks', file: 'src/Sync.cs', line: 41, title: 'Unbounded read', detail: null, suggestion: null, decision: 'kept', edited: null }
 let session: Record<string, unknown>
+let asked: Record<string, unknown>[]
 const json = (body: unknown) => new Response(JSON.stringify(body))
 const router = () => createRouter({ history: createMemoryHistory(), routes: [
   { path: '/reviews', name: 'reviews', component: { template: '<div />' } },
@@ -33,13 +34,18 @@ beforeEach(() => {
   setActivePinia(createPinia())
   setAntiforgeryUrl('/bff/antiforgery')
   window.localStorage.clear()
+  asked = []
   session = { id: 7, repo: 'sysmin', target: 'branch', pullRequestId: null, headRef: 'feature/keyset', baseRef: 'develop', baseCommit: 'a1b2c3d4', headCommit: 'f9e8d7c6',
     status: 'Ready', error: null, model: null, effort: null, summary: 'One real bug.', findings: [finding], createdBy: 'local', sentTo: null, createdAt: '2026-10-09T10:00:00Z',
     chatLink: null, postsFromChat: false, guide }
   vi.stubGlobal('fetch', vi.fn(async (req: Request) => {
     const path = new URL(req.url).pathname
     if (path === '/api/reviews/7/diff') return json({ baseCommit: 'a1b2c3d4', headCommit: 'f9e8d7c6', files: ['src/Sync.cs', 'docs/sync.md'], unifiedDiff: diff, truncated: false })
-    if (path === '/api/reviews/7') return json({ session, comments: [], asks: [] })
+    if (path === '/api/reviews/7/asks' && req.method === 'POST') {
+      asked.push(await req.json() as Record<string, unknown>)
+      return json({})
+    }
+    if (path === '/api/reviews/7') return json({ session, comments: [], asks: asked.map((a, i) => ({ id: i + 1, file: a.file ?? null, line: a.line ?? null, endLine: null, question: a.text, answer: null, author: 'local', askedAt: '2026-10-13T07:00:00Z', threadId: null })) })
     return json({ token: 't' })
   }))
 })
@@ -105,6 +111,37 @@ describe('guided review', () => {
     await view.findAll('button').find((b) => b.text() === 'All files')!.trigger('click')
     expect(view.find('[data-testid=guided-review]').exists()).toBe(false)
     expect(view.find('#file-docs\\/sync\\.md').exists()).toBe(true)
+    view.unmount()
+  })
+
+  it('asks for you: explain this chapter, explain this file, why is this finding a problem', async () => {
+    const view = await open()
+    await view.findAll('button').find((b) => b.text() === 'Start reading')!.trigger('click')
+
+    await view.get('[data-testid=explain-chapter]').trigger('click')
+    await flushPromises()
+    await view.get('[data-testid=guide-chapter] [data-testid=explain-file]').trigger('click')
+    await flushPromises()
+    await view.get('[data-testid=guide-chapter] [data-testid=explain-finding]').trigger('click')
+    await flushPromises()
+
+    expect(asked).toEqual([
+      { text: 'Explain the chapter "Keyset paging": what it does, how its files fit together, and what I should check while reading it.' },
+      { file: 'src/Sync.cs', text: 'Explain what changed in this file and why, and how it fits the rest of the change.' },
+      { file: 'src/Sync.cs', line: 41, text: 'Why is finding #1 "Unbounded read" a problem? When does it happen, and is the suggested fix right?' },
+    ])
+    expect(view.findAll('[data-testid=ask]')).toHaveLength(3)
+    view.unmount()
+  })
+
+  it('a sent review offers no Ask shortcuts', async () => {
+    session = { ...session, status: 'Sent' }
+    const view = await open()
+    await view.findAll('button').find((b) => b.text() === 'Start reading')!.trigger('click')
+
+    expect(view.find('[data-testid=explain-chapter]').exists()).toBe(false)
+    expect(view.find('[data-testid=explain-file]').exists()).toBe(false)
+    expect(view.find('[data-testid=explain-finding]').exists()).toBe(false)
     view.unmount()
   })
 
