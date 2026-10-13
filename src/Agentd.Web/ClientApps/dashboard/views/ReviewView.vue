@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ApiError } from '../../shared/api/http'
-import type { GuideChapter, ReviewAsk, ReviewFinding, ReviewSent } from '../../shared/api/types'
+import type { GuideChapter, GuideSuggestion, ReviewAsk, ReviewFinding, ReviewSent } from '../../shared/api/types'
 import { AgButton } from '../../shared/components/ui'
 import MarkdownText from '../../shared/components/MarkdownText.vue'
 import DiffFileReview from '../../shared/review/DiffFileReview.vue'
 import FindingCard from '../../shared/review/FindingCard.vue'
 import GuidedReview from '../../shared/review/GuidedReview.vue'
+import { keptAs, suggestionComment } from '../../shared/review/suggestions'
 import { fileName, folder } from '../../shared/utils/paths'
 import { useReviewsStore } from '../stores/reviews'
 
@@ -36,6 +37,13 @@ const short = (sha?: string | null) => (sha ? sha.slice(0, 7) : '…')
 const mode = ref<'guided' | 'files'>('guided')
 const guided = computed(() => mode.value === 'guided' && !!s.value?.guide)
 const suggestions = computed(() => s.value?.guide?.suggestions ?? [])
+const keptSuggestion = (g: GuideSuggestion) => keptAs(g, reviews.current?.comments ?? [])
+/** Keep makes the suggestion one of your comments (Send posts it, Fix it applies it); Undo removes that comment. */
+const keepSuggestion = (g: GuideSuggestion) => act(() => reviews.comment({ file: g.file, line: g.line, text: suggestionComment(g) }))
+const unkeepSuggestion = (g: GuideSuggestion) => act(async () => {
+  const c = keptSuggestion(g)
+  if (c) await reviews.removeComment(c.id)
+})
 
 watch(() => props.id, (id) => void reviews.open(id).catch((err) => (error.value = err instanceof ApiError ? err.message : 'This review can\'t be opened.')), { immediate: true })
 onBeforeUnmount(() => reviews.close())
@@ -417,7 +425,8 @@ const where = (a: { file?: string | null; line?: number | null; endLine?: number
               Suggestions · {{ suggestions.length }}
             </h2>
             <p class="text-xs text-muted">
-              Optional improvements: nothing breaks without them, and they aren't posted.
+              Optional improvements: nothing breaks without them. They're posted only if you keep them (as your comment, which
+              Fix it applies too).
             </p>
             <div
               v-for="(g, gi) in suggestions"
@@ -442,6 +451,32 @@ const where = (a: { file?: string | null; line?: number | null; endLine?: number
               >
                 {{ g.suggestion }}
               </p>
+              <div
+                v-if="keptSuggestion(g)"
+                class="flex flex-wrap items-center gap-2 text-xs"
+                data-testid="suggestion-kept"
+              >
+                <span class="badge badge-sm badge-success">kept</span>
+                <span>In your comments: it's sent, and Fix it applies it.</span>
+                <AgButton
+                  v-if="!readonly"
+                  size="sm"
+                  variant="ghost"
+                  @click="unkeepSuggestion(g)"
+                >
+                  Undo
+                </AgButton>
+              </div>
+              <div v-else-if="!readonly">
+                <AgButton
+                  size="sm"
+                  variant="outline"
+                  data-testid="keep-suggestion"
+                  @click="keepSuggestion(g)"
+                >
+                  Keep
+                </AgButton>
+              </div>
             </div>
           </section>
           <section
