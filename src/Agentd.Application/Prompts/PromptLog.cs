@@ -50,6 +50,23 @@ public static class PromptOutcomes
 public sealed record PromptStart(
     string Source, long SourceId, string? Step, Guid? Session, bool Resume, string? Model, string? Effort, string? Profile, string? Rules, string Prompt);
 
+/// <summary>What the Prompts page filters by; null is any. <see cref="Outcome"/> may also be <see cref="PromptFilter.Running"/>.</summary>
+public sealed record PromptFilter(string? Source = null, long? SourceId = null, string? Step = null, string? Model = null, string? Outcome = null, DateTimeOffset? From = null)
+{
+    /// <summary>Not finished yet.</summary>
+    public const string Running = "running";
+}
+
+/// <summary>A prompt in the list: its settings, how it ended, the start of what was sent and how long it and the reply were.</summary>
+public sealed record PromptSummary(
+    long Id, string Source, long SourceId, string? Step, Guid? Session, bool Resume, string? Model, string? Effort, string? Profile,
+    string? Outcome, string? Error, DateTimeOffset StartedAt, DateTimeOffset? FinishedAt, string Preview, int PromptChars, int ReplyChars, bool HasRules);
+
+/// <summary>A prompt, whole: what was sent, the system rules with it, and the reply.</summary>
+public sealed record PromptDetail(
+    long Id, string Source, long SourceId, string? Step, Guid? Session, bool Resume, string? Model, string? Effort, string? Profile,
+    string? Outcome, string? Error, DateTimeOffset StartedAt, DateTimeOffset? FinishedAt, string Prompt, string? Reply, string? Rules);
+
 /// <summary>
 /// Every prompt agentd sends to an agent, with its system rules, settings and how it ended, so the team can learn from them
 /// (docs/architect/prompt-log.md). Recording never fails a turn.
@@ -65,6 +82,12 @@ public interface IPromptLog
     /// <param name="reply">The agent's final answer (thread turns; a job's transcript is on its page).</param>
     /// <param name="cancellationToken">Cancels it.</param>
     Task FinishAsync(long id, string outcome, string? failure, string? reply, CancellationToken cancellationToken);
+
+    /// <summary>A page of prompts, newest first (the Prompts page).</summary>
+    Task<IReadOnlyList<PromptSummary>> ListAsync(PromptFilter filter, long? before, int limit, CancellationToken cancellationToken);
+
+    /// <summary>One prompt, whole, or null.</summary>
+    Task<PromptDetail?> GetAsync(long id, CancellationToken cancellationToken);
 
     /// <summary>Deletes prompts sent before <paramref name="before"/> (and rules no prompt uses any more); returns how many.</summary>
     Task<int> DeleteBeforeAsync(DateTimeOffset before, CancellationToken cancellationToken);

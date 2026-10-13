@@ -293,6 +293,11 @@ public sealed class ClaudeCodeRunnerTests
             return Task.CompletedTask;
         }
 
+        public Task<IReadOnlyList<Application.Prompts.PromptSummary>> ListAsync(Application.Prompts.PromptFilter filter, long? before, int limit, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<Application.Prompts.PromptSummary>>([]);
+
+        public Task<Application.Prompts.PromptDetail?> GetAsync(long id, CancellationToken cancellationToken) => Task.FromResult<Application.Prompts.PromptDetail?>(null);
+
         public Task<int> DeleteBeforeAsync(DateTimeOffset before, CancellationToken cancellationToken) => Task.FromResult(0);
     }
 

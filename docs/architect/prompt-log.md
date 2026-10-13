@@ -34,7 +34,18 @@ Prompts and replies longer than `Agentd:PromptLog:MaxChars` (200,000) are cut, s
 - **What's in it:** prompts carry work item and PR text and the repository's names, never agentd's secrets (agents never
   get them). It's as sensitive as a job's transcript, and shown to the same people.
 
+## Reading it
+
+**Admins only** (decided 2026-10-13): prompts carry work item, PR and code text from everyone's work, like the System
+log.
+
+- `GET /api/prompts`: newest first, 50 a page (at most 100, `limit`). Ask again with `before` = the last id while
+  `hasMore`. Filters: `source`, `sourceId` (a job, idea, chat, review, review session or ask thread), `step`, `model`,
+  `outcome` (`running` = not finished yet) and `from` (a time). Each row has the settings, how it ended, the first 300
+  characters (`preview`), and how long the prompt and reply were. Routine `agent_prompt_list`.
+- `GET /api/prompts/{id}`: one prompt, whole, with its system rules and the reply. Routine `agent_prompt_get`.
+
 ## Next
 
-The Prompts page: a list with filters (source, step, model, outcome, date), a prompt with its rules and reply, and
-links from a job's, idea's or review's page (`GET /api/prompts`, `GET /api/prompts/{id}`).
+The Prompts page on these endpoints: the list with its filters, a prompt with its rules and reply, and links from a job's,
+idea's or review's page.

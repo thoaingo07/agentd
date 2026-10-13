@@ -1629,6 +1629,139 @@
         }
       }
     },
+    "/api/prompts": {
+      "get": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "ListPrompts",
+        "parameters": [
+          {
+            "name": "source",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sourceId",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "step",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "model",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "outcome",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptPageVm"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/prompts/{id}": {
+      "get": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "GetPrompt",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptDetailVm"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/settings/restart": {
       "get": {
         "tags": [
@@ -6085,6 +6218,239 @@
           }
         },
         "description": "Another provider: endpoint and models; the API key as a status only."
+      },
+      "PromptDetailVm": {
+        "required": [
+          "id",
+          "source",
+          "sourceId",
+          "step",
+          "session",
+          "resume",
+          "model",
+          "effort",
+          "profile",
+          "outcome",
+          "error",
+          "startedAt",
+          "finishedAt",
+          "prompt",
+          "reply",
+          "rules"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "source": {
+            "type": "string"
+          },
+          "sourceId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "step": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "session": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "resume": {
+            "type": "boolean"
+          },
+          "model": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "effort": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "profile": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "outcome": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "error": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "finishedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "prompt": {
+            "type": "string"
+          },
+          "reply": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "rules": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "A prompt, whole: what was sent, the system rules with it, and the reply."
+      },
+      "PromptPageVm": {
+        "required": [
+          "prompts",
+          "hasMore"
+        ],
+        "type": "object",
+        "properties": {
+          "prompts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PromptSummaryVm"
+            }
+          },
+          "hasMore": {
+            "type": "boolean"
+          }
+        },
+        "description": "A page, newest first; \u0060hasMore\u0060: older prompts exist (ask again with \u0060before\u0060 = the last id)."
+      },
+      "PromptSummaryVm": {
+        "required": [
+          "id",
+          "source",
+          "sourceId",
+          "step",
+          "session",
+          "resume",
+          "model",
+          "effort",
+          "profile",
+          "outcome",
+          "error",
+          "startedAt",
+          "finishedAt",
+          "preview",
+          "promptChars",
+          "replyChars",
+          "hasRules"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "source": {
+            "type": "string"
+          },
+          "sourceId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "step": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "session": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "resume": {
+            "type": "boolean"
+          },
+          "model": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "effort": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "profile": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "outcome": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "error": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "finishedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "preview": {
+            "type": "string"
+          },
+          "promptChars": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "replyChars": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "hasRules": {
+            "type": "boolean"
+          }
+        },
+        "description": "A prompt in the list; \u0060preview\u0060 is its first 300 characters, \u0060outcome\u0060 null while it runs."
       },
       "PullRequestLinkVm": {
         "required": [
