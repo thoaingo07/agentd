@@ -1,6 +1,7 @@
 import { expect, expectAccessible, seed, serverCspReports, test } from './fixtures'
 
-// Zero enforced CSP violations on every page and interaction (no inline scripts or styles, no eval).
+// Zero enforced CSP violations on every page and interaction (no inline scripts, no eval; inline styles are allowed
+// for Nuxt UI's colors, docs/security §3).
 test('every page and interaction runs without CSP violations, and is accessible', async ({ page, request, cspViolations }) => {
   const job = await seed.job(request, 'CSP tour')
   await seed.events(request, job, 3)
@@ -20,7 +21,7 @@ test('every page and interaction runs without CSP violations, and is accessible'
   await expect(page.getByRole('dialog')).toBeVisible()
   await page.getByRole('button', { name: 'Back' }).click()
 
-  for (const path of ['/history', '/ideas', '/chats', '/artifacts', '/settings', '/settings/database', '/settings/log']) {
+  for (const path of ['/history', '/ideas', '/chats', '/reviews', '/artifacts', '/settings', '/settings/database', '/settings/log']) {
     await page.goto(path)
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
     await expectAccessible(page)

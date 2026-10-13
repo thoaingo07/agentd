@@ -55,7 +55,7 @@ internal sealed class LocalReviewServer : IAsyncDisposable
 
         app.Use(async (context, next) =>
         {
-            context.Response.Headers.ContentSecurityPolicy = SecurityHeaders.Policy(https: false, inlineStyles: false).Replace("; report-uri " + SecurityHeaders.ReportPath + "; report-to csp", string.Empty, StringComparison.Ordinal);
+            context.Response.Headers.ContentSecurityPolicy = SecurityHeaders.Policy(https: false).Replace("; report-uri " + SecurityHeaders.ReportPath + "; report-to csp", string.Empty, StringComparison.Ordinal);
             context.Response.Headers.XContentTypeOptions = "nosniff";
             context.Response.Headers["Referrer-Policy"] = "no-referrer";
             if (context.Request.Path.StartsWithSegments("/_content", StringComparison.Ordinal))

@@ -18,6 +18,8 @@ function readStored(): ThemeChoice {
   }
 }
 
+const prefersDark = typeof window.matchMedia === 'function' ? window.matchMedia('(prefers-color-scheme: dark)') : null
+
 function apply(choice: ThemeChoice): void {
   const root = document.documentElement
   if (choice === 'system') {
@@ -25,6 +27,8 @@ function apply(choice: ThemeChoice): void {
   } else {
     root.setAttribute('data-theme', choice)
   }
+  // Nuxt UI's dark mode is the `dark` class; daisyUI's is data-theme (or the system's preference).
+  root.classList.toggle('dark', choice === 'agentd-dark' || (choice === 'system' && prefersDark?.matches === true))
 }
 
 /** UI preferences and transient UI state: theme, toasts, per-job transcript filters and follow mode. */

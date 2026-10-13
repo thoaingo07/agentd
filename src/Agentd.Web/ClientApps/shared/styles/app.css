@@ -1,4 +1,21 @@
 @import "tailwindcss";
+/* Nuxt UI (pilot, docs/ui §1): its components' styles, next to daisyUI while screens move over. */
+@import "@nuxt/ui";
+
+/* agentd green (#42b883) as a Tailwind palette, Nuxt UI's primary (vite.config.ts → ui.colors.primary). */
+@theme static {
+  --color-agentd-50: #effaf5;
+  --color-agentd-100: #d8f3e6;
+  --color-agentd-200: #b3e6cf;
+  --color-agentd-300: #84d4b2;
+  --color-agentd-400: #5ec59b;
+  --color-agentd-500: #42b883;
+  --color-agentd-600: #33996c;
+  --color-agentd-700: #2a7a57;
+  --color-agentd-800: #246147;
+  --color-agentd-900: #1f503b;
+  --color-agentd-950: #0f2d20;
+}
 
 /* The HTML shell is a Razor view in this project; scan the views for utility classes too. */
 @source "../../../Views";
@@ -91,6 +108,30 @@
     --color-muted: #8fa3b5;
     --color-brand-ink: #42b883;
   }
+}
+
+/* Nuxt UI's neutral tokens are agentd's (daisyUI theme colors and the muted token): the same page and text colors in
+   both themes, and muted text that meets WCAG AA (its own slate-500 doesn't on our backgrounds). Unlayered, so it wins
+   over Nuxt UI's theme layer; .dark too, since Nuxt UI sets them again there. */
+:root,
+.dark {
+  --ui-bg: var(--color-base-100);
+  --ui-bg-muted: var(--color-base-200);
+  --ui-bg-elevated: var(--color-base-200);
+  --ui-bg-accented: var(--color-base-300);
+  --ui-text: var(--color-base-content);
+  --ui-text-toned: var(--color-base-content);
+  --ui-text-highlighted: var(--color-base-content);
+  --ui-text-muted: var(--color-muted);
+  --ui-border: var(--color-base-300);
+  --ui-border-muted: var(--color-base-300);
+  --ui-border-accented: var(--color-base-300);
+}
+
+/* daisyUI owns --color-primary (agentd green #42b883), which Nuxt UI's bg-primary uses too: white text on it is 2.4:1, so
+   Nuxt UI's solid primary controls get daisyUI's dark primary-content instead, as daisyUI's own buttons do. */
+.bg-primary.text-inverted {
+  color: var(--color-primary-content);
 }
 
 /* daisyUI dims stat titles, table headers and menu titles to 60% (menu titles: 40%) of the text color, under WCAG AA (4.5:1); the muted
