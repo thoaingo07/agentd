@@ -20,6 +20,7 @@ const guide = {
   ],
   notes: [{ file: 'src/Sync.cs', line: 41, text: 'The cursor is the last key read.', critical: true }],
   suggestions: [{ file: 'src/Sync.cs', line: 41, title: 'Make the chunk size configurable', detail: 'Tables differ.', suggestion: 'Read it from options.' }],
+  callouts: [{ kind: 'config', detail: 'Sync:ChunkSize defaults to 5000.' }],
 }
 const finding = { number: 1, severity: 'breaks', file: 'src/Sync.cs', line: 41, title: 'Unbounded read', detail: null, suggestion: null, decision: 'kept', edited: null }
 let session: Record<string, unknown>
@@ -64,6 +65,7 @@ describe('guided review', () => {
     expect(cards[0]).toContain('Core')
     expect(cards[0]).toContain('1 finding')
     expect(cards[1]).toContain('Skim')
+    expect(view.get('[data-testid=guide-callouts]').text()).toContain('Changes a configuration default: Sync:ChunkSize defaults to 5000.')
     expect(view.find('[data-testid=guide-chapter]').exists()).toBe(false)
     view.unmount()
   })

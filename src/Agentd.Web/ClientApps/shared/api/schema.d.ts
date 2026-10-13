@@ -1580,6 +1580,14 @@ export interface components {
         GitTestRequest: {
             url: null | string;
         };
+        /**
+         * @description Something the human reviewer should know about the change even when nothing is wrong (from pi-review's "human reviewer
+         *     callouts"): Kind is one of GuideCalloutKinds, Detail says what and where.
+         */
+        GuideCallout: {
+            kind: string;
+            detail: string;
+        };
         GuideChapter: {
             /** @description What this part of the change is, in a few words. */
             title: string;
@@ -1987,6 +1995,8 @@ export interface components {
             before?: null | string;
             /** @description How it works after. */
             after?: null | string;
+            /** @description Heads-ups for the human reviewer (a migration, a new dependency…): facts, not problems. */
+            callouts?: null | components["schemas"]["GuideCallout"][];
         };
         /** @description One review line: a step, whether finishing needs it, and its check. */
         ReviewItemVm: {
