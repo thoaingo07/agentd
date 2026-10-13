@@ -168,7 +168,7 @@ async function start(): Promise<void> {
               :href="p.url"
               target="_blank"
               rel="noopener noreferrer"
-              class="font-mono text-xs text-primary hover:underline"
+              class="font-mono text-xs text-brand-ink hover:underline"
             >!{{ p.id }}</a>
             <span class="font-medium">{{ p.title }}</span>
             <UBadge
