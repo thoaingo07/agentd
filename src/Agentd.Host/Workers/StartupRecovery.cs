@@ -8,7 +8,8 @@ namespace Agentd.Host.Workers;
 
 /// <summary>
 /// Runs once before the polling and scheduling workers start: seeds repositories from configuration
-/// and recovers jobs left over from the previous run. The resume runs are started by <see cref="SchedulerWorker"/>.
+/// and recovers jobs left over from the previous run (the resume runs are started by <see cref="SchedulerWorker"/>), then
+/// picks up ideas the agent never answered.
 /// </summary>
 internal sealed partial class StartupRecovery(
     IServiceScopeFactory scopes,
@@ -48,6 +49,12 @@ internal sealed partial class StartupRecovery(
                 {
                     Resumes = plan.Value.Resume;
                     LogRecovered(logger, plan.Value.Resume.Count, plan.Value.RequeuedCount, plan.Value.RepublishedCount, plan.Value.FailedCount);
+                }
+
+                // Ideas whose last messages were never answered (a failed or cut-off turn) get them again.
+                if (services.GetService<Application.Ideas.IdeaService>() is { } ideas)
+                {
+                    await ideas.ResumeAsync(cancellationToken).ConfigureAwait(false);
                 }
             }
             catch (Exception ex) when (ex is not OperationCanceledException)

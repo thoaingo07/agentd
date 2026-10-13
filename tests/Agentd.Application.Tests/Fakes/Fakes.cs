@@ -280,8 +280,17 @@ internal sealed class FakeWorktrees : IWorktreeManager
 
     public List<string> Detached { get; } = [];
 
+    /// <summary>Set to make the next detached checkout fail (once), like a fetch the remote refused.</summary>
+    public Exception? NextCheckoutFails { get; set; }
+
     public Task<string> CheckoutDetachedAsync(Repository repository, string name, CancellationToken cancellationToken)
     {
+        if (NextCheckoutFails is { } failure)
+        {
+            NextCheckoutFails = null;
+            throw failure;
+        }
+
         Detached.Add(name);
         return Task.FromResult($"/home/agentd/.agentd/worktrees/{repository.Name}/{name}");
     }

@@ -108,10 +108,52 @@ public sealed partial class IdeaService(
 
         await ideas.AddMessageAsync(id, "in", author, text.Trim(), ct).ConfigureAwait(false);
 
-        var prompt = string.Create(CultureInfo.InvariantCulture,
-            $"Brainstorm this idea with the developer, {author}:\n\n{text.Trim()}\n\nRepository: {repo.Value.Name} (a read-only checkout of `{repo.Value.BaseBranch}` is your working directory).");
-        Enqueue(id, prompt);
+        Enqueue(id, FirstPrompt(author, text, repo.Value));
         return id;
+    }
+
+    /// <summary>The idea itself, as the agent's first turn gets it.</summary>
+    private static string FirstPrompt(string author, string text, Domain.Repositories.Repository repo) =>
+        string.Create(CultureInfo.InvariantCulture,
+            $"Brainstorm this idea with the developer, {author}:\n\n{text.Trim()}\n\nRepository: {repo.Name} (a read-only checkout of `{repo.BaseBranch}` is your working directory).");
+
+    /// <summary>
+    /// After a restart: every open idea whose last messages the agent never answered (its turn failed or was cut off) gets
+    /// them again, as one turn.
+    /// </summary>
+    public async Task ResumeAsync(CancellationToken ct)
+    {
+        foreach (var id in await ideas.ListAwaitingReplyAsync(ct).ConfigureAwait(false))
+        {
+            if (await ideas.GetAsync(id, ct).ConfigureAwait(false) is { } idea && await UnansweredAsync(idea, ct).ConfigureAwait(false) is { } prompt)
+            {
+                LogResumed(logger, id);
+                Enqueue(id, prompt);
+            }
+        }
+    }
+
+    /// <summary>
+    /// What the agent hasn't answered: the people's messages since its last reply. Before its first reply (the first turn
+    /// failed, e.g. the checkout couldn't be fetched), the idea itself comes first, so a retry starts the brainstorm properly.
+    /// </summary>
+    private async Task<string?> UnansweredAsync(Idea idea, CancellationToken ct)
+    {
+        var messages = await ideas.ListMessagesAsync(idea.Id, ct).ConfigureAwait(false);
+        var lastReply = messages.Select((m, i) => (m, i)).LastOrDefault(x => x.m is { Direction: "out", Author: "agent" }, (default!, -1)).i;
+        var pending = messages.Skip(lastReply + 1).Where(m => m.Direction == "in").ToList();
+        if (pending.Count == 0)
+        {
+            return null;
+        }
+
+        var rest = pending.Select(m => $"{m.Author}: {m.Text}");
+        if (lastReply < 0 && await repositories.GetAsync(RepositoryName.From(idea.Repository), ct).ConfigureAwait(false) is { } repo)
+        {
+            rest = [FirstPrompt(pending[0].Author, pending[0].Text, repo), .. pending.Skip(1).Select(m => $"{m.Author}: {m.Text}")];
+        }
+
+        return string.Join("\n\n", rest);
     }
 
     /// <summary><c>!model &lt;name&gt;</c> / <c>!effort &lt;level&gt;</c> in an idea's thread: used from the next reply.</summary>
@@ -178,7 +220,9 @@ public sealed partial class IdeaService(
         }
 
         await ideas.AddMessageAsync(idea.Id, "in", author, text, ct).ConfigureAwait(false);
-        if (!Enqueue(idea.Id, $"{author}: {text}"))
+        // Never answered yet (the first turn failed) and nothing running: send the idea again with this message.
+        var prompt = !IsThinking(idea.Id) && idea.Session is null ? await UnansweredAsync(idea, ct).ConfigureAwait(false) : null;
+        if (!Enqueue(idea.Id, prompt ?? $"{author}: {text}"))
         {
             await PostAsync(idea, new OutboundMessage(MessageKind.Info, "💭 Still thinking about the last message; I'll answer this right after."), ct).ConfigureAwait(false);
         }
@@ -499,6 +543,9 @@ public sealed partial class IdeaService(
 
         public bool Running { get; set; }
     }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Idea {IdeaId}: picking up the messages the agent hadn't answered")]
+    private static partial void LogResumed(ILogger logger, long ideaId);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Idea {IdeaId}: the brainstorm turn failed")]
     private static partial void LogTurnFailed(ILogger logger, Exception exception, long ideaId);

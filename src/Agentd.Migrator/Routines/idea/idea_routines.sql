@@ -69,3 +69,19 @@ CREATE OR REPLACE FUNCTION agentd.idea_list_open_threads(p_provider text)
 RETURNS SETOF text
 LANGUAGE sql STABLE
 AS $$ SELECT i.thread_id FROM agentd.ideas AS i WHERE i.provider = p_provider AND i.status <> 'Closed' AND i.thread_id IS NOT NULL ORDER BY i.id $$;
+
+-- Ideas still waiting for the agent (to pick up after a restart): open ones with a person's message after the agent's
+-- last reply (author 'agent'; agentd's own notices don't count as answers), oldest first.
+CREATE OR REPLACE FUNCTION agentd.idea_list_awaiting_reply()
+RETURNS SETOF bigint
+LANGUAGE sql STABLE
+AS $$
+    SELECT i.id
+      FROM agentd.ideas AS i
+     WHERE i.status IN ('Brainstorming', 'Proposed')
+       AND EXISTS (SELECT 1 FROM agentd.idea_messages AS m
+                    WHERE m.idea_id = i.id AND m.direction = 'in'
+                      AND m.id > coalesce((SELECT max(r.id) FROM agentd.idea_messages AS r
+                                            WHERE r.idea_id = i.id AND r.direction = 'out' AND r.author = 'agent'), 0))
+     ORDER BY i.id
+$$;

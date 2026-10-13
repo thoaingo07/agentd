@@ -80,6 +80,8 @@ public sealed class SweepWorktreesTests
         public Task<IReadOnlyList<IdeaSummary>> ListSummariesAsync(long? id, int? workItem, int limit, CancellationToken cancellationToken) => throw new NotSupportedException();
 
         public Task<IReadOnlyList<string>> ListOpenThreadsAsync(ProviderKey provider, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<IReadOnlyList<long>> ListAwaitingReplyAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 
     private sealed class Reviews(Dictionary<long, string> statuses) : IReviewStore

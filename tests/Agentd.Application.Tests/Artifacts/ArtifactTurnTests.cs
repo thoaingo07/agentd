@@ -80,6 +80,8 @@ public sealed class ArtifactTurnTests
         public Task<IReadOnlyList<IdeaSummary>> ListSummariesAsync(long? id, int? workItem, int limit, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<IdeaSummary>>([]);
 
         public Task<IReadOnlyList<string>> ListOpenThreadsAsync(Domain.Messaging.ProviderKey provider, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<string>>([]);
+
+        public Task<IReadOnlyList<long>> ListAwaitingReplyAsync(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<long>>([]);
     }
 
     private sealed class Agent : IBrainstormAgent
