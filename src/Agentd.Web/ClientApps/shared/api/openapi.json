@@ -5009,6 +5009,116 @@
         },
         "description": "A repository\u0027s clone URL (SSH for agentd\u0027s key)."
       },
+      "GuideChapter": {
+        "required": [
+          "title",
+          "why",
+          "files"
+        ],
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "What this part of the change is, in a few words."
+          },
+          "why": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "What it does and why it matters, in one to three sentences."
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GuideFile"
+            },
+            "description": "The changed files it covers, in reading order."
+          }
+        }
+      },
+      "GuideFile": {
+        "required": [
+          "path",
+          "summary"
+        ],
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Relative to the repository root."
+          },
+          "summary": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "What changed in it, in one sentence (none for files agentd added to \u0022Everything else\u0022)."
+          }
+        }
+      },
+      "GuideNote": {
+        "required": [
+          "file",
+          "line",
+          "text"
+        ],
+        "type": "object",
+        "properties": {
+          "file": {
+            "type": "string"
+          },
+          "line": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "description": "What a line does and why, for someone new to the code."
+      },
+      "GuideSuggestion": {
+        "required": [
+          "file",
+          "line",
+          "title",
+          "detail",
+          "suggestion"
+        ],
+        "type": "object",
+        "properties": {
+          "file": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "line": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "title": {
+            "type": "string"
+          },
+          "detail": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "suggestion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "An improvement worth considering: clearer, simpler, safer later. Shown apart from findings."
+      },
       "HistoryPageVm": {
         "required": [
           "items",
@@ -6331,6 +6441,43 @@
         },
         "description": "A finding and the person\u0027s decision about it."
       },
+      "ReviewGuide": {
+        "required": [
+          "overview",
+          "chapters"
+        ],
+        "type": "object",
+        "properties": {
+          "overview": {
+            "type": "string"
+          },
+          "chapters": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GuideChapter"
+            }
+          },
+          "notes": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/GuideNote"
+            }
+          },
+          "suggestions": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/GuideSuggestion"
+            }
+          }
+        },
+        "description": "A guided review (docs/architect/review-sessions.md \u00A72a): the change explained in reading order. Chapters go by importance\n(the heart of the change, then its consequences, then the glue), each with why it matters and a line per file; notes\nexplain lines (not problems); suggestions are optional improvements (not findings: nothing breaks without them)."
+      },
       "ReviewItemVm": {
         "required": [
           "step",
@@ -6437,7 +6584,8 @@
           "sentTo",
           "createdAt",
           "chatLink",
-          "postsFromChat"
+          "postsFromChat",
+          "guide"
         ],
         "type": "object",
         "properties": {
@@ -6537,6 +6685,16 @@
           },
           "postsFromChat": {
             "type": "boolean"
+          },
+          "guide": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ReviewGuide"
+              }
+            ]
           }
         },
         "description": "A review session: what it looks at (pinned commits), its state, the reviewer\u0027s summary and findings."

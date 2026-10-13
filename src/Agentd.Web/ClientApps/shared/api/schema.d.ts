@@ -1580,6 +1580,36 @@ export interface components {
         GitTestRequest: {
             url: null | string;
         };
+        GuideChapter: {
+            /** @description What this part of the change is, in a few words. */
+            title: string;
+            /** @description What it does and why it matters, in one to three sentences. */
+            why: null | string;
+            /** @description The changed files it covers, in reading order. */
+            files: components["schemas"]["GuideFile"][];
+        };
+        GuideFile: {
+            /** @description Relative to the repository root. */
+            path: string;
+            /** @description What changed in it, in one sentence (none for files agentd added to "Everything else"). */
+            summary: null | string;
+        };
+        /** @description What a line does and why, for someone new to the code. */
+        GuideNote: {
+            file: string;
+            /** Format: int32 */
+            line: number;
+            text: string;
+        };
+        /** @description An improvement worth considering: clearer, simpler, safer later. Shown apart from findings. */
+        GuideSuggestion: {
+            file: null | string;
+            /** Format: int32 */
+            line: null | number;
+            title: string;
+            detail: null | string;
+            suggestion: null | string;
+        };
         /** @description A history page; `totalCapped` means "more than `total`" (shown as 10,000+). */
         HistoryPageVm: {
             items: components["schemas"]["JobSummaryVm"][];
@@ -1933,6 +1963,17 @@ export interface components {
             decision: string;
             edited: null | string;
         };
+        /**
+         * @description A guided review (docs/architect/review-sessions.md §2a): the change explained in reading order. Chapters go by importance
+         *     (the heart of the change, then its consequences, then the glue), each with why it matters and a line per file; notes
+         *     explain lines (not problems); suggestions are optional improvements (not findings: nothing breaks without them).
+         */
+        ReviewGuide: {
+            overview: string;
+            chapters: components["schemas"]["GuideChapter"][];
+            notes?: null | components["schemas"]["GuideNote"][];
+            suggestions?: null | components["schemas"]["GuideSuggestion"][];
+        };
         /** @description One review line: a step, whether finishing needs it, and its check. */
         ReviewItemVm: {
             step: string;
@@ -1981,6 +2022,7 @@ export interface components {
             /** Format: uri */
             chatLink: null | string;
             postsFromChat: boolean;
+            guide: null | components["schemas"]["ReviewGuide"];
         };
         RunAcceptedVm: {
             /** Format: int64 */

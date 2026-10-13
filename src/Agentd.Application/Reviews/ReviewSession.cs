@@ -72,11 +72,12 @@ public sealed record SessionFinding(
 /// <param name="Focus">What the reviewer should look at most (e.g. "security, tests"), as started.</param>
 /// <param name="Instructions">Anything else the person asked the reviewer, as started.</param>
 /// <param name="ChatLink">The chat conversation it was started from, if any.</param>
+/// <param name="Guide">The reviewer's guide to the change (a guided review), once it's in.</param>
 public sealed record ReviewSession(
     long Id, string Repository, string Target, int? PullRequestId, string? HeadRef, string? BaseRef, string? BaseCommit, string? HeadCommit,
     string Status, string? Error, string? Model, string? Effort, string? Summary, IReadOnlyList<SessionFinding> Findings,
     long? PullRequestReviewId, string? Worktree, string CreatedBy, string? SentTo, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt,
-    string? Focus = null, string? Instructions = null, Uri? ChatLink = null);
+    string? Focus = null, string? Instructions = null, Uri? ChatLink = null, ReviewGuide? Guide = null);
 
 /// <summary>A person's note on a file and lines (no file: the whole change).</summary>
 public sealed record ReviewComment(long Id, string? File, int? Line, int? EndLine, string Text, string Author, DateTimeOffset CreatedAt);
@@ -121,6 +122,9 @@ public interface IReviewSessionStore
 
     /// <summary>Appends findings as they arrive (the summary too, when given); returns how many there are now.</summary>
     Task<int> AddFindingsAsync(long id, IReadOnlyList<SessionFinding> findings, string? summary, CancellationToken cancellationToken);
+
+    /// <summary>The reviewer's guide, replaced whole.</summary>
+    Task SetGuideAsync(long id, ReviewGuide guide, CancellationToken cancellationToken);
 
     /// <summary>Replaces the findings (a finding with the same file and title keeps its decision); returns how many there are now.</summary>
     Task<int> SetFindingsAsync(long id, IReadOnlyList<SessionFinding> findings, string? summary, CancellationToken cancellationToken);

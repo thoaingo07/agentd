@@ -203,6 +203,12 @@ public sealed class ReviewSessionServiceTests
             return Task.CompletedTask;
         }
 
+        public Task SetGuideAsync(long id, ReviewGuide guide, CancellationToken cancellationToken)
+        {
+            Sessions[id] = Sessions[id] with { Guide = guide };
+            return Task.CompletedTask;
+        }
+
         public Task<int> SetFindingsAsync(long id, IReadOnlyList<SessionFinding> findings, string? summary, CancellationToken cancellationToken)
         {
             var old = Sessions[id].Findings;

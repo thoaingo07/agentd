@@ -41,6 +41,9 @@ public sealed class ReviewSessionStore(NpgsqlDataSource dataSource) : IReviewSes
         await ScalarAsync<int>("SELECT agentd.review_session_set_findings($1, $2, $3)", cancellationToken,
             P(id, NpgsqlDbType.Bigint), P(JsonSerializer.Serialize(findings), NpgsqlDbType.Jsonb), T(summary)).ConfigureAwait(false);
 
+    public Task SetGuideAsync(long id, ReviewGuide guide, CancellationToken cancellationToken) =>
+        ExecuteAsync("SELECT agentd.review_session_set_guide($1, $2)", cancellationToken, P(id, NpgsqlDbType.Bigint), P(JsonSerializer.Serialize(guide), NpgsqlDbType.Jsonb));
+
     public async Task<bool> DecideAsync(long id, int index, string decision, string? edited, CancellationToken cancellationToken) =>
         await ScalarAsync<bool>("SELECT agentd.review_session_decide($1, $2, $3, $4)", cancellationToken,
             P(id, NpgsqlDbType.Bigint), P(index, NpgsqlDbType.Integer), T(decision), T(edited)).ConfigureAwait(false);
@@ -117,7 +120,8 @@ public sealed class ReviewSessionStore(NpgsqlDataSource dataSource) : IReviewSes
                 JsonSerializer.Deserialize<List<SessionFinding>>(r.GetString(r.GetOrdinal("findings"))) ?? [],
                 r.IsDBNull(prReview) ? null : r.GetInt64(prReview), S("worktree_path"), r.GetString(r.GetOrdinal("created_by")), S("sent_to"),
                 r.GetFieldValue<DateTimeOffset>(r.GetOrdinal("created_at")), r.GetFieldValue<DateTimeOffset>(r.GetOrdinal("updated_at")), S("focus"), S("instructions"),
-                S("chat_link") is { } link ? new Uri(link) : null));
+                S("chat_link") is { } link ? new Uri(link) : null,
+                S("guide") is { } guide ? JsonSerializer.Deserialize<ReviewGuide>(guide) : null));
         }
 
         return rows;

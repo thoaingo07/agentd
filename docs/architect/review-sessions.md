@@ -91,6 +91,33 @@ Diff · Findings), and the inline cards in the diff.
 The same Vue app (`ClientApps/review`) serves both places; only its API base differs (`/api/reviews/<id>` on the
 server, the CLI's `/api/review` locally).
 
+## 2a. Guided review (decided 2026-10-12)
+
+Inspired by Plannotator's Guided Review and Diffity's agent comments: the reviewer doesn't only find problems, it walks
+the developer through the change, and they can ask about anything.
+
+- **The guide.** After the `review-findings` block, the reviewer writes a `review-guide` block
+  (`ReviewSessionReviewer.GuideRequest`):
+  - `overview`: what the change does and how it fits together;
+  - `chapters` by importance: the heart of the change first, then its consequences, then the glue (wiring, config,
+    tests, docs). Each has a `title`, `why` it matters, and its `files` in reading order, each with a one-line `summary`;
+  - `notes`: what non-obvious lines do and why (explanations, not problems);
+  - `suggestions`: optional improvements (clearer, simpler, safer later). Never a finding again: findings stay
+    `breaks` / `performance` only.
+- **Fitted to the change** (`ReviewGuides.Fit`): every changed file sits in exactly one chapter (the first that names
+  it); files that didn't change are dropped; files the reviewer left out go to **Everything else**; notes stay only on
+  changed files. A missing or unreadable guide never fails the review: the page falls back to the file list.
+- **Stored** whole on the session (`review_sessions.guide`, `review_session_set_guide`) and served with it
+  (`ReviewSessionVm.guide`).
+
+Delivery (one PR each, under 1000 lines):
+1. The guide on the server: the reviewer asks for it, agentd checks and fits it, stores and serves it.
+2. The page: a **Guided** view, the default when there's a guide. Chapters replace the file list; each shows its
+   overview, the file summaries and the real diffs, with 💡 notes and findings inline (Nuxt UI).
+3. Suggestions: shown apart from findings, off the PR unless kept; a suggested change Fix it can apply.
+4. Ask, made easier: Explain this chapter / file / finding, and "why is this a problem?" on a finding (the Ask threads).
+5. A chat `!review` gets the guide too; keyboard navigation (next chapter / finding); generated files hidden.
+
 ## 3. On the server
 
 **Start** from:
