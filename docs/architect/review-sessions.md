@@ -30,7 +30,18 @@ The diff itself isn't stored for server targets: it's recomputed from the pinned
 files' contents, for context), and is kept for 30 days.
 
 `!review` on a PR keeps its chat flow (`pr_reviews`) and gets a review session alongside it, so the same review can be
-worked in chat or on the page.
+worked in chat or on the page (built 2026-10-12):
+- The session is pinned like a page review and linked (`pr_review_id`, one session per chat review; `chat_link`, the
+  thread). It has **no reviewer of its own**: whenever the chat review is saved, `ReviewSessionService.MirrorAsync` copies
+  its head (re-pinned from where it leaves its base), its latest findings (`review_session_set_findings`: they replace the
+  old ones, and a finding with the same file and title keeps the decision made on the page) and its status (Reviewing →
+  Reviewing, Reviewed/Kept → Ready, Posted → Sent `pr:<id>`, Discarded/Closed → Closed; a session sent from the page isn't
+  moved back to Ready). The restart pickup (`ReviewSessionReviewer.ResumeAsync`) skips it.
+- The chat's reply links the page; the page links the thread (**💬 From chat**).
+- **Post to the PR** stays in the thread, so the PR gets the review once and the re-checks of posted findings keep running (`ReviewService.MonitorAsync`);
+  the page can still Copy as text or Fix it.
+- The Reviews list shows your sessions **and every review started from chat** (`!review !<pr>` and `!review branch:…`):
+  the team sees those in its channel anyway. `review_session_list` returns `created_by = you OR chat_link IS NOT NULL`.
 
 ## 2. The page
 

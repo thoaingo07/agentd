@@ -71,11 +71,12 @@ public sealed record SessionFinding(
 /// <param name="UpdatedAt">Last change.</param>
 /// <param name="Focus">What the reviewer should look at most (e.g. "security, tests"), as started.</param>
 /// <param name="Instructions">Anything else the person asked the reviewer, as started.</param>
+/// <param name="ChatLink">The chat conversation it was started from, if any.</param>
 public sealed record ReviewSession(
     long Id, string Repository, string Target, int? PullRequestId, string? HeadRef, string? BaseRef, string? BaseCommit, string? HeadCommit,
     string Status, string? Error, string? Model, string? Effort, string? Summary, IReadOnlyList<SessionFinding> Findings,
     long? PullRequestReviewId, string? Worktree, string CreatedBy, string? SentTo, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt,
-    string? Focus = null, string? Instructions = null);
+    string? Focus = null, string? Instructions = null, Uri? ChatLink = null);
 
 /// <summary>A person's note on a file and lines (no file: the whole change).</summary>
 public sealed record ReviewComment(long Id, string? File, int? Line, int? EndLine, string Text, string Author, DateTimeOffset CreatedAt);
@@ -100,6 +101,12 @@ public interface IReviewSessionStore
     /// <summary>Sessions in <paramref name="status"/>, oldest first (the reviews to resume after a restart).</summary>
     Task<IReadOnlyList<ReviewSession>> ListByStatusAsync(string status, CancellationToken cancellationToken);
 
+    /// <summary>The session of a chat <c>!review</c> of a PR (<see cref="ReviewSession.PullRequestReviewId"/>), or null.</summary>
+    Task<ReviewSession?> FindByPullRequestReviewAsync(long pullRequestReviewId, CancellationToken cancellationToken);
+
+    /// <summary>Started from chat: the conversation's link and, for a PR's <c>!review</c>, the chat review that fills it.</summary>
+    Task LinkChatAsync(long id, Uri? chatLink, long? pullRequestReviewId, CancellationToken cancellationToken);
+
     Task PinAsync(long id, string baseCommit, string headCommit, string? worktree, CancellationToken cancellationToken);
 
     /// <summary>The focus and instructions the review was started with.</summary>
@@ -114,6 +121,9 @@ public interface IReviewSessionStore
 
     /// <summary>Appends findings as they arrive (the summary too, when given); returns how many there are now.</summary>
     Task<int> AddFindingsAsync(long id, IReadOnlyList<SessionFinding> findings, string? summary, CancellationToken cancellationToken);
+
+    /// <summary>Replaces the findings (a finding with the same file and title keeps its decision); returns how many there are now.</summary>
+    Task<int> SetFindingsAsync(long id, IReadOnlyList<SessionFinding> findings, string? summary, CancellationToken cancellationToken);
 
     /// <summary>Records a decision on finding <paramref name="index"/> (0-based); false when there's no such finding.</summary>
     Task<bool> DecideAsync(long id, int index, string decision, string? edited, CancellationToken cancellationToken);

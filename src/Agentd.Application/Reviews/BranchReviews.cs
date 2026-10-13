@@ -70,7 +70,8 @@ public sealed class BranchReviews(ReviewSessionService sessions, IRepositoryRegi
             repoName = all[0].Name.Value;
         }
 
-        var started = await sessions.StartAsync(new StartReview(repoName, Branch: branch, Base: baseBranch), author, ct).ConfigureAwait(false);
+        var started = await sessions.StartAsync(new StartReview(repoName, Branch: branch, Base: baseBranch), author,
+            new ChatOrigin(providers.Resolve(where.Provider).GetLink(where)), ct).ConfigureAwait(false);
         if (!started.IsSuccess)
         {
             return started.Error;

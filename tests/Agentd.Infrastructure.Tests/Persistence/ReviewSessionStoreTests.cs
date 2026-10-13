@@ -1,5 +1,7 @@
 using Agentd.Application.Reviews;
+using Agentd.Domain.Messaging;
 using Agentd.Infrastructure.Persistence.Repositories;
+using Npgsql;
 
 namespace Agentd.Infrastructure.Tests.Persistence;
 
@@ -30,6 +32,85 @@ public sealed class ReviewSessionStoreTests
         Assert.IsTrue(s.Findings.All(f => f.Decision == FindingDecisions.Kept), "kept unless someone decides otherwise");
         Assert.AreEqual(id, (await store.ListAsync("dev@example.com", 10, default)).Single().Id);
         Assert.IsEmpty(await store.ListAsync("someone@else", 10, default));
+    }
+
+    [TestMethod]
+    public async Task A_chat_review_has_one_session_that_everyone_lists()
+    {
+        await using var db = await Database.CreateMigratedAsync("review_sessions_chat");
+        var store = new ReviewSessionStore(db);
+        var chat = await new ReviewStore(db).InsertAsync("sysmin", 3944, "Deploy", "Kelvin", ProviderKey.From("discord"), "t1", "g1", default);
+        var id = await store.InsertAsync("sysmin", ReviewTargets.PullRequest, 3944, "ai/deploy", "develop", "Kelvin", null, null, default);
+        var branch = await store.InsertAsync("sysmin", ReviewTargets.Branch, null, "feature/x", "develop", "Nam", null, null, default);
+        var mine = await store.InsertAsync("sysmin", ReviewTargets.Branch, null, "feature/y", "develop", "dev@example.com", null, null, default);
+        await store.InsertAsync("sysmin", ReviewTargets.Branch, null, "feature/z", "develop", "someone@else", null, null, default);
+        var link = new Uri("https://discord.com/channels/g1/t1");
+
+        await store.LinkChatAsync(id, link, chat, default);
+        await store.LinkChatAsync(branch, new Uri("https://discord.com/channels/g1/c1"), null, default);
+        var second = await store.InsertAsync("sysmin", ReviewTargets.PullRequest, 3944, "ai/deploy", "develop", "Kelvin", null, null, default);
+        var twice = await Assert.ThrowsAsync<PostgresException>(() => store.LinkChatAsync(second, link, chat, default));
+
+        var found = (await store.FindByPullRequestReviewAsync(chat, default))!;
+        Assert.AreEqual((id, link, (long?)chat), (found.Id, found.ChatLink, found.PullRequestReviewId));
+        Assert.IsNull(await store.FindByPullRequestReviewAsync(chat + 1, default));
+        Assert.AreEqual(PostgresErrorCodes.UniqueViolation, twice.SqlState, "one session per chat review");
+        CollectionAssert.AreEqual(new[] { mine, branch, id }, (await store.ListAsync("dev@example.com", 10, default)).Select(s => s.Id).ToList(),
+            "mine and every review from chat, not someone else's page reviews");
+    }
+
+    [TestMethod]
+    public async Task New_findings_replace_the_old_and_a_missing_summary_keeps_the_last()
+    {
+        await using var db = await Database.CreateMigratedAsync("review_sessions_set_findings");
+        var store = new ReviewSessionStore(db);
+        var id = await store.InsertAsync("sysmin", ReviewTargets.PullRequest, 3944, null, null, "Kelvin", null, null, default);
+        await store.SetFindingsAsync(id, [Finding(1), Finding(2)], "Two.", default);
+
+        var none = await store.SetFindingsAsync(id, [], "Nothing left.", default);
+        var afterNone = (await store.GetAsync(id, default))!;
+        var one = await store.SetFindingsAsync(id, [Finding(5)], null, default);
+
+        var s = (await store.GetAsync(id, default))!;
+        Assert.AreEqual((0, 1), (none, one));
+        Assert.AreEqual(("Nothing left.", 0), (afterNone.Summary, afterNone.Findings.Count));
+        Assert.AreEqual(("Finding 5", FindingDecisions.Kept, "Nothing left."), (s.Findings.Single().Title, s.Findings.Single().Decision, s.Summary));
+    }
+
+    [TestMethod]
+    public async Task Replaced_findings_keep_decisions_in_their_new_order()
+    {
+        await using var db = await Database.CreateMigratedAsync("review_sessions_set_findings_order");
+        var store = new ReviewSessionStore(db);
+        var id = await store.InsertAsync("sysmin", ReviewTargets.PullRequest, 3944, null, null, "Kelvin", null, null, default);
+        await store.SetFindingsAsync(id, [Finding(1), Finding(2), Finding(3)], "Three.", default);
+        await store.DecideAsync(id, 0, FindingDecisions.Dropped, null, default);
+        await store.DecideAsync(id, 2, FindingDecisions.Edited, "say it plainly", default);
+
+        await store.SetFindingsAsync(id, [Finding(4), Finding(3), Finding(1) with { Line = 99 }], null, default);
+
+        var f = (await store.GetAsync(id, default))!.Findings;
+        CollectionAssert.AreEqual(new[] { "Finding 4", "Finding 3", "Finding 1" }, f.Select(x => x.Title).ToList(), "the reviewer's order");
+        Assert.AreEqual((FindingDecisions.Kept, (string?)null), (f[0].Decision, f[0].Edited), "new: kept");
+        Assert.AreEqual((FindingDecisions.Edited, "say it plainly"), (f[1].Decision, f[1].Edited));
+        Assert.AreEqual((FindingDecisions.Dropped, 99), (f[2].Decision, f[2].Line), "same file and title: still dropped, at its new line");
+    }
+
+    [TestMethod]
+    public async Task Parallel_replacements_leave_one_whole_set_of_findings()
+    {
+        await using var db = await Database.CreateMigratedAsync("review_sessions_set_findings_parallel");
+        var store = new ReviewSessionStore(db);
+        var id = await store.InsertAsync("sysmin", ReviewTargets.PullRequest, 3944, null, null, "Kelvin", null, null, default);
+
+        var counts = await Task.WhenAll(Enumerable.Range(1, 8).Select(n => Task.Run(() =>
+            store.SetFindingsAsync(id, [.. Enumerable.Range(1, n).Select(i => Finding((n * 10) + i))], $"set {n}", default))));
+
+        var s = (await store.GetAsync(id, default))!;
+        var n = int.Parse(s.Summary!["set ".Length..], System.Globalization.CultureInfo.InvariantCulture);
+        CollectionAssert.AreEqual(Enumerable.Range(1, 8).ToArray(), counts.Order().ToArray(), "each call saw its own set");
+        CollectionAssert.AreEqual(Enumerable.Range(1, n).Select(i => $"Finding {(n * 10) + i}").ToList(), s.Findings.Select(f => f.Title).ToList(),
+            "the last writer's findings with its summary, never a mix");
     }
 
     [TestMethod]

@@ -51,11 +51,16 @@ public sealed partial class ReviewSessionReviewer(
         }
     }));
 
-    /// <summary>Restarts the reviews a restart interrupted (still Reviewing, not running here).</summary>
+    /// <summary>Restarts the reviews a restart interrupted (still Reviewing, not running here; a chat <c>!review</c>'s session is reviewed in its thread).</summary>
     public async Task ResumeAsync(CancellationToken cancellationToken)
     {
         foreach (var session in await store.ListByStatusAsync(ReviewSessionStatus.Reviewing, cancellationToken).ConfigureAwait(false))
         {
+            if (session.PullRequestReviewId is not null)
+            {
+                continue;
+            }
+
             _ = Start(session.Id);
         }
     }

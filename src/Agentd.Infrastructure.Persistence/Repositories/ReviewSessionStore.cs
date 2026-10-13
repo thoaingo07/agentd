@@ -21,6 +21,12 @@ public sealed class ReviewSessionStore(NpgsqlDataSource dataSource) : IReviewSes
     public Task<IReadOnlyList<ReviewSession>> ListByStatusAsync(string status, CancellationToken cancellationToken) =>
         SessionsAsync("SELECT * FROM agentd.review_session_list_by_status($1)", cancellationToken, T(status));
 
+    public async Task<ReviewSession?> FindByPullRequestReviewAsync(long pullRequestReviewId, CancellationToken cancellationToken) =>
+        (await SessionsAsync("SELECT * FROM agentd.review_session_find_by_pr_review($1)", cancellationToken, P(pullRequestReviewId, NpgsqlDbType.Bigint)).ConfigureAwait(false)).SingleOrDefault();
+
+    public Task LinkChatAsync(long id, Uri? chatLink, long? pullRequestReviewId, CancellationToken cancellationToken) =>
+        ExecuteAsync("SELECT agentd.review_session_link_chat($1, $2, $3)", cancellationToken, P(id, NpgsqlDbType.Bigint), T(chatLink?.ToString()), P(pullRequestReviewId, NpgsqlDbType.Bigint));
+
     public Task PinAsync(long id, string baseCommit, string headCommit, string? worktree, CancellationToken cancellationToken) =>
         ExecuteAsync("SELECT agentd.review_session_pin($1, $2, $3, $4)", cancellationToken, P(id, NpgsqlDbType.Bigint), T(baseCommit), T(headCommit), T(worktree));
 
@@ -29,6 +35,10 @@ public sealed class ReviewSessionStore(NpgsqlDataSource dataSource) : IReviewSes
 
     public async Task<int> AddFindingsAsync(long id, IReadOnlyList<SessionFinding> findings, string? summary, CancellationToken cancellationToken) =>
         await ScalarAsync<int>("SELECT agentd.review_session_add_findings($1, $2, $3)", cancellationToken,
+            P(id, NpgsqlDbType.Bigint), P(JsonSerializer.Serialize(findings), NpgsqlDbType.Jsonb), T(summary)).ConfigureAwait(false);
+
+    public async Task<int> SetFindingsAsync(long id, IReadOnlyList<SessionFinding> findings, string? summary, CancellationToken cancellationToken) =>
+        await ScalarAsync<int>("SELECT agentd.review_session_set_findings($1, $2, $3)", cancellationToken,
             P(id, NpgsqlDbType.Bigint), P(JsonSerializer.Serialize(findings), NpgsqlDbType.Jsonb), T(summary)).ConfigureAwait(false);
 
     public async Task<bool> DecideAsync(long id, int index, string decision, string? edited, CancellationToken cancellationToken) =>
@@ -106,7 +116,8 @@ public sealed class ReviewSessionStore(NpgsqlDataSource dataSource) : IReviewSes
                 S("model"), S("effort"), S("summary"),
                 JsonSerializer.Deserialize<List<SessionFinding>>(r.GetString(r.GetOrdinal("findings"))) ?? [],
                 r.IsDBNull(prReview) ? null : r.GetInt64(prReview), S("worktree_path"), r.GetString(r.GetOrdinal("created_by")), S("sent_to"),
-                r.GetFieldValue<DateTimeOffset>(r.GetOrdinal("created_at")), r.GetFieldValue<DateTimeOffset>(r.GetOrdinal("updated_at")), S("focus"), S("instructions")));
+                r.GetFieldValue<DateTimeOffset>(r.GetOrdinal("created_at")), r.GetFieldValue<DateTimeOffset>(r.GetOrdinal("updated_at")), S("focus"), S("instructions"),
+                S("chat_link") is { } link ? new Uri(link) : null));
         }
 
         return rows;

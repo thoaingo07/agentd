@@ -103,3 +103,6 @@ public sealed class ArtifactSources : SqlMigration;
 
 [Migration(2026_10_30_0001, "Artifacts can be stored in S3-compatible storage (Cloudflare R2)")]
 public sealed class ArtifactStorage : SqlMigration;
+
+[Migration(2026_10_31_0001, "Reviews started in chat show on the Reviews page: a chat link, one session per chat PR review")]
+public sealed class ReviewSessionChat : SqlMigration;

@@ -24,6 +24,12 @@ namespace Agentd.Application.Reviews;
 public sealed record StartReview(string Repository, int? PullRequestId = null, string? Branch = null, string? Base = null, string? Head = null,
     string? Model = null, string? Effort = null, string? Focus = null, string? Instructions = null);
 
+/// <summary>
+/// A review started from chat: the conversation's <paramref name="Link"/>, and for a PR's <c>!review</c> the chat review
+/// (<paramref name="PullRequestReviewId"/>) whose reviewer fills the session instead of one of its own.
+/// </summary>
+public sealed record ChatOrigin(Uri? Link, long? PullRequestReviewId = null);
+
 /// <summary>A session with its comments and questions, as the page shows it.</summary>
 public sealed record ReviewSessionView(ReviewSession Session, IReadOnlyList<ReviewComment> Comments, IReadOnlyList<ReviewAsk> Asks);
 
@@ -44,7 +50,14 @@ public sealed class ReviewSessionService(
 
     public const int MaxText = 4000;
 
-    public async Task<Result<ReviewSession>> StartAsync(StartReview request, string createdBy, CancellationToken cancellationToken)
+    public Task<Result<ReviewSession>> StartAsync(StartReview request, string createdBy, CancellationToken cancellationToken) =>
+        StartAsync(request, createdBy, null, cancellationToken);
+
+    /// <param name="request">What to review.</param>
+    /// <param name="createdBy">Who started it (a web login, or a chat name).</param>
+    /// <param name="chat">Started from chat: where, and for a PR's <c>!review</c>, the chat review that fills it (no reviewer here then).</param>
+    /// <param name="cancellationToken">Cancels it.</param>
+    public async Task<Result<ReviewSession>> StartAsync(StartReview request, string createdBy, ChatOrigin? chat, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
         var targets = (request.PullRequestId is not null ? 1 : 0) + (!string.IsNullOrWhiteSpace(request.Branch) ? 1 : 0)
@@ -86,15 +99,57 @@ public sealed class ReviewSessionService(
         {
             await store.SetBriefAsync(id, Blank(request.Focus), Blank(request.Instructions), cancellationToken).ConfigureAwait(false);
         }
-        if (reviewer is null)
+        if (chat is not null)
+        {
+            await store.LinkChatAsync(id, chat.Link, chat.PullRequestReviewId, cancellationToken).ConfigureAwait(false);
+        }
+
+        var ownReviewer = chat?.PullRequestReviewId is null ? reviewer : null;   // a chat review's findings come from its own thread (MirrorAsync)
+        if (ownReviewer is null && chat?.PullRequestReviewId is null)
         {
             // No reviewer here: the change is ready to read and comment on as it is.
             await store.SetStatusAsync(id, ReviewSessionStatus.Ready, null, null, cancellationToken).ConfigureAwait(false);
         }
 
         var started = (await store.GetAsync(id, cancellationToken).ConfigureAwait(false))!;
-        _ = reviewer?.Start(id);   // Reviewing: findings arrive when it's done
+        _ = ownReviewer?.Start(id);   // Reviewing: findings arrive when it's done
         return started;
+    }
+
+    /// <summary>
+    /// Brings a chat <c>!review</c>'s session up to date (docs/architect/review-sessions.md §1): its head, its latest findings
+    /// (decisions on the page kept for the same finding) and where it is. Nothing for a review without a session.
+    /// </summary>
+    public async Task MirrorAsync(Review review, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(review);
+        if (await store.FindByPullRequestReviewAsync(review.Id, cancellationToken).ConfigureAwait(false) is not { } session)
+        {
+            return;
+        }
+
+        if (review.HeadCommit is { Length: > 0 } head && head != session.HeadCommit)
+        {
+            await RepinAsync(session, head, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (review.Result is { } result)
+        {
+            await store.SetFindingsAsync(session.Id, [.. result.Findings.Select(SessionFinding.From)], result.Summary, cancellationToken).ConfigureAwait(false);
+        }
+
+        var status = review.Status switch
+        {
+            ReviewStatus.Reviewing => ReviewSessionStatus.Reviewing,
+            ReviewStatus.Posted => ReviewSessionStatus.Sent,
+            ReviewStatus.Discarded or ReviewStatus.Closed => ReviewSessionStatus.Closed,
+            _ => ReviewSessionStatus.Ready,   // Reviewed, Kept
+        };
+        if (status != session.Status && !(session.Status == ReviewSessionStatus.Sent && status == ReviewSessionStatus.Ready))   // sent from the page stays sent
+        {
+            await store.SetStatusAsync(session.Id, status, null, status == ReviewSessionStatus.Sent ? $"{ReviewSessionSend.ToPullRequest}:{review.PullRequestId}" : null, cancellationToken)
+                .ConfigureAwait(false);
+        }
     }
 
     public async Task<ReviewSessionView?> GetAsync(long id, CancellationToken cancellationToken) =>
@@ -198,6 +253,23 @@ public sealed class ReviewSessionService(
         await store.DeleteCommentAsync(id, commentId, author, cancellationToken).ConfigureAwait(false)
             ? Unit.Value
             : DomainError.NotFound($"Your comment {commentId} on review {id}");
+
+    /// <summary>The chat review moved to a new head (new commits on the PR): the diff follows it, from where it leaves its base.</summary>
+    private async Task RepinAsync(ReviewSession session, string head, CancellationToken ct)
+    {
+        if (session.BaseRef is not { } baseRef || RepositoryName.Create(session.Repository) is not { IsSuccess: true } name
+            || await repositories.GetAsync(name.Value, ct).ConfigureAwait(false) is not { } repo)
+        {
+            return;
+        }
+
+        var full = await worktrees.ResolveCommitAsync(repo, head, ct).ConfigureAwait(false);
+        if (await AgainstAsync(repo, session.Target, session.HeadRef ?? head, baseRef, full, ct).ConfigureAwait(false) is { IsSuccess: true } pinned)
+        {
+            var (_, _, _, baseCommit, headCommit) = pinned.Value;
+            await store.PinAsync(session.Id, baseCommit, headCommit, null, ct).ConfigureAwait(false);
+        }
+    }
 
     /// <summary>The base and head commits for <paramref name="request"/>, from the freshly fetched clone.</summary>
     private async Task<Result<(string Target, string? HeadRef, string? BaseRef, string BaseCommit, string HeadCommit)>> PinAsync(Repository repo, StartReview request, CancellationToken ct)

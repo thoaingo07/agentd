@@ -1,6 +1,7 @@
 using Agentd.Application.Jobs;
 using Agentd.Application.Ports;
 using Agentd.Application.Reviews;
+using Agentd.Domain.Messaging;
 using Microsoft.Extensions.Options;
 using TestContext = Agentd.Application.Tests.Fakes.TestContext;
 
@@ -103,6 +104,50 @@ public sealed class ReviewSessionServiceTests
         Assert.AreEqual(("not_found", "validation", "conflict"), (rewordNotMine.Error!.Code, rewordEmpty.Error!.Code, lateReword.Error!.Code));
     }
 
+    [TestMethod]
+    public async Task A_chat_reviews_session_waits_for_its_findings_follows_new_commits_and_ends_with_it()
+    {
+        _t.PullRequests.Details[3944] = new PullRequestDetails(3944, "Deploy", null, "Dev", "ai/deploy", "develop", "c1", PullRequestStatus.Active, false, new Uri("https://x/pr/3944"));
+        Branch("c1", head: "c1", baseTip: "d9", mergeBase: "m1");
+        Branch("c2", head: "c2", baseTip: "d9", mergeBase: "m2");
+        var link = new Uri("https://chat.example/t1");
+
+        var started = (await Service().StartAsync(new StartReview("sysmin", PullRequestId: 3944), "Kelvin", new ChatOrigin(link, 7), default)).Value!;
+        var review = new Review(7, "sysmin", 3944, "Deploy", "Kelvin", ProviderKey.From("discord"), "t1", null, ReviewStatus.Reviewed, "c2", null, null, null, null, null,
+            new ReviewResult("One bug.", [new ReviewFinding("breaks", "src/A.cs", 3, "Unbounded read", null, null)]), []);
+        await Service().MirrorAsync(review, default);
+        var ready = _store.Sessions[started.Id];
+        await _store.SetStatusAsync(started.Id, ReviewSessionStatus.Sent, null, "text", default);
+        await Service().MirrorAsync(review with { Status = ReviewStatus.Kept }, default);
+        var stillSent = _store.Sessions[started.Id].Status;
+        await Service().MirrorAsync(review with { Status = ReviewStatus.Closed }, default);
+        await Service().MirrorAsync(review with { Id = 8 }, default);   // no session: nothing
+
+        Assert.AreEqual((ReviewSessionStatus.Reviewing, (long?)7, link), (started.Status, started.PullRequestReviewId, started.ChatLink), "no reviewer here: the chat's fills it");
+        Assert.AreEqual(("m2", "c2", ReviewSessionStatus.Ready, "One bug."), (ready.BaseCommit, ready.HeadCommit, ready.Status, ready.Summary), "new commits: the diff follows");
+        Assert.AreEqual("Unbounded read", ready.Findings.Single().Title);
+        Assert.AreEqual(ReviewSessionStatus.Sent, stillSent, "sent from the page stays sent");
+        Assert.AreEqual(ReviewSessionStatus.Closed, _store.Sessions[started.Id].Status);
+        Assert.HasCount(1, _store.Sessions);
+    }
+
+    [TestMethod]
+    public async Task A_chat_reviews_session_is_posted_to_the_pr_from_its_thread_only()
+    {
+        _t.PullRequests.Details[3944] = new PullRequestDetails(3944, "Deploy", null, "Dev", "ai/deploy", "develop", "c1", PullRequestStatus.Active, false, new Uri("https://x/pr/3944"));
+        Branch("c1", head: "c1", baseTip: "d9", mergeBase: "m1");
+        var id = (await Service().StartAsync(new StartReview("sysmin", PullRequestId: 3944), "Kelvin", new ChatOrigin(new Uri("https://chat.example/t1"), 7), default)).Value!.Id;
+        await _store.SetStatusAsync(id, ReviewSessionStatus.Ready, null, null, default);
+
+        var send = new ReviewSessionSend(_store, _t.Registry, _t.PullRequests);
+        var post = await send.SendAsync(id, ReviewSessionSend.ToPullRequest, default);
+        var text = await send.SendAsync(id, ReviewSessionSend.AsText, default);
+
+        StringAssert.Contains(post.Error!.Message, "post it from its thread");
+        Assert.IsEmpty(_t.PullRequests.Threads);
+        Assert.IsTrue(text.IsSuccess, "copying it is fine");
+    }
+
     private void Branch(string name, string head, string baseTip, string mergeBase)
     {
         _t.Worktrees.Commits[name] = head;
@@ -136,7 +181,7 @@ public sealed class ReviewSessionServiceTests
         public Task<ReviewSession?> GetAsync(long id, CancellationToken cancellationToken) => Task.FromResult(Sessions.GetValueOrDefault(id));
 
         public Task<IReadOnlyList<ReviewSession>> ListAsync(string createdBy, int limit, CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<ReviewSession>>([.. Sessions.Values.Where(s => s.CreatedBy == createdBy).OrderByDescending(s => s.Id).Take(limit)]);
+            Task.FromResult<IReadOnlyList<ReviewSession>>([.. Sessions.Values.Where(s => s.CreatedBy == createdBy || s.ChatLink is not null).OrderByDescending(s => s.Id).Take(limit)]);
 
         public Task<IReadOnlyList<ReviewSession>> ListByStatusAsync(string status, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<ReviewSession>>([.. Sessions.Values.Where(s => s.Status == status).OrderBy(s => s.Id)]);
@@ -148,6 +193,26 @@ public sealed class ReviewSessionServiceTests
         }
 
         public Dictionary<long, (string? Focus, string? Instructions)> Briefs { get; } = [];
+
+        public Task<ReviewSession?> FindByPullRequestReviewAsync(long pullRequestReviewId, CancellationToken cancellationToken) =>
+            Task.FromResult(Sessions.Values.SingleOrDefault(s => s.PullRequestReviewId == pullRequestReviewId));
+
+        public Task LinkChatAsync(long id, Uri? chatLink, long? pullRequestReviewId, CancellationToken cancellationToken)
+        {
+            Sessions[id] = Sessions[id] with { ChatLink = chatLink, PullRequestReviewId = pullRequestReviewId };
+            return Task.CompletedTask;
+        }
+
+        public Task<int> SetFindingsAsync(long id, IReadOnlyList<SessionFinding> findings, string? summary, CancellationToken cancellationToken)
+        {
+            var old = Sessions[id].Findings;
+            Sessions[id] = Sessions[id] with
+            {
+                Findings = [.. findings.Select(f => old.FirstOrDefault(o => o.Title == f.Title && o.File == f.File) is { } o ? f with { Decision = o.Decision, Edited = o.Edited } : f)],
+                Summary = summary ?? Sessions[id].Summary,
+            };
+            return Task.FromResult(Sessions[id].Findings.Count);
+        }
 
         public Task PinAsync(long id, string baseCommit, string headCommit, string? worktree, CancellationToken cancellationToken)
         {

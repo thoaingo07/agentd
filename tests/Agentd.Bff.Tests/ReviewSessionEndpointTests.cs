@@ -152,6 +152,18 @@ public sealed class ReviewSessionEndpointTests
 
         public Dictionary<long, (string? Focus, string? Instructions)> Briefs { get; } = [];
 
+        public Task<ReviewSession?> FindByPullRequestReviewAsync(long pullRequestReviewId, CancellationToken cancellationToken) =>
+            Task.FromResult(All.Values.SingleOrDefault(s => s.PullRequestReviewId == pullRequestReviewId));
+
+        public Task LinkChatAsync(long id, Uri? chatLink, long? pullRequestReviewId, CancellationToken cancellationToken) =>
+            Update(id, s => s with { ChatLink = chatLink, PullRequestReviewId = pullRequestReviewId });
+
+        public async Task<int> SetFindingsAsync(long id, IReadOnlyList<SessionFinding> findings, string? summary, CancellationToken cancellationToken)
+        {
+            await Update(id, s => s with { Findings = findings, Summary = summary ?? s.Summary });
+            return All[id].Findings.Count;
+        }
+
         public Task PinAsync(long id, string baseCommit, string headCommit, string? worktree, CancellationToken cancellationToken) => Update(id, s => s with { BaseCommit = baseCommit, HeadCommit = headCommit });
 
         public Task SetStatusAsync(long id, string status, string? reason, string? sentTo, CancellationToken cancellationToken) => Update(id, s => s with { Status = status });

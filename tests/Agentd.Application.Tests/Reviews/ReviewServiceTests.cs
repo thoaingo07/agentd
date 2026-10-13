@@ -275,9 +275,58 @@ public sealed class ReviewServiceTests
         Assert.AreEqual(("sonnet", "high"), (own.Store.Rows[1].Model, own.Store.Rows[1].Effort), "--model wins; the effort still defaults");
     }
 
+    [TestMethod]
+    public async Task A_chat_review_shows_on_the_reviews_page_and_its_findings_and_status_follow_it()
+    {
+        var h = new Harness(withPage: true);
+        h.Agent.Replies.Enqueue(Findings);
+
+        var started = await h.Service.StartAsync(s_discord, "Kelvin", ["3944", "check", "the", "probes", "--focus", "security"], default);
+        await h.WaitForSentAsync(2);
+
+        StringAssert.Contains(started.Value, "It's also on the Reviews page: https://agentd.example/reviews/1");
+        var s = h.Sessions.Sessions[1];
+        Assert.AreEqual((ReviewTargets.PullRequest, (int?)3944, "Kelvin", (long?)1), (s.Target, s.PullRequestId, s.CreatedBy, s.PullRequestReviewId));
+        Assert.AreEqual(h.Chat.GetLink(new ConversationRef(s_discord, h.Store.Rows[1].ThreadId, null)), s.ChatLink, "the review's thread");
+        Assert.AreEqual(("m1", "abc1234"), (s.BaseCommit, s.HeadCommit), "the PR's change, pinned like a page review");
+        Assert.AreEqual(("security", "check the probes"), h.Sessions.Briefs[1]);
+        Assert.AreEqual(ReviewSessionStatus.Ready, s.Status, "the chat reviewer's findings filled it");
+        Assert.AreEqual("Adds a deploy pipeline. One real bug.", s.Summary);
+        CollectionAssert.AreEqual(new[] { "Readiness probe path is wrong", "Image tag isn't pinned", "PR description is empty" }, s.Findings.Select(f => f.Title).ToList());
+        Assert.HasCount(1, h.Agent.Turns, "one reviewer: the chat's");
+
+        await h.Sessions.DecideAsync(1, 2, FindingDecisions.Edited, "say it plainly", default);
+        await h.Service.HandleMessageAsync(h.Store.Rows[1], "Kelvin", "post 1,3", default);
+
+        s = h.Sessions.Sessions[1];
+        Assert.AreEqual((ReviewSessionStatus.Sent, "pr:3944"), (s.Status, s.SentTo), "posted from chat: sent on the page");
+        CollectionAssert.AreEqual(new[] { "Readiness probe path is wrong", "PR description is empty" }, s.Findings.Select(f => f.Title).ToList(), "what was posted");
+        Assert.AreEqual((FindingDecisions.Edited, "say it plainly"), (s.Findings[1].Decision, s.Findings[1].Edited), "the page's decision stays on the same finding");
+    }
+
+    [TestMethod]
+    public async Task Without_the_page_or_when_it_fails_the_chat_review_goes_on()
+    {
+        var plain = new Harness();
+        var broken = new Harness(withPage: true);
+        broken.Worktrees.MergeBases.Clear();   // the session can't be pinned
+        plain.Agent.Replies.Enqueue(Findings);
+        broken.Agent.Replies.Enqueue(Findings);
+
+        var a = await plain.Service.StartAsync(s_discord, "tngo", ["3944"], default);
+        var b = await broken.Service.StartAsync(s_discord, "tngo", ["3944"], default);
+        await plain.WaitForSentAsync(2);
+        await broken.WaitForSentAsync(2);
+
+        Assert.DoesNotContain("Reviews page", a.Value!);
+        Assert.DoesNotContain("Reviews page", b.Value!);
+        Assert.AreEqual((ReviewStatus.Reviewed, ReviewStatus.Reviewed), (plain.Store.Rows[1].Status, broken.Store.Rows[1].Status));
+        Assert.IsEmpty(broken.Sessions.Sessions);
+    }
+
     private sealed class Harness
     {
-        public Harness(Agentd.Application.Jobs.JobOptions? jobs = null)
+        public Harness(Agentd.Application.Jobs.JobOptions? jobs = null, bool withPage = false)
         {
             var options = Microsoft.Extensions.Options.Options.Create(new MessagingOptions());
             options.Value.Providers["discord"] = new MessagingProviderSettings { Enabled = true };
@@ -287,9 +336,16 @@ public sealed class ReviewServiceTests
                 "- test deploys on merge to develop\n- prod deploys on main", null, [], null);
             PullRequests.Comments.Add(new PullRequestComment(10, 1, "Kelvin Pham", "Why is the probe timeout 1s?", "/charts/api/values.yaml", 14, "active", DateTimeOffset.UnixEpoch));
             PullRequests.Comments.Add(new PullRequestComment(11, 2, "Kelvin Pham", "Typo fixed", null, null, "fixed", DateTimeOffset.UnixEpoch));
+            Worktrees.Commits["abc1234"] = "abc1234";
+            Worktrees.Commits["develop"] = "d9";
+            Worktrees.MergeBases[("d9", "abc1234")] = "m1";
+            var page = withPage ? new ReviewSessionService(Sessions, Registry, Worktrees, PullRequests) : null;
             Service = new ReviewService(Store, Registry, PullRequests, Worktrees, Agent, new MessagingProviderRegistry([Chat], options), NullLogger<ReviewService>.Instance, WorkItems,
-                jobs is null ? null : Microsoft.Extensions.Options.Options.Create(jobs));
+                jobs is null ? null : Microsoft.Extensions.Options.Options.Create(jobs), sessions: page,
+                web: Microsoft.Extensions.Options.Options.Create(new WebLinkOptions { PublicOrigin = "https://agentd.example" }));
         }
+
+        public ReviewSessionServiceTests.MemoryReviewSessions Sessions { get; } = new();
 
         public FakeChat Chat { get; } = new("discord");
 

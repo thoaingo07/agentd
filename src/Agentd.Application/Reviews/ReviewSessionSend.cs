@@ -49,6 +49,8 @@ public sealed class ReviewSessionSend(
                 await store.SetStatusAsync(id, ReviewSessionStatus.Sent, null, AsText, cancellationToken).ConfigureAwait(false);
                 return new ReviewSent(AsText, ReviewFeedback.Render($"{session.BaseRef} ({session.BaseCommit?[..Math.Min(7, session.BaseCommit.Length)]})", session.Summary, session.Findings, comments),
                     null, 0, false);
+            case ToPullRequest when session.PullRequestReviewId is not null:
+                return DomainError.Validation("This review came from a chat `!review`: post it from its thread, so the PR gets it once and agentd keeps re-checking it.");
             case ToPullRequest when session is { Target: ReviewTargets.PullRequest, PullRequestId: { } pr }:
                 return await PostAsync(session, pr, comments, cancellationToken).ConfigureAwait(false);
             case ToPullRequest:

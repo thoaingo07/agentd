@@ -455,7 +455,7 @@ async function start(): Promise<void> {
 
     <div class="grid gap-2">
       <h2 class="font-semibold">
-        My reviews
+        My reviews and reviews from chat
       </h2>
       <p
         v-if="!reviews.mine.length"
@@ -476,6 +476,10 @@ async function start(): Promise<void> {
             <span class="font-medium">{{ r.repo }}</span>
             <span class="font-mono text-xs">{{ r.target === 'pr' ? `PR !${r.pullRequestId}` : r.headRef }}</span>
             <span class="text-muted">→ {{ r.baseRef }}</span>
+            <span
+              v-if="r.chatLink"
+              class="badge badge-ghost badge-sm"
+            >💬 {{ r.createdBy }}</span>
             <span class="ml-auto text-xs text-muted">{{ r.findings.length }} finding(s) · {{ dateTime(r.createdAt) }}</span>
           </RouterLink>
         </li>
