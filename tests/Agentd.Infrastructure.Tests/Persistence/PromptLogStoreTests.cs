@@ -44,6 +44,58 @@ public sealed class PromptLogStoreTests
     }
 
     [TestMethod]
+    public async Task The_list_pages_newest_first_with_filters_and_a_prompt_comes_whole()
+    {
+        await using var db = await Database.CreateMigratedAsync("prompt_log_list");
+        var log = new PromptLogStore(db);
+        var job = await log.StartAsync(Prompt("the job rules", new string('x', 400)), default);
+        var running = await log.StartAsync(Prompt("the job rules", "Address the review"), default);
+        var ask = await log.StartAsync(Prompt("ask rules", "why a loop?", 7) with { Source = PromptSources.ReviewAsk, Step = null, Model = "sonnet" }, default);
+        await log.FinishAsync(job, PromptOutcomes.Ok, null, "Done.", default);
+        await log.FinishAsync(ask, PromptOutcomes.Error, "exit 1", null, default);
+
+        var all = await log.ListAsync(new PromptFilter(), null, 10, default);
+        var page = await log.ListAsync(new PromptFilter(), ask, 1, default);
+        var jobs = await log.ListAsync(new PromptFilter(Source: PromptSources.Job, SourceId: 42, Step: "implement", Model: "opus"), null, 10, default);
+        var stillRunning = await log.ListAsync(new PromptFilter(Outcome: PromptFilter.Running), null, 10, default);
+        var failed = await log.ListAsync(new PromptFilter(Outcome: PromptOutcomes.Error), null, 10, default);
+        var later = await log.ListAsync(new PromptFilter(From: DateTimeOffset.UtcNow.AddHours(1)), null, 10, default);
+
+        CollectionAssert.AreEqual(new[] { ask, running, job }, all.Select(p => p.Id).ToList(), "newest first");
+        CollectionAssert.AreEqual(new[] { running }, page.Select(p => p.Id).ToList(), "below the given id");
+        CollectionAssert.AreEqual(new[] { running, job }, jobs.Select(p => p.Id).ToList());
+        CollectionAssert.AreEqual(new[] { running }, stillRunning.Select(p => p.Id).ToList());
+        Assert.AreEqual(("exit 1", "sonnet"), (failed.Single().Error, failed.Single().Model));
+        Assert.IsEmpty(later);
+        var first = all.Single(p => p.Id == job);
+        Assert.AreEqual((300, 400, 5, true, (string?)PromptOutcomes.Ok), (first.Preview.Length, first.PromptChars, first.ReplyChars, first.HasRules, first.Outcome));
+
+        var whole = await log.GetAsync(job, default);
+        Assert.AreEqual((400, "Done.", "the job rules", (string?)"implement"), (whole!.Prompt.Length, whole.Reply, whole.Rules, whole.Step));
+        Assert.IsNotNull(whole.FinishedAt);
+        Assert.IsNull(await log.GetAsync(999, default));
+    }
+
+    [TestMethod]
+    public async Task Readers_in_parallel_with_writers_see_whole_prompts()
+    {
+        await using var db = await Database.CreateMigratedAsync("prompt_log_parallel_read");
+        var log = new PromptLogStore(db);
+        var seed = await log.StartAsync(Prompt("rules"), default);
+
+        var writes = Enumerable.Range(0, 6).Select(i => Task.Run(() => log.StartAsync(Prompt("rules", $"prompt {i}", i), default)));
+        var reads = Enumerable.Range(0, 6).Select(_ => Task.Run(async () => (await log.ListAsync(new PromptFilter(), null, 50, default)).Count));
+        var gets = Enumerable.Range(0, 6).Select(_ => Task.Run(() => log.GetAsync(seed, default)));
+        await Task.WhenAll(writes);
+        var counts = await Task.WhenAll(reads);
+        var got = await Task.WhenAll(gets);
+
+        Assert.IsTrue(counts.All(c => c is >= 1 and <= 7));
+        Assert.IsTrue(got.All(p => p is { Rules: "rules", Prompt: "Fix the login" }));
+        Assert.HasCount(7, await log.ListAsync(new PromptFilter(), null, 50, default));
+    }
+
+    [TestMethod]
     public async Task Old_prompts_go_and_rules_go_with_them_unless_used_since()
     {
         await using var db = await Database.CreateMigratedAsync("prompt_log_retention");

@@ -548,6 +548,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/prompts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ListPrompts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/prompts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetPrompt"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/settings/restart": {
         parameters: {
             query?: never;
@@ -1883,6 +1915,62 @@ export interface components {
             model: null | string;
             smallModel: null | string;
             apiKey: components["schemas"]["SecretStatusVm"];
+        };
+        /** @description A prompt, whole: what was sent, the system rules with it, and the reply. */
+        PromptDetailVm: {
+            /** Format: int64 */
+            id: number;
+            source: string;
+            /** Format: int64 */
+            sourceId: number;
+            step: null | string;
+            /** Format: uuid */
+            session: null | string;
+            resume: boolean;
+            model: null | string;
+            effort: null | string;
+            profile: null | string;
+            outcome: null | string;
+            error: null | string;
+            /** Format: date-time */
+            startedAt: string;
+            /** Format: date-time */
+            finishedAt: null | string;
+            prompt: string;
+            reply: null | string;
+            rules: null | string;
+        };
+        /** @description A page, newest first; `hasMore`: older prompts exist (ask again with `before` = the last id). */
+        PromptPageVm: {
+            prompts: components["schemas"]["PromptSummaryVm"][];
+            hasMore: boolean;
+        };
+        /** @description A prompt in the list; `preview` is its first 300 characters, `outcome` null while it runs. */
+        PromptSummaryVm: {
+            /** Format: int64 */
+            id: number;
+            source: string;
+            /** Format: int64 */
+            sourceId: number;
+            step: null | string;
+            /** Format: uuid */
+            session: null | string;
+            resume: boolean;
+            model: null | string;
+            effort: null | string;
+            profile: null | string;
+            outcome: null | string;
+            error: null | string;
+            /** Format: date-time */
+            startedAt: string;
+            /** Format: date-time */
+            finishedAt: null | string;
+            preview: string;
+            /** Format: int32 */
+            promptChars: number;
+            /** Format: int32 */
+            replyChars: number;
+            hasRules: boolean;
         };
         PullRequestLinkVm: {
             /** Format: int64 */
@@ -3419,6 +3507,75 @@ export interface operations {
             };
             /** @description Conflict */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    ListPrompts: {
+        parameters: {
+            query?: {
+                source?: string;
+                sourceId?: number;
+                step?: string;
+                model?: string;
+                outcome?: string;
+                from?: string;
+                before?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PromptPageVm"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetPrompt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PromptDetailVm"];
+                };
+            };
+            /** @description Not Found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

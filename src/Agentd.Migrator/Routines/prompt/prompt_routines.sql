@@ -54,3 +54,42 @@ BEGIN
     RETURN v_count;
 END
 $$;
+
+-- The Prompts page: newest first, filtered (all optional; p_outcome 'running' = not finished yet), a page of p_limit
+-- below p_before (an id). The prompt is previewed; agent_prompt_get has it whole.
+CREATE OR REPLACE FUNCTION agentd.agent_prompt_list(p_source text, p_source_id bigint, p_step text, p_model text, p_outcome text,
+                                                    p_from timestamptz, p_before bigint, p_limit int)
+RETURNS TABLE (id bigint, source text, source_id bigint, step text, session uuid, resume boolean, model text, effort text,
+               profile text, outcome text, error text, started_at timestamptz, finished_at timestamptz, preview text,
+               prompt_chars int, reply_chars int, has_rules boolean)
+LANGUAGE sql
+STABLE
+AS $$
+    SELECT p.id, p.source, p.source_id, p.step, p.session, p.resume, p.model, p.effort, p.profile, p.outcome, p.error,
+           p.started_at, p.finished_at, left(p.prompt, 300), length(p.prompt), coalesce(length(p.reply), 0), p.rules_hash IS NOT NULL
+      FROM agentd.agent_prompts AS p
+     WHERE (p_source IS NULL OR p.source = p_source)
+       AND (p_source_id IS NULL OR p.source_id = p_source_id)
+       AND (p_step IS NULL OR p.step = p_step)
+       AND (p_model IS NULL OR p.model = p_model)
+       AND (p_outcome IS NULL OR (p_outcome = 'running' AND p.finished_at IS NULL) OR p.outcome = p_outcome)
+       AND (p_from IS NULL OR p.started_at >= p_from)
+       AND (p_before IS NULL OR p.id < p_before)
+     ORDER BY p.id DESC
+     LIMIT greatest(p_limit, 0)
+$$;
+
+-- One prompt, whole: what was sent, its rules and the reply.
+CREATE OR REPLACE FUNCTION agentd.agent_prompt_get(p_id bigint)
+RETURNS TABLE (id bigint, source text, source_id bigint, step text, session uuid, resume boolean, model text, effort text,
+               profile text, outcome text, error text, started_at timestamptz, finished_at timestamptz, prompt text,
+               reply text, rules text)
+LANGUAGE sql
+STABLE
+AS $$
+    SELECT p.id, p.source, p.source_id, p.step, p.session, p.resume, p.model, p.effort, p.profile, p.outcome, p.error,
+           p.started_at, p.finished_at, p.prompt, p.reply, r.text
+      FROM agentd.agent_prompts AS p
+      LEFT JOIN agentd.agent_prompt_rules AS r ON r.hash = p.rules_hash
+     WHERE p.id = p_id
+$$;
