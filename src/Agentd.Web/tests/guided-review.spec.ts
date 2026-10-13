@@ -25,6 +25,7 @@ const guide = {
 const finding = { number: 1, severity: 'breaks', file: 'src/Sync.cs', line: 41, title: 'Unbounded read', detail: null, suggestion: null, decision: 'kept', edited: null }
 let session: Record<string, unknown>
 let asked: Record<string, unknown>[]
+let comments: Record<string, unknown>[]
 const json = (body: unknown) => new Response(JSON.stringify(body))
 const router = () => createRouter({ history: createMemoryHistory(), routes: [
   { path: '/reviews', name: 'reviews', component: { template: '<div />' } },
@@ -36,6 +37,7 @@ beforeEach(() => {
   setAntiforgeryUrl('/bff/antiforgery')
   window.localStorage.clear()
   asked = []
+  comments = []
   session = { id: 7, repo: 'sysmin', target: 'branch', pullRequestId: null, headRef: 'feature/keyset', baseRef: 'develop', baseCommit: 'a1b2c3d4', headCommit: 'f9e8d7c6',
     status: 'Ready', error: null, model: null, effort: null, summary: 'One real bug.', findings: [finding], createdBy: 'local', sentTo: null, createdAt: '2026-10-09T10:00:00Z',
     chatLink: null, postsFromChat: false, guide }
@@ -46,7 +48,17 @@ beforeEach(() => {
       asked.push(await req.json() as Record<string, unknown>)
       return json({})
     }
-    if (path === '/api/reviews/7') return json({ session, comments: [], asks: asked.map((a, i) => ({ id: i + 1, file: a.file ?? null, line: a.line ?? null, endLine: null, question: a.text, answer: null, author: 'local', askedAt: '2026-10-13T07:00:00Z', threadId: null })) })
+    if (path === '/api/reviews/7/comments' && req.method === 'POST') {
+      const body = await req.json() as Record<string, unknown>
+      const added = { id: comments.length + 1, file: body.file ?? null, line: body.line ?? null, endLine: null, text: body.text, author: 'local', createdAt: '2026-10-13T08:00:00Z' }
+      comments.push(added)
+      return json(added)
+    }
+    if (path.startsWith('/api/reviews/7/comments/') && req.method === 'DELETE') {
+      comments = comments.filter((c) => `/api/reviews/7/comments/${c.id}` !== path)
+      return new Response(null, { status: 204 })
+    }
+    if (path === '/api/reviews/7') return json({ session, comments, asks: asked.map((a, i) => ({ id: i + 1, file: a.file ?? null, line: a.line ?? null, endLine: null, question: a.text, answer: null, author: 'local', askedAt: '2026-10-13T07:00:00Z', threadId: null })) })
     return json({ token: 't' })
   }))
 })
@@ -109,10 +121,27 @@ describe('guided review', () => {
 
     const suggestions = view.get('[data-testid=suggestions]')
     expect(suggestions.text()).toContain('Make the chunk size configurable')
-    expect(suggestions.text()).toContain("they aren't posted")
+    expect(suggestions.text()).toContain('posted only if you keep them')
     await view.findAll('button').find((b) => b.text() === 'All files')!.trigger('click')
     expect(view.find('[data-testid=guided-review]').exists()).toBe(false)
     expect(view.find('#file-docs\\/sync\\.md').exists()).toBe(true)
+    view.unmount()
+  })
+
+  it('keeping a suggestion makes it your comment (sent, and applied by Fix it); Undo removes it', async () => {
+    const view = await open()
+
+    await view.get('[data-testid=suggestions] [data-testid=keep-suggestion]').trigger('click')
+    await flushPromises()
+    expect(comments).toEqual([expect.objectContaining({ file: 'src/Sync.cs', line: 41,
+      text: '✨ Suggestion: Make the chunk size configurable\n\nTables differ.\n\nSuggested change: Read it from options.' })])
+    expect(view.get('[data-testid=suggestion-kept]').text()).toContain('Fix it applies it')
+    expect(view.find('[data-testid=keep-suggestion]').exists()).toBe(false)
+
+    await view.get('[data-testid=suggestion-kept]').findAll('button').find((b) => b.text() === 'Undo')!.trigger('click')
+    await flushPromises()
+    expect(comments).toEqual([])
+    expect(view.find('[data-testid=keep-suggestion]').exists()).toBe(true)
     view.unmount()
   })
 
