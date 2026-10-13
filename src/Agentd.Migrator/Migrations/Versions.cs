@@ -109,3 +109,6 @@ public sealed class ReviewSessionChat : SqlMigration;
 
 [Migration(2026_11_01_0001, "Guided reviews: the reviewer's guide to the change on the session")]
 public sealed class ReviewSessionGuide : SqlMigration;
+
+[Migration(2026_11_02_0001, "The prompt log: every prompt sent to an agent, its rules stored once")]
+public sealed class AgentPrompts : SqlMigration;

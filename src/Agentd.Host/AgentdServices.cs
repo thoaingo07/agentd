@@ -52,6 +52,7 @@ internal static class AgentdServices
         builder.Services.AddOptions<JobOptions>().BindConfiguration(JobOptions.Section);
         builder.Services.AddOptions<Application.Artifacts.ArtifactOptions>().BindConfiguration(Application.Artifacts.ArtifactOptions.Section);
         builder.Services.AddOptions<Application.SystemLog.SystemLogOptions>().BindConfiguration(Application.SystemLog.SystemLogOptions.Section);
+        builder.Services.AddOptions<Application.Prompts.PromptLogOptions>().BindConfiguration(Application.Prompts.PromptLogOptions.Section);
         builder.Services.AddOptions<Application.Reviews.WebLinkOptions>().BindConfiguration(Application.Reviews.WebLinkOptions.Section);
         builder.Services.AddOptions<ModelsOptions>().BindConfiguration(ModelsOptions.Section).ValidateOnStart();
         builder.Services.AddSingleton<IValidateOptions<ModelsOptions>, ModelsOptionsValidator>();

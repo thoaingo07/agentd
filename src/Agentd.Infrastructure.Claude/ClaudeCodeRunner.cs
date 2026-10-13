@@ -20,7 +20,8 @@ public sealed partial class ClaudeCodeRunner(
     IAgentActivitySink activity,
     ILogger<ClaudeCodeRunner> logger,
     IOptions<Application.Jobs.ModelsOptions>? models = null,
-    IStepAnnouncer? steps = null) : IAgentRunner
+    IStepAnnouncer? steps = null,
+    PromptRecorder? prompts = null) : IAgentRunner
 {
     private readonly ConcurrentDictionary<long, Running> _running = new();
 
@@ -56,6 +57,39 @@ public sealed partial class ClaudeCodeRunner(
     public async Task<AgentRunOutcome> RunAsync(AgentRunRequest request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
+        if (prompts is null)
+        {
+            return await RunCoreAsync(request, cancellationToken).ConfigureAwait(false);
+        }
+
+        var id = await prompts.StartAsync(new Application.Prompts.PromptStart(Application.Prompts.PromptSources.Job, request.JobId.Value, request.Step,
+            request.Session.Value, request.Resume, request.Model, request.Effort, request.Profile, options.Value.SystemPromptRules, request.Prompt)).ConfigureAwait(false);
+        try
+        {
+            var outcome = await RunCoreAsync(request, cancellationToken).ConfigureAwait(false);
+            var (result, error) = Recorded(outcome);
+            await prompts.FinishAsync(id, result, error).ConfigureAwait(false);
+            return outcome;
+        }
+        catch (Exception ex)
+        {
+            await prompts.FinishAsync(id, Application.Prompts.PromptOutcomes.Error, ex.Message).ConfigureAwait(false);
+            throw;
+        }
+    }
+
+    /// <summary>How a job turn ended, for the prompt log (its transcript is on the job's page, so no reply here).</summary>
+    internal static (string Outcome, string? Error) Recorded(AgentRunOutcome outcome) => outcome switch
+    {
+        AgentRunOutcome.Exited { ExitCode: 0, Summary.IsError: not true } => (Application.Prompts.PromptOutcomes.Ok, null),
+        AgentRunOutcome.Exited e => (Application.Prompts.PromptOutcomes.Error, e.Summary?.ErrorSubtype ?? $"exit code {e.ExitCode}"),
+        AgentRunOutcome.TimedOut => (Application.Prompts.PromptOutcomes.Timeout, null),
+        AgentRunOutcome.UsageLimited => (Application.Prompts.PromptOutcomes.UsageLimit, null),
+        _ => (Application.Prompts.PromptOutcomes.Cancelled, null),
+    };
+
+    private async Task<AgentRunOutcome> RunCoreAsync(AgentRunRequest request, CancellationToken cancellationToken)
+    {
         var o = options.Value;
         var jobDir = Path.Combine(Paths.Expand(o.TranscriptRoot), $"wi-{request.WorkItemId}");
         Directory.CreateDirectory(jobDir);

@@ -9,6 +9,7 @@ public static class DependencyInjection
     public static IServiceCollection AddClaude(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddOptions<ClaudeOptions>().Bind(configuration.GetSection(ClaudeOptions.Section));
+        services.AddSingleton<PromptRecorder>();   // the prompt log (docs/architect/prompt-log.md)
         services.AddSingleton<IAgentRunner, ClaudeCodeRunner>();
         services.AddSingleton<Application.Permissions.IToolAllowlist, ClaudeToolAllowlist>();
         services.AddSingleton<Application.Ideas.IBrainstormAgent, ClaudeBrainstormAgent>();

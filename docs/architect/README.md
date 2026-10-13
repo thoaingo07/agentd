@@ -41,6 +41,8 @@ real-time view of every session: live transcripts, tool calls, state and cost.
   ([ai-sdlc-kit.md](ai-sdlc-kit.md)).
 - **Learn from every run.** Distill the lessons into a reviewed `learnings.md` per repository,
   which feeds future runs.
+- **Keep every prompt.** Each prompt sent to an agent, with its rules, model, outcome and reply, so the team can see
+  what the agents were asked and learn from it ([prompt-log.md](prompt-log.md)).
 - Run **each phase on a configurable model profile** (Claude subscriptions or API keys, DeepSeek,
   GLM, Gemini, …) with fallbacks and per-profile cost tracking ([model-profiles.md](model-profiles.md)).
 - Survive daemon restarts without losing jobs or Claude sessions.

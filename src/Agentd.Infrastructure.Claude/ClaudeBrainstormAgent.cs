@@ -10,7 +10,7 @@ namespace Agentd.Infrastructure.Claude;
 /// Brainstorm turns with Claude Code: read-only tools only (no edits, no agentd MCP tools, no MCP at all), in the
 /// idea's detached checkout; <c>--model</c> / <c>--effort</c> from the idea. The reply is the session's final message.
 /// </summary>
-public sealed class ClaudeBrainstormAgent(IOptions<ClaudeOptions> options) : IBrainstormAgent
+public sealed class ClaudeBrainstormAgent(IOptions<ClaudeOptions> options, PromptRecorder? prompts = null) : IBrainstormAgent
 {
     public const int MaxTurns = 40;
 
@@ -113,7 +113,7 @@ public sealed class ClaudeBrainstormAgent(IOptions<ClaudeOptions> options) : IBr
             turn.Resume ? "--resume" : "--session-id", turn.Session.ToString(),
             "--output-format", "stream-json", "--verbose",
             "--max-turns", MaxTurns.ToString(CultureInfo.InvariantCulture),
-            "--append-system-prompt", turn.Kind switch { ThreadTurnKind.Review or ThreadTurnKind.ReviewSession => ReviewRules, ThreadTurnKind.ReviewAsk => ReviewAskRules, ThreadTurnKind.ReviewFix => ReviewFixRules, ThreadTurnKind.FollowUp => FollowUpRules, ThreadTurnKind.Chat => ChatRules, _ => Rules }
+            "--append-system-prompt", RulesFor(turn.Kind)
                 + (turn.McpToken is null ? string.Empty : ArtifactRule),
             "--strict-mcp-config",
             // agentd's tools for a turn with a token: a chat's (Azure DevOps and artifacts), or any turn's artifact-only one.
@@ -146,9 +146,49 @@ public sealed class ClaudeBrainstormAgent(IOptions<ClaudeOptions> options) : IBr
         return args;
     }
 
+    /// <summary>The system rules a thread turn runs with.</summary>
+    public static string RulesFor(ThreadTurnKind kind) => kind switch
+    {
+        ThreadTurnKind.Review or ThreadTurnKind.ReviewSession => ReviewRules,
+        ThreadTurnKind.ReviewAsk => ReviewAskRules,
+        ThreadTurnKind.ReviewFix => ReviewFixRules,
+        ThreadTurnKind.FollowUp => FollowUpRules,
+        ThreadTurnKind.Chat => ChatRules,
+        _ => Rules,
+    };
+
     public async Task<BrainstormReply> RunAsync(BrainstormTurn turn, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(turn);
+        if (prompts is null)
+        {
+            return await RunCoreAsync(turn, cancellationToken).ConfigureAwait(false);
+        }
+
+        var id = await prompts.StartAsync(new Application.Prompts.PromptStart(Application.Prompts.PromptSources.For(turn.Kind), turn.IdeaId, null,
+            turn.Session, turn.Resume, turn.Model, turn.Effort, null, RulesFor(turn.Kind), turn.Prompt)).ConfigureAwait(false);
+        try
+        {
+            var reply = await RunCoreAsync(turn, cancellationToken).ConfigureAwait(false);
+            await prompts.FinishAsync(id, reply switch
+            {
+                { UsageLimitedUntil: not null } => Application.Prompts.PromptOutcomes.UsageLimit,
+                { Text: not null } => Application.Prompts.PromptOutcomes.Ok,
+                { Error: "cancelled" } => Application.Prompts.PromptOutcomes.Cancelled,
+                { Error: "no output for too long" } => Application.Prompts.PromptOutcomes.Timeout,
+                _ => Application.Prompts.PromptOutcomes.Error,
+            }, reply.Error, reply.Text).ConfigureAwait(false);
+            return reply;
+        }
+        catch (Exception ex)
+        {
+            await prompts.FinishAsync(id, Application.Prompts.PromptOutcomes.Error, ex.Message).ConfigureAwait(false);
+            throw;
+        }
+    }
+
+    private async Task<BrainstormReply> RunCoreAsync(BrainstormTurn turn, CancellationToken cancellationToken)
+    {
         var o = options.Value;
         var dir = Path.Combine(Paths.Expand(o.TranscriptRoot), $"{turn.Kind switch { ThreadTurnKind.Review => "review", ThreadTurnKind.ReviewSession => "review-session", ThreadTurnKind.ReviewAsk => "review-ask", ThreadTurnKind.ReviewFix => "review-fix", ThreadTurnKind.FollowUp => "followup", ThreadTurnKind.Chat => "chat", _ => "idea" }}-{turn.IdeaId}");
         Directory.CreateDirectory(dir);
