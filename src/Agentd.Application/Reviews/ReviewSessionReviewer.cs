@@ -155,14 +155,17 @@ public sealed partial class ReviewSessionReviewer(
     internal const string GuideRequest =
         "\n\nThen guide the developer through the change, for someone who hasn't seen this code: after the review-findings block, " +
         "add a fenced block\n```review-guide\n{\"overview\":\"what the change does and how it fits together, two to four sentences\"," +
-        "\"chapters\":[{\"title\":\"a few words\",\"why\":\"what this part does and why it matters, one to three sentences\"," +
+        "\"before\":\"how it worked before, one or two sentences\",\"after\":\"how it works now, one or two sentences\"," +
+        "\"chapters\":[{\"title\":\"a few words\",\"attention\":\"core\",\"why\":\"what this part does and why it matters, one to three sentences\"," +
+        "\"focus\":[\"what to check while reading it, a few words each\"]," +
         "\"files\":[{\"path\":\"src/Foo/Bar.cs\",\"summary\":\"what changed in this file, one sentence\"}]}]," +
-        "\"notes\":[{\"file\":\"src/Foo/Bar.cs\",\"line\":42,\"text\":\"what this line or block does and why, one or two sentences\"}]," +
+        "\"notes\":[{\"file\":\"src/Foo/Bar.cs\",\"line\":42,\"text\":\"what this line or block does and why, one or two sentences\",\"critical\":false}]," +
         "\"suggestions\":[{\"file\":\"src/Foo/Bar.cs\",\"line\":42,\"title\":\"at most 12 words\",\"detail\":\"why it's better\"," +
         "\"suggestion\":\"the change, a short code snippet is fine\"}]}\n```\n" +
         "Order the chapters by importance: the heart of the change first, then its consequences, then the glue (wiring, config, " +
-        "tests, docs). Put every changed file in exactly one chapter, in the order to read them; at most 10 chapters. Notes explain " +
-        "the non-obvious lines (at most 40, on the new side); they aren't problems. Suggestions are optional improvements that don't " +
+        "tests, docs). attention is core for chapters to read closely and skim for the rest; focus has at most 5 points. Put every " +
+        "changed file in exactly one chapter, in the order to read them; at most 10 chapters. Notes explain the non-obvious lines (at " +
+        "most 40, on the new side); they aren't problems; critical marks a spot that needs care. Suggestions are optional improvements that don't " +
         "break anything without them (clearer, simpler, safer later; at most 10); never repeat a finding as a suggestion.";
 
     public void Dispose() => _slots.Dispose();

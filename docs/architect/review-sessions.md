@@ -108,7 +108,26 @@ the developer through the change, and they can ask about anything.
   it); files that didn't change are dropped; files the reviewer left out go to **Everything else**; notes stay only on
   changed files. A missing or unreadable guide never fails the review: the page falls back to the file list.
 - **Stored** whole on the session (`review_sessions.guide`, `review_session_set_guide`) and served with it
-  (`ReviewSessionVm.guide`).
+  (`ReviewSessionVm.guide`). Each chapter also has an `attention` (`core`: read closely, `skim`; Everything else is
+  `skim`) and up to five `focus` points ("While reading, check"); the guide has `before` / `after`; a note can be
+  `critical` (a spot that needs care).
+- **The page** (`GuidedReview`, after Diffity's guide and Plannotator's Guided Review; decided 2026-10-12: one chapter at
+  a time, simpler than one long scroll). With a guide the page opens on **Guided** (`Guided | All files`):
+
+  ```text
+  ┌ step strip 0 1 2 3 (● needs care, ✓ reviewed) ┐┌ step 0: overview ──────────────────────────┐┌ Suggestions ┐
+  │ 01 / 03 · Core · ⚠️ 1 spot needs care          ││ What this change does · Before | After      ││ Findings    │
+  │ Chapter title                                  ││ chapter cards (Core/Skim, files, findings)  ││ To post     │
+  │ why it matters                                 ││ [Start reading / Continue]                  ││ Ask         │
+  │ While reading, check: • …                      │├ step n: the chapter's own files ───────────┤│             │
+  │ its files                                      ││ file summary, the real diff, 💡/⚠️ notes and ││             │
+  │ ← Previous · Next →                            ││ findings at their lines                      ││             │
+  └────────────────────────────────────────────────┘│ [Mark reviewed and continue] Next: <title> →││             │
+                                                     └─────────────────────────────────────────────┘└─────────────┘
+  ```
+
+  Reviewed chapters are remembered in the browser (`agentd.guide.<id>`); `]` / `[` move between chapters. Suggestions
+  sit apart from findings and aren't posted. Comments, Ask and decisions work as in All files.
 
 Delivery (one PR each, under 1000 lines):
 1. The guide on the server: the reviewer asks for it, agentd checks and fits it, stores and serves it.

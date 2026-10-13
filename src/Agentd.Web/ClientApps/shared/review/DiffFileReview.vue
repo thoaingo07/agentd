@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import type { ReviewComment, ReviewFinding } from '../api/types'
+import type { GuideNote, ReviewComment, ReviewFinding } from '../api/types'
 import type { DiffFile } from '../utils/diff'
 import { AgButton } from '../components/ui'
 import FindingCard from './FindingCard.vue'
 
-// One file of the change with its findings and comments at their lines; click a line number to comment there.
-const props = defineProps<{ file: DiffFile; findings: ReviewFinding[]; comments: ReviewComment[]; readonly?: boolean }>()
+// One file of the change with its findings, comments and (in a guided review) the reviewer's notes at their lines; click a
+// line number to comment there.
+const props = defineProps<{ file: DiffFile; findings: ReviewFinding[]; comments: ReviewComment[]; readonly?: boolean; notes?: GuideNote[] }>()
 const emit = defineEmits<{
   decide: [n: number, decision: 'kept' | 'dropped' | 'edited', text?: string]
   comment: [line: number, text: string]
@@ -29,7 +30,9 @@ const byLine = computed(() => {
     else loose.push(f)
   }
   for (const c of props.comments) if (c.line != null) comments.set(c.endLine ?? c.line, [...(comments.get(c.endLine ?? c.line) ?? []), c])
-  return { findings, comments, loose }
+  const notes = new Map<number, GuideNote[]>()
+  for (const n of props.notes ?? []) if (shown.has(n.line)) notes.set(n.line, [...(notes.get(n.line) ?? []), n])
+  return { findings, comments, loose, notes }
 })
 
 function startComment(line: number | null): void {
@@ -117,12 +120,22 @@ function send(kind: 'comment' | 'ask'): void {
               {{ l.text }}
             </td>
           </tr>
-          <tr v-if="l.newNo != null && (byLine.findings.has(l.newNo) || byLine.comments.has(l.newNo) || at === l.newNo)">
+          <tr v-if="l.newNo != null && (byLine.findings.has(l.newNo) || byLine.comments.has(l.newNo) || byLine.notes.has(l.newNo) || at === l.newNo)">
             <td
               colspan="3"
               class="bg-base-200/40 p-2"
             >
               <div class="grid gap-2 font-sans">
+                <p
+                  v-for="(n, ni) in byLine.notes.get(l.newNo) ?? []"
+                  :key="`n${ni}`"
+                  class="flex items-start gap-2 rounded-box border p-2 text-sm"
+                  :class="n.critical ? 'border-warning bg-warning/10' : 'border-info/40 bg-info/5'"
+                  data-testid="guide-note"
+                >
+                  <span aria-hidden="true">{{ n.critical ? '⚠️' : '💡' }}</span>
+                  <span><span class="sr-only">{{ n.critical ? 'Needs care: ' : 'Note: ' }}</span>{{ n.text }}</span>
+                </p>
                 <FindingCard
                   v-for="f in byLine.findings.get(l.newNo) ?? []"
                   :key="f.number"

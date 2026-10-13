@@ -2,6 +2,7 @@
 // UI, served by the CLI on 127.0.0.1 for one local session, plus Send (to .agentd/review.md for their agent).
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
+import ui from '@nuxt/ui/vue-plugin'
 import { createRouter, createWebHistory } from 'vue-router'
 import App from './App.vue'
 import ReviewView from '../dashboard/views/ReviewView.vue'
@@ -15,4 +16,4 @@ const router = createRouter({
   ],
 })
 
-createApp(App).use(createPinia()).use(router).mount('#app')
+createApp(App).use(createPinia()).use(router).use(ui).mount('#app')   // Nuxt UI: the shared review page uses its components
