@@ -199,8 +199,63 @@ public sealed class ReviewSessionAsks(IReviewSessionStore store, IRepositoryRegi
     internal static string Prompt(ReviewSession s, ReviewAsk ask)
     {
         var where = Where(ask);
-        return $"On agentd's review page for {s.HeadRef} → {s.BaseRef} in {s.Repository} (the change is `git diff {s.BaseCommit} {s.HeadCommit}`; your checkout is {s.HeadCommit}), " +
+        return $"On agentd's review page for {s.HeadRef} → {s.BaseRef} in {s.Repository} (the change is `git diff {s.BaseCommit} {s.HeadCommit}`; your checkout is {s.HeadCommit})." +
+            Context(s, ask) + "\n\nAnswer for someone who may be new to this code: plainly, citing file:line, and say so when you're unsure. " +
             $"{ask.Author} selected {where} and asks:\n\n{ask.Question}";
+    }
+
+    /// <summary>The most of the review a question's prompt carries (the summary, the guide, the findings).</summary>
+    public const int MaxContext = 8000;
+
+    /// <summary>
+    /// What agentd's reviewer already said, so "explain this chapter" or "why is this a problem?" needs no copying: the summary,
+    /// the guide's overview and chapters, and the notes and findings at the selected file (all findings for the whole change).
+    /// Dropped findings are left out.
+    /// </summary>
+    internal static string Context(ReviewSession s, ReviewAsk ask)
+    {
+        var sb = new System.Text.StringBuilder();
+        if (!string.IsNullOrWhiteSpace(s.Summary))
+        {
+            sb.Append("\n\nagentd's reviewer summed it up: ").Append(s.Summary.Trim());
+        }
+
+        if (s.Guide is { } guide)
+        {
+            sb.Append("\n\nThe reviewer's guide to the change: ").Append(guide.Overview).Append("\nIts chapters, in reading order:");
+            for (var i = 0; i < guide.Chapters.Count; i++)
+            {
+                var c = guide.Chapters[i];
+                sb.Append($"\n{i + 1}. {c.Title}");
+                if (c.Why is { } why)
+                {
+                    sb.Append(" — ").Append(why);
+                }
+
+                sb.Append(" (files: ").AppendJoin(", ", c.Files.Select(f => f.Path)).Append(')');
+            }
+
+            foreach (var n in (guide.Notes ?? []).Where(n => n.File == ask.File))
+            {
+                sb.Append($"\nThe guide's note at {n.File}:{n.Line}: {n.Text}");
+            }
+        }
+
+        var findings = s.Findings.Where(f => f.Decision != FindingDecisions.Dropped && (ask.File is null || f.File == ask.File)).ToList();
+        if (findings.Count > 0)
+        {
+            sb.Append(ask.File is null ? "\n\nThe reviewer's findings:" : $"\n\nThe reviewer's findings in {ask.File}:");
+            foreach (var f in findings)
+            {
+                sb.Append($"\n- [{f.Severity}] {(f.File is null ? "" : f.Line is { } l ? $"{f.File}:{l} " : $"{f.File} ")}{f.Edited ?? f.Title}");
+                if (f.Edited is null && f.Detail is { } detail)
+                {
+                    sb.Append(" — ").Append(detail);
+                }
+            }
+        }
+
+        return sb.Length <= MaxContext ? sb.ToString() : string.Concat(sb.ToString(0, MaxContext), "…");
     }
 
     public void Dispose() => _slots.Dispose();

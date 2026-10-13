@@ -128,6 +128,51 @@ public sealed class ReviewSessionAsksTests
         Assert.IsEmpty(_agent.Turns);
     }
 
+    [TestMethod]
+    public async Task A_question_carries_what_the_reviewer_said_about_the_selected_file()
+    {
+        var id = await SessionAsync();
+        await _store.SetFindingsAsync(id,
+        [
+            new SessionFinding("major", "src/Sync.cs", 41, "Unbounded loop", "It never stops when the page is empty.", null),
+            new SessionFinding("minor", "src/Other.cs", 3, "Typo", null, null),
+            new SessionFinding("minor", "src/Sync.cs", 50, "Dropped one", null, null, FindingDecisions.Dropped),
+        ], "Pages the sync by key.", default);
+        await _store.SetGuideAsync(id, new ReviewGuide("Sync pages by key now.",
+            [new GuideChapter("Keyset paging", "The heart of it.", [new GuideFile("src/Sync.cs", "the loop")]), new GuideChapter("Glue", null, [new GuideFile("src/Other.cs", null)])],
+            [new GuideNote("src/Sync.cs", 42, "the cursor moves here"), new GuideNote("src/Other.cs", 1, "elsewhere")]), default);
+        using var asks = Asks();
+
+        await asks.Answer(id, (await asks.AskAsync(id, "src/Sync.cs", 41, null, "why is this a problem?", "dev@example.com", default)).Value!);
+
+        var prompt = _agent.Turns.Single().Prompt;
+        StringAssert.Contains(prompt, "agentd's reviewer summed it up: Pages the sync by key.");
+        StringAssert.Contains(prompt, "The reviewer's guide to the change: Sync pages by key now.");
+        StringAssert.Contains(prompt, "1. Keyset paging — The heart of it. (files: src/Sync.cs)\n2. Glue (files: src/Other.cs)");
+        StringAssert.Contains(prompt, "The guide's note at src/Sync.cs:42: the cursor moves here");
+        StringAssert.Contains(prompt, "The reviewer's findings in src/Sync.cs:\n- [major] src/Sync.cs:41 Unbounded loop — It never stops when the page is empty.");
+        Assert.DoesNotContain("elsewhere", prompt, "only the selected file's notes");
+        Assert.DoesNotContain("Typo", prompt, "only the selected file's findings");
+        Assert.DoesNotContain("Dropped one", prompt, "dropped findings are left out");
+        StringAssert.EndsWith(prompt, "dev@example.com selected src/Sync.cs:41 and asks:\n\nwhy is this a problem?");
+    }
+
+    [TestMethod]
+    public void A_question_on_the_whole_change_lists_every_kept_finding_and_the_context_is_capped()
+    {
+        var findings = Enumerable.Range(1, 200).Select(i => new SessionFinding("minor", $"src/F{i}.cs", i, $"Finding {i}", new string('x', 100), null)).ToList();
+        var session = new ReviewSession(1, "sysmin", ReviewTargets.Branch, null, "feature/keyset", "develop", "m1", "h1", ReviewSessionStatus.Ready, null, null, null,
+            null, findings, null, null, "dev@example.com", null, default, default);
+        var ask = new ReviewAsk(1, null, null, null, "what's worst?", null, "dev@example.com", default, null, null);
+
+        var context = ReviewSessionAsks.Context(session, ask);
+
+        StringAssert.StartsWith(context, "\n\nThe reviewer's findings:\n- [minor] src/F1.cs:1 Finding 1");
+        Assert.AreEqual(ReviewSessionAsks.MaxContext + 1, context.Length);
+        StringAssert.EndsWith(context, "…");
+        Assert.AreEqual(string.Empty, ReviewSessionAsks.Context(session with { Findings = [] }, ask), "nothing said yet: no context");
+    }
+
     private async Task<long> SessionAsync()
     {
         var id = await _store.InsertAsync("sysmin", ReviewTargets.Branch, null, "feature/keyset", "develop", "dev@example.com", "claude-opus-5-5", "high", default);

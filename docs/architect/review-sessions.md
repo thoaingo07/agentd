@@ -73,6 +73,10 @@ Diff · Findings), and the inline cards in the diff.
   findings.
 - **Ask**: select code and ask ("why is this here?", "explain this flow"). The answer appears in the side panel and is
   kept with the session. On the server it has the repo and Azure DevOps context (like `!chat`); locally, your repo.
+  The question's prompt also carries what agentd's reviewer already said (decided 2026-10-13): the summary, the guide's
+  overview and chapters, and the guide's notes and the kept findings at the selected file (every kept finding when the
+  whole change is selected), capped at 8000 characters. So "explain this chapter" or "why is this a problem?" needs no
+  copying.
   Each question starts a **thread** (decided 2026-10-10): **Ask a follow-up** continues it at the same place, and the
   agent keeps the conversation (the thread's first question holds a Claude session that follow-ups `--resume`; if it
   can't be resumed, the follow-up starts a new session with the conversation so far in its prompt, and the thread
