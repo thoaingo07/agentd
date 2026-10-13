@@ -376,10 +376,13 @@ internal sealed class FakeWorktrees : IWorktreeManager
     public Task<string?> MergeBaseAsync(Repository repository, string first, string second, CancellationToken cancellationToken) =>
         Task.FromResult(MergeBases.TryGetValue((first, second), out var b) ? b : null);
 
+    /// <summary>The files <see cref="DiffCommitsAsync"/> says changed.</summary>
+    public List<string> ChangedFiles { get; } = ["src/A.cs"];
+
     public Task<BranchDiff> DiffCommitsAsync(Repository repository, string baseCommit, string headCommit, int maxBytes, CancellationToken cancellationToken)
     {
         CommitDiffs.Add((baseCommit, headCommit));
-        return Task.FromResult(new BranchDiff(baseCommit, headCommit, ["src/A.cs"], "diff --git a/src/A.cs b/src/A.cs\n", false));
+        return Task.FromResult(new BranchDiff(baseCommit, headCommit, [.. ChangedFiles], "diff --git a/src/A.cs b/src/A.cs\n", false));
     }
 
     public Task<BranchDiff?> DiffAsync(Repository repository, BranchName branch, WorktreePath? worktree, int maxBytes, CancellationToken cancellationToken)

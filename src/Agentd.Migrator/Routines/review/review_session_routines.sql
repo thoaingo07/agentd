@@ -95,6 +95,12 @@ AS $$
     RETURNING jsonb_array_length(findings)
 $$;
 
+-- The reviewer's guide (a guided review), replaced whole: a re-review writes a new one.
+CREATE OR REPLACE FUNCTION agentd.review_session_set_guide(p_id bigint, p_guide jsonb)
+RETURNS void
+LANGUAGE sql
+AS $$ UPDATE agentd.review_sessions SET guide = p_guide, updated_at = now() WHERE id = p_id $$;
+
 -- Keep / drop / edit one finding (0-based). One atomic update per call, so decisions on different findings from
 -- parallel requests never overwrite each other. False when there's no such finding.
 CREATE OR REPLACE FUNCTION agentd.review_session_decide(p_id bigint, p_index int, p_decision text, p_edited text)

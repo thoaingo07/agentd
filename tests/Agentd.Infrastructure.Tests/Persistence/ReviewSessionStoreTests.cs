@@ -114,6 +114,28 @@ public sealed class ReviewSessionStoreTests
     }
 
     [TestMethod]
+    public async Task The_guide_round_trips_and_parallel_writers_leave_one_whole_guide()
+    {
+        await using var db = await Database.CreateMigratedAsync("review_sessions_guide");
+        var store = new ReviewSessionStore(db);
+        var id = await store.InsertAsync("sysmin", ReviewTargets.Branch, null, "feature/x", "develop", "dev@example.com", null, null, default);
+        Assert.IsNull((await store.GetAsync(id, default))!.Guide, "none until the reviewer writes one");
+        var guide = new ReviewGuide("Pages by key.", [new GuideChapter("Keyset paging", "The heart.", [new GuideFile("src/Sync.cs", "Pages by key.")])],
+            [new GuideNote("src/Sync.cs", 41, "The cursor.")], [new GuideSuggestion(null, null, "Configurable chunk size", null, "From options.")]);
+
+        await store.SetGuideAsync(id, guide, default);
+        var loaded = (await store.GetAsync(id, default))!.Guide!;
+        await Task.WhenAll(Enumerable.Range(1, 8).Select(n => Task.Run(() =>
+            store.SetGuideAsync(id, new ReviewGuide($"guide {n}", [.. Enumerable.Range(1, n).Select(i => new GuideChapter($"{n}.{i}", null, [new GuideFile($"f{i}.cs", null)]))]), default))));
+
+        Assert.AreEqual(("Pages by key.", "Keyset paging", "src/Sync.cs", 41, "From options."),
+            (loaded.Overview, loaded.Chapters.Single().Title, loaded.Chapters.Single().Files.Single().Path, loaded.Notes!.Single().Line, loaded.Suggestions!.Single().Suggestion));
+        var last = (await store.GetAsync(id, default))!.Guide!;
+        var n = int.Parse(last.Overview["guide ".Length..], System.Globalization.CultureInfo.InvariantCulture);
+        CollectionAssert.AreEqual(Enumerable.Range(1, n).Select(i => $"{n}.{i}").ToList(), last.Chapters.Select(c => c.Title).ToList(), "one writer's whole guide, never a mix");
+    }
+
+    [TestMethod]
     public async Task Parallel_decisions_on_different_findings_all_stick()
     {
         await using var db = await Database.CreateMigratedAsync("review_sessions_decisions");

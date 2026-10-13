@@ -99,6 +99,7 @@ public sealed partial class ReviewSessionReviewer(
             }
 
             await store.AddFindingsAsync(id, [.. result.Findings.Select(SessionFinding.From)], result.Summary, cancellationToken).ConfigureAwait(false);
+            await SaveGuideAsync(id, repo, baseCommit, head, reply.Text!, cancellationToken).ConfigureAwait(false);
             await store.SetStatusAsync(id, ReviewSessionStatus.Ready, null, null, cancellationToken).ConfigureAwait(false);
             await NotifyAsync(id).ConfigureAwait(false);
         }
@@ -109,6 +110,23 @@ public sealed partial class ReviewSessionReviewer(
             LogFailed(_logger, ex, id);
             await FailAsync(id, $"The review failed: {ex.Message}", CancellationToken.None).ConfigureAwait(false);
         }
+    }
+
+    /// <summary>
+    /// The guide to the change, fitted to its real files. A missing or unreadable guide never fails the review: the findings
+    /// are what matter, and the page falls back to the file list.
+    /// </summary>
+    private async Task SaveGuideAsync(long id, Domain.Repositories.Repository repo, string baseCommit, string head, string reply, CancellationToken ct)
+    {
+        var (guide, problem) = ReviewGuides.Extract(reply);
+        if (guide is null)
+        {
+            LogNoGuide(_logger, id, problem ?? "no review-guide block");
+            return;
+        }
+
+        var change = await worktrees.DiffCommitsAsync(repo, baseCommit, head, ReviewSessionService.MaxDiffBytes, ct).ConfigureAwait(false);
+        await store.SetGuideAsync(id, ReviewGuides.Fit(guide, change.Files), ct).ConfigureAwait(false);
     }
 
     /// <summary>What to review: the pinned change, compared like a PR with its target (the review rules' frame).</summary>
@@ -125,9 +143,27 @@ public sealed partial class ReviewSessionReviewer(
             $"The change is exactly `git diff {s.BaseCommit} {s.HeadCommit}` (and `git log {s.BaseCommit}..{s.HeadCommit}`): review that, not later commits on the base. " +
             "There are no PR threads or linked work items to read here unless the commit messages name one. " +
             "End with the review-findings block as usual; the developer keeps, edits or drops each finding on the page." +
+            GuideRequest +
             (s.Focus is { Length: > 0 } focus ? $" Focus on: {focus}." : string.Empty) +
             (s.Instructions is { Length: > 0 } instructions ? $"\n\nInstructions from {s.CreatedBy}: {instructions}" : string.Empty);
     }
+
+    /// <summary>
+    /// The guided review (docs/architect/review-sessions.md §2a): after the findings, a guide that walks the developer through
+    /// the change. It explains; it doesn't add findings.
+    /// </summary>
+    internal const string GuideRequest =
+        "\n\nThen guide the developer through the change, for someone who hasn't seen this code: after the review-findings block, " +
+        "add a fenced block\n```review-guide\n{\"overview\":\"what the change does and how it fits together, two to four sentences\"," +
+        "\"chapters\":[{\"title\":\"a few words\",\"why\":\"what this part does and why it matters, one to three sentences\"," +
+        "\"files\":[{\"path\":\"src/Foo/Bar.cs\",\"summary\":\"what changed in this file, one sentence\"}]}]," +
+        "\"notes\":[{\"file\":\"src/Foo/Bar.cs\",\"line\":42,\"text\":\"what this line or block does and why, one or two sentences\"}]," +
+        "\"suggestions\":[{\"file\":\"src/Foo/Bar.cs\",\"line\":42,\"title\":\"at most 12 words\",\"detail\":\"why it's better\"," +
+        "\"suggestion\":\"the change, a short code snippet is fine\"}]}\n```\n" +
+        "Order the chapters by importance: the heart of the change first, then its consequences, then the glue (wiring, config, " +
+        "tests, docs). Put every changed file in exactly one chapter, in the order to read them; at most 10 chapters. Notes explain " +
+        "the non-obvious lines (at most 40, on the new side); they aren't problems. Suggestions are optional improvements that don't " +
+        "break anything without them (clearer, simpler, safer later; at most 10); never repeat a finding as a suggestion.";
 
     public void Dispose() => _slots.Dispose();
 
@@ -159,6 +195,9 @@ public sealed partial class ReviewSessionReviewer(
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Telling the chat about review session {Id} failed")]
     private static partial void LogNoticeFailed(ILogger logger, Exception exception, long id);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Review session {Id}: no guide ({Problem}); the page shows the file list")]
+    private static partial void LogNoGuide(ILogger logger, long id, string problem);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Review session {Id} failed")]
     private static partial void LogFailed(ILogger logger, Exception exception, long id);

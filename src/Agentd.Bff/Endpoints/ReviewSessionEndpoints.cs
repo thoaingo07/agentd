@@ -113,14 +113,14 @@ public sealed record ReviewFindingVm(int Number, string Severity, string? File, 
 public sealed record ReviewSessionVm(
     long Id, string Repo, string Target, int? PullRequestId, string? HeadRef, string? BaseRef, string? BaseCommit, string? HeadCommit,
     string Status, string? Error, string? Model, string? Effort, string? Summary, IReadOnlyList<ReviewFindingVm> Findings, string CreatedBy,
-    string? SentTo, DateTimeOffset CreatedAt, Uri? ChatLink, bool PostsFromChat)
+    string? SentTo, DateTimeOffset CreatedAt, Uri? ChatLink, bool PostsFromChat, ReviewGuide? Guide)
 {
     public static ReviewSessionVm From(ReviewSession s)
     {
         ArgumentNullException.ThrowIfNull(s);
         return new(s.Id, s.Repository, s.Target, s.PullRequestId, s.HeadRef, s.BaseRef, s.BaseCommit, s.HeadCommit, s.Status, s.Error, s.Model, s.Effort,
             s.Summary, [.. s.Findings.Select((f, i) => new ReviewFindingVm(i + 1, f.Severity, f.File, f.Line, f.Title, f.Detail, f.Suggestion, f.Decision, f.Edited))],
-            s.CreatedBy, s.SentTo, s.CreatedAt, s.ChatLink, s.PullRequestReviewId is not null);
+            s.CreatedBy, s.SentTo, s.CreatedAt, s.ChatLink, s.PullRequestReviewId is not null, s.Guide);
     }
 }
 

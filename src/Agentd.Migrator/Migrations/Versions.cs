@@ -106,3 +106,6 @@ public sealed class ArtifactStorage : SqlMigration;
 
 [Migration(2026_10_31_0001, "Reviews started in chat show on the Reviews page: a chat link, one session per chat PR review")]
 public sealed class ReviewSessionChat : SqlMigration;
+
+[Migration(2026_11_01_0001, "Guided reviews: the reviewer's guide to the change on the session")]
+public sealed class ReviewSessionGuide : SqlMigration;

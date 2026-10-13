@@ -158,6 +158,8 @@ public sealed class ReviewSessionEndpointTests
         public Task LinkChatAsync(long id, Uri? chatLink, long? pullRequestReviewId, CancellationToken cancellationToken) =>
             Update(id, s => s with { ChatLink = chatLink, PullRequestReviewId = pullRequestReviewId });
 
+        public Task SetGuideAsync(long id, ReviewGuide guide, CancellationToken cancellationToken) => Update(id, s => s with { Guide = guide });
+
         public async Task<int> SetFindingsAsync(long id, IReadOnlyList<SessionFinding> findings, string? summary, CancellationToken cancellationToken)
         {
             await Update(id, s => s with { Findings = findings, Summary = summary ?? s.Summary });
