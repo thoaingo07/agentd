@@ -6,6 +6,8 @@ import type { GuideChapter, GuideNote, ReviewFinding, ReviewGuide } from '../api
 import type { DiffFile } from '../utils/diff'
 import { fileName } from '../utils/paths'
 import ReviewFileTree, { type FileMarks } from './ReviewFileTree.vue'
+import PaneResizer from '../components/PaneResizer.vue'
+import { usePaneWidth } from '../utils/paneWidth'
 
 // The guided review (docs/architect/review-sessions.md §2a): the reviewer's guide to the change, one chapter at a time.
 // Step 0 is the overview; a chapter is two panes, like Plannotator's guided review: its story and file cards on the left,
@@ -13,6 +15,8 @@ import ReviewFileTree, { type FileMarks } from './ReviewFileTree.vue'
 // Reviewed chapters are remembered in this browser. Explain this chapter asks the reviewer's agent (the page does the
 // asking: the answer lands in its Questions). `by`: who wrote the guide (the reviewer and its model).
 const props = defineProps<{ sessionId: number; guide: ReviewGuide; files: DiffFile[]; findings: ReviewFinding[]; readonly?: boolean; by?: string }>()
+/** The chapter pane's width (wide screens), dragged by its edge and kept per browser. */
+const leftWidth = usePaneWidth('guide-chapter', 380, 240, 720)
 const emit = defineEmits<{ explainChapter: [chapter: GuideChapter] }>()
 defineSlots<{ file(props: { file: DiffFile; notes: GuideNote[] }): unknown }>()
 
@@ -131,8 +135,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         >
           <button
             type="button"
-            class="relative size-7 rounded-md border text-xs tabular-nums"
-            :class="step === i - 1 ? 'border-primary bg-primary font-semibold text-primary-content' : reviewed.has(i - 1) ? 'border-success/50 bg-success/10' : 'border-base-300'"
+            class="relative size-7 cursor-pointer rounded-md border text-xs tabular-nums transition-colors"
+            :class="step === i - 1 ? 'border-primary bg-primary font-semibold text-primary-content' : reviewed.has(i - 1) ? 'border-success/50 bg-success/10 hover:border-primary' : 'border-base-300 hover:border-primary hover:bg-base-200'"
+            :title="i === 1 ? 'Overview' : `${i - 1}. ${chapters[i - 2]!.title}${reviewed.has(i - 1) ? ' ✓' : ''}`"
             :aria-current="step === i - 1 ? 'step' : undefined"
             :aria-label="i === 1 ? 'Overview' : `Chapter ${i - 1}: ${chapters[i - 2]!.title}${reviewed.has(i - 1) ? ' (reviewed)' : ''}`"
             @click="go(i - 1)"
@@ -269,11 +274,21 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         </p>
       </header>
 
-      <div class="grid min-w-0 overflow-hidden rounded-box border border-base-300 bg-base-200/30 lg:grid-cols-[minmax(15rem,1fr)_minmax(0,2fr)]">
+      <div
+        class="grid min-w-0 overflow-hidden rounded-box border border-base-300 bg-base-200/30 lg:grid-cols-[var(--guide-left)_minmax(0,1fr)]"
+        :style="{ '--guide-left': `${leftWidth}px` }"
+      >
         <section
-          class="grid content-start gap-3 border-b border-base-300 p-4 lg:border-r lg:border-b-0"
+          class="relative grid min-w-0 content-start gap-3 border-b border-base-300 p-4 lg:border-r lg:border-b-0"
           aria-labelledby="guide-chapter-title"
         >
+          <PaneResizer
+            v-model="leftWidth"
+            :min="240"
+            :max="720"
+            :initial="380"
+            label="Resize the chapter pane"
+          />
           <div class="flex items-start gap-2">
             <h3
               id="guide-chapter-title"
