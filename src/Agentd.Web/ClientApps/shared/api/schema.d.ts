@@ -836,6 +836,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/reviews/{id}/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["SearchReview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reviews/{id}/file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetReviewFile"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/reviews/{id}/findings/{number}": {
         parameters: {
             query?: never;
@@ -2284,6 +2316,13 @@ export interface components {
             unifiedDiff: null | string;
             truncated: boolean;
         };
+        /** @description A file at the review's head commit, read-only; `truncated`: cut at 512 KB (empty past 8 MB); `binary`: not shown. */
+        ReviewFileVm: {
+            path: string;
+            text: string;
+            truncated: boolean;
+            binary: boolean;
+        };
         /** @description A finding and the person's decision about it. */
         ReviewFindingVm: {
             /** Format: int32 */
@@ -2325,6 +2364,22 @@ export interface components {
             title: string;
             required: boolean;
             check: components["schemas"]["StepCheckVm"];
+        };
+        /** @description A matching line: its file and 1-based line, a snippet, and where the match sits in the snippet. */
+        ReviewSearchHitVm: {
+            path: string;
+            /** Format: int32 */
+            line: number;
+            snippet: string;
+            /** Format: int32 */
+            matchStart: number;
+            /** Format: int32 */
+            matchLength: number;
+        };
+        /** @description A search's results: matching file paths (`kind=file`) or matching lines (`kind=text`). */
+        ReviewSearchVm: {
+            files: string[];
+            hits: components["schemas"]["ReviewSearchHitVm"][];
         };
         /** @description What Send did: the text to copy, or the PR it was posted to (under your name when `asPerson`). */
         ReviewSentVm: {
@@ -4420,6 +4475,112 @@ export interface operations {
             };
             /** @description Not Found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    SearchReview: {
+        parameters: {
+            query?: {
+                q?: string;
+                kind?: string;
+                ignoreCase?: boolean;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewSearchVm"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetReviewFile: {
+        parameters: {
+            query?: {
+                path?: string;
+                ref?: string;
+            };
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewFileVm"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

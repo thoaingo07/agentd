@@ -77,6 +77,10 @@ Diff · Findings), and the inline cards in the diff.
   move between a guide's chapters). Generated files (lockfiles, minified or built output, `*.g.cs`, migration
   snapshots, `dist/`, `vendor/`) are tagged **generated** and their diff is hidden until **Show the diff**, unless
   the reviewer found something in them.
+- **Search the whole branch** (added 2026-10-14): a box above the review (`/` focuses it, Esc clears) searches file
+  names (**Files**) or text (**Text**, **Match case**) across the repository at the head commit. A hit in a changed file
+  opens its diff (All files); any other file opens read-only below the box, at the line found. The match is marked as
+  text (never HTML).
 - **Resizable left panes** (added 2026-10-14): the All files tree and a guided chapter's left pane resize by dragging
   their right edge (arrow keys when the handle has focus, Shift for bigger steps, double-click for the default width).
   The width is kept per browser (`agentd.pane.review-tree`, `agentd.pane.guide-chapter`).
@@ -294,6 +298,8 @@ Server (`/api`, signed in, antiforgery on writes):
 | `POST /api/reviews` | start: `{ repo, target: { pr } | { branch, base? } | { base, head }, model?, effort?, focus?, instructions? }` → the session. Model and effort override the `review` step's defaults; focus and instructions (like `!review --focus` and its free text, decided 2026-10-10) are kept on the session (`review_session_set_brief`), so a review resumed after a restart is asked the same |
 | `GET /api/reviews` · `GET /api/reviews/{id}` | list (mine, recent) · one session: target, commits, summary, findings with decisions, comments, asks, status |
 | `GET /api/reviews/{id}/diff` | the unified diff and file list (pinned commits) |
+| `GET /api/reviews/{id}/search?q=&kind=file\|text&ignoreCase=&limit=` | the whole repository at the head commit, not just the diff: file paths containing every word (`git ls-tree`), or lines containing the text literally (`git grep --fixed-strings`, binary files skipped, 20 a file, 200 at most) with a snippet and the match's position (`IBranchSearch`, Infrastructure.Git) |
+| `GET /api/reviews/{id}/file?path=&ref=head\|base` | one file, read-only, at the head commit (or the base, for a deleted file): cut at 512 KB, not read past 8 MB, binary not shown; the path is checked (no `..`, absolute or option-like paths) and read as `<commit>:<path>` |
 | `PUT /api/reviews/{id}/findings/{n}` | `{ decision: kept | dropped | edited, text? }` |
 | `POST /api/reviews/{id}/comments` · `PUT …/comments/{c}` · `DELETE …/comments/{c}` | `{ file?, line?, endLine?, text }` (PUT: `{ text }`; only its author, until Sent) |
 | `POST /api/reviews/{id}/asks` | `{ file?, line?, endLine?, question }` → the answer (streamed on the hub) |

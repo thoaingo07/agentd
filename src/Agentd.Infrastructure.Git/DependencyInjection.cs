@@ -11,7 +11,9 @@ public static class DependencyInjection
         services.AddOptions<GitOptions>().Bind(configuration.GetSection(GitOptions.Section));
         services.AddSingleton<GitCli>();
         services.AddSingleton<IGitRemote, GitRemote>();
-        services.AddSingleton<IWorktreeManager, GitWorktreeManager>();
+        services.AddSingleton<GitWorktreeManager>();
+        services.AddSingleton<IWorktreeManager>(sp => sp.GetRequiredService<GitWorktreeManager>());
+        services.AddSingleton<Application.Reviews.IBranchSearch, GitBranchSearch>();
         services.AddSingleton<Application.Setup.IGitKey, SshGitKey>();
         services.AddSingleton<Application.Setup.IFolderProbe, FolderProbe>();
         return services;
