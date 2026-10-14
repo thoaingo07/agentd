@@ -3,7 +3,6 @@ using Agentd.Application.Chats;
 using Agentd.Application.Ideas;
 using Agentd.Application.Inbox;
 using Agentd.Application.Jobs;
-using Agentd.Application.Monitor;
 using Agentd.Application.Reviews;
 using Agentd.Bff.Http;
 using Agentd.Domain.Common;
@@ -82,7 +81,7 @@ public static class InboxEndpoints
         return api;
     }
 
-    /// <summary>The reply, to its source: a job like its page's message box, an idea, chat or review like a message in its thread, a watch's push or discard.</summary>
+    /// <summary>The reply, to its source: a job like its page's message box, an idea, chat or review like a message in its thread. A watched PR's old thread stays readable but takes no answers.</summary>
     private static async Task<Result<string>> ReplyAsync(IServiceProvider services, string source, long id, string text, string author, CancellationToken ct)
     {
         var finished = DomainError.Conflict($"This {source} doesn't take messages any more.");
@@ -104,22 +103,8 @@ public static class InboxEndpoints
                 return await store.GetAsync(id, ct).ConfigureAwait(false) is not { } review ? DomainError.NotFound($"Review {id}")
                     : await reviews.HandleMessageAsync(review, author, text, ct).ConfigureAwait(false) ? "sent" : finished;
 
-            case InboxSources.Watch when services.GetService<PrWatchService>() is { } watches && services.GetService<IPrWatchStore>() is { } store:
-                if (await store.GetAsync(id, ct).ConfigureAwait(false) is not { } watch)
-                {
-                    return DomainError.NotFound($"Watch {id}");
-                }
-
-                // The 👀 thread's answers: 1 / push, 2 / discard, unwatch.
-                var action = text.ToLowerInvariant() switch { "1" or "push" => "push", "2" or "discard" => "discard", "unwatch" => "unwatch", _ => null };
-                if (action is null)
-                {
-                    return DomainError.Validation("Answer push, discard or unwatch.");
-                }
-
-                return action != "unwatch" && watch.Pending is null
-                    ? DomainError.Conflict($"No fix waits for PR !{watch.PullRequestId}.")
-                    : await watches.HandleThreadMessageAsync(watch, action, author, ct).ConfigureAwait(false);
+            case InboxSources.Watch:
+                return DomainError.Conflict("Watching PRs is turned off for now.");
 
             case InboxSources.Incident:
                 return DomainError.Conflict("Incidents don't take answers yet: investigating and Fix it come in the next version.");

@@ -32,7 +32,7 @@ Then, from the web UI:
 
 | You want to | Where |
 |---|---|
-| Answer the agent, approve a plan, allow a tool, push a watched PR's fix | **Inbox**: every message agentd sends you, threads waiting on you first, with their buttons and a reply box |
+| Answer the agent, approve a plan, allow a tool | **Inbox**: every message agentd sends you, threads waiting on you first, with their buttons and a reply box |
 | Run a work item, follow it, cancel, retry, pause, hand off | **Dashboard** → the work item's page (transcript, diff, Conversation) |
 | Brainstorm work items | **Ideas** |
 | Review a branch or PR, ask about it, send findings, fix it | **Reviews** |

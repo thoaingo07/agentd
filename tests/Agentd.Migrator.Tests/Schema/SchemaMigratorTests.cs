@@ -104,6 +104,32 @@ public sealed class SchemaMigratorTests
         }
     }
 
+    [TestMethod]
+    public async Task Turning_the_PR_Monitor_off_drops_its_routines_and_keeps_its_watches()
+    {
+        var cs = await PostgresFixture.CreateDatabaseAsync("fm_pr_monitor_off");
+        await Migrate(cs);
+        await using var db = NpgsqlDataSource.Create(cs);
+        // As a database from before 2026_11_07_0001 has them: the routines, and a watch.
+        await ExecuteAsync(db, "CREATE FUNCTION agentd.pr_watch_get(p_id bigint) RETURNS bigint LANGUAGE sql AS 'SELECT p_id'");
+        await ExecuteAsync(db, "CREATE FUNCTION agentd.pr_watch_stop(p_id bigint, p_by text) RETURNS void LANGUAGE sql AS 'SELECT'");
+        await ExecuteAsync(db, "INSERT INTO agentd.pr_watches (repo, pull_request_id, title, watched_by, provider, thread_id) VALUES ('sysmin', 3944, 't', 'tngo', 'web', 'w1')");
+        await ExecuteAsync(db, "DELETE FROM agentd.schema_version WHERE version = 202611070001");
+
+        var result = await Migrate(cs);
+
+        CollectionAssert.AreEqual(new[] { 2026_11_07_0001L }, result.AppliedVersions.ToArray());
+        Assert.AreEqual(0L, await ScalarAsync<long>(db, "SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'agentd' AND p.proname LIKE 'pr\\_watch\\_%'"));
+        Assert.AreEqual(1L, await ScalarAsync<long>(db, "SELECT count(*) FROM agentd.pr_watches"), "the watches stay for later");
+        Assert.IsTrue(await ScalarAsync<bool>(db, "SELECT to_regclass('agentd.pr_watch_messages') IS NOT NULL"));
+    }
+
+    private static async Task ExecuteAsync(NpgsqlDataSource db, string sql)
+    {
+        await using var cmd = db.CreateCommand(sql);
+        await cmd.ExecuteNonQueryAsync();
+    }
+
     private static Task<MigrationResult> Migrate(string connectionString) =>
         new SchemaMigrator(connectionString, NullLoggerFactory.Instance).MigrateAsync(CancellationToken.None);
 

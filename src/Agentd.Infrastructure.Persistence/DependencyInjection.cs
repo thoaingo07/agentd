@@ -31,7 +31,6 @@ public static class DependencyInjection
         services.AddSingleton<Application.Chats.IChatStore, ChatStore>();
         services.AddSingleton<IAdoUserConnections, AdoUserConnectionStore>();
         services.AddSingleton<Application.Reviews.IReviewSessionStore, ReviewSessionStore>();
-        services.AddSingleton<Application.Monitor.IPrWatchStore, PrWatchStore>();
         services.AddSingleton<Application.Incidents.IIncidentStore, IncidentStore>();
         services.AddSingleton<Application.Artifacts.IArtifactStore, ArtifactStore>();
         services.AddSingleton<Application.Artifacts.IArtifactBlobs, S3ArtifactBlobs>();   // used only when Agentd:Artifacts:S3 is configured

@@ -10,6 +10,8 @@ public static class InboxSources
     public const string Idea = "idea";
     public const string Review = "review";
     public const string Chat = "chat";
+
+    /// <summary>A watched PR's thread, from before the PR Monitor was turned off: readable, takes no answers.</summary>
     public const string Watch = "watch";
 
     /// <summary>An incident the monitor found in an app's telemetry (docs/architect/incident-monitor.md).</summary>

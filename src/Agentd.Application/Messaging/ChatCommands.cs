@@ -48,8 +48,7 @@ public sealed partial class ChatCommands(
     JobActivity? activity = null,
     Domain.Common.IClock? clock = null,
     Chats.ChatService? chats = null,
-    Reviews.BranchReviews? branchReviews = null,
-    Monitor.PrWatchService? watches = null)
+    Reviews.BranchReviews? branchReviews = null)
 {
     /// <summary>Commands typed in a job's thread are recorded, so the work item conversation shows both directions.</summary>
     public const string CommandEventType = "chat.command";
@@ -83,7 +82,6 @@ public sealed partial class ChatCommands(
         "• `idea <text>`: brainstorm into work items",
         "• `review <PR> [instructions]`: review a PR; you pick what's posted (or `branch:<name>`)",
         "• `chat <question>`: ask about the code (`close` ends it)",
-        "• `watch <PR>`: fix its builds, conflicts, comments (asks first)",
         "• `repo list|add <url>|remove <name>`: repositories (Admins change them)",
         "• `help`: this message",
         "",
@@ -197,10 +195,7 @@ public sealed partial class ChatCommands(
                         : new(MessageKind.Info, startedReview.Error.Message);
                 break;
             case "watch" or "unwatch":
-                reply = watches is null
-                    ? new(MessageKind.Info, "The PR monitor isn't enabled.")
-                    : (name == "watch" ? await watches.WatchAsync(message.Provider, user.Name, command.Args, ct).ConfigureAwait(false) : await watches.UnwatchAsync(command.Args, ct).ConfigureAwait(false))
-                        is var watched && watched.IsSuccess ? new(MessageKind.Info, watched.Value) : new(MessageKind.Info, watched.Error.Message);
+                reply = new(MessageKind.Info, "👀 Watching PRs is turned off for now. `!review <PR>` still reviews one.");
                 break;
             case "repo":
                 reply = await RepoAsync(command.Args, user, ct).ConfigureAwait(false);

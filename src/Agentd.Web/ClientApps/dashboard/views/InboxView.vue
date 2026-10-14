@@ -32,11 +32,11 @@ async function toggleNotifications(): Promise<void> {
 }
 
 const icon: Record<string, string> = { job: '🛠', idea: '💡', review: '🔍', chat: '💬', watch: '👀' }
-/** Ideas, reviews, chats and watches name their thread with their own emoji already; a job's gets the source's. */
+/** Ideas, reviews, chats and (old) watched PRs name their thread with their own emoji already; a job's gets the source's. */
 const titled = (t: { source: string; title: string }) => (/^\p{Extended_Pictographic}/u.test(t.title) ? t.title : `${icon[t.source] ?? '•'} ${t.title}`)
 const views: { value: InboxView; label: string }[] = [{ value: 'all', label: 'Everyone' }, { value: 'mine', label: 'Mine' }]
 
-/** The source's own page: a job's work item, an idea, a chat, the Reviews page for watches and chat reviews. */
+/** The source's own page: a job's work item, an idea, a chat, the Reviews page for chat reviews (and old watched PRs). */
 function page(t: { source: string; sourceId: number }): RouteLocationRaw {
   switch (t.source) {
     case 'job': return { name: 'job', params: { id: t.sourceId } }
@@ -49,12 +49,11 @@ function page(t: { source: string; sourceId: number }): RouteLocationRaw {
 /** The list's one-line preview: the message's first line without Markdown marks. */
 const preview = (t: InboxThread) => t.latestPreview.split('\n').find((l) => l.trim())?.replace(/[*_`#>]/g, '').trim() ?? ''
 
-/** A waiting thread's buttons: its question's, or a watched PR's push / discard. */
+/** A waiting thread's buttons: its question's. */
 const choices = computed(() => {
   const t = inbox.current
   if (!t?.waiting) return []
-  if (t.question?.options.length) return t.question.options.map((o) => o.label)
-  return t.source === 'watch' ? ['push', 'discard'] : []
+  return t.question?.options.map((o) => o.label) ?? []
 })
 
 async function act(work: () => Promise<void>): Promise<void> {
