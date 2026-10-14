@@ -10,6 +10,7 @@ import RunActions from '../components/run/RunActions.vue'
 import RunDetails from '../components/run/RunDetails.vue'
 import RunDiff from '../components/run/RunDiff.vue'
 import RunTranscript from '../components/run/RunTranscript.vue'
+import PromptsLink from '../components/prompts/PromptsLink.vue'
 import ConversationTab from '../components/workitem/ConversationTab.vue'
 import PlanTab from '../components/workitem/PlanTab.vue'
 import TimelineTab from '../components/workitem/TimelineTab.vue'
@@ -247,6 +248,10 @@ onBeforeUnmount(() => {
           >
             session {{ sessionId.slice(0, 8) }}
           </button>
+          <PromptsLink
+            source="job"
+            :source-id="run.id"
+          />
           <span v-if="detail?.usage">usage 5h {{ percent(detail.usage.fiveHour) }} · week {{ percent(detail.usage.weekly) }}</span>
           <span
             v-if="used"

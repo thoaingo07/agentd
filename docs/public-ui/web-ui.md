@@ -133,6 +133,10 @@ The review page:
 - **System log** (Admins): agentd's own log, newest first: what it did (jobs claimed, PRs opened, …) and what went
   wrong, with filters for level, source and text, and links to the job an entry is about. Kept 14 days
   (`SystemLog:RetentionDays`).
+- **Prompts** (Admins): every prompt agentd sent an agent, newest first: where it came from (with a link to the job,
+  idea, chat or review), the step, model and effort, how it ended, and its first lines. Filter by source and its id,
+  step, model or outcome (**running** = not finished). Open one for the whole prompt, the system rules sent with it,
+  and the reply, each with **Copy**. Job, idea and review pages link to their own prompts (**Prompts**, Admins only).
 - **Your Azure DevOps** (everyone): **Connect with Microsoft** once, or paste a **personal access token** (Code and
   Work Items, read & write), and agentd acts as you in Azure DevOps: commits, PRs, comments and updates for work items
   assigned to you, and the `!review` findings you post, show your name instead of agentd's. The token is stored

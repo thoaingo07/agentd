@@ -44,6 +44,10 @@ log.
   `outcome` (`running` = not finished yet) and `from` (a time). Each row has the settings, how it ended, the first 300
   characters (`preview`), and how long the prompt and reply were. Routine `agent_prompt_list`.
 - `GET /api/prompts/{id}`: one prompt, whole, with its system rules and the reply. Routine `agent_prompt_get`.
+- **Settings → Prompts** in the web UI (`/settings/prompts`) reads both. Its filters live in the address
+  (`?source=job&sourceId=42`), so the job, idea and review pages link to their own prompts; `/settings/prompts/{id}`
+  shows one. Sources with a page link to it (job, idea, chat, review session); a chat `!review`, an ask thread, a fix
+  and a follow-up have none.
 
 ## Next
 

@@ -4,7 +4,7 @@ import { useSessionStore } from '../stores/session'
 import { settingsAreas } from '../settingsAreas'
 
 // Settings pages: a vertical menu beside the page (on top on narrow screens). Admins get the configuration areas and the
-// system log; everyone else only has the general page, so there's no menu.
+// system log and prompts; everyone else only has the general page, so there's no menu.
 const session = useSessionStore()
 const isAdmin = computed(() => session.user?.roles.includes('Admin') ?? false)
 </script>
@@ -48,6 +48,14 @@ const isAdmin = computed(() => session.user?.roles.includes('Admin') ?? false)
             exact-active-class="menu-active"
           >
             System log
+          </RouterLink>
+        </li>
+        <li>
+          <RouterLink
+            :to="{ name: 'prompts' }"
+            active-class="menu-active"
+          >
+            Prompts
           </RouterLink>
         </li>
       </ul>

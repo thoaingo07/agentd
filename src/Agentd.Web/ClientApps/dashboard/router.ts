@@ -22,6 +22,8 @@ export const router = createRouter({
       children: [
         { path: '', name: 'settings', component: () => import('./views/SettingsView.vue') },
         { path: 'log', name: 'system-log', component: () => import('./views/SystemLogView.vue') },
+        { path: 'prompts', name: 'prompts', component: () => import('./views/PromptsView.vue') },
+        { path: 'prompts/:id(\\d+)', name: 'prompt', component: () => import('./views/PromptView.vue'), props: (r) => ({ id: Number(r.params.id) }) },
         { path: ':area', name: 'settings-area', component: () => import('./views/SettingsAreaView.vue'), props: true },
       ],
     },
