@@ -47,12 +47,20 @@ log.
 - `GET /api/prompts/{id}`: one prompt, whole, with its system rules and the reply. Routine `agent_prompt_get`.
 - `GET /api/prompts/{id}/transcript`: the turn's events in the job Transcript's shape (`EventVm`: `seq`, `jobId`, `ts`,
   `type`, `payload`), at most 5000. Routine `agent_prompt_transcript`; `agent_prompt_events_add` writes a thread turn's.
-- **Settings → Prompts** in the web UI (`/settings/prompts`) reads both. Its filters live in the address
-  (`?source=job&sourceId=42`), so the job, idea and review pages link to their own prompts; `/settings/prompts/{id}`
-  shows one. Sources with a page link to it (job, idea, chat, review session); a chat `!review`, an ask thread, a fix
-  and a follow-up have none.
+- `GET /api/prompts/conversations?source=&before=&limit=`: one row per conversation (a job, idea, chat, review, …):
+  its turns, first and last time, the latest turn's outcome, whether one still runs, the models used, and its first
+  prompt's start; the latest activity first, 50 a page (at most 100), `before` = the last `lastId`. Routine
+  `agent_prompt_conversations`.
+- `GET /api/prompts/conversations/{source}/{sourceId}`: its turns, oldest first, whole (at most 500). Routine
+  `agent_prompt_conversation`.
 
-## Next
+**Settings → Prompts** in the web UI (added 2026-10-14, by conversation):
 
-The Prompts page on these endpoints: the list with its filters, a prompt with its rules and reply, and links from a job's,
-idea's or review's page.
+- `/settings/prompts` lists conversations grouped by kind (Jobs, Ideas, Chats, Chat reviews, Reviews, Review asks,
+  Review fixes, Follow-ups), filtered by kind; **All prompts** (`/settings/prompts/all`) is the flat list, its filters
+  in the address (`?source=job&sourceId=42`).
+- `/settings/prompts/{source}/{sourceId}` shows one conversation like a work item's Transcript: every turn, oldest
+  first, with its model, effort, outcome and time, the prompt and its system rules (folded), the transcript drawn with
+  the Transcript's own rows (text, tool calls with their results, questions; read as each turn comes into view), and
+  the reply. The job, idea and review pages' **Prompts** link opens their conversation; `/settings/prompts/{id}` still
+  shows one prompt. Sources with a page link to it (job, idea, chat, review session).

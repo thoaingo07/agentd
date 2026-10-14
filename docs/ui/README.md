@@ -59,6 +59,7 @@ Adding anything else needs a note in this section explaining why.
 | `/settings/*` | `SettingsAreaView` (Admin) | Access, Azure DevOps, Git, Models, Chat, Repositories, Artifacts; write-only secret fields (or where they come from: Key Vault, an environment variable); **Health** (doctor report); a vertical menu beside every Settings page (`SettingsLayout`); **Restart now** after saving and on General (`RestartButton`, when a supervisor restarts agentd) |
 | `/login` | `LoginView` | SSO buttons (Microsoft, Google) from `/bff/providers`; shows `access_denied` errors |
 | `/settings` | `SettingsView` | read-only config summary, theme, connection info |
+| `/settings/prompts`, `/settings/prompts/:source/:sourceId` | `PromptConversationsView`, `PromptConversationView` (Admin) | the prompt log **by conversation**, grouped by kind; one conversation shows every turn like the work item Transcript (prompt and rules, `EventRow`s from `/api/prompts/{id}/transcript`, reply); **All prompts** (`/settings/prompts/all`, `PromptsView`) is the flat list ([prompt-log.md](../architect/prompt-log.md)) |
 
 ---
 
