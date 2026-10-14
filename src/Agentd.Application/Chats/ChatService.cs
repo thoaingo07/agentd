@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Globalization;
 using Agentd.Application.Ideas;
+using Agentd.Application.Inbox;
 using Agentd.Application.Messaging;
 using Agentd.Application.Ports;
 using Agentd.Domain.Common;
@@ -25,7 +26,8 @@ public sealed partial class ChatService(
     IMessagingProviderRegistry providers,
     ILogger<ChatService> logger,
     IOptions<Jobs.JobOptions>? jobs = null,
-    IMcpTokenIssuer? tokens = null) : IDisposable
+    IMcpTokenIssuer? tokens = null,
+    Inbox.IInbox? inbox = null) : IDisposable
 {
     public const int MaxConcurrentChats = 2;
 
@@ -280,6 +282,7 @@ public sealed partial class ChatService(
             if (record)
             {
                 await chats.AddMessageAsync(chat.Id, "out", "agentd", message.Markdown, ct).ConfigureAwait(false);
+                await inbox.TryAddAsync(new Inbox.InboxEntry(Inbox.InboxSources.Chat, chat.Id, $"💬 Chat #{chat.Id}", chat.Author, message), logger, ct).ConfigureAwait(false);
             }
 
             if (chat.ThreadId is not { } threadId)

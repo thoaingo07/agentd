@@ -31,7 +31,8 @@ public sealed partial class PrFixRounds(
     IClock clock,
     IOptions<JobOptions>? jobs = null,
     ILogger<PrFixRounds>? logger = null,
-    IMcpTokenIssuer? tokens = null) : IPrFixRounds, IDisposable
+    IMcpTokenIssuer? tokens = null,
+    Inbox.IInbox? inbox = null) : IPrFixRounds, IDisposable
 {
     public static readonly TimeSpan Expiry = TimeSpan.FromHours(24);
     private const int MaxLogTail = 3000;
@@ -274,7 +275,7 @@ public sealed partial class PrFixRounds(
     private Task Give(PrWatch w, string why, CancellationToken ct) =>
         Post(w, $"⚠️ PR !{w.PullRequestId}: I couldn't prepare a fix: {why}. The next change starts a new round.", ct);
 
-    private Task Post(PrWatch w, string text, CancellationToken ct) => PrWatchNotices.PostAsync(watches, providers, w, text, ct);
+    private Task Post(PrWatch w, string text, CancellationToken ct) => PrWatchNotices.PostAsync(watches, providers, w, text, ct, inbox, logger);
 
     private async Task BestEffort(Func<Task> action, int pr)
     {
