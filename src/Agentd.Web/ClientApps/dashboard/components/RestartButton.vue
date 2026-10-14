@@ -6,6 +6,7 @@ import { AgButton } from '../../shared/components/ui'
 
 // Settings → Restart now (Admins): agentd stops and its supervisor (the container's restart policy, the systemd unit)
 // starts it again; the page reloads once agentd answers again. Without a supervisor it says how to restart instead.
+// While jobs or agent turns run it lists them and asks to restart anyway (docs/architect/deployment.md).
 const pollMs = 2000
 const maxPolls = 90   // 3 minutes
 const status = ref<RestartStatus | null>(null)
@@ -15,7 +16,7 @@ onMounted(async () => {
   try {
     status.value = await get<RestartStatus>('/api/settings/restart')
   } catch {
-    status.value = { available: false, reason: null }
+    status.value = { available: false, reason: null, running: [] }
   }
 })
 
@@ -30,11 +31,25 @@ async function answers(): Promise<boolean> {
   }
 }
 
-async function restart(): Promise<void> {
-  if (!confirm('Restart agentd now? Running agents stop and pick up where they were once it\'s back.')) return
-  error.value = null
+/** What's running right now, read again at the click: the list on the page may be stale. */
+async function running(): Promise<RestartStatus['running']> {
   try {
-    await send('POST', '/api/settings/restart')
+    status.value = await get<RestartStatus>('/api/settings/restart')
+  } catch {
+    // Ask as if something runs: the server checks again anyway.
+  }
+  return status.value?.running ?? []
+}
+
+async function restart(): Promise<void> {
+  error.value = null
+  const busy = await running()
+  const question = busy.length
+    ? `Running now:\n${busy.map((r) => `• ${r.label}`).join('\n')}\n\nRestart anyway? They stop and pick up where they were once agentd is back.`
+    : 'Restart agentd now? Nothing is running.'
+  if (!confirm(question)) return
+  try {
+    await send('POST', busy.length ? '/api/settings/restart?force=true' : '/api/settings/restart')
   } catch (err) {
     error.value = err instanceof ApiError ? err.message : 'Something went wrong.'
     return
@@ -73,7 +88,12 @@ async function restart(): Promise<void> {
         Restart now
       </AgButton>
       <span
-        v-if="state === 'restarting'"
+        v-if="state === 'idle' && status.running.length"
+        class="text-warning"
+        data-testid="restart-running"
+      >Running now: {{ status.running.map((r) => r.label).join('; ') }}</span>
+      <span
+        v-else-if="state === 'restarting'"
         role="status"
       >Restarting agentd… this page reloads when it's back.</span>
       <span

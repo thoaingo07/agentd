@@ -2354,10 +2354,11 @@ export interface components {
             machine: null | components["schemas"]["MachineVm"];
             jobs: components["schemas"]["JobResourcesVm"][];
         };
-        /** @description Whether Settings can restart agentd; `reason` says why not. */
+        /** @description Whether Settings can restart agentd (`reason` says why not), and what a restart would interrupt now. */
         RestartVm: {
             available: boolean;
             reason: null | string;
+            running: components["schemas"]["RunningWorkVm"][];
         };
         /** @description A question and its answer; `threadId` names the thread's first question (none: this one starts a thread). */
         ReviewAskVm: {
@@ -2509,6 +2510,13 @@ export interface components {
         RunAcceptedVm: {
             /** Format: int64 */
             jobId: number;
+        };
+        /** @description A job mid-step or an agent's turn: `source` is job, idea, chat or review. */
+        RunningWorkVm: {
+            source: string;
+            /** Format: int64 */
+            id: number;
+            label: string;
         };
         /** @description Saved. The daemon reads these settings at start, so they apply after a restart. */
         SaveResultVm: {
@@ -4313,7 +4321,9 @@ export interface operations {
     };
     RestartDaemon: {
         parameters: {
-            query?: never;
+            query?: {
+                force?: boolean;
+            };
             header?: never;
             path?: never;
             cookie?: never;

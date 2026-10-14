@@ -36,6 +36,8 @@ public static class DependencyInjection
         services.AddSingleton<ProfileSessions>();
         services.AddSingleton<IStepAnnouncer, StepAnnouncer>();
         services.AddSingleton<JobDispatcher>();
+        services.AddSingleton<Setup.ThreadTurns>();
+        services.AddSingleton<Setup.RestartCheck>();
         services.AddScoped<IQueryHandler<GetJobStatus, IReadOnlyList<JobStatusRow>>, GetJobStatusHandler>();
         services.AddScoped<IQueryHandler<GetDashboard, Dashboard>, GetDashboardHandler>();
         services.AddScoped<IQueryHandler<GetJob, JobDetail?>, GetJobHandler>();
@@ -115,4 +117,27 @@ public static class DependencyInjection
         services.AddScoped<IInboundMessageSink>(sp => sp.GetRequiredService<InboundMessageHandler>());
         return services;
     }
+
+    /// <summary>
+    /// Wraps the registered <see cref="Ideas.IBrainstormAgent"/> (any runner) so its thread turns count in
+    /// <see cref="Setup.ThreadTurns"/>, which Restart now checks. Call after the runner is registered.
+    /// </summary>
+    public static IServiceCollection TrackThreadTurns(this IServiceCollection services)
+    {
+        var runner = services.LastOrDefault(d => d.ServiceType == typeof(Ideas.IBrainstormAgent) && !d.IsKeyedService);
+        if (runner is null)
+        {
+            return services;
+        }
+
+        services.Remove(runner);
+        services.Add(new ServiceDescriptor(typeof(Ideas.IBrainstormAgent),
+            sp => new Setup.TrackedBrainstormAgent(Inner(sp, runner), sp.GetRequiredService<Setup.ThreadTurns>()), runner.Lifetime));
+        return services;
+    }
+
+    private static Ideas.IBrainstormAgent Inner(IServiceProvider services, ServiceDescriptor runner) =>
+        (Ideas.IBrainstormAgent)(runner.ImplementationInstance
+            ?? runner.ImplementationFactory?.Invoke(services)
+            ?? ActivatorUtilities.CreateInstance(services, runner.ImplementationType!));
 }
