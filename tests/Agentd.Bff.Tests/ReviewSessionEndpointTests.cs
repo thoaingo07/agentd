@@ -61,6 +61,32 @@ public sealed class ReviewSessionEndpointTests
     }
 
     [TestMethod]
+    public async Task Search_finds_file_names_and_text_at_the_head_commit_and_reads_a_file_there()
+    {
+        await using var app = await StartAsync();
+        var client = await new AntiforgeryClient(app).InitAsync();
+        using var start = await client.PostAsync("/api/reviews", new { repo = "sysmin", branch = "feature/keyset" });
+        var id = JsonDocument.Parse(await start.Content.ReadAsStringAsync()).RootElement.GetProperty("id").GetInt64();
+        var http = app.GetTestClient();
+
+        var files = JsonDocument.Parse(await http.GetStringAsync(new Uri($"/api/reviews/{id}/search?q=sync", UriKind.Relative))).RootElement;
+        var text = JsonDocument.Parse(await http.GetStringAsync(new Uri($"/api/reviews/{id}/search?q=ReadAll(&kind=text", UriKind.Relative))).RootElement;
+        var file = JsonDocument.Parse(await http.GetStringAsync(new Uri($"/api/reviews/{id}/file?path=src/Sync.cs", UriKind.Relative))).RootElement;
+        using var badKind = await http.GetAsync(new Uri($"/api/reviews/{id}/search?q=x&kind=regex", UriKind.Relative));
+        using var badPath = await http.GetAsync(new Uri($"/api/reviews/{id}/file?path=../x", UriKind.Relative));
+        using var missing = await http.GetAsync(new Uri($"/api/reviews/{id}/file?path=src/Nope.cs", UriKind.Relative));
+        using var atBase = await http.GetAsync(new Uri($"/api/reviews/{id}/file?path=src/Sync.cs&ref=base", UriKind.Relative));
+        using var badRef = await http.GetAsync(new Uri($"/api/reviews/{id}/file?path=src/Sync.cs&ref=main", UriKind.Relative));
+        Assert.AreEqual((HttpStatusCode.OK, HttpStatusCode.BadRequest), (atBase.StatusCode, badRef.StatusCode));
+
+        Assert.AreEqual("src/Sync.cs", files.GetProperty("files").EnumerateArray().Single().GetString());
+        var hit = text.GetProperty("hits")[0];
+        Assert.AreEqual(("src/Sync.cs", 2, 11, 8), (hit.GetProperty("path").GetString(), hit.GetProperty("line").GetInt32(), hit.GetProperty("matchStart").GetInt32(), hit.GetProperty("matchLength").GetInt32()));
+        Assert.AreEqual(("class Sync {}", false), (file.GetProperty("text").GetString(), file.GetProperty("binary").GetBoolean()));
+        Assert.AreEqual((HttpStatusCode.BadRequest, HttpStatusCode.BadRequest, HttpStatusCode.NotFound), (badKind.StatusCode, badPath.StatusCode, missing.StatusCode));
+    }
+
+    [TestMethod]
     public async Task Unknown_things_are_404_and_changes_need_the_antiforgery_token()
     {
         await using var app = await StartAsync();
@@ -118,6 +144,14 @@ public sealed class ReviewSessionEndpointTests
         }));
         builder.Services.AddSingleton(Stub<IPullRequestService>.Create((name, _) => throw new NotSupportedException(name)));
         builder.Services.AddSingleton<ReviewSessionService>();
+        builder.Services.AddSingleton(Stub<IBranchSearch>.Create((name, args) => name switch
+        {
+            nameof(IBranchSearch.ListFilesAsync) => Task.FromResult<IReadOnlyList<string>>(["src/Sync.cs", "README.md"]),
+            nameof(IBranchSearch.GrepAsync) => Task.FromResult<IReadOnlyList<TextHit>>([new TextHit("src/Sync.cs", 2, "var rows = ReadAll(t);", 11, 8)]),
+            nameof(IBranchSearch.ReadFileAsync) => Task.FromResult((string)args[2]! == "src/Sync.cs" ? new CommitFile("src/Sync.cs", "class Sync {}", false, false) : null),
+            _ => throw new NotSupportedException(name),
+        }));
+        builder.Services.AddSingleton<ReviewSearch>();
         var app = builder.Build();
         app.UseAuthentication();
         app.UseAuthorization();

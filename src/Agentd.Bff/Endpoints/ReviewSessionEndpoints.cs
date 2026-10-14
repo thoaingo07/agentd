@@ -39,6 +39,30 @@ public static class ReviewSessionEndpoints
             (await service.DiffAsync(id, ct).ConfigureAwait(false)).ToHttpResult(d => TypedResults.Ok(new ReviewDiffVm(d.BaseRef, d.HeadRef, d.Files, d.UnifiedDiff, d.Truncated))))
             .WithName("GetReviewDiff").Produces<ReviewDiffVm>().ProducesProblem(StatusCodes.Status404NotFound);
 
+        // Search beyond the diff (review-sessions.md §2): file names or text across the repository at the head commit.
+        reviews.MapGet("/{id:long}/search", async Task<IResult> (long id, string? q, string? kind, bool? ignoreCase, int? limit, [FromServices] ReviewSearch search, CancellationToken ct) =>
+        {
+            var size = limit ?? 50;
+            if (kind is null or "file")
+            {
+                return (await search.FilesAsync(id, q ?? string.Empty, size, ct).ConfigureAwait(false)).ToHttpResult(f => TypedResults.Ok(new ReviewSearchVm(f, [])));
+            }
+
+            return kind == "text"
+                ? (await search.TextAsync(id, q ?? string.Empty, ignoreCase ?? true, size, ct).ConfigureAwait(false))
+                    .ToHttpResult(h => TypedResults.Ok(new ReviewSearchVm([], [.. h.Select(x => new ReviewSearchHitVm(x.Path, x.Line, x.Snippet, x.MatchStart, x.MatchLength))])))
+                : Agentd.Domain.Common.DomainError.Validation("kind is file or text.").ToProblem();
+        }).WithName("SearchReview").Produces<ReviewSearchVm>().ProducesProblem(StatusCodes.Status400BadRequest).ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict);
+
+        // A whole file, read-only: at the head commit, or at the base (ref=base) for a file the change deletes.
+        reviews.MapGet("/{id:long}/file", async Task<IResult> (long id, string? path, [FromQuery(Name = "ref")] string? at, [FromServices] ReviewSearch search, CancellationToken ct) =>
+            at is not (null or "head" or "base")
+                ? Agentd.Domain.Common.DomainError.Validation("ref is head or base.").ToProblem()
+                : (await search.FileAsync(id, path ?? string.Empty, ct, atBase: at == "base").ConfigureAwait(false)).ToHttpResult(f => TypedResults.Ok(new ReviewFileVm(f.Path, f.Text, f.Truncated, f.Binary))))
+            .WithName("GetReviewFile").Produces<ReviewFileVm>().ProducesProblem(StatusCodes.Status400BadRequest).ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict);
+
         reviews.MapPut("/{id:long}/findings/{number:int}", async (long id, int number, DecisionRequest? body, [FromServices] ReviewSessionService service, CancellationToken ct) =>
             (await service.DecideAsync(id, number, body?.Decision ?? string.Empty, body?.Text, ct).ConfigureAwait(false)).ToHttpResult(_ => TypedResults.NoContent()))
             .WithName("DecideReviewFinding").Produces(StatusCodes.Status204NoContent).ProducesProblem(StatusCodes.Status400BadRequest).ProducesProblem(StatusCodes.Status404NotFound).ProducesProblem(StatusCodes.Status409Conflict);
@@ -174,6 +198,15 @@ public sealed record ReviewSentVm(string Destination, string? Text, Uri? Url, in
 
 /// <summary>The pinned change; <c>unifiedDiff</c> is null when it's too big (only the file list).</summary>
 public sealed record ReviewDiffVm(string BaseCommit, string HeadCommit, IReadOnlyList<string> Files, string? UnifiedDiff, bool Truncated);
+
+/// <summary>A search's results: matching file paths (<c>kind=file</c>) or matching lines (<c>kind=text</c>).</summary>
+public sealed record ReviewSearchVm(IReadOnlyList<string> Files, IReadOnlyList<ReviewSearchHitVm> Hits);
+
+/// <summary>A matching line: its file and 1-based line, a snippet, and where the match sits in the snippet.</summary>
+public sealed record ReviewSearchHitVm(string Path, int Line, string Snippet, int MatchStart, int MatchLength);
+
+/// <summary>A file at the review's head commit, read-only; <c>truncated</c>: cut at 512 KB (empty past 8 MB); <c>binary</c>: not shown.</summary>
+public sealed record ReviewFileVm(string Path, string Text, bool Truncated, bool Binary);
 
 /// <summary>The registered repositories' active PRs, newest first; <c>failed</c>: repositories that couldn't be read.</summary>
 public sealed record OpenPullRequestsVm(IReadOnlyList<OpenPullRequestVm> Items, IReadOnlyList<RepositoryProblemVm> Failed, DateTimeOffset FetchedAt)

@@ -49,6 +49,7 @@ public static class DependencyInjection
         services.AddSingleton<Reviews.ReviewSessionReviewer>();
         services.AddSingleton<Reviews.ReviewSessionAsks>();
         services.AddSingleton<Reviews.ReviewSessionService>();
+        services.AddSingleton<Reviews.ReviewSearch>();
         services.AddSingleton<Reviews.BranchReviews>();
         services.AddSingleton<Reviews.ReviewSessionFixer>();
         services.AddSingleton<Reviews.ReviewSessionSend>();

@@ -6,6 +6,7 @@ import { AgButton } from '../../shared/components/ui'
 import MarkdownText from '../../shared/components/MarkdownText.vue'
 import DiffFileReview from '../../shared/review/DiffFileReview.vue'
 import FindingCard from '../../shared/review/FindingCard.vue'
+import BranchSearch from '../../shared/review/BranchSearch.vue'
 import GuidedReview from '../../shared/review/GuidedReview.vue'
 import OnPullRequest from '../../shared/review/OnPullRequest.vue'
 import ReviewFileTree, { type FileMarks } from '../../shared/review/ReviewFileTree.vue'
@@ -96,6 +97,12 @@ const treeWidth = usePaneWidth('review-tree', 272, 200, 560)
 function showFile(path: string): void {
   activeFile.value = path
   document.getElementById(`file-${path}`)?.scrollIntoView?.({ block: 'start' })
+}
+/** A search hit in a changed file: All files, at that file's diff. */
+async function openDiff(path: string): Promise<void> {
+  mode.value = 'files'
+  await nextTick()
+  showFile(path)
 }
 // The file in view follows your scrolling: the topmost file whose header is in the upper part of the window.
 let spy: IntersectionObserver | undefined
@@ -370,22 +377,30 @@ const where = (a: { file?: string | null; line?: number | null; endLine?: number
         </div>
       </header>
 
-      <div
-        v-if="s.guide"
-        class="flex gap-1"
-        role="group"
-        aria-label="How to read it"
-      >
-        <AgButton
-          v-for="m in [{ v: 'guided', t: 'Guided' }, { v: 'files', t: 'All files' }] as const"
-          :key="m.v"
-          size="sm"
-          :variant="mode === m.v ? 'primary' : 'ghost'"
-          :aria-pressed="mode === m.v"
-          @click="mode = m.v"
+      <div class="flex flex-wrap items-start gap-2">
+        <div
+          v-if="s.guide"
+          class="flex gap-1"
+          role="group"
+          aria-label="How to read it"
         >
-          {{ m.t }}
-        </AgButton>
+          <AgButton
+            v-for="m in [{ v: 'guided', t: 'Guided' }, { v: 'files', t: 'All files' }] as const"
+            :key="m.v"
+            size="sm"
+            :variant="mode === m.v ? 'primary' : 'ghost'"
+            :aria-pressed="mode === m.v"
+            @click="mode = m.v"
+          >
+            {{ m.t }}
+          </AgButton>
+        </div>
+        <BranchSearch
+          class="min-w-0 flex-1 md:max-w-2xl md:ml-auto"
+          :session-id="s.id"
+          :changed="reviews.files.map((f) => f.newPath)"
+          @open-diff="openDiff"
+        />
       </div>
 
       <div

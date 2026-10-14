@@ -2695,6 +2695,171 @@
         }
       }
     },
+    "/api/reviews/{id}/search": {
+      "get": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "SearchReview",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "ignoreCase",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewSearchVm"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reviews/{id}/file": {
+      "get": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "GetReviewFile",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "ref",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewFileVm"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/reviews/{id}/findings/{number}": {
       "put": {
         "tags": [
@@ -7845,6 +8010,30 @@
         },
         "description": "The pinned change; \u0060unifiedDiff\u0060 is null when it\u0027s too big (only the file list)."
       },
+      "ReviewFileVm": {
+        "required": [
+          "path",
+          "text",
+          "truncated",
+          "binary"
+        ],
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "binary": {
+            "type": "boolean"
+          }
+        },
+        "description": "A file at the review\u0027s head commit, read-only; \u0060truncated\u0060: cut at 512 KB (empty past 8 MB); \u0060binary\u0060: not shown."
+      },
       "ReviewFindingVm": {
         "required": [
           "number",
@@ -7994,6 +8183,59 @@
           }
         },
         "description": "One review line: a step, whether finishing needs it, and its check."
+      },
+      "ReviewSearchHitVm": {
+        "required": [
+          "path",
+          "line",
+          "snippet",
+          "matchStart",
+          "matchLength"
+        ],
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "line": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "snippet": {
+            "type": "string"
+          },
+          "matchStart": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "matchLength": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "description": "A matching line: its file and 1-based line, a snippet, and where the match sits in the snippet."
+      },
+      "ReviewSearchVm": {
+        "required": [
+          "files",
+          "hits"
+        ],
+        "type": "object",
+        "properties": {
+          "files": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "hits": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReviewSearchHitVm"
+            }
+          }
+        },
+        "description": "A search\u0027s results: matching file paths (\u0060kind=file\u0060) or matching lines (\u0060kind=text\u0060)."
       },
       "ReviewSentVm": {
         "required": [

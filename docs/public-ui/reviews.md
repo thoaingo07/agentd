@@ -91,6 +91,13 @@ At most 15 findings, worst first.
 1 post all to the PR · 2 keep in chat · 3 discard · or post 1,3 / drop 2. Ask me about any finding first if you like.
 ```
 
+### Searching the whole branch
+
+On the review page, the box above the files (press `/`) searches the repository at the review's commit, not only
+the changed files: **Files** finds file names (every word you type), **Text** finds lines containing your text (tick
+**Match case** to be exact). A result in a changed file takes you to its diff; any other file opens read-only at the
+line it was found. Esc clears the search.
+
 ## Talk, then choose
 
 **Keep talking:**
