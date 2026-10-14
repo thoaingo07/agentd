@@ -124,6 +124,15 @@ public sealed class ChatCommandsTests
     }
 
     [TestMethod]
+    public async Task Watch_says_the_PR_Monitor_is_turned_off_for_now()
+    {
+        Assert.AreEqual("command:watch", (await Run("watch", null, "3944")).Code);
+        Assert.AreEqual("command:unwatch", (await Run("unwatch", null, "3944")).Code);
+
+        Assert.IsTrue(_chat.SentText.All(t => t.Contains("Watching PRs is turned off for now", StringComparison.Ordinal)));
+    }
+
+    [TestMethod]
     public async Task Help_lists_every_command_and_feature()
     {
         Assert.AreEqual("command:help", (await Run("help", null)).Code);

@@ -123,7 +123,6 @@ public static class BffModule
         api.MapConfig();
         api.MapPermissions();
         api.MapIdeas();
-        api.MapWatches();
         api.MapArtifacts();
         api.MapSystemLog();
         api.MapPrompts();

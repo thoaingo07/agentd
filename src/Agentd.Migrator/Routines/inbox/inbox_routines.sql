@@ -32,8 +32,6 @@ AS $$
         WHEN 'idea' THEN EXISTS (SELECT 1 FROM agentd.ideas AS i WHERE i.id = p_source_id
                                    AND (i.status = 'Proposed' OR (i.status IN ('Created', 'Discarded') AND i.thread_id IS NOT NULL)))
         WHEN 'review' THEN EXISTS (SELECT 1 FROM agentd.pr_reviews AS r WHERE r.id = p_source_id AND r.status IN ('Reviewed', 'Kept', 'Discarded'))
-        WHEN 'watch' THEN EXISTS (SELECT 1 FROM agentd.pr_watches AS w WHERE w.id = p_source_id AND w.pending IS NOT NULL
-                                    AND w.pending <> 'null'::jsonb)
         ELSE false
     END
 $$;
