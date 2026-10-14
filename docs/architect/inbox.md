@@ -6,7 +6,7 @@
 
 ## 1. What's in it
 
-One **thread** per source: a job (its work item), an idea, a chat `!review`, a chat, a watched PR. A thread holds
+One **thread** per source: a job (its work item), an idea, a chat `!review`, a chat (and a watched PR's, from before the PR Monitor was turned off: readable, no answers). A thread holds
 agentd's messages to people, in order: questions, plans to approve, results, failures, notices. Not progress updates
 (they're replaced as they go) and not people's own messages (those stay on the source's page).
 
@@ -16,7 +16,7 @@ agentd's messages to people, in order: questions, plans to approve, results, fai
 | `idea` | `IdeaService.PostAsync` | the idea's author |
 | `review` | `ReviewService.PostAsync` | the review's author |
 | `chat` | `ChatService` | the chat's author |
-| `watch` | `PrWatchNotices.PostAsync` | who watched the PR |
+| `watch` | nothing now (the PR Monitor is turned off; old threads stay) | who watched the PR |
 
 ## 2. What each thread needs
 
@@ -25,7 +25,6 @@ A thread is **waiting on you** while its source is, read live from the source (n
 - a job **WaitingForHuman** (a question, the plan, the hand-off, the close-out) or with a tool **permission** pending;
 - an idea with work items **Proposed**, or Created/Discarded with a chat thread still to close;
 - a review **Reviewed** (post, keep or discard), or Kept/Discarded with its close-out open;
-- a watched PR with a fix **pending** (push or discard).
 
 The list, newest activity first within each group:
 
@@ -49,12 +48,12 @@ thread then drops out of the top until agentd writes again. The nav shows how ma
 ## 4. The page
 
 `/inbox` (and `/inbox/{source}/{id}` for an open thread): the grouped list on the left (resizable), the open thread on
-the right with its messages, oldest first, and, when it waits on you, the question's buttons (a watched PR's **push** /
+the right with its messages, oldest first, and, when it waits on you, the question's buttons (formerly a watched PR's **push** /
 **discard**) and a reply box. The open thread keeps its group while it's open, so reading it doesn't move it. **Mine**
 shows threads addressed to you (the recipient is your web login, so for now only what you started from the web),
 **Everyone** all of them (every signed-in user, like jobs and reviews). `j` / `k` move between threads, `e` marks the
 open one read. The nav's **Inbox** item shows how many threads wait on you (or, when none do, how many are unread);
-`inbox.added` and job, idea, review and watch events refresh it.
+`inbox.added` and job, idea and review events refresh it.
 
 API (every signed-in user):
 
@@ -63,8 +62,8 @@ API (every signed-in user):
 - `POST /api/inbox/{source}/{id}/read {until}`: marks it read for you.
 - `POST /api/inbox/{source}/{id}/reply {text}`: to the source, as its page or chat thread takes it: a job through
   `JobMessages` (like its page's message box, mirrored to its chat threads), an idea or chat like a message from the
-  web, a chat `!review` like a message in its thread (not mirrored to the thread yet), a watched PR's `push`,
-  `discard` or `unwatch`.
+  web, a chat `!review` like a message in its thread (not mirrored to the thread yet).
+  A watched PR's old thread answers that watching is turned off.
 
 **Notifications** (added 2026-10-14): **Enable notifications** in the Inbox's header turns on browser notifications
 for this browser (the browser asks once; the choice is kept as `agentd.notify`). While agentd is open in a tab, a

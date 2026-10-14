@@ -3,7 +3,6 @@ import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ApiError } from '../../shared/api/http'
 import type { OpenPullRequest } from '../../shared/api/types'
-import UAlert from '@nuxt/ui/components/Alert.vue'
 import UBadge from '@nuxt/ui/components/Badge.vue'
 import UButton from '@nuxt/ui/components/Button.vue'
 import UCard from '@nuxt/ui/components/Card.vue'
@@ -13,20 +12,15 @@ import UFormField from '@nuxt/ui/components/FormField.vue'
 import UInput from '@nuxt/ui/components/Input.vue'
 import USelect from '@nuxt/ui/components/Select.vue'
 import UTextarea from '@nuxt/ui/components/Textarea.vue'
-import MarkdownText from '../../shared/components/MarkdownText.vue'
 import { dateTime } from '../../shared/utils/format'
 import { useConfigStore } from '../stores/config'
 import { ideaEfforts, ideaModels } from '../stores/ideas'
 import { useReviewsStore } from '../stores/reviews'
-import { useUiStore } from '../stores/ui'
-import { useWatchesStore } from '../stores/watches'
 
 // Reviews: the registered repositories' open PRs (kept fresh while the page is shown), start one on any PR, pushed
-// branch or two commits, and reopen mine. Watch a PR (like !watch): agentd prepares fixes and asks before pushing.
+// branch or two commits, and reopen mine.
 // The Nuxt UI pilot screen (docs/ui §1): U* components instead of daisyUI classes and Ag* components.
 const reviews = useReviewsStore()
-const watches = useWatchesStore()
-const ui = useUiStore()
 const config = useConfigStore()
 const router = useRouter()
 const form = reactive({ repo: '', kind: 'branch' as 'pr' | 'branch' | 'range', pr: '', branch: '', base: '', head: '', model: '', effort: '', focus: '', instructions: '' })
@@ -49,7 +43,7 @@ const reviewing = ref<string | null>(null)
 
 onMounted(async () => {
   reviews.watchOpenPrs()
-  await Promise.all([reviews.loadMine().catch(() => {}), config.load().catch(() => {}), watches.load().catch(() => {})])
+  await Promise.all([reviews.loadMine().catch(() => {}), config.load().catch(() => {})])
   form.repo ||= repos.value[0] ?? ''
 })
 onUnmounted(() => reviews.stopOpenPrs())
@@ -74,17 +68,6 @@ async function reviewPr(p: OpenPullRequest): Promise<void> {
   await begin({ repo: p.repo, pullRequestId: p.id })
   reviewing.value = null
 }
-
-/** Watch / Push / Discard / Unwatch: agentd's answer (as in the 👀 thread) becomes a toast. */
-async function tell(work: () => Promise<string>): Promise<void> {
-  try {
-    ui.toast(await work(), 'info')
-  } catch (err) {
-    ui.toast(err instanceof ApiError ? err.message : 'Something went wrong.', 'error')
-  }
-}
-
-const toggleLog = (id: number) => void watches.open(watches.opened?.watch.id === id ? null : id).catch(() => {})
 
 async function start(): Promise<void> {
   busy.value = true
@@ -192,22 +175,6 @@ async function start(): Promise<void> {
               >
                 My review
               </UButton>
-              <UBadge
-                v-if="watches.of(p.repo, p.id)"
-                color="neutral"
-                variant="subtle"
-                size="sm"
-              >
-                👀 watched
-              </UBadge>
-              <UButton
-                v-else
-                size="sm"
-                variant="outline"
-                @click="tell(() => watches.watch(p.repo, p.id))"
-              >
-                Watch
-              </UButton>
               <UButton
                 size="sm"
                 :loading="reviewing === `${p.repo}/${p.id}`"
@@ -220,102 +187,6 @@ async function start(): Promise<void> {
         </li>
       </ul>
     </div>
-
-    <section
-      v-if="watches.list?.length"
-      class="grid gap-2"
-      aria-labelledby="watched-title"
-      data-testid="watched"
-    >
-      <h2
-        id="watched-title"
-        class="font-semibold"
-      >
-        Watched pull requests · {{ watches.list.length }}
-      </h2>
-      <p class="text-xs text-muted">
-        agentd fixes failed PR builds, merge conflicts and new comments from people it knows. It prepares each fix and asks here before pushing.
-      </p>
-      <UCard
-        v-for="w in watches.list"
-        :key="w.id"
-        as="article"
-        :ui="{ body: 'grid gap-2 p-3 sm:p-3 text-sm' }"
-        data-testid="watch"
-      >
-        <p class="flex flex-wrap items-center gap-2">
-          <span class="font-mono text-xs">!{{ w.pullRequestId }}</span>
-          <span class="font-medium">{{ w.title }}</span>
-          <span class="text-xs text-muted">{{ w.repo }} · by {{ w.watchedBy }} · {{ w.fixRounds }} fix round(s){{ w.inChat ? ' · 👀 thread in chat' : '' }}</span>
-          <span class="ml-auto flex gap-2">
-            <UButton
-              size="xs"
-              variant="ghost"
-              color="neutral"
-              :aria-expanded="watches.opened?.watch.id === w.id"
-              @click="toggleLog(w.id)"
-            >
-              Log
-            </UButton>
-            <UButton
-              size="xs"
-              variant="ghost"
-              color="neutral"
-              @click="tell(() => watches.answer(w.id, 'unwatch'))"
-            >
-              Unwatch
-            </UButton>
-          </span>
-        </p>
-        <UAlert
-          v-if="w.pending"
-          color="warning"
-          variant="subtle"
-          icon="i-lucide-wrench"
-          role="status"
-        >
-          <template #description>
-            <p>A fix waits (<span class="font-mono">{{ w.pending.commit.slice(0, 7) }}</span>, until {{ dateTime(w.pending.expiresAt) }}):</p>
-            <p class="whitespace-pre-wrap">
-              {{ w.pending.summary }}
-            </p>
-            <div class="mt-2 flex gap-2">
-              <UButton
-                size="sm"
-                @click="tell(() => watches.answer(w.id, 'push'))"
-              >
-                Push
-              </UButton>
-              <UButton
-                size="sm"
-                variant="outline"
-                @click="tell(() => watches.answer(w.id, 'discard'))"
-              >
-                Discard
-              </UButton>
-            </div>
-          </template>
-        </UAlert>
-        <ol
-          v-if="watches.opened?.watch.id === w.id"
-          class="grid gap-1 border-l-2 border-default pl-3 text-xs"
-          aria-label="What agentd said"
-        >
-          <li
-            v-for="(m, i) in watches.opened.messages"
-            :key="i"
-          >
-            <span class="text-muted">{{ dateTime(m.at) }}</span> <MarkdownText :text="m.text" />
-          </li>
-          <li
-            v-if="!watches.opened.messages.length"
-            class="text-muted"
-          >
-            Nothing yet.
-          </li>
-        </ol>
-      </UCard>
-    </section>
 
     <UCard
       as="form"

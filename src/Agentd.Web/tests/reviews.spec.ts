@@ -13,7 +13,6 @@ let calls: Call[]
 let session: Record<string, unknown>
 let comments: object[]
 let asks: Record<string, unknown>[]
-let watched: Record<string, unknown>[]
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status })
 const diff = 'diff --git a/src/Sync.cs b/src/Sync.cs\n--- a/src/Sync.cs\n+++ b/src/Sync.cs\n@@ -40,2 +40,2 @@\n var page = 0;\n-var rows = await ReadAllAsync(table);\n+await foreach (var chunk in KeysetAsync(table))\n'
 const finding = { number: 1, severity: 'breaks', file: 'src/Sync.cs', line: 41, title: 'Unbounded read', detail: 'Large tables load at once.', suggestion: 'Page by key.', decision: 'kept', edited: null }
@@ -28,7 +27,6 @@ beforeEach(() => {
   calls = []
   comments = []
   asks = []
-  watched = []
   session = { id: 7, repo: 'sysmin', target: 'branch', pullRequestId: null, headRef: 'feature/keyset', baseRef: 'develop', baseCommit: 'a1b2c3d4', headCommit: 'f9e8d7c6',
     status: 'Ready', error: null, model: 'claude-opus-5-5', effort: 'high', summary: 'One real bug.', findings: [finding], createdBy: 'local', sentTo: null, createdAt: '2026-10-09T10:00:00Z', chatLink: null, postsFromChat: false }
   vi.stubGlobal('fetch', vi.fn(async (req: Request) => {
@@ -43,17 +41,6 @@ beforeEach(() => {
         { repo: 'sysmin', id: 3944, title: 'Keyset chunks', author: 'Bob', sourceBranch: 'feature/keyset', targetBranch: 'develop', isDraft: true, createdAt: '2026-10-09T10:00:00Z', url: 'https://dev.azure.com/o/p/_git/sysmin/pullrequest/3944' },
         ...(n > 1 ? [{ repo: 'sysmin', id: 3950, title: 'New one', author: 'Ann', sourceBranch: 'feature/new', targetBranch: 'develop', isDraft: false, createdAt: '2026-10-10T09:00:00Z', url: 'https://dev.azure.com/o/p/_git/sysmin/pullrequest/3950' }] : []),
       ] })
-    }
-    if (path === '/api/watches' && req.method === 'GET') return json(watched)
-    if (path === '/api/watches' && req.method === 'POST') {
-      watched = [{ id: 1, repo: 'sysmin', pullRequestId: 3944, title: 'Keyset chunks', watchedBy: 'local', active: true, fixRounds: 0, inChat: false, createdAt: '2026-10-10T10:00:00Z',
-        pending: { commit: 'c0ffee1234', summary: 'The build failed; fixed the null check.', expiresAt: '2026-10-11T10:00:00Z' } }]
-      return json({ message: '👀 Watching PR !3944.' })
-    }
-    if (path === '/api/watches/1') return json({ watch: watched[0], messages: [{ text: '🔔 PR !3944: the PR build **failed**.', at: '2026-10-10T10:05:00Z' }] })
-    if (path === '/api/watches/1/push') {
-      watched = [{ ...watched[0], pending: null, fixRounds: 1 }]
-      return json({ message: '🚀 Pushed c0ffee1 to the PR.' })
     }
     if (path === '/api/reviews' && req.method === 'GET') return json([session])
     if (path === '/api/reviews' && req.method === 'POST') return json({ ...session, id: 9 }, 201)
@@ -166,26 +153,13 @@ describe('reviews', () => {
     expect(calls.filter((c) => c.path === '/api/reviews/pull-requests')).toHaveLength(before)
   })
 
-  it('watches an open PR, pushes the fix it prepared, and shows what agentd said', async () => {
+  it('offers no Watch: the PR Monitor is turned off for now', async () => {
     const view = mount(ReviewsView, { global: { plugins: [router()] } })
     await flushPromises()
 
-    await view.get('[data-testid=open-pr]').findAll('button').find((b) => b.text() === 'Watch')!.trigger('click')
-    await flushPromises()
-    expect(calls.find((c) => c.method === 'POST' && c.path === '/api/watches')?.body).toEqual({ repo: 'sysmin', pullRequestId: 3944 })
-    expect(view.get('[data-testid=open-pr]').text()).toContain('👀 watched')
-    const watch = view.get('[data-testid=watch]')
-    expect(watch.get('[role=status]').text()).toContain('fixed the null check')
-
-    await watch.findAll('button').find((b) => b.text() === 'Log')!.trigger('click')
-    await flushPromises()
-    expect(view.get('[aria-label="What agentd said"] strong').text()).toBe('failed')
-    await view.get('[data-testid=watch]').findAll('button').find((b) => b.text() === 'Push')!.trigger('click')
-    await flushPromises()
-
-    expect(calls.some((c) => c.method === 'POST' && c.path === '/api/watches/1/push')).toBe(true)
-    expect(view.get('[data-testid=watch]').find('[role=status]').exists()).toBe(false)
-    expect(view.get('[data-testid=watch]').text()).toContain('1 fix round(s)')
+    expect(view.get('[data-testid=open-pr]').findAll('button').map((b) => b.text())).not.toContain('Watch')
+    expect(view.find('[data-testid=watched]').exists()).toBe(false)
+    expect(calls.some((c) => c.path.startsWith('/api/watches'))).toBe(false)
   })
 
   it('shows findings at their line in the diff and keeps, edits and drops them', async () => {

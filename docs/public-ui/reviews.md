@@ -168,6 +168,8 @@ agentd **never votes or approves**.
 
 ## Watching a PR
 
+> **Turned off for now.** `!watch` and `!unwatch` answer that watching PRs is off, and the Reviews page has no Watch. What follows describes how it worked.
+
 ```text
 !watch !3944
 !watch https://dev.azure.com/myorg/MyProject/_git/my-repo/pullrequest/3944
