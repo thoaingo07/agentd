@@ -110,5 +110,5 @@ public sealed class ConversationStore(NpgsqlDataSource dataSource) : IConversati
         return list;
     }
 
-    private static NpgsqlParameter P(object? value, NpgsqlDbType type) => new() { Value = value ?? DBNull.Value, NpgsqlDbType = type };
+    private static NpgsqlParameter P(object? value, NpgsqlDbType type) => PgParameter.Of(value, type);
 }

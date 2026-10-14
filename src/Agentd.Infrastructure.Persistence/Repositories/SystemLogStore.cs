@@ -55,5 +55,5 @@ public sealed class SystemLogStore(NpgsqlDataSource dataSource) : ISystemLogStor
         return (int)(await cmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false))!;
     }
 
-    private static NpgsqlParameter P(object? value, NpgsqlDbType type) => new() { Value = value ?? DBNull.Value, NpgsqlDbType = type };
+    private static NpgsqlParameter P(object? value, NpgsqlDbType type) => PgParameter.Of(value, type);
 }

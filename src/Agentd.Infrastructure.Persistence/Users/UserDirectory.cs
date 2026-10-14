@@ -48,7 +48,7 @@ public sealed class UserDirectory(NpgsqlDataSource dataSource) : IUserDirectory
             }),
             s_json);
         await using var cmd = dataSource.CreateCommand("SELECT agentd.user_sync($1)");
-        cmd.Parameters.Add(new NpgsqlParameter { Value = payload, NpgsqlDbType = NpgsqlDbType.Jsonb });
+        cmd.Parameters.Add(PgParameter.Of(payload, NpgsqlDbType.Jsonb));
         await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         _cache.Clear();
     }

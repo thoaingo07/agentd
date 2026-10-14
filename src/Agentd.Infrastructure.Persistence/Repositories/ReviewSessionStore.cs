@@ -147,5 +147,5 @@ public sealed class ReviewSessionStore(NpgsqlDataSource dataSource) : IReviewSes
 
     private static NpgsqlParameter T(string? value) => P(value, NpgsqlDbType.Text);
 
-    private static NpgsqlParameter P(object? value, NpgsqlDbType type) => new() { Value = value ?? DBNull.Value, NpgsqlDbType = type };
+    private static NpgsqlParameter P(object? value, NpgsqlDbType type) => PgParameter.Of(value, type);
 }

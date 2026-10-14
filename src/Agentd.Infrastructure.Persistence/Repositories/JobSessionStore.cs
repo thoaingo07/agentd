@@ -45,5 +45,5 @@ public sealed class JobSessionStore(NpgsqlDataSource dataSource) : IJobSessions,
         return await cmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) as string;
     }
 
-    private static NpgsqlParameter P(object? value, NpgsqlDbType type) => new() { Value = value ?? DBNull.Value, NpgsqlDbType = type };
+    private static NpgsqlParameter P(object? value, NpgsqlDbType type) => PgParameter.Of(value, type);
 }
