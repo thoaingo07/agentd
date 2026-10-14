@@ -38,7 +38,7 @@ public interface IWorkItemSource
 }
 
 /// <summary>A work item to create. <paramref name="Estimate"/> is story points for stories, hours for tasks.</summary>
-/// <param name="Type">"User Story" or "Task".</param>
+/// <param name="Type">"User Story", "Task" or "Bug" (a Bug's description is its repro steps too).</param>
 /// <param name="Title">The title.</param>
 /// <param name="Description">Markdown-ish text (stored as simple HTML).</param>
 /// <param name="AcceptanceCriteria">Markdown-ish text.</param>

@@ -51,6 +51,16 @@ public sealed class IncidentStore(NpgsqlDataSource dataSource) : IIncidentStore
         await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task<int?> SetWorkItemAsync(long id, int workItemId, CancellationToken cancellationToken)
+    {
+        await using var cmd = dataSource.CreateCommand("SELECT agentd.incident_set_work_item($1, $2)");
+        cmd.Parameters.AddRange(new[] { P(id, NpgsqlDbType.Bigint), P(workItemId, NpgsqlDbType.Integer) });
+        return await cmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) is int kept ? kept : null;
+    }
+
+    public async Task<Incident?> FindByThreadAsync(string provider, string threadId, CancellationToken cancellationToken) =>
+        (await ReadAsync("SELECT * FROM agentd.incident_find_by_thread($1, $2)", cancellationToken, T(provider), T(threadId)).ConfigureAwait(false)).SingleOrDefault();
+
     public async Task<DateTimeOffset?> GetCursorAsync(string app, CancellationToken cancellationToken)
     {
         await using var cmd = dataSource.CreateCommand("SELECT agentd.incident_cursor_get($1)");

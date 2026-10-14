@@ -191,6 +191,12 @@ public interface IIncidentStore
     /// <summary>Keeps the investigation's analysis and session; an incident still Investigating is Open again.</summary>
     Task SetAnalysisAsync(long id, string analysis, Guid session, CancellationToken cancellationToken);
 
+    /// <summary>Keeps the Bug filed by Fix it (status Fixing) unless one is kept already; returns the kept one (null: no such incident).</summary>
+    Task<int?> SetWorkItemAsync(long id, int workItemId, CancellationToken cancellationToken);
+
+    /// <summary>The incident whose 🚨 thread this is.</summary>
+    Task<Incident?> FindByThreadAsync(string provider, string threadId, CancellationToken cancellationToken);
+
     /// <summary>Where the app's last pass ended; null before the first.</summary>
     Task<DateTimeOffset?> GetCursorAsync(string app, CancellationToken cancellationToken);
 

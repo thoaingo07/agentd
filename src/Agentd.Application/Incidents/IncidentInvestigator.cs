@@ -18,7 +18,8 @@ namespace Agentd.Application.Incidents;
 /// Investigates incidents (docs/architect/incident-monitor.md §3): a read-only agent turn (<see cref="ThreadTurnKind.Incident"/>) in a
 /// checkout of the app's repository, from telemetry agentd reads itself (the agent gets no Azure access). The analysis is kept with
 /// the incident and posted in its 🚨 thread and the Inbox. Every telemetry text goes through <see cref="SecretRedactor"/> before it
-/// reaches the prompt or a post. One turn at a time per incident, at most <see cref="MaxConcurrent"/> at once.
+/// reaches the prompt or a post. Questions about the incident resume the investigation's session. One turn at a time per
+/// incident, at most <see cref="MaxConcurrent"/> at once.
 /// </summary>
 public sealed partial class IncidentInvestigator(
     IIncidentStore store,
@@ -39,33 +40,37 @@ public sealed partial class IncidentInvestigator(
     private const int StackLines = 60;
     private const int PropertiesLength = 1500;
 
-    private readonly ConcurrentDictionary<long, Queue> _queues = new();
+    private readonly ConcurrentDictionary<long, SemaphoreSlim> _turns = new();
     private readonly SemaphoreSlim _slots = new(MaxConcurrent, MaxConcurrent);
 
-    public void Dispose() => _slots.Dispose();
-
-    /// <summary>Queues an investigation in the background; false when one is already running for the incident (it runs once).</summary>
-    public bool Investigate(long incidentId)
+    public void Dispose()
     {
-        var queue = _queues.GetOrAdd(incidentId, _ => new Queue());
-        lock (queue)
+        _slots.Dispose();
+        foreach (var turn in _turns.Values)
         {
-            if (queue.Running)
-            {
-                return false;
-            }
-
-            queue.Running = true;
+            turn.Dispose();
         }
+    }
 
+    /// <summary>Investigates in the background (after the incident's other turns); nothing happens unless it's Open.</summary>
+    public void Investigate(long incidentId) => Background(incidentId, ct => InvestigateAsync(incidentId, ct));
+
+    /// <summary>Answers a question about the incident in the background, resuming its investigation's session.</summary>
+    public void Ask(long incidentId, string author, string question) => Background(incidentId, ct => AskAsync(incidentId, author, question, ct));
+
+    /// <summary>One turn at a time per incident, at most <see cref="MaxConcurrent"/> in all.</summary>
+    private void Background(long incidentId, Func<CancellationToken, Task> work)
+    {
+        var turn = _turns.GetOrAdd(incidentId, _ => new SemaphoreSlim(1, 1));
         _ = Task.Run(async () =>
         {
+            await turn.WaitAsync().ConfigureAwait(false);
             await _slots.WaitAsync().ConfigureAwait(false);
             try
             {
-                await InvestigateAsync(incidentId, CancellationToken.None).ConfigureAwait(false);
+                await work(CancellationToken.None).ConfigureAwait(false);
             }
-#pragma warning disable CA1031 // a failed investigation must not take the monitor down
+#pragma warning disable CA1031 // a failed turn must not take the monitor or a thread down
             catch (Exception ex)
 #pragma warning restore CA1031
             {
@@ -74,13 +79,47 @@ public sealed partial class IncidentInvestigator(
             finally
             {
                 _slots.Release();
-                lock (queue)
-                {
-                    queue.Running = false;
-                }
+                turn.Release();
             }
         });
-        return true;
+    }
+
+    /// <summary>Answers a question in the incident's thread from its investigation's session (investigates first when there's none).</summary>
+    public async Task AskAsync(long incidentId, string author, string question, CancellationToken ct)
+    {
+        if (await store.GetAsync(incidentId, ct).ConfigureAwait(false) is not { } incident)
+        {
+            return;
+        }
+
+        if (incident.Session is not { } session)
+        {
+            await InvestigateAsync(incidentId, ct).ConfigureAwait(false);
+            return;
+        }
+
+        try
+        {
+            var app = options.Value.Apps.FirstOrDefault(a => string.Equals(a.Name, incident.App, StringComparison.OrdinalIgnoreCase));
+            if (app is null || await repositories.GetAsync(RepositoryName.From(app.Repository), ct).ConfigureAwait(false) is not { } repo)
+            {
+                await PostAsync(incident, new OutboundMessage(MessageKind.Info, $"⚠️ I can't answer: app `{incident.App}` or its repository isn't configured anymore."), ct).ConfigureAwait(false);
+                return;
+            }
+
+            var path = await worktrees.CheckoutDetachedAsync(repo, $"incident-{incident.Id}", ct).ConfigureAwait(false);
+            var reply = await agent.RunAsync(new BrainstormTurn(incident.Id, path, session, true, SecretRedactor.Redact($"{author} asks: {question.Trim()}"),
+                Kind: ThreadTurnKind.Incident), ct).ConfigureAwait(false);
+            await PostAsync(incident, new OutboundMessage(MessageKind.Info, reply.Text is { Length: > 0 } text
+                ? SecretRedactor.Redact(text.Trim())
+                : reply.UsageLimitedUntil is { } until ? $"⏸ The Claude usage limit is reached until {until:HH:mm} UTC. Ask again after that."
+                : $"⚠️ I couldn't answer that ({reply.Error ?? "no answer"}). Ask again to retry."), ct).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            LogFailed(logger, ex, incident.Id);
+            await PostAsync(incident, new OutboundMessage(MessageKind.Info, $"⚠️ I couldn't answer that ({ex.GetType().Name}). Ask again to retry."), ct).ConfigureAwait(false);
+        }
     }
 
     /// <summary>Runs the investigation now: Open → Investigating → Open with the analysis (or Open again with a short error).</summary>
@@ -130,7 +169,9 @@ public sealed partial class IncidentInvestigator(
 
             var analysis = SecretRedactor.Redact(text.Trim());
             await store.SetAnalysisAsync(incident.Id, analysis, session, ct).ConfigureAwait(false);
-            await PostAsync(incident, new OutboundMessage(MessageKind.Result, $"🔎 **Investigation of incident #{incident.Id}**\n\n{analysis}"), ct).ConfigureAwait(false);
+            await PostAsync(incident, new OutboundMessage(MessageKind.Question, $"🔎 **Investigation of incident #{incident.Id}**\n\n{analysis}\n\n" +
+                $"**{IncidentService.LabelFix}** files an Azure DevOps Bug that agentd fixes in a normal job; **{IncidentService.LabelIgnore}** stops the alerts. Or ask me about it here.",
+                IncidentService.Choices), ct).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -226,12 +267,7 @@ public sealed partial class IncidentInvestigator(
         }
     }
 
-    private sealed class Queue
-    {
-        public bool Running { get; set; }
-    }
-
-    [LoggerMessage(Level = LogLevel.Error, Message = "Incident {IncidentId}: the investigation failed")]
+    [LoggerMessage(Level = LogLevel.Error, Message = "Incident {IncidentId}: the agent's turn failed")]
     private static partial void LogFailed(ILogger logger, Exception exception, long incidentId);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Incident {IncidentId}: reading its occurrences failed; investigating from the recorded sample")]

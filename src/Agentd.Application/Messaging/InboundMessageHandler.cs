@@ -52,7 +52,9 @@ public sealed partial class InboundMessageHandler(
     Reviews.ReviewService? reviews = null,
     Reviews.IReviewStore? reviewStore = null,
     Chats.ChatService? chatService = null,
-    Chats.IChatStore? chatStore = null) : IInboundMessageSink
+    Chats.IChatStore? chatStore = null,
+    Incidents.IncidentService? incidents = null,
+    Incidents.IIncidentStore? incidentStore = null) : IInboundMessageSink
 {
     /// <summary>The role a stranger gets on a provider that allows everyone (enforced from Phase 5).</summary>
     public const string GuestRole = "Operator";
@@ -115,6 +117,14 @@ public sealed partial class InboundMessageHandler(
                 && await chatStore.FindByThreadAsync(message.Provider, message.ExternalConversationId, ct).ConfigureAwait(false) is { } chat)
             {
                 return new InboundOutcome(await chatService.HandleMessageAsync(chat, user.Name, message.Text, ct).ConfigureAwait(false) ? "chat" : "chat_closed");
+            }
+
+            // …or an incident's 🚨 thread: Fix it, Ignore, reopen (Operators and Admins), or a question for the agent.
+            if (incidents is not null && incidentStore is not null && !string.IsNullOrWhiteSpace(message.Text)
+                && await incidentStore.FindByThreadAsync(message.Provider.Value, message.ExternalConversationId, ct).ConfigureAwait(false) is { } incident)
+            {
+                var canAct = user.Roles.Any(r => r is "Operator" or "Admin");
+                return new InboundOutcome($"incident:{await incidents.HandleAsync(incident, user.Name, canAct, message.Text, ct).ConfigureAwait(false)}");
             }
 
             return new InboundOutcome("ignored_no_job");

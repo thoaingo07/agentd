@@ -133,3 +133,6 @@ public sealed class Incidents : SqlMigration;
 
 [Migration(2026_11_09_0001, "Incidents keep the investigating agent's analysis and session; prompts may come from incidents")]
 public sealed class IncidentAnalysis : SqlMigration;
+
+[Migration(2026_11_10_0001, "Messages in an incident's 🚨 thread find it by index")]
+public sealed class IncidentThreadIndex : SqlMigration;

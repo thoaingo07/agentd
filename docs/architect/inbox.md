@@ -17,7 +17,7 @@ agentd's messages to people, in order: questions, plans to approve, results, fai
 | `review` | `ReviewService.PostAsync` | the review's author |
 | `chat` | `ChatService` | the chat's author |
 | `watch` | nothing now (the PR Monitor is turned off; old threads stay) | who watched the PR |
-| `incident` | `IncidentMonitor` (an alert for a new or reopened incident; readable, answers come with Fix it) | none (everyone) |
+| `incident` | `IncidentMonitor` (an alert for a new or reopened incident, resolved), `IncidentInvestigator` (the analysis with 🛠 Fix it / 🙈 Ignore, answers), `IncidentService` (Bug filed, ignored, reopened) | none (everyone) |
 
 ## 2. What each thread needs
 
@@ -26,6 +26,7 @@ A thread is **waiting on you** while its source is, read live from the source (n
 - a job **WaitingForHuman** (a question, the plan, the hand-off, the close-out) or with a tool **permission** pending;
 - an idea with work items **Proposed**, or Created/Discarded with a chat thread still to close;
 - a review **Reviewed** (post, keep or discard), or Kept/Discarded with its close-out open;
+- an incident **Open** with an analysis and no Bug filed (🛠 Fix it or 🙈 Ignore);
 
 The list, newest activity first within each group:
 
@@ -64,7 +65,8 @@ API (every signed-in user):
 - `POST /api/inbox/{source}/{id}/reply {text}`: to the source, as its page or chat thread takes it: a job through
   `JobMessages` (like its page's message box, mirrored to its chat threads), an idea or chat like a message from the
   web, a chat `!review` like a message in its thread (not mirrored to the thread yet).
-  A watched PR's old thread answers that watching is turned off.
+  An incident through `IncidentService` (🛠 Fix it, 🙈 Ignore, reopen, investigate again for Operators and Admins;
+  anything else is a question for its agent). A watched PR's old thread answers that watching is turned off.
 
 **Notifications** (added 2026-10-14): **Enable notifications** in the Inbox's header turns on browser notifications
 for this browser (the browser asks once; the choice is kept as `agentd.notify`). While agentd is open in a tab, a

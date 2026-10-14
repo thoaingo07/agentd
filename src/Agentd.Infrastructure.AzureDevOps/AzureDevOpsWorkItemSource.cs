@@ -87,6 +87,11 @@ public sealed class AzureDevOpsWorkItemSource(HttpClient http, IOptions<AzureDev
 
         Field("System.Title", item.Title);
         Field("System.Description", HtmlText.FromText(item.Description));
+        if (item.Type == "Bug")
+        {
+            Field("Microsoft.VSTS.TCM.ReproSteps", HtmlText.FromText(item.Description));   // what a Bug's form shows
+        }
+
         Field("Microsoft.VSTS.Common.AcceptanceCriteria", HtmlText.FromText(item.AcceptanceCriteria));
         Field("System.Tags", item.Tags.Count > 0 ? string.Join("; ", item.Tags) : null);
         Field("System.AreaPath", item.AreaPath);

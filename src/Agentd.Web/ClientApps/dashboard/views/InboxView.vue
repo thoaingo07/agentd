@@ -31,17 +31,18 @@ async function toggleNotifications(): Promise<void> {
   blocked.value = supported && Notification.permission === 'denied'
 }
 
-const icon: Record<string, string> = { job: '🛠', idea: '💡', review: '🔍', chat: '💬', watch: '👀' }
+const icon: Record<string, string> = { job: '🛠', idea: '💡', review: '🔍', chat: '💬', watch: '👀', incident: '🚨' }
 /** Ideas, reviews, chats and (old) watched PRs name their thread with their own emoji already; a job's gets the source's. */
 const titled = (t: { source: string; title: string }) => (/^\p{Extended_Pictographic}/u.test(t.title) ? t.title : `${icon[t.source] ?? '•'} ${t.title}`)
 const views: { value: InboxView; label: string }[] = [{ value: 'all', label: 'Everyone' }, { value: 'mine', label: 'Mine' }]
 
-/** The source's own page: a job's work item, an idea, a chat, the Reviews page for chat reviews (and old watched PRs). */
-function page(t: { source: string; sourceId: number }): RouteLocationRaw {
+/** The source's own page: a job's work item, an idea, a chat, the Reviews page for chat reviews (and old watched PRs); an incident has none yet. */
+function page(t: { source: string; sourceId: number }): RouteLocationRaw | null {
   switch (t.source) {
     case 'job': return { name: 'job', params: { id: t.sourceId } }
     case 'idea': return { name: 'idea', params: { id: t.sourceId } }
     case 'chat': return { name: 'chat', params: { id: t.sourceId } }
+    case 'incident': return null
     default: return { name: 'reviews' }
   }
 }
@@ -235,7 +236,8 @@ watch(() => [props.source, props.id] as const, ([source, id]) => {
             {{ titled(inbox.current) }}
           </h2>
           <RouterLink
-            :to="page(inbox.current)"
+            v-if="page(inbox.current)"
+            :to="page(inbox.current)!"
             class="link text-sm"
           >
             Open its page

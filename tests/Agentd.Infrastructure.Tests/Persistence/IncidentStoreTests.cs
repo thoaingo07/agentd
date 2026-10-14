@@ -137,6 +137,50 @@ public sealed class IncidentStoreTests
         Assert.AreEqual(IncidentStatus.Fixing, (await store.GetAsync(fixing, default))!.Status, "only Investigating goes back to Open");
     }
 
+    [TestMethod]
+    public async Task Fix_it_keeps_the_first_Bug_even_from_parallel_callers_and_moves_to_Fixing()
+    {
+        var store = new IncidentStore(s_db);
+        var id = (await store.RecordAsync(App(), Group("ex|w|op", 5), 3, default))!.Id;
+
+        var kept = await Task.WhenAll(Enumerable.Range(0, 20).Select(i => Task.Run(() => store.SetWorkItemAsync(id, 9000 + i, default))));
+
+        Assert.HasCount(1, kept.Distinct(), "every caller gets the same Bug back");
+        var incident = (await store.GetAsync(id, default))!;
+        Assert.AreEqual((kept[0], IncidentStatus.Fixing), (incident.WorkItemId, incident.Status));
+        Assert.IsNull(await store.SetWorkItemAsync(id + 100_000, 1, default));
+    }
+
+    [TestMethod]
+    public async Task A_thread_finds_its_incident()
+    {
+        var store = new IncidentStore(s_db);
+        var id = (await store.RecordAsync(App(), Group("ex|t|op", 5), 3, default))!.Id;
+        var thread = $"thread-{id}";
+        await store.SetThreadAsync(id, "discord", thread, null, default);
+
+        Assert.AreEqual(id, (await store.FindByThreadAsync("discord", thread, default))!.Id);
+        Assert.IsNull(await store.FindByThreadAsync("telegram", thread, default));
+    }
+
+    [TestMethod]
+    public async Task An_incident_waits_in_the_Inbox_once_analysed_until_fixed_or_ignored()
+    {
+        var store = new IncidentStore(s_db);
+        var inbox = new InboxStore(s_db);
+        var id = (await store.RecordAsync(App(), Group("ex|x|op", 5), 3, default))!.Id;
+        await inbox.AddAsync(new Application.Inbox.InboxEntry(Application.Inbox.InboxSources.Incident, id, "🚨", null,
+            new Application.Messaging.OutboundMessage(Application.Messaging.MessageKind.Info, "New incident")), default);
+        async Task<bool> WaitingAsync() =>
+            (await inbox.ThreadsAsync("tngo", null, 500, default)).Single(t => t.Source == Application.Inbox.InboxSources.Incident && t.SourceId == id).Waiting;
+
+        Assert.IsFalse(await WaitingAsync(), "nothing to decide before the analysis");
+        await store.SetAnalysisAsync(id, "cause", Guid.NewGuid(), default);
+        Assert.IsTrue(await WaitingAsync());
+        await store.SetWorkItemAsync(id, 9001, default);
+        Assert.IsFalse(await WaitingAsync(), "fixing: nothing more to decide");
+    }
+
     private static string App() => $"app-{Interlocked.Increment(ref s_next)}";
 
     private static ErrorGroup Group(string fingerprint, long count, DateTimeOffset? first = null, DateTimeOffset? last = null, string message = "Object reference not set",

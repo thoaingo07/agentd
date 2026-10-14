@@ -115,3 +115,31 @@ BEGIN
     RETURN FOUND;
 END
 $$;
+
+-- Fix it: keeps the Bug filed for the incident and moves it to Fixing. Only the first Bug is kept: a second Fix it (or a
+-- parallel one) gets the kept id back and changes nothing. Returns the kept work item, null for no such incident.
+CREATE OR REPLACE FUNCTION agentd.incident_set_work_item(p_id bigint, p_work_item_id int)
+RETURNS int
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_kept int;
+BEGIN
+    UPDATE agentd.incidents
+       SET work_item_id = p_work_item_id, status = 'Fixing', updated_at = now()
+     WHERE id = p_id AND work_item_id IS NULL
+    RETURNING work_item_id INTO v_kept;
+    IF FOUND THEN
+        RETURN v_kept;
+    END IF;
+
+    SELECT work_item_id INTO v_kept FROM agentd.incidents WHERE id = p_id;
+    RETURN v_kept;
+END
+$$;
+
+-- The incident whose 🚨 thread this is.
+CREATE OR REPLACE FUNCTION agentd.incident_find_by_thread(p_provider text, p_thread_id text)
+RETURNS SETOF agentd.incidents
+LANGUAGE sql STABLE
+AS $$ SELECT * FROM agentd.incidents WHERE provider = p_provider AND thread_id = p_thread_id ORDER BY id LIMIT 1 $$;

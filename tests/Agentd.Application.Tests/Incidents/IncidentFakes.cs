@@ -59,7 +59,8 @@ internal sealed class FakeIncidentStore : IIncidentStore
 
     public Task<Incident?> GetAsync(long id, CancellationToken cancellationToken) => Task.FromResult(Rows.FirstOrDefault(r => r.Id == id));
 
-    public Task<IReadOnlyList<Incident>> ListAsync(string? status, int limit, CancellationToken cancellationToken) => throw new NotSupportedException();
+    public Task<IReadOnlyList<Incident>> ListAsync(string? status, int limit, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<Incident>>([.. Rows.Where(r => status is null || r.Status == status).Take(limit)]);
 
     public Task SetThreadAsync(long id, string provider, string threadId, string? spaceId, CancellationToken cancellationToken)
     {
@@ -86,6 +87,25 @@ internal sealed class FakeIncidentStore : IIncidentStore
         Rows[at] = Rows[at] with { Analysis = analysis, Session = session, Status = Rows[at].Status == IncidentStatus.Investigating ? IncidentStatus.Open : Rows[at].Status };
         return Task.CompletedTask;
     }
+
+    public Task<int?> SetWorkItemAsync(long id, int workItemId, CancellationToken cancellationToken)
+    {
+        var at = Rows.FindIndex(r => r.Id == id);
+        if (at < 0)
+        {
+            return Task.FromResult<int?>(null);
+        }
+
+        if (Rows[at].WorkItemId is null)
+        {
+            Rows[at] = Rows[at] with { WorkItemId = workItemId, Status = IncidentStatus.Fixing };
+        }
+
+        return Task.FromResult(Rows[at].WorkItemId);
+    }
+
+    public Task<Incident?> FindByThreadAsync(string provider, string threadId, CancellationToken cancellationToken) =>
+        Task.FromResult(Rows.FirstOrDefault(r => r.Provider == provider && r.ThreadId == threadId));
 
     public Task<DateTimeOffset?> GetCursorAsync(string app, CancellationToken cancellationToken) =>
         Task.FromResult(Cursors.TryGetValue(app, out var at) ? at : (DateTimeOffset?)null);
