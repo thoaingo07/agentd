@@ -48,6 +48,7 @@ internal static class DaemonHost
         builder.Services.AddHostedService<MessagingDispatcherWorker>();
         builder.Services.AddHostedService<HeartbeatWorker>();
         builder.Services.AddHostedService<WorktreeSweepWorker>();
+        builder.Services.AddHostedService<IncidentMonitorWorker>();
         builder.Services.AddSingleton<Application.Ports.IResourceSampler, ProcResourceSampler>(_ => new ProcResourceSampler());
         builder.Services.AddHostedService<ResourceSamplerWorker>();
         builder.Services.AddEventStreaming();

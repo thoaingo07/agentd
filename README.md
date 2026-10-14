@@ -37,6 +37,7 @@ Then, from the web UI:
 | Brainstorm work items | **Ideas** |
 | Review a branch or PR, ask about it, send findings, fix it | **Reviews** |
 | Ask about the code | **Chat** |
+| See errors in your running apps | **Inbox** (🚨 incidents): set `Agentd:Monitor` with your Application Insights resources ([incident monitor](docs/architect/incident-monitor.md)) |
 | Read what agents published | **Artifacts**: pages are HTML files in `~/.agentd/artifacts` without S3 (Settings → Artifacts) |
 | See every prompt sent to Claude | **Settings → Prompts** (Admins) |
 

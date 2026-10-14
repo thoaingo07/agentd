@@ -17,6 +17,7 @@ agentd's messages to people, in order: questions, plans to approve, results, fai
 | `review` | `ReviewService.PostAsync` | the review's author |
 | `chat` | `ChatService` | the chat's author |
 | `watch` | nothing now (the PR Monitor is turned off; old threads stay) | who watched the PR |
+| `incident` | `IncidentMonitor` (an alert for a new or reopened incident; readable, answers come with Fix it) | none (everyone) |
 
 ## 2. What each thread needs
 

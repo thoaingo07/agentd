@@ -20,6 +20,7 @@
     <ProjectReference Include="..\Agentd.Infrastructure.Git\Agentd.Infrastructure.Git.csproj" />
     <ProjectReference Include="..\Agentd.Infrastructure.Claude\Agentd.Infrastructure.Claude.csproj" />
     <ProjectReference Include="..\Agentd.Infrastructure.Messaging.Discord\Agentd.Infrastructure.Messaging.Discord.csproj" />
+    <ProjectReference Include="..\Agentd.Infrastructure.Monitoring\Agentd.Infrastructure.Monitoring.csproj" />
     <ProjectReference Include="..\Agentd.Migrator\Agentd.Migrator.csproj" />
     <ProjectReference Include="..\Agentd.ServiceDefaults\Agentd.ServiceDefaults.csproj" />
   </ItemGroup>

@@ -23,7 +23,7 @@ public static class InboxEndpoints
 {
     public const int MaxThreads = 500;
 
-    private static readonly string[] s_sources = [InboxSources.Job, InboxSources.Idea, InboxSources.Review, InboxSources.Chat, InboxSources.Watch];
+    private static readonly string[] s_sources = [InboxSources.Job, InboxSources.Idea, InboxSources.Review, InboxSources.Chat, InboxSources.Watch, InboxSources.Incident];
 
     public static RouteGroupBuilder MapInbox(this RouteGroupBuilder api)
     {
@@ -105,6 +105,9 @@ public static class InboxEndpoints
 
             case InboxSources.Watch:
                 return DomainError.Conflict("Watching PRs is turned off for now.");
+
+            case InboxSources.Incident:
+                return DomainError.Conflict("Incidents don't take answers yet: investigating and Fix it come in the next version.");
 
             default:
                 return DomainError.NotFound($"{source} {id}");

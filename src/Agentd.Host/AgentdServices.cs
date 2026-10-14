@@ -10,6 +10,7 @@ using Agentd.Infrastructure.AzureDevOps;
 using Agentd.Infrastructure.Claude;
 using Agentd.Infrastructure.Git;
 using Agentd.Infrastructure.Messaging.Discord;
+using Agentd.Infrastructure.Monitoring;
 using Agentd.Infrastructure.Persistence;
 using Agentd.Mcp;
 using Microsoft.AspNetCore.DataProtection;
@@ -65,12 +66,15 @@ internal static class AgentdServices
             .Configure<IConfiguration>((o, config) => config.GetSection(UsersOptions.Section).Bind(o.Items))
             .ValidateOnStart();
         builder.Services.AddSingleton<IValidateOptions<UsersOptions>, UsersOptionsValidator>();
+        builder.Services.AddOptions<Application.Incidents.IncidentMonitorOptions>().BindConfiguration(Application.Incidents.IncidentMonitorOptions.Section).ValidateOnStart();
+        builder.Services.AddSingleton<IValidateOptions<Application.Incidents.IncidentMonitorOptions>, Application.Incidents.IncidentMonitorOptionsValidator>();
         builder.Services.AddApplication();
         builder.Services.AddAzureDevOps(builder.Configuration);
         builder.Services.AddGit(builder.Configuration);
         builder.Services.AddClaude(builder.Configuration);
         builder.Services.TrackThreadTurns();   // after the runner: Restart now sees its turns
         builder.Services.AddDiscordMessaging(builder.Configuration);
+        builder.Services.AddMonitoring();   // the incident monitor's Application Insights reads
         // The agent runner issues per-job MCP tokens; CLI verbs resolve it too (e.g. cancel), not only the daemon.
         builder.Services.TryAddSingleton<IMcpTokenIssuer, McpTokenIssuer>();
         return home;
