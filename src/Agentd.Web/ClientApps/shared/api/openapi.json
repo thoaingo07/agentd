@@ -1039,6 +1039,76 @@
         }
       }
     },
+    "/api/ideas/{id}/close": {
+      "post": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "CloseIdea",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/IdeaCloseRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/ideas/{id}/settings": {
       "put": {
         "tags": [
@@ -5547,6 +5617,18 @@
           }
         }
       },
+      "IdeaCloseRequest": {
+        "required": [
+          "deleteThread"
+        ],
+        "type": "object",
+        "properties": {
+          "deleteThread": {
+            "type": "boolean",
+            "description": "Delete the idea\u0027s chat thread; otherwise it\u0027s archived."
+          }
+        }
+      },
       "IdeaDetailVm": {
         "required": [
           "idea",
@@ -5576,6 +5658,11 @@
           "thinking": {
             "type": "boolean",
             "description": "The agent is writing a reply.",
+            "default": false
+          },
+          "hasThread": {
+            "type": "boolean",
+            "description": "It has a chat thread (Close\u2026 can delete or archive it).",
             "default": false
           }
         }

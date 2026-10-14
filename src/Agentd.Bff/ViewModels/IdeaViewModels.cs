@@ -24,7 +24,8 @@ public sealed record IdeaMessageVm(string Direction, string Author, string Text,
 /// <param name="Drafts">Its latest proposed work items.</param>
 /// <param name="Messages">The whole conversation, including agentd's own notices.</param>
 /// <param name="Thinking">The agent is writing a reply.</param>
-public sealed record IdeaDetailVm(IdeaSummaryVm Idea, IReadOnlyList<WorkItemDraftVm> Drafts, IReadOnlyList<IdeaMessageVm> Messages, bool Thinking = false)
+/// <param name="HasThread">It has a chat thread (Close… can delete or archive it).</param>
+public sealed record IdeaDetailVm(IdeaSummaryVm Idea, IReadOnlyList<WorkItemDraftVm> Drafts, IReadOnlyList<IdeaMessageVm> Messages, bool Thinking = false, bool HasThread = false)
 {
     public static IdeaDetailVm From(IdeaDetail d)
     {

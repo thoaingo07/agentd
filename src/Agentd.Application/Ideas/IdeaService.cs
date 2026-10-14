@@ -202,6 +202,20 @@ public sealed partial class IdeaService(
             return true;
         }
 
+        // "close" at any stage: a brainstorm or proposal is discarded first, then the thread asks delete or keep.
+        if (idea.Status is not IdeaStatus.Closed && Is(answer, "close", "close idea", "close this idea") && !IsThinking(idea.Id))
+        {
+            if (idea.Status is IdeaStatus.Brainstorming or IdeaStatus.Proposed)
+            {
+                idea = idea with { Status = IdeaStatus.Discarded };
+                await ideas.SaveAsync(idea, ct).ConfigureAwait(false);
+                await PostAsync(idea, new OutboundMessage(MessageKind.Info, $"🗑 Closed by {author}; nothing was created."), ct).ConfigureAwait(false);
+            }
+
+            await AskCloseOutAsync(idea, ct).ConfigureAwait(false);
+            return true;
+        }
+
         if (idea.Status == IdeaStatus.Proposed && Choice(answer) is { } choice)
         {
             await ideas.AddMessageAsync(idea.Id, "in", author, answer, ct).ConfigureAwait(false);
@@ -227,6 +241,53 @@ public sealed partial class IdeaService(
             await PostAsync(idea, new OutboundMessage(MessageKind.Info, "💭 Still thinking about the last message; I'll answer this right after."), ct).ConfigureAwait(false);
         }
 
+        return true;
+    }
+
+    /// <summary>
+    /// Close… on the idea's page, at any stage: a brainstorm or proposal is discarded (nothing is created), the checkout
+    /// is given back, and the chat thread is deleted (<paramref name="deleteThread"/>) or archived. A closed idea whose
+    /// thread was kept can still have it deleted. The conversation stays in agentd either way.
+    /// </summary>
+    public async Task<Result<bool>> CloseAsync(Idea idea, bool deleteThread, string author, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(idea);
+        if (IsThinking(idea.Id))
+        {
+            return DomainError.Conflict("The agent is still answering; close the idea when it's done.");
+        }
+
+        if (idea.Status == IdeaStatus.Closed)
+        {
+            if (!deleteThread || idea.ThreadId is not { } threadId)
+            {
+                return DomainError.Conflict($"Idea {idea.Id} is already closed.");
+            }
+
+            try
+            {
+                await providers.Resolve(idea.Provider).DeleteConversationAsync(new ConversationRef(idea.Provider, threadId, idea.SpaceId), ct).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                LogPostFailed(logger, ex, idea.Id);
+                return DomainError.Validation($"The thread couldn't be deleted: {ex.Message}");
+            }
+
+            return true;
+        }
+
+        if (idea.Status is IdeaStatus.Brainstorming or IdeaStatus.Proposed)
+        {
+            idea = idea with { Status = IdeaStatus.Discarded };
+            await ideas.SaveAsync(idea, ct).ConfigureAwait(false);
+            if (!deleteThread)
+            {
+                await PostAsync(idea, new OutboundMessage(MessageKind.Info, $"🗑 Closed by {author}; nothing was created."), ct).ConfigureAwait(false);
+            }
+        }
+
+        await CloseOutAsync(idea, deleteThread, author, ct).ConfigureAwait(false);
         return true;
     }
 

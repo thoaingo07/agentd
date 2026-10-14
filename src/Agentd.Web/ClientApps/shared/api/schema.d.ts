@@ -340,6 +340,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/ideas/{id}/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["CloseIdea"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/ideas/{id}/settings": {
         parameters: {
             query?: never;
@@ -1723,6 +1739,10 @@ export interface components {
                 [key: string]: string[];
             };
         };
+        IdeaCloseRequest: {
+            /** @description Delete the idea's chat thread; otherwise it's archived. */
+            deleteThread: boolean;
+        };
         IdeaDetailVm: {
             /** @description The idea. */
             idea: components["schemas"]["IdeaSummaryVm"];
@@ -1735,6 +1755,11 @@ export interface components {
              * @default false
              */
             thinking: boolean;
+            /**
+             * @description It has a chat thread (Close… can delete or archive it).
+             * @default false
+             */
+            hasThread: boolean;
         };
         IdeaMessageRequest: {
             /** @description A message, or a choice once work items are proposed (✅ Create, 🚀 Create and start, ✏️ Change, 🗑 Discard). */
@@ -3116,6 +3141,57 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    CloseIdea: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": null | components["schemas"]["IdeaCloseRequest"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
             /** @description Not Found */

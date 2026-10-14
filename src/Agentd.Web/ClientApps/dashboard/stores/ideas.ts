@@ -65,6 +65,14 @@ export const useIdeasStore = defineStore('ideas', () => {
     await open(id)
   }
 
+  /** Close… at any stage: a brainstorm or proposal is discarded; its chat thread is deleted or archived. */
+  async function closeIdea(deleteThread: boolean): Promise<void> {
+    const id = currentId.value
+    if (id === null) return
+    await send('POST', `/api/ideas/${id}/close`, { deleteThread })
+    await open(id)
+  }
+
   function close(): void {
     clearTimeout(thinking)
     currentId.value = null
@@ -81,5 +89,5 @@ export const useIdeasStore = defineStore('ideas', () => {
     }, ideaRefreshDelayMs)
   }
 
-  return { list, current, currentId, missing, load, open, start, message, settings, close, apply }
+  return { list, current, currentId, missing, load, open, start, message, settings, closeIdea, close, apply }
 })
