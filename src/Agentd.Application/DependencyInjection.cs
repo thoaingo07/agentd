@@ -69,6 +69,7 @@ public static class DependencyInjection
         services.AddSingleton<Setup.SetupService>();
         services.AddSingleton<Setup.ArtifactStorageSettings>();
         services.AddSingleton<Setup.FolderSettings>();
+        services.AddSingleton<Incidents.MonitorSettings>();
         services.AddScoped<ICommandHandler<Permissions.PermissionAsk, Permissions.PermissionDecision>, Permissions.PermissionAskHandler>();
         services.AddScoped<ICommandHandler<Permissions.PermissionAnswer, bool>, Permissions.PermissionAnswerHandler>();
         services.AddScoped<IQueryHandler<Permissions.GetPermissionRules, IReadOnlyList<Permissions.PermissionRule>>, Permissions.GetPermissionRulesHandler>();

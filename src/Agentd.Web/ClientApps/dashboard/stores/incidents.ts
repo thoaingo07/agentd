@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { ApiError, get, send } from '../../shared/api/http'
-import type { AgentEvent, InboxItem, IncidentDetail, IncidentSummary } from '../../shared/api/types'
+import type { AgentEvent, InboxItem, IncidentDetail, IncidentOccurrence, IncidentSummary } from '../../shared/api/types'
 
 /** Debounce for re-reading after an incident's Inbox messages (an answer and its status change arrive together). */
 export const incidentRefreshDelayMs = 400
@@ -19,6 +19,9 @@ export const useIncidentsStore = defineStore('incidents', () => {
   const missing = ref(false)
   /** The open incident's thread, oldest first: the alert, the investigation, answers. */
   const thread = ref<InboxItem[]>([])
+  /** Read live from Application Insights on request; `occurrencesError` says why not. */
+  const occurrences = ref<IncidentOccurrence[] | null>(null)
+  const occurrencesError = ref<string | null>(null)
   let timer: ReturnType<typeof setTimeout> | undefined
   const touched = new Set<number>()
 
@@ -30,6 +33,8 @@ export const useIncidentsStore = defineStore('incidents', () => {
     if (currentId.value !== id) {
       current.value = null
       thread.value = []
+      occurrences.value = null
+      occurrencesError.value = null
     }
     currentId.value = id
     missing.value = false
@@ -41,6 +46,18 @@ export const useIncidentsStore = defineStore('incidents', () => {
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) missing.value = true
       else throw err
+    }
+  }
+
+  async function loadOccurrences(): Promise<void> {
+    const id = currentId.value
+    if (id === null) return
+    occurrencesError.value = null
+    try {
+      const found = await get<IncidentOccurrence[]>(`/api/incidents/${id}/occurrences`)
+      if (currentId.value === id) occurrences.value = found
+    } catch (err) {
+      if (currentId.value === id) occurrencesError.value = err instanceof ApiError ? err.message : 'The occurrences weren’t read.'
     }
   }
 
@@ -57,6 +74,7 @@ export const useIncidentsStore = defineStore('incidents', () => {
     currentId.value = null
     current.value = null
     thread.value = []
+    occurrences.value = null
   }
 
   function apply(evt: AgentEvent): void {
@@ -72,5 +90,5 @@ export const useIncidentsStore = defineStore('incidents', () => {
     }, incidentRefreshDelayMs)
   }
 
-  return { list, current, currentId, missing, thread, load, open, reply, close, apply }
+  return { list, current, currentId, missing, thread, occurrences, occurrencesError, load, open, loadOccurrences, reply, close, apply }
 })

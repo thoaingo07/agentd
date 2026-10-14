@@ -92,7 +92,7 @@ describe('Settings', () => {
     session.user = { name: 'local', roles: ['Admin'], provider: 'local' }
     await flushPromises()
     const menu = view.get('nav[aria-label=Settings] ul.menu')
-    expect(menu.findAll('a').map((a) => a.text())).toEqual(['General', 'Health', 'Database', 'Azure DevOps', 'Git access', 'Claude', 'Models', 'Chat', 'Repositories', 'Artifacts', 'Folders', 'System log', 'Prompts'])
+    expect(menu.findAll('a').map((a) => a.text())).toEqual(['General', 'Health', 'Database', 'Azure DevOps', 'Git access', 'Claude', 'Models', 'Chat', 'Repositories', 'Artifacts', 'Folders', 'Monitoring', 'System log', 'Prompts'])
   })
 
   it('an area page has the vertical menu with its own entry current', async () => {

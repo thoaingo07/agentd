@@ -128,6 +128,7 @@ public static class BffModule
         api.MapPrompts();
         api.MapInbox();
         api.MapIncidents();
+        api.MapMonitorSettings();
         api.MapRestart();
         api.MapChats();
         endpoints.MapArtifactPages();   // /artifacts/<name>.html: signed in like /api; sandboxed (SecurityHeaders.ArtifactPolicy)
