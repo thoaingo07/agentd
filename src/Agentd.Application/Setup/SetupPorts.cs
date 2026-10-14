@@ -14,6 +14,12 @@ public interface IConfigWriter
 
     /// <summary>What supplies <paramref name="key"/> over agentd.json (e.g. "Key Vault (my-vault.vault.azure.net)"), or null: saving it then changes nothing.</summary>
     string? OverriddenBy(string key) => null;
+
+    /// <summary>
+    /// What supplies <paramref name="key"/> under agentd.json (e.g. "appsettings.Development.json"), or null. agentd.json
+    /// overrides it key by key, list items by index, but can't take it away: a key agentd.json leaves out still has that value.
+    /// </summary>
+    string? SetBelow(string key) => null;
 }
 
 /// <summary>

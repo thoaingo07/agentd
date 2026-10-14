@@ -395,9 +395,10 @@ public sealed class SetupService(
 
     /// <summary>
     /// Takes repository <paramref name="name"/> (its name, or its Azure DevOps name when it has none) out of <c>agentd.json</c>,
-    /// moving the ones after it up, so the daemon doesn't register it again at its next start. False when it isn't there.
+    /// moving the ones after it up, so the daemon doesn't register it again at its next start. False when it isn't there; an
+    /// error when a source under agentd.json would bring it (or one of its values) back.
     /// </summary>
-    public async Task<bool> RemoveRepositoryAsync(string name, string by, CancellationToken cancellationToken)
+    public async Task<Result<bool>> RemoveRepositoryAsync(string name, string by, CancellationToken cancellationToken)
     {
         var existing = GetRepositories();
         var index = existing.ToList().FindIndex(r => string.Equals(NameOf(r), name, StringComparison.OrdinalIgnoreCase));
@@ -406,37 +407,68 @@ public sealed class SetupService(
             return false;
         }
 
-        // Clear every slot from the removed one on, then write the later repositories one slot up.
-        var values = new Dictionary<string, string?>(StringComparer.Ordinal);
-        for (var i = index; i < existing.Count; i++)
+        var left = existing.Where((_, i) => i != index).ToList();
+        if (await WriteRepositoriesAsync(left, existing.Count, cancellationToken).ConfigureAwait(false) is { } refused)
         {
-            foreach (var key in new[] { "Url", "Name", "BaseBranch", "MatchTag" })
-            {
-                values[$"Repositories:Items:{i}:{key}"] = null;
-            }
-
-            for (var j = 0; j < existing[i].MatchAreaPaths.Count; j++)
-            {
-                values[$"Repositories:Items:{i}:MatchAreaPaths:{j}"] = null;
-            }
+            return refused;
         }
 
-        for (var i = index + 1; i < existing.Count; i++)
+        await audit.RecordAsync([Change($"Repositories:Items:{index}", "config", "removed", by)], cancellationToken).ConfigureAwait(false);
+        return true;
+    }
+
+    /// <summary>
+    /// Writes the whole list to agentd.json, every key of every repository, and drops the slots after it. Configuration
+    /// merges lists by index, so a list that is partly in appsettings (or another source under agentd.json) is copied into
+    /// agentd.json first; an add then lands right after it instead of leaving a gap. agentd.json can't take a value away
+    /// from those sources, so when one would still supply a key this list leaves empty, nothing is written.
+    /// </summary>
+    private async Task<DomainError?> WriteRepositoriesAsync(List<RepositoryEntry> list, int before, CancellationToken cancellationToken)
+    {
+        var values = new Dictionary<string, string?>(StringComparer.Ordinal);
+        var stuck = new List<string>();
+        for (var i = 0; i < list.Count; i++)
         {
-            var (r, at) = (existing[i], $"Repositories:Items:{i - 1}");
-            values[$"{at}:Url"] = r.Url;
-            values[$"{at}:Name"] = r.Name;
-            values[$"{at}:BaseBranch"] = r.BaseBranch;
-            values[$"{at}:MatchTag"] = r.MatchTag;
+            var (r, at) = (list[i], $"Repositories:Items:{i}");
+            foreach (var (key, value) in new[] { ("Url", r.Url), ("Name", r.Name), ("BaseBranch", r.BaseBranch), ("MatchTag", r.MatchTag) })
+            {
+                values[$"{at}:{key}"] = value;
+                if (value is null && config.SetBelow($"{at}:{key}") is { } source)
+                {
+                    stuck.Add($"{at}:{key} ({source})");
+                }
+            }
+
+            values[$"{at}:MatchAreaPaths"] = null;
             for (var j = 0; j < r.MatchAreaPaths.Count; j++)
             {
                 values[$"{at}:MatchAreaPaths:{j}"] = r.MatchAreaPaths[j];
             }
+
+            if (config.SetBelow($"{at}:MatchAreaPaths:{r.MatchAreaPaths.Count}") is { } paths)
+            {
+                stuck.Add($"{at}:MatchAreaPaths ({paths})");
+            }
+        }
+
+        // From the end, so each removal leaves the ones before it where they are.
+        for (var i = before - 1; i >= list.Count; i--)
+        {
+            values[$"Repositories:Items:{i}"] = null;
+        }
+
+        if (config.SetBelow($"Repositories:Items:{list.Count}:Url") is { } more)
+        {
+            stuck.Add($"Repositories:Items:{list.Count} ({more})");
+        }
+
+        if (stuck.Count > 0)
+        {
+            return DomainError.Validation($"agentd.json can't change the repository list: {string.Join(", ", stuck)} would still be set. Edit Agentd:Repositories:Items there.");
         }
 
         await config.SetAsync(values, cancellationToken).ConfigureAwait(false);
-        await audit.RecordAsync([Change($"Repositories:Items:{index}", "config", "removed", by)], cancellationToken).ConfigureAwait(false);
-        return true;
+        return null;
     }
 
     /// <summary>A listed repository's name: its own, else its Azure DevOps name (what <c>agentd repo add</c> registers it as).</summary>
@@ -476,26 +508,15 @@ public sealed class SetupService(
         var name = string.IsNullOrWhiteSpace(input.Name) ? url.Value.AzureDevOps.Name : input.Name.Trim();
         var paths = (input.MatchAreaPaths ?? []).Select(p => p.Trim()).Where(p => p.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         var tag = string.IsNullOrWhiteSpace(input.MatchTag) ? (paths.Count == 0 ? $"repo:{name}" : null) : input.MatchTag.Trim();
+        var added = new RepositoryEntry(url.Value.Value, name, baseBranch, tag, paths);
+        if (await WriteRepositoriesAsync([.. existing, added], existing.Count, cancellationToken).ConfigureAwait(false) is { } refused)
+        {
+            return refused;
+        }
+
         var at = $"Repositories:Items:{existing.Count}";
-        var values = new Dictionary<string, string?>(StringComparer.Ordinal)
-        {
-            [$"{at}:Url"] = url.Value.Value,
-            [$"{at}:Name"] = name,
-            [$"{at}:BaseBranch"] = baseBranch,
-        };
-        if (tag is not null)
-        {
-            values[$"{at}:MatchTag"] = tag;
-        }
-
-        for (var i = 0; i < paths.Count; i++)
-        {
-            values[$"{at}:MatchAreaPaths:{i}"] = paths[i];
-        }
-
-        await config.SetAsync(values, cancellationToken).ConfigureAwait(false);
         await audit.RecordAsync([Change(at, "config", "added", by)], cancellationToken).ConfigureAwait(false);
-        return new RepositoryEntry(url.Value.Value, name, baseBranch, tag, paths);
+        return added;
     }
 
     /// <summary>Reaches the repository with agentd's git setup and reports its default branch. Nothing is saved.</summary>
