@@ -115,7 +115,8 @@ The `incident-{id}` checkout stays, because follow-up questions resume the sessi
 folders it doesn't know.
 
 **Data:** migration `2026_11_09_0001` adds `analysis`, `session` and `analyzed_at` to `agentd.incidents`, and `incident`
-to the prompt log's sources. Routines: `incident_set_status` (compare-and-set; parallel callers moving it from one status
+to the prompt log's sources and to the Inbox's (`ck_inbox_source`). That last one is a fix: until then the database
+refused 1b's Inbox entries for incidents, and `InboxWriter` only logged it. Routines: `incident_set_status` (compare-and-set; parallel callers moving it from one status
 have exactly one winner) and `incident_set_analysis`.
 
 ### 3.2 Fix it, Ignore and questions (2b, next)

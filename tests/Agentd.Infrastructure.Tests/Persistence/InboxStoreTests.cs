@@ -117,6 +117,21 @@ public sealed class InboxStoreTests
     }
 
     [TestMethod]
+    public async Task Every_source_agentd_writes_is_accepted()
+    {
+        var store = new InboxStore(s_db);
+        var sources = typeof(InboxSources).GetFields().Where(f => f.IsLiteral).Select(f => (string)f.GetRawConstantValue()!).ToList();
+
+        foreach (var source in sources)
+        {
+            var id = Interlocked.Increment(ref s_nextSource);
+            Assert.IsGreaterThan(0L, await store.AddAsync(Entry(source, id, "t", "kept", "tngo"), default), source);
+        }
+
+        CollectionAssert.Contains(sources, InboxSources.Incident);
+    }
+
+    [TestMethod]
     public async Task Parallel_writers_each_get_their_message_and_an_event()
     {
         var store = new InboxStore(s_db);
