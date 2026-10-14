@@ -73,6 +73,12 @@ Diff · Findings), and the inline cards in the diff.
   move between a guide's chapters). Generated files (lockfiles, minified or built output, `*.g.cs`, migration
   snapshots, `dist/`, `vendor/`) are tagged **generated** and their diff is hidden until **Show the diff**, unless
   the reviewer found something in them.
+- **File tree** (All files, added 2026-10-14, like Plannotator's): the changed files as a tree on the left, folders
+  first, a chain of single-child folders merged into one row, each folder with its summed +/- counts. A file row has its
+  change letter (A/M/D/R), +/- counts, a badge for its findings (red when one breaks) and its comment count, and a
+  **viewed** checkbox (kept per review in the browser, with an "x/y viewed" bar). Clicking a file scrolls to it; the
+  row of the file in view is highlighted as you scroll. **Filter files** narrows it by path, **Collapse all** folds
+  every folder, and the arrow keys move through it (Right/Left open and close folders).
 - **Comment**: select lines (or a file, or nothing for the whole change) and write a note. It's sent with the kept
   findings.
 - **Ask**: select code and ask ("why is this here?", "explain this flow"). The answer appears in the side panel and is

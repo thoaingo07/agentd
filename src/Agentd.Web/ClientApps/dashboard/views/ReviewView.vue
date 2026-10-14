@@ -7,8 +7,8 @@ import MarkdownText from '../../shared/components/MarkdownText.vue'
 import DiffFileReview from '../../shared/review/DiffFileReview.vue'
 import FindingCard from '../../shared/review/FindingCard.vue'
 import GuidedReview from '../../shared/review/GuidedReview.vue'
+import ReviewFileTree, { type FileMarks } from '../../shared/review/ReviewFileTree.vue'
 import { keptAs, suggestionComment } from '../../shared/review/suggestions'
-import { fileName, folder } from '../../shared/utils/paths'
 import { useReviewsStore } from '../stores/reviews'
 import PromptsLink from '../components/prompts/PromptsLink.vue'
 
@@ -62,6 +62,52 @@ function onFindingKey(e: KeyboardEvent): void {
 }
 onMounted(() => window.addEventListener('keydown', onFindingKey))
 onBeforeUnmount(() => window.removeEventListener('keydown', onFindingKey))
+
+/** The file tree (All files): what each file has, the files you ticked as viewed (kept in this browser), and the file in view. */
+const marks = (path: string): FileMarks => {
+  const { findings, comments } = forFile(path)
+  return { severity: findings.some((f) => f.severity === 'breaks') ? 'breaks' : findings.length ? 'performance' : null, findings: findings.length, comments: comments.length }
+}
+const viewedKey = computed(() => `agentd.viewed.${props.id}`)
+const viewed = ref(new Set<string>())
+watch(viewedKey, (key) => {
+  try {
+    viewed.value = new Set(JSON.parse(window.localStorage.getItem(key) ?? '[]') as string[])
+  } catch {
+    viewed.value = new Set()
+  }
+}, { immediate: true })
+function toggleViewed(path: string): void {
+  const next = new Set(viewed.value)
+  if (!next.delete(path)) next.add(path)
+  viewed.value = next
+  try {
+    window.localStorage.setItem(viewedKey.value, JSON.stringify([...next]))
+  } catch {
+    // private window: viewed marks last until the page closes
+  }
+}
+const activeFile = ref<string | null>(null)
+function showFile(path: string): void {
+  activeFile.value = path
+  document.getElementById(`file-${path}`)?.scrollIntoView?.({ block: 'start' })
+}
+// The file in view follows your scrolling: the topmost file whose header is in the upper part of the window.
+let spy: IntersectionObserver | undefined
+watch([() => reviews.files, guided], async () => {
+  spy?.disconnect()
+  if (guided.value || typeof IntersectionObserver === 'undefined') return
+  await nextTick()
+  spy = new IntersectionObserver((entries) => {
+    const top = entries.filter((e) => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0]
+    if (top) activeFile.value = top.target.id.slice('file-'.length)
+  }, { rootMargin: '0px 0px -70% 0px' })
+  for (const f of reviews.files) {
+    const el = document.getElementById(`file-${f.newPath}`)
+    if (el) spy.observe(el)
+  }
+}, { immediate: true })
+onBeforeUnmount(() => spy?.disconnect())
 
 async function act(work: () => Promise<unknown>): Promise<void> {
   error.value = null
@@ -339,7 +385,7 @@ const where = (a: { file?: string | null; line?: number | null; endLine?: number
 
       <div
         class="grid gap-4"
-        :class="guided ? 'lg:grid-cols-[minmax(0,1fr)_20rem]' : 'lg:grid-cols-[14rem_minmax(0,1fr)_20rem]'"
+        :class="guided ? 'lg:grid-cols-[minmax(0,1fr)_20rem]' : 'lg:grid-cols-[17rem_minmax(0,1fr)_20rem]'"
       >
         <GuidedReview
           v-if="guided && s.guide"
@@ -367,30 +413,17 @@ const where = (a: { file?: string | null; line?: number | null; endLine?: number
           </template>
         </GuidedReview>
         <template v-else>
-          <nav
-            aria-label="Files"
-            class="hidden min-w-0 lg:block"
-          >
-            <ul class="sticky top-4 grid gap-2 text-xs">
-              <li
-                v-for="f in reviews.files"
-                :key="f.newPath"
-                class="min-w-0"
-              >
-                <a
-                  :href="`#file-${f.newPath}`"
-                  :title="f.newPath"
-                  class="flex min-w-0 gap-1 font-mono hover:underline"
-                >
-                  <span>{{ forFile(f.newPath).findings.some((x) => x.severity === 'breaks') ? '🔴' : forFile(f.newPath).findings.length ? '🟠' : '·' }}</span>
-                  <span class="grid min-w-0">
-                    <span class="truncate">{{ fileName(f.newPath) }}</span>
-                    <span class="truncate text-muted">{{ folder(f.newPath) }}</span>
-                  </span>
-                </a>
-              </li>
-            </ul>
-          </nav>
+          <div class="hidden min-w-0 lg:block">
+            <ReviewFileTree
+              class="sticky top-4 max-h-[calc(100vh-2rem)] overflow-y-auto pr-1"
+              :files="reviews.files"
+              :active="activeFile"
+              :viewed="viewed"
+              :marks="marks"
+              @select="showFile"
+              @toggle-viewed="toggleViewed"
+            />
+          </div>
 
           <div class="grid min-w-0 content-start gap-4">
             <p
