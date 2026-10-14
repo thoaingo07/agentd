@@ -89,6 +89,9 @@ describe('guided review', () => {
     expect(cards[1]).toContain('Skim')
     expect(view.get('[data-testid=guide-callouts]').text()).toContain('Changes a configuration default: Sync:ChunkSize defaults to 5000.')
     expect(view.find('[data-testid=guide-chapter]').exists()).toBe(false)
+    const steps = view.get('[aria-label=Chapters]').findAll('button')
+    expect(steps.map((b) => b.attributes('title'))).toEqual(['Overview', '1. Keyset paging', '2. Docs'])
+    expect(steps[1]!.classes()).toContain('cursor-pointer')
     view.unmount()
   })
 

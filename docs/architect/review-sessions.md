@@ -77,6 +77,9 @@ Diff · Findings), and the inline cards in the diff.
   move between a guide's chapters). Generated files (lockfiles, minified or built output, `*.g.cs`, migration
   snapshots, `dist/`, `vendor/`) are tagged **generated** and their diff is hidden until **Show the diff**, unless
   the reviewer found something in them.
+- **Resizable left panes** (added 2026-10-14): the All files tree and a guided chapter's left pane resize by dragging
+  their right edge (arrow keys when the handle has focus, Shift for bigger steps, double-click for the default width).
+  The width is kept per browser (`agentd.pane.review-tree`, `agentd.pane.guide-chapter`).
 - **File tree** (All files, added 2026-10-14, like Plannotator's): the changed files as a tree on the left, folders
   first, a chain of single-child folders merged into one row, each folder with its summed +/- counts. A file row has its
   change letter (A/M/D/R), +/- counts, a badge for its findings (red when one breaks) and its comment count, and a

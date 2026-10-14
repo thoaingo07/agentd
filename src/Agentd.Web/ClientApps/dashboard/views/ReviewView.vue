@@ -8,6 +8,8 @@ import DiffFileReview from '../../shared/review/DiffFileReview.vue'
 import FindingCard from '../../shared/review/FindingCard.vue'
 import GuidedReview from '../../shared/review/GuidedReview.vue'
 import ReviewFileTree, { type FileMarks } from '../../shared/review/ReviewFileTree.vue'
+import PaneResizer from '../../shared/components/PaneResizer.vue'
+import { usePaneWidth } from '../../shared/utils/paneWidth'
 import { keptAs, suggestionComment } from '../../shared/review/suggestions'
 import { useReviewsStore } from '../stores/reviews'
 import PromptsLink from '../components/prompts/PromptsLink.vue'
@@ -88,6 +90,8 @@ function toggleViewed(path: string): void {
   }
 }
 const activeFile = ref<string | null>(null)
+/** The file tree's width (wide screens), dragged by its edge and kept per browser. */
+const treeWidth = usePaneWidth('review-tree', 272, 200, 560)
 function showFile(path: string): void {
   activeFile.value = path
   document.getElementById(`file-${path}`)?.scrollIntoView?.({ block: 'start' })
@@ -385,7 +389,8 @@ const where = (a: { file?: string | null; line?: number | null; endLine?: number
 
       <div
         class="grid gap-4"
-        :class="guided ? 'lg:grid-cols-[minmax(0,1fr)_20rem]' : 'lg:grid-cols-[17rem_minmax(0,1fr)_20rem]'"
+        :class="guided ? 'lg:grid-cols-[minmax(0,1fr)_20rem]' : 'lg:grid-cols-[var(--tree-width)_minmax(0,1fr)_20rem]'"
+        :style="{ '--tree-width': `${treeWidth}px` }"
       >
         <GuidedReview
           v-if="guided && s.guide"
@@ -415,7 +420,14 @@ const where = (a: { file?: string | null; line?: number | null; endLine?: number
           </template>
         </GuidedReview>
         <template v-else>
-          <div class="hidden min-w-0 lg:block">
+          <div class="relative hidden min-w-0 lg:block">
+            <PaneResizer
+              v-model="treeWidth"
+              :min="200"
+              :max="560"
+              :initial="272"
+              label="Resize the file tree"
+            />
             <ReviewFileTree
               class="sticky top-4 max-h-[calc(100vh-2rem)] overflow-y-auto pr-1"
               :files="reviews.files"
