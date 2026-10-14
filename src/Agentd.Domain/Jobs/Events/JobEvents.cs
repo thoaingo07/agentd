@@ -43,4 +43,7 @@ public sealed record HandoffAgreed(string By, DateTimeOffset OccurredAt) : IDoma
 
 public sealed record HandoffDeclined(string By, DateTimeOffset OccurredAt) : IDomainEvent;
 
-public sealed record ClosedOut(bool ThreadDeleted, DateTimeOffset OccurredAt) : IDomainEvent;
+/// <param name="ThreadDeleted">The developer had the chat thread deleted.</param>
+/// <param name="OccurredAt">When.</param>
+/// <param name="HadThread">False: no chat thread to ask about (a web-only agentd); done at once.</param>
+public sealed record ClosedOut(bool ThreadDeleted, DateTimeOffset OccurredAt, bool HadThread = true) : IDomainEvent;

@@ -62,11 +62,42 @@ public static class PromptEndpoints
             var events = await log.TranscriptAsync(id, MaxTranscript, ct).ConfigureAwait(false);
             return TypedResults.Ok(events.Select((e, i) => new EventVm(i + 1, prompt.Source == PromptSources.Job ? prompt.SourceId : null, e.At, e.Type, Payload(e.PayloadJson))).ToList());
         }).WithName("GetPromptTranscript").Produces<List<EventVm>>().ProducesProblem(StatusCodes.Status404NotFound);
+
+        // By conversation: one row per job, idea, chat, review, … with its turns, the latest activity first.
+        prompts.MapGet("/conversations", async Task<IResult> (string? source, long? before, int? limit, [FromServices] IPromptLog log, CancellationToken ct) =>
+        {
+            if (Blank(source) is { } s && !s_sources.Contains(s))
+            {
+                return DomainError.Validation($"source is one of {string.Join(", ", s_sources)}.").ToProblem();
+            }
+
+            var size = Math.Clamp(limit ?? 50, 1, MaxPage);
+            var rows = await log.ConversationsAsync(Blank(source), before, size + 1, ct).ConfigureAwait(false);
+            return TypedResults.Ok(new PromptConversationPageVm([.. rows.Take(size).Select(PromptConversationVm.From)], rows.Count > size));
+        }).WithName("ListPromptConversations").Produces<PromptConversationPageVm>().ProducesProblem(StatusCodes.Status400BadRequest);
+
+        // One conversation's turns, oldest first, whole (each turn's transcript: /prompts/{id}/transcript).
+        prompts.MapGet("/conversations/{source}/{sourceId:long}", async Task<IResult> (string source, long sourceId, [FromServices] IPromptLog log, CancellationToken ct) =>
+        {
+            if (!s_sources.Contains(source))
+            {
+                return DomainError.Validation($"source is one of {string.Join(", ", s_sources)}.").ToProblem();
+            }
+
+            var turns = await log.ConversationAsync(source, sourceId, MaxTurns, ct).ConfigureAwait(false);
+            return turns.Count == 0
+                ? DomainError.NotFound($"Prompts for {source} {sourceId}").ToProblem()
+                : TypedResults.Ok(turns.Select(PromptDetailVm.From).ToList());
+        }).WithName("GetPromptConversation").Produces<List<PromptDetailVm>>().ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status404NotFound);
         return api;
     }
 
     /// <summary>The most events a transcript returns.</summary>
     public const int MaxTranscript = 5000;
+
+    /// <summary>The most turns a conversation returns.</summary>
+    public const int MaxTurns = 500;
 
     private static System.Text.Json.JsonElement Payload(string json)
     {
@@ -92,6 +123,20 @@ public sealed record PromptSummaryVm(
 
 /// <summary>A page, newest first; <c>hasMore</c>: older prompts exist (ask again with <c>before</c> = the last id).</summary>
 public sealed record PromptPageVm(IReadOnlyList<PromptSummaryVm> Prompts, bool HasMore);
+
+/// <summary>A conversation: every turn for one source, the latest's outcome, whether one runs, the models used; <c>preview</c> starts its first prompt.</summary>
+public sealed record PromptConversationVm(string Source, long SourceId, int Turns, DateTimeOffset FirstAt, DateTimeOffset LastAt, long LastId, string? LastOutcome,
+    bool Running, IReadOnlyList<string> Models, string Preview)
+{
+    public static PromptConversationVm From(PromptConversation c)
+    {
+        ArgumentNullException.ThrowIfNull(c);
+        return new(c.Source, c.SourceId, c.Turns, c.FirstAt, c.LastAt, c.LastId, c.LastOutcome, c.Running, c.Models, c.Preview);
+    }
+}
+
+/// <summary>A page of conversations, the latest activity first; <c>hasMore</c>: ask again with <c>before</c> = the last <c>lastId</c>.</summary>
+public sealed record PromptConversationPageVm(IReadOnlyList<PromptConversationVm> Conversations, bool HasMore);
 
 /// <summary>A prompt, whole: what was sent, the system rules with it, and the reply.</summary>
 public sealed record PromptDetailVm(

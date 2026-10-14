@@ -169,6 +169,22 @@ public sealed class IdeaServiceTests
     }
 
     [TestMethod]
+    public async Task An_idea_whose_chat_was_switched_off_still_closes_and_deleting_its_thread_says_why_not()
+    {
+        var h = new Harness();
+        await h.ProposedAsync();
+        h.Store.Rows[1] = h.Store.Rows[1] with { Provider = Agentd.Domain.Messaging.ProviderKey.From("slack") };   // not enabled any more
+
+        var closed = await h.Service.CloseAsync(h.Store.Rows[1], deleteThread: false, "tngo", default);
+        var delete = await h.Service.CloseAsync(h.Store.Rows[1], deleteThread: true, "tngo", default);
+
+        Assert.IsTrue(closed.Value);
+        Assert.AreEqual(IdeaStatus.Closed, h.Store.Rows[1].Status);
+        Assert.AreEqual("conflict", delete.Error?.Code);
+        StringAssert.Contains(delete.Error!.Message, "switched off");
+    }
+
+    [TestMethod]
     public async Task Typing_close_in_the_thread_ends_it_at_any_stage_with_the_delete_or_keep_question()
     {
         var h = new Harness();

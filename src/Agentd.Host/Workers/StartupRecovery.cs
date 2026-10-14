@@ -20,6 +20,7 @@ internal sealed partial class StartupRecovery(
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
+        await DropDisabledChatsAsync(cancellationToken).ConfigureAwait(false);
         if (!options.Value.Enabled)
         {
             return;
@@ -66,6 +67,31 @@ internal sealed partial class StartupRecovery(
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+    /// <summary>A chat switched off since the last run: what's queued for it is marked failed and its threads closed.</summary>
+    private async Task DropDisabledChatsAsync(CancellationToken cancellationToken)
+    {
+        var scope = scopes.CreateAsyncScope();
+        await using (scope.ConfigureAwait(false))
+        {
+            try
+            {
+                var enabled = scope.ServiceProvider.GetRequiredService<Application.Messaging.IMessagingProviderRegistry>().Enabled.Select(p => p.Key).ToList();
+                var dropped = await scope.ServiceProvider.GetRequiredService<Application.Ports.IConversationStore>().DropDisabledAsync(enabled, cancellationToken).ConfigureAwait(false);
+                if (dropped.Failed + dropped.Closed > 0)
+                {
+                    LogDropped(logger, dropped.Failed, dropped.Closed);
+                }
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                LogFailed(logger, ex);
+            }
+        }
+    }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Chats switched off: {Failed} queued message(s) marked failed, {Closed} thread(s) closed")]
+    private static partial void LogDropped(ILogger logger, int failed, int closed);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Repository {Name} registered from configuration")]
     private static partial void LogSeeded(ILogger logger, string name);

@@ -12,6 +12,7 @@ import PaneResizer from '../../shared/components/PaneResizer.vue'
 import { ago } from '../../shared/utils/format'
 import { usePaneWidth } from '../../shared/utils/paneWidth'
 import { useInboxStore, type InboxView } from '../stores/inbox'
+import { notificationsOn, setNotifications } from '../stores/inboxNotifications'
 
 const props = defineProps<{ source?: string; id?: number }>()
 const inbox = useInboxStore()
@@ -21,6 +22,14 @@ const error = ref<string | null>(null)
 const busy = ref(false)
 const text = ref('')
 const notice = ref<string | null>(null)
+/** Browser notifications when a thread starts waiting on you: off until you turn them on here (the browser asks once). */
+const supported = typeof Notification !== 'undefined'
+const notifying = ref(notificationsOn())
+const blocked = ref(supported && Notification.permission === 'denied')
+async function toggleNotifications(): Promise<void> {
+  notifying.value = await setNotifications(!notifying.value)
+  blocked.value = supported && Notification.permission === 'denied'
+}
 
 const icon: Record<string, string> = { job: '🛠', idea: '💡', review: '🔍', chat: '💬', watch: '👀' }
 /** Ideas, reviews, chats and watches name their thread with their own emoji already; a job's gets the source's. */
@@ -116,8 +125,20 @@ watch(() => [props.source, props.id] as const, ([source, id]) => {
         Inbox
       </h1>
       <span class="ag-meta">{{ inbox.counts.waiting }} waiting on you · {{ inbox.counts.unread }} unread</span>
+      <button
+        v-if="supported"
+        type="button"
+        class="btn btn-ghost btn-sm ml-auto"
+        :disabled="blocked"
+        :title="blocked ? 'Notifications are blocked for this site in the browser settings' : 'A browser notification when a thread starts waiting on you'"
+        data-testid="notify-toggle"
+        @click="toggleNotifications"
+      >
+        {{ blocked ? '🔕 Notifications blocked' : notifying ? '🔔 Notifications on' : '🔕 Enable notifications' }}
+      </button>
       <div
-        class="join ml-auto"
+        class="join"
+        :class="supported ? '' : 'ml-auto'"
         role="radiogroup"
         aria-label="Whose threads"
       >

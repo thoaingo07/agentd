@@ -718,7 +718,7 @@ internal sealed class TestContext
 
     public StartHandoffHandler StartHandoff() => new(Jobs, Registry, Worktrees, Options);
 
-    public RequestCloseOutHandler RequestCloseOut() => new(Jobs);
+    public RequestCloseOutHandler RequestCloseOut() => new(Jobs, Conversations);
 
     public AnswerCloseOutHandler AnswerCloseOut() =>
         new(Jobs, Conversations, new MessagingProviderRegistry(Chats, Microsoft.Extensions.Options.Options.Create(Messaging)), Outbox, Clock,
@@ -764,7 +764,16 @@ internal sealed class FakeInbox : Agentd.Application.Inbox.IInbox
 
     public Task<IReadOnlyList<Agentd.Application.Inbox.InboxThread>> ThreadsAsync(string user, string? recipient, int limit, CancellationToken cancellationToken) => throw new NotSupportedException();
 
-    public Task<IReadOnlyList<Agentd.Application.Inbox.InboxItem>> ThreadAsync(string source, long sourceId, long? before, int limit, CancellationToken cancellationToken) => throw new NotSupportedException();
+    /// <summary>The thread's entries, newest first, at one-minute steps back from the Unix epoch + 1 day.</summary>
+    public Task<IReadOnlyList<Agentd.Application.Inbox.InboxItem>> ThreadAsync(string source, long sourceId, long? before, int limit, CancellationToken cancellationToken)
+    {
+        var mine = Entries.Where(e => e.Source == source && e.SourceId == sourceId).ToList();
+        return Task.FromResult<IReadOnlyList<Agentd.Application.Inbox.InboxItem>>([.. mine.Select((e, i) => new Agentd.Application.Inbox.InboxItem(i + 1, e.Source, e.SourceId, e.Title, e.Recipient,
+            e.Message.Kind.ToString(), e.Message.Markdown, e.Message.Options ?? [], Created.GetValueOrDefault(e.Message.Markdown, DateTimeOffset.UnixEpoch.AddMinutes(i)))).Reverse()]);
+    }
+
+    /// <summary>When an entry was written, by its text (tests that order a conversation).</summary>
+    public Dictionary<string, DateTimeOffset> Created { get; } = [];
 
     public Task MarkReadAsync(string user, string source, long sourceId, long until, CancellationToken cancellationToken) => throw new NotSupportedException();
 

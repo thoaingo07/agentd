@@ -27,6 +27,13 @@ secrets (`agentd daemon restart`).
 }
 ```
 
+`AzureDevOps:Auth` is `Pat`, `AzCli` (`az login`), `ServicePrincipal` (an Entra app with a client secret) or `Entra`
+(the machine's own Entra sign-in without a browser: Visual Studio, Azure PowerShell, `azd`, `az`, a managed identity or
+`AZURE_CLIENT_ID`/`AZURE_TENANT_ID`/`AZURE_CLIENT_SECRET`; with `Entra`, an optional `TenantId` picks the directory).
+Repository URLs can be SSH or HTTPS (`https://dev.azure.com/myorg/MyProject/_git/my-repo`); either way agentd reaches
+Azure DevOps over HTTPS with that sign-in, so no SSH key is needed (`Git:AzureDevOpsOverHttps = false` keeps SSH for SSH
+URLs).
+
 **Never put secrets in this file.** Store them with `agentd secrets set` (see [Secrets](#secrets)).
 
 ## Secrets
@@ -92,7 +99,8 @@ hold other apps' secrets too. Disabled secrets are skipped.
 | `Jobs:RetainFailedWorktrees` · `Jobs:RetainFinishedWorktrees` | `3.00:00:00` · `1.00:00:00` | how long worktrees are kept after a failure / after the merge |
 | `SystemLog:RetentionDays` · `SystemLog:MinimumLevel` | `14` · `Information` | how long Settings → System log keeps agentd's log, and from which level (other libraries: Warning and up); `SystemLog:Enabled=false` keeps none |
 | `Daemon:Supervised` | `true` in the Docker image and the `agentd daemon install` unit, else `false` | something restarts agentd when it exits (a container restart policy, systemd's `Restart=on-failure`): Settings then offers **Restart now** (agentd exits with code 75 and comes back). Leave it off when nothing would start agentd again |
-| `Artifacts:S3:Url` | (none: in the database) | store artifacts in S3-compatible storage, e.g. Cloudflare R2: the S3 API URL ending with the bucket (`https://<account>.r2.cloudflarestorage.com/agentd`); set the keys with `agentd secrets set Artifacts:S3:AccessKeyId` and `agentd secrets set Artifacts:S3:SecretAccessKey` (hidden prompt, stored encrypted). Links stay on agentd, so the bucket can stay private |
+| `Artifacts:Folder` | `~/.agentd/artifacts` | without S3, artifact pages are HTML files here (agentd serves them); empty in Settings → Artifacts goes back to the default |
+| `Artifacts:S3:Url` | (none: HTML files in `Artifacts:Folder`) | store artifacts in S3-compatible storage, e.g. Cloudflare R2: the S3 API URL ending with the bucket (`https://<account>.r2.cloudflarestorage.com/agentd`); set the keys with `agentd secrets set Artifacts:S3:AccessKeyId` and `agentd secrets set Artifacts:S3:SecretAccessKey` (hidden prompt, stored encrypted). Links stay on agentd, so the bucket can stay private |
 | `Artifacts:S3:PublicUrl` | (none: links on agentd) | where the bucket is public, e.g. its custom domain `https://agentd.thoaingo.com` (R2 → bucket → Settings → Custom Domains): links to pages in S3 become `<PublicUrl>/artifacts/<name>.html`, readable by anyone with the link. Pages kept in the database stay on agentd |
 
 Admins can set the artifact storage in **Settings → Artifacts** too: the S3 API URL, the public domain and the keys (write-only), with **Test connection** (it uploads, reads back, opens on the public domain and deletes a small page). Values from Key Vault or an environment variable show where they come from; change them there. Saved settings apply after `agentd daemon restart`.

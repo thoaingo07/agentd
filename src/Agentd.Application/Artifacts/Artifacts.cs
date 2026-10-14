@@ -37,6 +37,9 @@ public static class ArtifactStorage
 
     /// <summary>S3-compatible storage (Cloudflare R2), under <see cref="IArtifactBlobs"/>.</summary>
     public const string S3 = "s3";
+
+    /// <summary>An HTML file in <see cref="ArtifactOptions.Folder"/>, under <see cref="IArtifactFiles"/> (no S3 set up).</summary>
+    public const string Local = "local";
 }
 
 /// <summary>
@@ -57,8 +60,14 @@ public sealed class ArtifactOptions
     /// <summary>Days after its last update that a page expires (its HTML is dropped); 0 keeps pages forever.</summary>
     public int RetentionDays { get; set; } = 30;
 
-    /// <summary>S3-compatible storage for new pages; unset keeps them in the database.</summary>
+    /// <summary>S3-compatible storage for new pages; unset keeps them in <see cref="Folder"/>.</summary>
     public ArtifactS3Options S3 { get; set; } = new();
+
+    /// <summary>
+    /// Without S3, new pages are raw HTML files here (<c>&lt;name&gt;.html</c>), served by agentd; agentd's home sets
+    /// <c>~/.agentd/artifacts</c> by default. Unset (and no S3): pages are kept in the database.
+    /// </summary>
+    public string? Folder { get; set; }
 }
 
 /// <summary>
@@ -95,6 +104,17 @@ public interface IArtifactBlobs
     Task DeleteAsync(string name, CancellationToken cancellationToken);
 }
 
+/// <summary>Artifact pages as HTML files in <see cref="ArtifactOptions.Folder"/>, one per page (<c>&lt;name&gt;.html</c>).</summary>
+public interface IArtifactFiles
+{
+    Task PutAsync(string name, string html, CancellationToken cancellationToken);
+
+    /// <summary>The page, or null when the file isn't there.</summary>
+    Task<string?> GetAsync(string name, CancellationToken cancellationToken);
+
+    Task DeleteAsync(string name, CancellationToken cancellationToken);
+}
+
 /// <summary>What <see cref="ArtifactService.ReadAsync"/> found: the page's HTML, or why there's none.</summary>
 public sealed record ArtifactPage(Artifact Artifact, string? Html, bool Expired, bool Missing);
 
@@ -126,8 +146,12 @@ public interface IArtifactStore
 /// anyone who can open the Web UI, sandboxed so its scripts can't reach agentd. A job or chat publishing the same title
 /// again updates the page in place.
 /// </summary>
-/// <remarks>With <see cref="ArtifactOptions.S3"/> configured, new pages go to S3-compatible storage and the row keeps the metadata.</remarks>
-public sealed class ArtifactService(IArtifactStore store, IClock? clock = null, IOptions<ArtifactOptions>? options = null, IArtifactBlobs? blobs = null)
+/// <remarks>
+/// With <see cref="ArtifactOptions.S3"/> configured, new pages go to S3-compatible storage; without it, to HTML files in
+/// <see cref="ArtifactOptions.Folder"/>; with neither, into the database. The row keeps the metadata either way, and a
+/// page is read from wherever it was stored.
+/// </remarks>
+public sealed class ArtifactService(IArtifactStore store, IClock? clock = null, IOptions<ArtifactOptions>? options = null, IArtifactBlobs? blobs = null, IArtifactFiles? files = null)
 {
     public const int MaxTitle = 120;
 
@@ -154,24 +178,31 @@ public sealed class ArtifactService(IArtifactStore store, IClock? clock = null, 
 
         var name = $"{Slug(title)}-{Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(4))}";
         var document = Document(title.Trim(), html);
-        if (blobs is null || options?.Value.S3.Configured != true)
+        var storage = StorageForNewPages;
+        if (storage == ArtifactStorage.Database)
         {
             return await store.PublishAsync(name, title.Trim(), document, source, sourceId, author, ArtifactStorage.Database, ct).ConfigureAwait(false);
         }
 
-        // The row first: republishing keeps the first name, and the object is written under the name the row has.
-        var published = await store.PublishAsync(name, title.Trim(), null, source, sourceId, author, ArtifactStorage.S3, ct).ConfigureAwait(false);
+        // The row first: republishing keeps the first name, and the page is written under the name the row has.
+        var published = await store.PublishAsync(name, title.Trim(), null, source, sourceId, author, storage, ct).ConfigureAwait(false);
         try
         {
-            await blobs.PutAsync(published.Name, document, ct).ConfigureAwait(false);
+            await (storage == ArtifactStorage.S3 ? blobs!.PutAsync(published.Name, document, ct) : files!.PutAsync(published.Name, document, ct)).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            return DomainError.Validation($"The page couldn't be uploaded to storage ({ex.Message}). Publish it again.");
+            return DomainError.Validation($"The page couldn't be saved to storage ({ex.Message}). Publish it again.");
         }
 
-        return published with { Storage = ArtifactStorage.S3 };
+        return published with { Storage = storage };
     }
+
+    /// <summary>Where new pages go: S3 when it's set up, else the folder when there is one, else the database.</summary>
+    public string StorageForNewPages =>
+        blobs is not null && options?.Value.S3.Configured == true ? ArtifactStorage.S3
+        : files is not null && !string.IsNullOrWhiteSpace(options?.Value.Folder) ? ArtifactStorage.Local
+        : ArtifactStorage.Database;
 
     /// <summary>
     /// A page's link: an S3 page's is on <see cref="ArtifactS3Options.PublicUrl"/> when that's set; any other is on agentd at
@@ -197,9 +228,12 @@ public sealed class ArtifactService(IArtifactStore store, IClock? clock = null, 
             return new ArtifactPage(artifact, null, Expired: true, Missing: false);
         }
 
-        var html = artifact.Storage == ArtifactStorage.S3
-            ? blobs is null ? null : await blobs.GetAsync(artifact.Name, ct).ConfigureAwait(false)
-            : artifact.Html;
+        var html = artifact.Storage switch
+        {
+            ArtifactStorage.S3 => blobs is null ? null : await blobs.GetAsync(artifact.Name, ct).ConfigureAwait(false),
+            ArtifactStorage.Local => files is null ? null : await files.GetAsync(artifact.Name, ct).ConfigureAwait(false),
+            _ => artifact.Html,
+        };
         return new ArtifactPage(artifact, html, Expired: false, Missing: html is null);
     }
 
@@ -215,11 +249,12 @@ public sealed class ArtifactService(IArtifactStore store, IClock? clock = null, 
         }
 
         var expired = await store.ExpireAsync(clock.UtcNow.AddDays(-options.Value.RetentionDays), ct).ConfigureAwait(false);
-        foreach (var page in expired.Where(e => e.Storage == ArtifactStorage.S3))
+        foreach (var page in expired.Where(e => e.Storage is ArtifactStorage.S3 or ArtifactStorage.Local))
         {
             try
             {
-                await (blobs?.DeleteAsync(page.Name, ct) ?? Task.CompletedTask).ConfigureAwait(false);
+                var delete = page.Storage == ArtifactStorage.S3 ? blobs?.DeleteAsync(page.Name, ct) : files?.DeleteAsync(page.Name, ct);
+                await (delete ?? Task.CompletedTask).ConfigureAwait(false);
             }
 #pragma warning disable CA1031 // a leftover object only costs storage; the page is expired either way
             catch (Exception ex) when (ex is not OperationCanceledException)

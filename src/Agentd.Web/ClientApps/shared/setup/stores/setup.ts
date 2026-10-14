@@ -96,6 +96,8 @@ export const useSetupStore = defineStore('setup', () => {
   const storageBody = (input: ArtifactStorageRequest): ArtifactStorageRequest => ({
     url: input.url?.trim() || null, publicUrl: input.publicUrl?.trim() || null,
     accessKeyId: input.accessKeyId?.trim() || null, secretAccessKey: input.secretAccessKey?.trim() || null,
+    // The folder is sent as written: empty goes back to the default in agentd's home; not sent keeps it.
+    ...(input.folder === undefined || input.folder === null ? {} : { folder: input.folder.trim() }),
   })
 
   async function loadArtifactStorage(): Promise<void> {

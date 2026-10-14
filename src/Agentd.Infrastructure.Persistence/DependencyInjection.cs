@@ -34,10 +34,12 @@ public static class DependencyInjection
         services.AddSingleton<Application.Monitor.IPrWatchStore, PrWatchStore>();
         services.AddSingleton<Application.Artifacts.IArtifactStore, ArtifactStore>();
         services.AddSingleton<Application.Artifacts.IArtifactBlobs, S3ArtifactBlobs>();   // used only when Agentd:Artifacts:S3 is configured
+        services.AddSingleton<Application.Artifacts.IArtifactFiles, LocalArtifactFiles>();   // without S3: HTML files in Agentd:Artifacts:Folder
         services.AddSingleton<Application.Setup.IArtifactStorageProbe>(_ => new S3ArtifactStorageProbe());
         services.AddSingleton<Application.SystemLog.ISystemLogStore, SystemLogStore>();
         services.AddSingleton<Application.Prompts.IPromptLog, PromptLogStore>();
         services.AddSingleton<Application.Inbox.IInbox, InboxStore>();
+        services.AddSingleton<Application.Reviews.IReviewSessionPosts, ReviewSessionPostStore>();
         services.AddSingleton<JobSessionStore>();
         services.AddSingleton<Application.Jobs.IJobSessions>(sp => sp.GetRequiredService<JobSessionStore>());
         services.AddSingleton<Application.Jobs.IJobPlans>(sp => sp.GetRequiredService<JobSessionStore>());

@@ -20,12 +20,13 @@ public sealed record SecretStatusVm(bool Set, DateTimeOffset? UpdatedAt, string?
 /// Where artifacts are stored: the S3 API URL (none: the database) and the public domain links use; the keys as statuses.
 /// <c>urlOverriddenBy</c> / <c>publicUrlOverriddenBy</c> name what supplies a value over agentd.json.
 /// </summary>
-public sealed record ArtifactStorageStepVm(string? Url, string? PublicUrl, string? UrlOverriddenBy, string? PublicUrlOverriddenBy, SecretStatusVm AccessKeyId, SecretStatusVm SecretAccessKey)
+public sealed record ArtifactStorageStepVm(string? Url, string? PublicUrl, string? UrlOverriddenBy, string? PublicUrlOverriddenBy, SecretStatusVm AccessKeyId, SecretStatusVm SecretAccessKey,
+    string? Folder, string? FolderOverriddenBy)
 {
     public static ArtifactStorageStepVm From(Application.Setup.ArtifactStorageStep s)
     {
         ArgumentNullException.ThrowIfNull(s);
-        return new(s.Url, s.PublicUrl, s.UrlOverriddenBy, s.PublicUrlOverriddenBy, SecretStatusVm.From(s.AccessKeyId), SecretStatusVm.From(s.SecretAccessKey));
+        return new(s.Url, s.PublicUrl, s.UrlOverriddenBy, s.PublicUrlOverriddenBy, SecretStatusVm.From(s.AccessKeyId), SecretStatusVm.From(s.SecretAccessKey), s.Folder, s.FolderOverriddenBy);
     }
 }
 
@@ -41,7 +42,7 @@ public sealed record FoldersStepVm(string? Worktrees, string? Repositories, stri
 
 public sealed record DatabaseStepVm(SecretStatusVm ConnectionString);
 
-/// <summary><c>Auth</c> is <c>Pat</c>, <c>AzCli</c> or <c>ServicePrincipal</c> (tenant and client ids; the client secret as a status only).</summary>
+/// <summary><c>Auth</c> is <c>Pat</c>, <c>AzCli</c>, <c>Entra</c> or <c>ServicePrincipal</c> (tenant and client ids; the client secret as a status only).</summary>
 public sealed record AzureDevOpsStepVm(string? Organization, string? Project, string Auth, SecretStatusVm Pat, string? TenantId, string? ClientId, SecretStatusVm ClientSecret);
 
 /// <summary>A step's "Test" result; <see cref="Fix"/> says what to do when it failed.</summary>
@@ -51,12 +52,12 @@ public sealed record StepCheckVm(bool Ok, string Message, string? Fix);
 public sealed record SaveResultVm(bool RestartRequired);
 
 /// <summary>agentd's SSH key for git: the public key to add in Azure DevOps or GitHub, and its fingerprint. Never the private key.</summary>
-public sealed record GitKeyStepVm(bool Exists, string? PublicKey, string? Fingerprint, string? Path)
+public sealed record GitKeyStepVm(bool Exists, string? PublicKey, string? Fingerprint, string? Path, bool OverHttps)
 {
     public static GitKeyStepVm From(Application.Setup.GitKeyStep s)
     {
         ArgumentNullException.ThrowIfNull(s);
-        return new(s.Exists, s.PublicKey, s.Fingerprint, s.Path);
+        return new(s.Exists, s.PublicKey, s.Fingerprint, s.Path, s.OverHttps);
     }
 }
 

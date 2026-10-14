@@ -65,4 +65,24 @@
   .ag-code-line.is-hit {
     @apply bg-warning/15;
   }
+
+  /* A turn's transcript: the work item Transcript's rows, stacked. */
+  .ag-transcript {
+    @apply grid min-w-0 gap-3;
+  }
+
+  /* One turn of a conversation on the Prompts page: prompt, transcript, reply. */
+  .ag-turn {
+    @apply grid min-w-0 gap-3 rounded-lg border border-base-300 bg-base-100 p-4;
+  }
+
+  /* A long text (a prompt, its rules, a reply) kept as written, scrolling inside its box. */
+  .ag-pre {
+    @apply max-h-[32rem] overflow-auto rounded-lg border border-base-300 bg-base-200 p-3 font-mono text-xs break-words whitespace-pre-wrap;
+  }
+
+  /* A collapsible block's heading (<summary>). */
+  .ag-summary {
+    @apply cursor-pointer text-sm font-semibold select-none;
+  }
 }

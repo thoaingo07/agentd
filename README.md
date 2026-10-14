@@ -2,7 +2,7 @@
 
 **agentd** is a background daemon that picks up Azure DevOps work items tagged for AI, runs one
 Claude Code agent per work item in its own git worktree (Design → Plan → Implement → Test → Review),
-talks to developers through Discord/Telegram, and opens a pull request when the work is done.
+talks to developers in its web UI (and, optionally, Discord or Telegram), and opens a pull request when the work is done.
 
 - **User guide (install, configure, use): [`docs/public-ui`](docs/public-ui/README.md)**
 - Design: [`docs/architect`](docs/architect/README.md)
@@ -16,6 +16,33 @@ talks to developers through Discord/Telegram, and opens a pull request when the 
 | .NET SDK | 10 (see `global.json`) | |
 | Node.js | 24 (see `.nvmrc`) | `nvm install && nvm use` |
 | Docker | recent | Aspire runs PostgreSQL in a container; integration tests use Testcontainers |
+
+## Run agentd standalone (no chat)
+
+agentd doesn't need Discord or Telegram: the web UI does everything chat does. To run it that way:
+
+1. **Install** it on the server ([getting started §1](docs/public-ui/getting-started.md#1-install-agentd)): the
+   release's `install.sh`, Docker Compose, or from source as below.
+2. **Set up** in the browser: `agentd daemon install && agentd daemon start`, open the one-time link from
+   `agentd daemon logs` (over an SSH tunnel: `ssh -L 7780:127.0.0.1:7780 <server>`), and go through the wizard.
+   Leave **Chat (optional)** turned off. Finish needs only the database, Azure DevOps and Claude.
+3. **Restart** (`agentd daemon restart`) and open `http://127.0.0.1:7780`.
+
+Then, from the web UI:
+
+| You want to | Where |
+|---|---|
+| Answer the agent, approve a plan, allow a tool, push a watched PR's fix | **Inbox**: every message agentd sends you, threads waiting on you first, with their buttons and a reply box |
+| Run a work item, follow it, cancel, retry, pause, hand off | **Dashboard** → the work item's page (transcript, diff, Conversation) |
+| Brainstorm work items | **Ideas** |
+| Review a branch or PR, ask about it, send findings, fix it | **Reviews** |
+| Ask about the code | **Chat** |
+| Read what agents published | **Artifacts**: pages are HTML files in `~/.agentd/artifacts` without S3 (Settings → Artifacts) |
+| See every prompt sent to Claude | **Settings → Prompts** (Admins) |
+
+Without chat, a finished job closes by itself (nothing to delete), and its conversation stays on its page and in the
+Inbox. What stays chat-only: the `!` commands typed in a channel (each has a button on the web) and pings on your
+phone; the Inbox shows a count in the nav instead. Turning chat on later works too: running jobs get threads.
 
 ## Run locally (Aspire)
 

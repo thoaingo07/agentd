@@ -17,6 +17,8 @@ const router = () => createRouter({ history: createMemoryHistory(), routes: [
   { path: '/reviews/:id', name: 'review', component: blank },
   { path: '/settings/prompts', name: 'prompts', component: PromptsView },
   { path: '/settings/prompts/:id', name: 'prompt', component: blank },
+  { path: '/settings/prompts/all', name: 'prompts-all', component: blank },
+  { path: '/settings/prompts/:source/:sourceId', name: 'prompt-conversation', component: blank },
 ] })
 const summary = (id: number, over: Record<string, unknown> = {}) => ({
   id, source: 'job', sourceId: 42, step: 'implement', session: null, resume: false, model: 'claude-opus-5-5', effort: 'high', profile: null,
@@ -142,7 +144,7 @@ describe('Prompts link', () => {
     session.user = { name: 'local', roles: ['Admin'], provider: 'none' }
     const w = mount(PromptsLink, { props: { source: 'review-session', sourceId: 7 }, global: { plugins: [router()] } })
     await flushPromises()
-    expect(w.get('a').attributes('href')).toBe('/settings/prompts?source=review-session&sourceId=7')
+    expect(w.get('a').attributes('href'), 'the review\'s conversation').toBe('/settings/prompts/review-session/7')
 
     session.user = { name: 'dev', roles: ['User'], provider: 'none' }
     await flushPromises()

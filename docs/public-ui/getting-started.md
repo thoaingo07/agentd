@@ -115,7 +115,15 @@ write)**, **Build (Read)** and, for `!chat`, **Wiki (Read)**:
 agentd secrets set AzureDevOps:Pat          # prompts for the value; it never goes on the command line
 ```
 
-On a workstation where you're signed in with the Azure CLI, `"Auth": "AzCli"` uses `az login` instead.
+On a workstation where you're signed in with the Azure CLI, `"Auth": "AzCli"` uses `az login` instead. On Windows without
+the Azure CLI, `"Auth": "Entra"` uses whatever Microsoft Entra sign-in the machine already has (Visual Studio's account,
+Azure PowerShell's `Connect-AzAccount`, `azd auth login`, or a managed identity on an Azure VM), never a browser prompt;
+set `"TenantId"` too if that sign-in knows several directories.
+
+**No SSH needed:** agentd clones and pushes Azure DevOps repositories over HTTPS with the same sign-in, so you can add a
+repository by its HTTPS clone URL (`https://dev.azure.com/org/project/_git/repo`, or
+`https://org.visualstudio.com/project/_git/repo`) and skip the SSH key. The token goes to each git command on the fly,
+never into the remote URL or the clone's config, and never to the agents.
 
 **A service principal instead of your account.** PRs and comments are created as whoever owns the credential. To make
 them show an app (e.g. `agentd`) rather than a person, use a Microsoft Entra app:
@@ -184,6 +192,10 @@ provider such as DeepSeek, open **Settings → Models** (or the wizard's Models 
 See [configuration](configuration.md#another-provider-for-a-step-deepseek) for how it behaves.
 
 ## 6. Chat (optional): Discord
+
+**No chat at all is fine:** skip this step and use the web UI. Its **Inbox** gets every question, plan, result and
+failure, with the answers' buttons, and a finished job closes by itself. See
+[Run agentd standalone](../../README.md#run-agentd-standalone-no-chat).
 
 1. Create a Discord application with a bot and invite it to your server.
 2. Give it permission to read and send messages, create threads, and manage threads.

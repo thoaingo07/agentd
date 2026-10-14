@@ -63,7 +63,7 @@ public sealed class ArtifactServiceTests
         Assert.AreEqual((ArtifactStorage.S3, (string?)null), (_store.Storages[0], _store.Published[0].Html), "no HTML in the row");
         StringAssert.Contains(blobs.Objects[published.Name], "<body>\n<p>sync</p>\n</body>", "the whole document, under the row's name");
         Assert.AreEqual("validation", failed.Error!.Code);
-        StringAssert.Contains(failed.Error.Message, "couldn't be uploaded");
+        StringAssert.Contains(failed.Error.Message, "couldn't be saved to storage");
         Assert.AreEqual(3, expired);
         CollectionAssert.AreEquivalent(new[] { "b-2", "c-3" }, blobs.Deleted, "only S3 pages have objects to delete");
     }
@@ -123,6 +123,49 @@ public sealed class ArtifactServiceTests
 
         Assert.AreEqual(ArtifactStorage.Database, _store.Storages.Single());
         StringAssert.Contains(_store.Published.Single().Html, "<p>x</p>");
+    }
+
+    [TestMethod]
+    public async Task Without_s3_pages_are_html_files_in_the_folder_read_back_and_deleted_when_they_expire()
+    {
+        var files = new Files();
+        var options = Microsoft.Extensions.Options.Options.Create(new ArtifactOptions { Folder = "/srv/agentd/artifacts", RetentionDays = 30 });
+        var service = new ArtifactService(_store, new Fakes.FakeClock(), options, new Blobs(), files);
+
+        var published = (await service.PublishAsync("Sync report", "<p>sync</p>", ArtifactSources.Chat, 2, "chat #2", default)).Value!;
+        _store.Page = new Artifact(published.Name, "Sync report", null, "chat", 2, "chat #2", DateTimeOffset.UnixEpoch, null, ArtifactStorage.Local);
+        var read = await service.ReadAsync(published.Name, default);
+        _store.Expiring = [new ExpiredArtifact("old-1", ArtifactStorage.Local), new ExpiredArtifact("r2-2", ArtifactStorage.S3), new ExpiredArtifact("row-3", ArtifactStorage.Database)];
+        await service.ExpireAsync(default);
+
+        Assert.AreEqual((ArtifactStorage.Local, (string?)null, ArtifactStorage.Local), (_store.Storages.Single(), _store.Published.Single().Html, published.Storage), "no HTML in the row");
+        StringAssert.Contains(files.Pages[published.Name], "<p>sync</p>");
+        StringAssert.Contains(read!.Html, "<p>sync</p>");
+        CollectionAssert.AreEqual(new[] { "old-1" }, files.Deleted, "a local page's file goes; an S3 one isn't its");
+        Assert.AreEqual(ArtifactStorage.S3, new ArtifactService(_store, null, S3Options(), new Blobs(), files).StorageForNewPages, "S3 wins when it's set up");
+        Assert.AreEqual(ArtifactStorage.Database, new ArtifactService(_store, null, Microsoft.Extensions.Options.Options.Create(new ArtifactOptions()), null, files).StorageForNewPages,
+            "no folder: the database, as before");
+    }
+
+    private sealed class Files : IArtifactFiles
+    {
+        public Dictionary<string, string> Pages { get; } = [];
+
+        public List<string> Deleted { get; } = [];
+
+        public Task PutAsync(string name, string html, CancellationToken cancellationToken)
+        {
+            Pages[name] = html;
+            return Task.CompletedTask;
+        }
+
+        public Task<string?> GetAsync(string name, CancellationToken cancellationToken) => Task.FromResult(Pages.GetValueOrDefault(name));
+
+        public Task DeleteAsync(string name, CancellationToken cancellationToken)
+        {
+            Deleted.Add(name);
+            return Task.CompletedTask;
+        }
     }
 
     private static Microsoft.Extensions.Options.IOptions<ArtifactOptions> S3Options() => Microsoft.Extensions.Options.Options.Create(new ArtifactOptions
@@ -185,10 +228,13 @@ public sealed class ArtifactServiceTests
 
         public List<DateTimeOffset> Expired { get; } = [];
 
+        /// <summary>What the next expiry returns.</summary>
+        public List<ExpiredArtifact> Expiring { get; set; } = [new("a-1", ArtifactStorage.Database), new("b-2", ArtifactStorage.S3), new("c-3", ArtifactStorage.S3)];
+
         public Task<IReadOnlyList<ExpiredArtifact>> ExpireAsync(DateTimeOffset updatedBefore, CancellationToken cancellationToken)
         {
             Expired.Add(updatedBefore);
-            return Task.FromResult<IReadOnlyList<ExpiredArtifact>>([new("a-1", ArtifactStorage.Database), new("b-2", ArtifactStorage.S3), new("c-3", ArtifactStorage.S3)]);
+            return Task.FromResult<IReadOnlyList<ExpiredArtifact>>(Expiring);
         }
     }
 }

@@ -24,7 +24,14 @@ export const router = createRouter({
       children: [
         { path: '', name: 'settings', component: () => import('./views/SettingsView.vue') },
         { path: 'log', name: 'system-log', component: () => import('./views/SystemLogView.vue') },
-        { path: 'prompts', name: 'prompts', component: () => import('./views/PromptsView.vue') },
+        { path: 'prompts', name: 'prompts', component: () => import('./views/PromptConversationsView.vue') },
+        { path: 'prompts/all', name: 'prompts-all', component: () => import('./views/PromptsView.vue') },
+        {
+          path: 'prompts/:source(job|idea|chat|review|review-session|review-ask|review-fix|follow-up)/:sourceId(\\d+)',
+          name: 'prompt-conversation',
+          component: () => import('./views/PromptConversationView.vue'),
+          props: (r) => ({ source: String(r.params.source), sourceId: Number(r.params.sourceId) }),
+        },
         { path: 'prompts/:id(\\d+)', name: 'prompt', component: () => import('./views/PromptView.vue'), props: (r) => ({ id: Number(r.params.id) }) },
         { path: ':area', name: 'settings-area', component: () => import('./views/SettingsAreaView.vue'), props: true },
       ],

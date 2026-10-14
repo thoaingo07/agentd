@@ -101,12 +101,13 @@ internal static class DoctorCommand
             : new("Secrets", false, $"can't decrypt: {string.Join(", ", unreadable)} (was ~/.agentd/keys replaced?)", $"set them again: agentd secrets set {unreadable[0]}");
     }
 
-    /// <summary>agentd's own SSH key (used for git when present).</summary>
+    /// <summary>agentd's own SSH key (used for git when present); not needed while Azure DevOps goes over HTTPS.</summary>
     private static DoctorResult SshKey(IServiceProvider services)
     {
-        var key = Infrastructure.Git.GitOptions.Expand(services.GetRequiredService<IOptions<Infrastructure.Git.GitOptions>>().Value.SshKeyPath);
-        return File.Exists(key)
-            ? new("SSH key", true, $"{key} ({(File.Exists(key + ".pub") ? "public key next to it" : "no .pub next to it")})")
+        var git = services.GetRequiredService<IOptions<Infrastructure.Git.GitOptions>>().Value;
+        var key = Infrastructure.Git.GitOptions.Expand(git.SshKeyPath);
+        return File.Exists(key) ? new("SSH key", true, $"{key} ({(File.Exists(key + ".pub") ? "public key next to it" : "no .pub next to it")})")
+            : git.AzureDevOpsOverHttps ? new("SSH key", true, "none needed: Azure DevOps goes over HTTPS with agentd's Azure DevOps sign-in")
             : new("SSH key", true, $"none at {key}: git uses your ~/.ssh setup", $"for a server: ssh-keygen -t ed25519 -N '' -f {key}, then add {key}.pub to Azure DevOps (User settings → SSH public keys)", Warning: true);
     }
 
@@ -292,9 +293,13 @@ internal static class DoctorCommand
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            return new(check, false, ex.Message, ado.Auth == AzureDevOpsAuth.Pat
-                ? "set a PAT with Work Items (read & write) and Code (read & write): AGENTD_AzureDevOps__Pat, never in a committed file"
-                : "run: az login   (and check the organization and project names)");
+            return new(check, false, ex.Message, ado.Auth switch
+            {
+                AzureDevOpsAuth.Pat => "set a PAT with Work Items (read & write) and Code (read & write): AGENTD_AzureDevOps__Pat, never in a committed file",
+                AzureDevOpsAuth.ServicePrincipal => "check AzureDevOps:TenantId, ClientId and the ClientSecret secret, and that the app is added to the organization",
+                AzureDevOpsAuth.Entra => "sign in to Azure as this user (Visual Studio, Azure PowerShell Connect-AzAccount, az login or azd auth login) or use a managed identity",
+                _ => "run: az login   (and check the organization and project names)",
+            });
         }
     }
 
@@ -327,7 +332,7 @@ internal static class DoctorCommand
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                results.Add(new(check, false, $"{repo.RemoteUrl}: {ex.Message.ReplaceLineEndings(" ")}", "check SSH access (ssh-add, ~/.ssh/config host alias, key registered in Azure DevOps) or the HTTPS credential"));
+                results.Add(new(check, false, $"{repo.RemoteUrl}: {ex.Message.ReplaceLineEndings(" ")}", "over HTTPS: check agentd's Azure DevOps sign-in (agentd doctor's Azure DevOps line) and that it can read the repository; over SSH: the key registered in Azure DevOps, ssh-add or the ~/.ssh/config host alias"));
             }
         }
 

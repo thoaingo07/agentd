@@ -66,4 +66,10 @@ API (every signed-in user):
   web, a chat `!review` like a message in its thread (not mirrored to the thread yet), a watched PR's `push`,
   `discard` or `unwatch`.
 
-Next: browser notifications for threads that start waiting on you; recipients matched across chat and web identities.
+**Notifications** (added 2026-10-14): **Enable notifications** in the Inbox's header turns on browser notifications
+for this browser (the browser asks once; the choice is kept as `agentd.notify`). While agentd is open in a tab, a
+thread that starts waiting on you raises one, named after the thread with its question; clicking it opens the
+thread. Never for what was already waiting when the page opened. The tab's title counts the threads waiting on you
+(`(2) agentd`), notifications on or not. A blocked site says so instead.
+
+Next: recipients matched across chat and web identities.

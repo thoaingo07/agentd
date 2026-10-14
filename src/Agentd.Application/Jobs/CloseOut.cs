@@ -8,10 +8,13 @@ using Microsoft.Extensions.Logging;
 
 namespace Agentd.Application.Jobs;
 
-/// <summary>Ask the developer to delete (or keep) the thread once the work item is completely done.</summary>
+/// <summary>
+/// Ask the developer to delete (or keep) the thread once the work item is completely done. With no open chat thread (chat
+/// off, a web-only agentd) there is nothing to ask: the job is done at once.
+/// </summary>
 public sealed record RequestCloseOut(JobId JobId);
 
-public sealed class RequestCloseOutHandler(IJobRepository jobs) : ICommandHandler<RequestCloseOut, Unit>
+public sealed class RequestCloseOutHandler(IJobRepository jobs, IConversationStore? conversations = null) : ICommandHandler<RequestCloseOut, Unit>
 {
     public const string DeleteLabel = "🗑 Delete thread";
     public const string KeepLabel = "📦 Keep (archive)";
@@ -25,7 +28,10 @@ public sealed class RequestCloseOutHandler(IJobRepository jobs) : ICommandHandle
             return DomainError.NotFound($"Job {command.JobId}");
         }
 
-        var asked = job.RequestCloseOut("🧹 **All done.** Delete this thread?", [DeleteLabel, KeepLabel]);
+        var threads = conversations is null ? null : await conversations.ListByJobAsync(job.Id, cancellationToken).ConfigureAwait(false);
+        var asked = threads is not null && !threads.Any(c => c.IsOpen)
+            ? job.CloseOutWithoutThread()
+            : job.RequestCloseOut("🧹 **All done.** Delete this thread?", [DeleteLabel, KeepLabel]);
         if (!asked.IsSuccess)
         {
             return asked.Error;
@@ -76,7 +82,14 @@ public sealed partial class AnswerCloseOutHandler(
 
         foreach (var thread in (await conversations.ListByJobAsync(job.Id, cancellationToken).ConfigureAwait(false)).Where(c => c.IsOpen))
         {
-            var provider = providers.Resolve(thread.Provider);
+            if (providers.TryResolve(thread.Provider) is not { } provider)
+            {
+                // Its chat was switched off: nothing to delete or archive there, the thread is just closed here.
+                thread.Close(clock.UtcNow);
+                await conversations.SaveAsync(thread, cancellationToken).ConfigureAwait(false);
+                continue;
+            }
+
             var reference = new ConversationRef(thread.Provider, thread.ExternalConversationId, thread.ExternalSpaceId);
             var archiveNote = "📦 Archived. This work item is done.";
             if (delete)

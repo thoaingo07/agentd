@@ -25,7 +25,16 @@ public interface IConversationStore
 
     /// <summary>Open conversations on a provider (what a polling provider watches).</summary>
     Task<IReadOnlyList<Conversation>> ListOpenAsync(ProviderKey provider, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// A chat switched off: its pending messages are marked failed ("provider disabled") and its open conversations closed,
+    /// so nothing piles up for it. Turned back on, running jobs get new threads (repair). Returns how many of each.
+    /// </summary>
+    Task<DisabledProviders> DropDisabledAsync(IReadOnlyList<ProviderKey> enabled, CancellationToken cancellationToken) => Task.FromResult(new DisabledProviders(0, 0));
 }
+
+/// <summary>What <see cref="IConversationStore.DropDisabledAsync"/> did: messages marked failed, conversations closed.</summary>
+public sealed record DisabledProviders(int Failed, int Closed);
 
 /// <summary>Chat threads deleted on the provider by hand, found while reading them.</summary>
 public interface IDeletedThreads
