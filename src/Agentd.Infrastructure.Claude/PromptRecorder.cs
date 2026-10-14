@@ -37,6 +37,29 @@ public sealed partial class PromptRecorder(IPromptLog? log = null, IOptions<Prom
         }
     }
 
+    /// <summary>A thread turn's transcript (its events in order), kept with its prompt; at most <see cref="PromptLogOptions.MaxEvents"/>.</summary>
+    public async Task AddEventsAsync(long? id, IReadOnlyList<PromptEvent> events)
+    {
+        ArgumentNullException.ThrowIfNull(events);
+        if (log is null || id is not { } prompt || events.Count == 0)
+        {
+            return;
+        }
+
+        var kept = events.Count <= Options.MaxEvents ? events
+            : [.. events.Take(Options.MaxEvents), new PromptEvent("agent.text", $"{{\"text\":\"… {events.Count - Options.MaxEvents} more events not kept (Agentd:PromptLog:MaxEvents)\"}}", events[^1].At)];
+        try
+        {
+            await log.AddEventsAsync(prompt, kept, CancellationToken.None).ConfigureAwait(false);
+        }
+#pragma warning disable CA1031 // the log is for learning: a turn never fails because of it
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            LogFinishFailed(_logger, ex, prompt);
+        }
+    }
+
     public async Task FinishAsync(long? id, string outcome, string? error = null, string? reply = null)
     {
         if (log is null || id is not { } prompt)

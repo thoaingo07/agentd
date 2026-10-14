@@ -93,3 +93,38 @@ AS $$
       LEFT JOIN agentd.agent_prompt_rules AS r ON r.hash = p.rules_hash
      WHERE p.id = p_id
 $$;
+
+-- A thread turn's transcript, written once when the turn ends: p_events is [{ "type", "payload", "at" }] in order.
+CREATE OR REPLACE FUNCTION agentd.agent_prompt_events_add(p_prompt_id bigint, p_events jsonb)
+RETURNS int
+LANGUAGE sql
+AS $$
+    WITH added AS (
+        INSERT INTO agentd.agent_prompt_events (prompt_id, type, payload, at)
+        SELECT p_prompt_id, e ->> 'type', coalesce(e -> 'payload', '{}'::jsonb), coalesce((e ->> 'at')::timestamptz, now())
+          FROM jsonb_array_elements(coalesce(p_events, '[]'::jsonb)) WITH ORDINALITY AS x(e, n)
+         WHERE EXISTS (SELECT 1 FROM agentd.agent_prompts AS p WHERE p.id = p_prompt_id)
+         ORDER BY x.n
+        RETURNING 1)
+    SELECT count(*)::int FROM added
+$$;
+
+-- A turn's transcript, in order: a thread turn's own events, or a job's agent events while the turn ran.
+CREATE OR REPLACE FUNCTION agentd.agent_prompt_transcript(p_prompt_id bigint, p_limit int)
+RETURNS TABLE (type text, payload jsonb, at timestamptz)
+LANGUAGE sql STABLE
+AS $$
+    SELECT t.type, t.payload, t.at FROM (
+        SELECT e.type, e.payload, e.at, e.id AS ord
+          FROM agentd.agent_prompt_events AS e
+         WHERE e.prompt_id = p_prompt_id
+        UNION ALL
+        SELECT ev.type, ev.payload, ev.ts, ev.seq
+          FROM agentd.agent_prompts AS p
+          JOIN agentd.events AS ev ON ev.job_id = p.source_id
+         WHERE p.id = p_prompt_id AND p.source = 'job' AND ev.type LIKE 'agent.%'
+           AND ev.ts >= p.started_at AND ev.ts <= coalesce(p.finished_at, now())
+    ) AS t
+     ORDER BY t.ord
+     LIMIT greatest(1, least(coalesce(p_limit, 5000), 20000))
+$$;

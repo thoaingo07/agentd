@@ -116,6 +116,67 @@ public sealed class PromptLogStoreTests
 
     private sealed record Row(string Source, long SourceId, string? Step, string? Model, string? Effort, string Prompt, string? Rules, string? Outcome, string? Error, string? Reply, bool Finished);
 
+    [TestMethod]
+    public async Task A_thread_turns_transcript_is_kept_in_order_and_goes_with_its_prompt()
+    {
+        await using var db = await Database.CreateMigratedAsync("prompt_log_transcript");
+        var log = new PromptLogStore(db);
+        var id = await log.StartAsync(Prompt("rules") with { Source = PromptSources.Idea, Step = null }, default);
+        var at = DateTimeOffset.UtcNow;
+
+        await log.AddEventsAsync(id, [
+            new PromptEvent("agent.text", "{\"text\":\"Reading the repo.\"}", at),
+            new PromptEvent("agent.tool_call", "{\"id\":\"t1\",\"name\":\"Read\",\"input\":{\"file_path\":\"README.md\"}}", at.AddSeconds(1)),
+            new PromptEvent("agent.tool_result", "{\"toolUseId\":\"t1\",\"content\":\"# agentd\"}", at.AddSeconds(2)),
+        ], default);
+        await log.AddEventsAsync(id + 999, [new PromptEvent("agent.text", "{}", at)], default);   // no such prompt: nothing kept
+
+        var transcript = await log.TranscriptAsync(id, 100, default);
+        CollectionAssert.AreEqual(new[] { "agent.text", "agent.tool_call", "agent.tool_result" }, transcript.Select(e => e.Type).ToArray());
+        StringAssert.Contains(transcript[1].PayloadJson, "README.md");
+        Assert.AreEqual(3L, await ScalarAsync<long>(db, "SELECT count(*) FROM agentd.agent_prompt_events"));
+
+        await log.DeleteBeforeAsync(DateTimeOffset.UtcNow.AddMinutes(1), default);
+        Assert.AreEqual(0L, await ScalarAsync<long>(db, "SELECT count(*) FROM agentd.agent_prompt_events"), "deleted with its prompt");
+    }
+
+    [TestMethod]
+    public async Task A_job_turns_transcript_is_its_jobs_agent_events_while_it_ran()
+    {
+        await using var db = await Database.CreateMigratedAsync("prompt_log_job_transcript");
+        var log = new PromptLogStore(db);
+        await ExecuteAsync(db, "INSERT INTO agentd.jobs (work_item_id, state, repo, title) VALUES (5701, 'Running', 'sysmin', 't')");
+        var job = await ScalarAsync<long>(db, "SELECT id FROM agentd.jobs");
+        await ExecuteAsync(db, $"INSERT INTO agentd.events (job_id, type, payload, ts) VALUES ({job}, 'agent.text', '{{\"text\":\"before\"}}', now() - interval '1 hour')");
+        var id = await log.StartAsync(Prompt("rules", sourceId: job), default);
+        await ExecuteAsync(db, $"INSERT INTO agentd.events (job_id, type, payload) VALUES ({job}, 'agent.text', '{{\"text\":\"during\"}}'), ({job}, 'job.state', '{{}}'), ({job}, 'agent.tool_call', '{{\"name\":\"Bash\"}}')");
+        await log.FinishAsync(id, PromptOutcomes.Ok, null, null, default);
+        await ExecuteAsync(db, $"INSERT INTO agentd.events (job_id, type, payload, ts) VALUES ({job}, 'agent.text', '{{\"text\":\"after\"}}', now() + interval '1 hour')");
+
+        var transcript = await log.TranscriptAsync(id, 100, default);
+
+        CollectionAssert.AreEqual(new[] { "agent.text", "agent.tool_call" }, transcript.Select(e => e.Type).ToArray(), "only the agent's events, only while the turn ran");
+        StringAssert.Contains(transcript[0].PayloadJson, "during");
+    }
+
+    [TestMethod]
+    public async Task Parallel_turns_write_their_transcripts_without_mixing()
+    {
+        await using var db = await Database.CreateMigratedAsync("prompt_log_transcript_parallel");
+        var log = new PromptLogStore(db);
+        var ids = await Task.WhenAll(Enumerable.Range(0, 8).Select(i => log.StartAsync(Prompt("rules", $"turn {i}", i) with { Source = PromptSources.Chat, Step = null }, default)));
+
+        await Task.WhenAll(ids.Select(id => Task.Run(() => log.AddEventsAsync(id,
+            [.. Enumerable.Range(0, 50).Select(n => new PromptEvent("agent.text", $"{{\"text\":\"{id}-{n}\"}}", DateTimeOffset.UtcNow))], default))));
+
+        foreach (var id in ids)
+        {
+            var transcript = await log.TranscriptAsync(id, 100, default);
+            CollectionAssert.AreEqual(Enumerable.Range(0, 50).Select(n => $"{id}-{n}").ToArray(),
+                transcript.Select(e => System.Text.Json.JsonDocument.Parse(e.PayloadJson).RootElement.GetProperty("text").GetString()).ToArray());
+        }
+    }
+
     private static async Task<List<Row>> RowsAsync(NpgsqlDataSource db)
     {
         await using var cmd = db.CreateCommand("SELECT p.source, p.source_id, p.step, p.model, p.effort, p.prompt, r.text, p.outcome, p.error, p.reply, p.finished_at IS NOT NULL " +

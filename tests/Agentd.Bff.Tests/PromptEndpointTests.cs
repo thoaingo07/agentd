@@ -46,6 +46,22 @@ public sealed class PromptEndpointTests
         Assert.AreEqual((HttpStatusCode.NotFound, HttpStatusCode.Forbidden), (missing.StatusCode, other.StatusCode));
     }
 
+    [TestMethod]
+    public async Task A_prompts_transcript_comes_as_the_job_transcripts_events()
+    {
+        await using var app = await StartAsync();
+
+        using var found = await GetAsync(app, "/api/prompts/7/transcript", "thoaingo07@gmail.com");
+        using var missing = await GetAsync(app, "/api/prompts/8/transcript", "thoaingo07@gmail.com");
+        using var other = await GetAsync(app, "/api/prompts/7/transcript", "dev@example.com");
+
+        var events = JsonDocument.Parse(await found.Content.ReadAsStringAsync()).RootElement;
+        Assert.AreEqual(2, events.GetArrayLength());
+        Assert.AreEqual(("agent.tool_call", 2, 42L), (events[1].GetProperty("type").GetString(), events[1].GetProperty("seq").GetInt32(), events[1].GetProperty("jobId").GetInt64()));
+        Assert.AreEqual("Read", events[1].GetProperty("payload").GetProperty("name").GetString(), "the payload as JSON, not a string");
+        Assert.AreEqual((HttpStatusCode.NotFound, HttpStatusCode.Forbidden), (missing.StatusCode, other.StatusCode));
+    }
+
     private static async Task<HttpResponseMessage> GetAsync(WebApplication app, string url, string login)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(url, UriKind.Relative));
@@ -97,5 +113,11 @@ public sealed class PromptEndpointTests
         public Task FinishAsync(long id, string outcome, string? failure, string? reply, CancellationToken cancellationToken) => throw new NotSupportedException();
 
         public Task<int> DeleteBeforeAsync(DateTimeOffset before, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<IReadOnlyList<PromptEvent>> TranscriptAsync(long id, int limit, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<PromptEvent>>([
+                new PromptEvent("agent.text", "{\"text\":\"Reading the login.\"}", DateTimeOffset.UnixEpoch),
+                new PromptEvent("agent.tool_call", "{\"id\":\"t1\",\"name\":\"Read\"}", DateTimeOffset.UnixEpoch),
+            ]);
     }
 }

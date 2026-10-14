@@ -16,7 +16,8 @@ One row per agent turn (`agentd.agent_prompts`), written as the turn starts and 
 | `rules_hash` | the system rules appended to the agent's own (`--append-system-prompt`), stored once per distinct text in `agentd.agent_prompt_rules` (SHA-256) |
 | `prompt` | what was sent (`-p`) |
 | `outcome`, `error` | `ok`, `error`, `usage-limit`, `timeout` or `cancelled`, and why it failed |
-| `reply` | a thread turn's final answer; a job's whole transcript is already on its page |
+| `reply` | a thread turn's final answer |
+| transcript | every event of the turn's run (text, tool calls and results, like a job's Transcript): a thread turn's in `agentd.agent_prompt_events`, written once as it ends (at most `Agentd:PromptLog:MaxEvents`, 5000); a job turn's are its job's `agent.*` events while it ran (added 2026-10-14) |
 | `started_at`, `finished_at` | |
 
 Prompts and replies longer than `Agentd:PromptLog:MaxChars` (200,000) are cut, saying so.
@@ -44,6 +45,8 @@ log.
   `outcome` (`running` = not finished yet) and `from` (a time). Each row has the settings, how it ended, the first 300
   characters (`preview`), and how long the prompt and reply were. Routine `agent_prompt_list`.
 - `GET /api/prompts/{id}`: one prompt, whole, with its system rules and the reply. Routine `agent_prompt_get`.
+- `GET /api/prompts/{id}/transcript`: the turn's events in the job Transcript's shape (`EventVm`: `seq`, `jobId`, `ts`,
+  `type`, `payload`), at most 5000. Routine `agent_prompt_transcript`; `agent_prompt_events_add` writes a thread turn's.
 - **Settings → Prompts** in the web UI (`/settings/prompts`) reads both. Its filters live in the address
   (`?source=job&sourceId=42`), so the job, idea and review pages link to their own prompts; `/settings/prompts/{id}`
   shows one. Sources with a page link to it (job, idea, chat, review session); a chat `!review`, an ask thread, a fix

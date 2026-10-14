@@ -1,5 +1,6 @@
 using Agentd.Application.Prompts;
 using Agentd.Bff.Http;
+using Agentd.Bff.ViewModels;
 using Agentd.Domain.Common;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -49,7 +50,28 @@ public static class PromptEndpoints
                 ? TypedResults.Ok(PromptDetailVm.From(p))
                 : DomainError.NotFound($"Prompt {id}").ToProblem())
             .WithName("GetPrompt").Produces<PromptDetailVm>().ProducesProblem(StatusCodes.Status404NotFound);
+
+        // The turn's transcript (text, tool calls and results), in the job Transcript's event shape.
+        prompts.MapGet("/{id:long}/transcript", async Task<IResult> (long id, [FromServices] IPromptLog log, CancellationToken ct) =>
+        {
+            if (await log.GetAsync(id, ct).ConfigureAwait(false) is not { } prompt)
+            {
+                return DomainError.NotFound($"Prompt {id}").ToProblem();
+            }
+
+            var events = await log.TranscriptAsync(id, MaxTranscript, ct).ConfigureAwait(false);
+            return TypedResults.Ok(events.Select((e, i) => new EventVm(i + 1, prompt.Source == PromptSources.Job ? prompt.SourceId : null, e.At, e.Type, Payload(e.PayloadJson))).ToList());
+        }).WithName("GetPromptTranscript").Produces<List<EventVm>>().ProducesProblem(StatusCodes.Status404NotFound);
         return api;
+    }
+
+    /// <summary>The most events a transcript returns.</summary>
+    public const int MaxTranscript = 5000;
+
+    private static System.Text.Json.JsonElement Payload(string json)
+    {
+        using var doc = System.Text.Json.JsonDocument.Parse(string.IsNullOrWhiteSpace(json) ? "{}" : json);
+        return doc.RootElement.Clone();
     }
 
     private static string? Blank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();

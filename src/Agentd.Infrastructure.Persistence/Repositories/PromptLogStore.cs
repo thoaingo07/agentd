@@ -66,6 +66,43 @@ public sealed class PromptLogStore(NpgsqlDataSource dataSource) : IPromptLog
         return (int)(await cmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false))!;
     }
 
+    public async Task AddEventsAsync(long id, IReadOnlyList<PromptEvent> events, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(events);
+        if (events.Count == 0)
+        {
+            return;
+        }
+
+        // The payloads are JSON already: written as raw values, not strings.
+        var json = new System.Text.StringBuilder("[");
+        for (var i = 0; i < events.Count; i++)
+        {
+            json.Append(i == 0 ? string.Empty : ",")
+                .Append("{\"type\":").Append(System.Text.Json.JsonSerializer.Serialize(events[i].Type))
+                .Append(",\"payload\":").Append(string.IsNullOrWhiteSpace(events[i].PayloadJson) ? "{}" : events[i].PayloadJson)
+                .Append(",\"at\":").Append(System.Text.Json.JsonSerializer.Serialize(events[i].At)).Append('}');
+        }
+
+        await using var cmd = dataSource.CreateCommand("SELECT agentd.agent_prompt_events_add($1, $2)");
+        cmd.Parameters.AddRange(new[] { P(id, NpgsqlDbType.Bigint), P(json.Append(']').ToString(), NpgsqlDbType.Jsonb) });
+        await cmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<IReadOnlyList<PromptEvent>> TranscriptAsync(long id, int limit, CancellationToken cancellationToken)
+    {
+        await using var cmd = dataSource.CreateCommand("SELECT type, payload::text, at FROM agentd.agent_prompt_transcript($1, $2)");
+        cmd.Parameters.AddRange(new[] { P(id, NpgsqlDbType.Bigint), P(limit, NpgsqlDbType.Integer) });
+        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        var rows = new List<PromptEvent>();
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            rows.Add(new PromptEvent(reader.GetString(0), reader.GetString(1), reader.GetFieldValue<DateTimeOffset>(2)));
+        }
+
+        return rows;
+    }
+
     private static string? S(NpgsqlDataReader r, int i) => r.IsDBNull(i) ? null : r.GetString(i);
 
     private static Guid? G(NpgsqlDataReader r, int i) => r.IsDBNull(i) ? null : r.GetGuid(i);

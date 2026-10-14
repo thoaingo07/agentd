@@ -115,3 +115,6 @@ public sealed class AgentPrompts : SqlMigration;
 
 [Migration(2026_11_03_0001, "The Inbox: every message agentd sends a person, one thread per source")]
 public sealed class Inbox : SqlMigration;
+
+[Migration(2026_11_04_0001, "The prompt log keeps a thread turn's transcript: every event of the agent's run")]
+public sealed class AgentPromptEvents : SqlMigration;
