@@ -162,6 +162,8 @@ Requested on 2026-10-03. Decisions:
   agentd's database either way.
 - **Discard** marks the idea Discarded, creates nothing, and asks the same close-out.
 - **A failure partway through** reports which items were created and where it stopped.
+  Added 2026-10-14: `close` in the thread, or **Close…** on the idea's page, ends an idea at any stage (a brainstorm
+  or proposal is discarded first); a closed idea whose thread was kept can still have it deleted from its page.
 
 **PR 3: the Ideas page (Web UI)**, in two parts: 3a the API and live events, 3b the pages
 - **`/ideas`:** the newest 200 ideas with status, repo, author, message and draft counts, and the

@@ -26,9 +26,14 @@ public static class IdeaEndpoints
                 : TypedResults.Ok((await handler.Handle(new GetIdeas(workItem), ct).ConfigureAwait(false)).Select(IdeaSummaryVm.From).ToList()))
             .WithName("GetIdeas").Produces<List<IdeaSummaryVm>>().ProducesValidationProblem();
 
-        api.MapGet("/ideas/{id:long}", async Task<IResult> (long id, [FromServices] IQueryHandler<GetIdea, IdeaDetail?> handler, [FromServices] IdeaService? service, CancellationToken ct) =>
+        api.MapGet("/ideas/{id:long}", async Task<IResult> (long id, [FromServices] IQueryHandler<GetIdea, IdeaDetail?> handler, [FromServices] IdeaService? service,
+            [FromServices] IIdeaStore? store, CancellationToken ct) =>
             await handler.Handle(new GetIdea(id), ct).ConfigureAwait(false) is { } idea
-                ? TypedResults.Ok(IdeaDetailVm.From(idea) with { Thinking = service?.IsThinking(id) ?? false })
+                ? TypedResults.Ok(IdeaDetailVm.From(idea) with
+                {
+                    Thinking = service?.IsThinking(id) ?? false,
+                    HasThread = store is not null && (await store.GetAsync(id, ct).ConfigureAwait(false))?.ThreadId is not null,
+                })
                 : TypedResults.Problem($"There is no idea {id}.", statusCode: StatusCodes.Status404NotFound, title: "Not found"))
             .WithName("GetIdea").Produces<IdeaDetailVm>().ProducesProblem(StatusCodes.Status404NotFound);
 
@@ -54,6 +59,15 @@ public static class IdeaEndpoints
                 : DomainError.Conflict($"Idea {id} is finished; start a new one.").ToProblem();
         }).WithName("SendIdeaMessage").Produces(StatusCodes.Status202Accepted).ProducesValidationProblem()
             .ProducesProblem(StatusCodes.Status404NotFound).ProducesProblem(StatusCodes.Status409Conflict);
+
+        // Close… at any stage: discards a brainstorm or proposal, then deletes or archives its chat thread.
+        api.MapPost("/ideas/{id:long}/close", async Task<IResult> (long id, IdeaCloseRequest? body, ClaimsPrincipal user, [FromServices] IdeaService service, [FromServices] IIdeaStore store,
+            CancellationToken ct) =>
+            await store.GetAsync(id, ct).ConfigureAwait(false) is not { } idea
+                ? DomainError.NotFound($"Idea {id}").ToProblem()
+                : (await service.CloseAsync(idea, body?.DeleteThread ?? false, Author(user), ct).ConfigureAwait(false)).ToHttpResult(_ => TypedResults.NoContent()))
+            .WithName("CloseIdea").Accepts<IdeaCloseRequest>("application/json").Produces(StatusCodes.Status204NoContent)
+            .ProducesProblem(StatusCodes.Status400BadRequest).ProducesProblem(StatusCodes.Status404NotFound).ProducesProblem(StatusCodes.Status409Conflict);
 
         api.MapPut("/ideas/{id:long}/settings", async Task<IResult> (long id, IdeaSettingsRequest? body, [FromServices] IdeaService service, [FromServices] IIdeaStore store, CancellationToken ct) =>
         {
@@ -91,4 +105,7 @@ public static class IdeaEndpoints
     /// <param name="Model">From the next reply; none keeps the current one.</param>
     /// <param name="Effort">From the next reply; none keeps the current one.</param>
     public sealed record IdeaSettingsRequest(string? Model, string? Effort);
+
+    /// <param name="DeleteThread">Delete the idea's chat thread; otherwise it's archived.</param>
+    public sealed record IdeaCloseRequest(bool DeleteThread);
 }

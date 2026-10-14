@@ -50,3 +50,8 @@ the work items now"). The draft looks like this:
 
 After creating or discarding, agentd asks whether to delete the thread. The idea and its whole conversation stay in
 agentd, and the **Ideas** page in the web UI shows them, linked from the work items they created.
+
+**Closing at any stage:** type `close` in the thread (a brainstorm or proposal is discarded, nothing is created, then
+it asks delete or keep), or use **Close…** on the idea's page: **Close, delete the thread** or **Close, archive the
+thread** (just **Close** for an idea started on the web, which has no thread). An idea closed with its thread kept
+shows **Delete thread…**, to delete it later.

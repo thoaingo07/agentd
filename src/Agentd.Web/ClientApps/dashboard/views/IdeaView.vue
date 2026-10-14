@@ -4,7 +4,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { ApiError } from '../../shared/api/http'
 import type { WorkItemDraft } from '../../shared/api/types'
-import { AgButton } from '../../shared/components/ui'
+import { AgButton, AgModal } from '../../shared/components/ui'
 import MarkdownText from '../../shared/components/MarkdownText.vue'
 import IdeaStatusBadge from '../components/IdeaStatusBadge.vue'
 import PromptsLink from '../components/prompts/PromptsLink.vue'
@@ -63,6 +63,15 @@ function choose(choice: keyof typeof ideaChoices): Promise<void> | undefined {
 
 const saveSettings = () => act(() => ideas.settings(settings.value.model || null, settings.value.effort || null))
 
+/** Close…: at any stage until it's closed; a closed idea whose thread was kept can still have it deleted. */
+const closing = ref(false)
+const closable = computed(() => !!idea.value && (idea.value.idea.status !== 'Closed' || idea.value.hasThread))
+const closed = computed(() => idea.value?.idea.status === 'Closed')
+const closeIdea = (deleteThread: boolean) => act(async () => {
+  await ideas.closeIdea(deleteThread)
+  closing.value = false
+})
+
 watch(() => props.id, (id) => void ideas.open(id).catch(() => {}), { immediate: true })
 onBeforeUnmount(() => ideas.close())
 </script>
@@ -89,9 +98,20 @@ onBeforeUnmount(() => ideas.close())
     </p>
     <template v-else>
       <header class="grid gap-1">
-        <h1 class="flex flex-wrap items-center gap-2 text-xl font-semibold">
-          💡 {{ idea.idea.title }} <IdeaStatusBadge :status="idea.idea.status" />
-        </h1>
+        <div class="flex flex-wrap items-start gap-2">
+          <h1 class="flex flex-1 flex-wrap items-center gap-2 text-xl font-semibold">
+            💡 {{ idea.idea.title }} <IdeaStatusBadge :status="idea.idea.status" />
+          </h1>
+          <AgButton
+            v-if="closable"
+            size="sm"
+            variant="ghost"
+            data-testid="close-idea"
+            @click="closing = true"
+          >
+            {{ closed ? 'Delete thread…' : 'Close…' }}
+          </AgButton>
+        </div>
         <p class="text-sm text-muted">
           #{{ idea.idea.id }} · {{ idea.idea.repo }} · by {{ idea.idea.author }} · started {{ clock(idea.idea.createdAt) }}
           · model {{ idea.idea.model ?? 'default' }}, effort {{ idea.idea.effort ?? 'default' }}
@@ -117,6 +137,44 @@ onBeforeUnmount(() => ideas.close())
           </RouterLink>
         </p>
       </header>
+      <AgModal
+        :open="closing"
+        :title="closed ? 'Delete this idea\'s thread?' : 'Close this idea?'"
+        @update:open="(v: boolean) => !v && (closing = false)"
+      >
+        <template v-if="closed">
+          The chat thread is deleted. The conversation stays here.
+        </template>
+        <template v-else>
+          {{ open ? 'Nothing is created in Azure DevOps. ' : '' }}The conversation stays here{{ idea.hasThread ? '; its chat thread is deleted or archived' : '' }}.
+        </template>
+        <template #actions>
+          <AgButton
+            variant="ghost"
+            @click="closing = false"
+          >
+            Back
+          </AgButton>
+          <AgButton
+            v-if="!closed"
+            :variant="idea.hasThread ? 'ghost' : 'primary'"
+            :loading="busy"
+            data-testid="close-keep"
+            @click="closeIdea(false)"
+          >
+            {{ idea.hasThread ? 'Close, archive the thread' : 'Close' }}
+          </AgButton>
+          <AgButton
+            v-if="idea.hasThread"
+            variant="error"
+            :loading="busy"
+            data-testid="close-delete"
+            @click="closeIdea(true)"
+          >
+            {{ closed ? 'Delete thread' : 'Close, delete the thread' }}
+          </AgButton>
+        </template>
+      </AgModal>
 
       <div
         v-if="tree.length"

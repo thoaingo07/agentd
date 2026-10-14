@@ -25,6 +25,7 @@ const detail: IdeaDetail = {
     { direction: 'out', author: 'agentd', text: 'Which **pages**?', at: '2026-10-05T10:01:00Z' },
   ],
   thinking: false,
+  hasThread: true,
 }
 const ev = (seq: number, type: string, ideaId: number): AgentEvent => ({ seq, jobId: null, ts: '2026-10-05T10:00:00Z', type, payload: { ideaId } })
 const router = () => createRouter({
@@ -111,7 +112,7 @@ describe('Ideas', () => {
     expect(w.get('[role=status]').text()).toContain('thinking…')
 
     await w.get('textarea[aria-label="Message the agent"]').setValue('only the portal pages')
-    await w.get('form').trigger('submit')
+    await w.findAll('form').find((f) => f.find('textarea').exists())!.trigger('submit')
     await flushPromises()
     const choices = w.get('[role=group][aria-label="Choose"]').findAll('button')
     expect(choices.map((b) => b.text())).toEqual(['✅ Create', '🚀 Create and start', '✏️ Change', '🗑 Discard'])
@@ -135,6 +136,34 @@ describe('Ideas', () => {
 
     expect(w.find('textarea[aria-label="Message the agent"]').exists()).toBe(false)
     expect(w.find('[aria-label="Choose"]').exists()).toBe(false)
+  })
+
+  it('Close… ends an idea at any stage: archive or delete its thread; a kept thread can be deleted later', async () => {
+    routes['/api/ideas/4'] = { ...detail, idea: { ...detail.idea, status: 'Brainstorming' } }
+    const w = mount(IdeaView, { props: { id: 4 }, global: { plugins: [router()] }, attachTo: document.body })
+    await flushPromises()
+
+    await w.get('[data-testid=close-idea]').trigger('click')
+    expect(w.get('dialog').text()).toContain('Nothing is created in Azure DevOps.')
+    await w.get('[data-testid=close-keep]').trigger('click')
+    await flushPromises()
+    expect(posts.at(-1)).toEqual({ method: 'POST', path: '/api/ideas/4/close', body: { deleteThread: false } })
+
+    routes['/api/ideas/4'] = { ...detail, idea: { ...detail.idea, status: 'Closed' } }
+    await useIdeasStore().open(4)
+    await flushPromises()
+    expect(w.get('[data-testid=close-idea]').text()).toBe('Delete thread…')
+    await w.get('[data-testid=close-idea]').trigger('click')
+    expect(w.find('[data-testid=close-keep]').exists()).toBe(false)
+    await w.get('[data-testid=close-delete]').trigger('click')
+    await flushPromises()
+    expect(posts.at(-1)).toEqual({ method: 'POST', path: '/api/ideas/4/close', body: { deleteThread: true } })
+
+    routes['/api/ideas/4'] = { ...detail, idea: { ...detail.idea, status: 'Closed' }, hasThread: false }
+    await useIdeasStore().open(4)
+    await flushPromises()
+    expect(w.find('[data-testid=close-idea]').exists(), 'closed with no thread left: nothing to do').toBe(false)
+    w.unmount()
   })
 
   it('an unknown idea says so', async () => {

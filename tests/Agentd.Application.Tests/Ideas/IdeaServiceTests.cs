@@ -131,6 +131,59 @@ public sealed class IdeaServiceTests
     }
 
     [TestMethod]
+    public async Task Close_ends_a_proposal_from_the_page_and_archives_its_thread_and_a_kept_thread_can_be_deleted_later()
+    {
+        var h = new Harness();
+        var idea = await h.ProposedAsync();
+
+        var closed = await h.Service.CloseAsync(idea, deleteThread: false, "tngo", default);
+
+        Assert.IsTrue(closed.Value);
+        Assert.AreEqual(IdeaStatus.Closed, h.Store.Rows[1].Status);
+        Assert.IsEmpty(h.WorkItems.Created, "nothing created");
+        Assert.IsTrue(h.Chat.SentText.Any(t => t.Contains("Closed by tngo; nothing was created.", StringComparison.Ordinal)));
+        CollectionAssert.Contains(h.Chat.ArchivedThreads, idea.ThreadId);
+        Assert.IsEmpty(h.Chat.DeletedThreads);
+
+        var deleted = await h.Service.CloseAsync(h.Store.Rows[1], deleteThread: true, "tngo", default);
+        var again = await h.Service.CloseAsync(h.Store.Rows[1], deleteThread: false, "tngo", default);
+
+        Assert.IsTrue(deleted.Value);
+        CollectionAssert.Contains(h.Chat.DeletedThreads, idea.ThreadId);
+        Assert.AreEqual("conflict", again.Error?.Code, "already closed: only deleting its thread is left");
+    }
+
+    [TestMethod]
+    public async Task Close_while_brainstorming_can_delete_the_thread_at_once()
+    {
+        var h = new Harness();
+        var idea = await h.ProposedAsync();
+        h.Store.Rows[1] = h.Store.Rows[1] with { Status = IdeaStatus.Brainstorming };
+
+        var closed = await h.Service.CloseAsync(h.Store.Rows[1], deleteThread: true, "tngo", default);
+
+        Assert.IsTrue(closed.Value);
+        Assert.AreEqual(IdeaStatus.Closed, h.Store.Rows[1].Status);
+        CollectionAssert.Contains(h.Chat.DeletedThreads, idea.ThreadId);
+        Assert.IsEmpty(h.Chat.ArchivedThreads);
+    }
+
+    [TestMethod]
+    public async Task Typing_close_in_the_thread_ends_it_at_any_stage_with_the_delete_or_keep_question()
+    {
+        var h = new Harness();
+        var idea = await h.ProposedAsync();
+
+        Assert.IsTrue(await h.Service.HandleMessageAsync(idea, "tngo", "close", default));
+
+        Assert.AreEqual(IdeaStatus.Discarded, h.Store.Rows[1].Status);
+        StringAssert.Contains(h.Chat.SentText.Last(), "Delete this thread?");
+        Assert.IsTrue(await h.Service.HandleMessageAsync(h.Store.Rows[1], "tngo", "2", default));
+        Assert.AreEqual(IdeaStatus.Closed, h.Store.Rows[1].Status);
+        CollectionAssert.Contains(h.Chat.ArchivedThreads, idea.ThreadId);
+    }
+
+    [TestMethod]
     public async Task While_proposed_other_text_goes_to_the_agent_to_revise()
     {
         var h = new Harness();
