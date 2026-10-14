@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import UNavigationMenu from '@nuxt/ui/components/NavigationMenu.vue'
 import { computed, onBeforeUnmount } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { AgToastHost } from '../../shared/components/ui'
 import { bytes } from '../../shared/utils/format'
 import { useInboxStore } from '../stores/inbox'
+import { watchInbox } from '../stores/inboxNotifications'
 import { useJobsStore } from '../stores/jobs'
 import { useResourcesStore } from '../stores/resources'
 import { useUiStore } from '../stores/ui'
@@ -17,6 +18,7 @@ void inbox.loadCounts().catch(() => {})
 const ui = useUiStore()
 const resources = useResourcesStore()
 onBeforeUnmount(resources.watch())
+onBeforeUnmount(watchInbox(useRouter()))
 const route = useRoute()
 const links = [
   { to: '/', label: 'Dashboard', icon: 'i-lucide-layout-dashboard' },
