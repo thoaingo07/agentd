@@ -1,7 +1,8 @@
 <script setup lang="ts">
 // The review page's left nav (like Plannotator's file tree): the changed files as a tree with their change letter and
 // +/- counts, findings and comments per file, a "viewed" checkbox, and how many you've viewed. Arrow keys move through
-// it (Right/Left open and close folders); a filter narrows it by path.
+// it (Right/Left open and close folders); a filter narrows it by path. `bare`: just the tree (a guided chapter's files),
+// with no header, filter or viewed checkboxes.
 import { computed, nextTick, ref } from 'vue'
 import type { DiffFile, FileStatus } from '../utils/diff'
 import { buildFileTree, folderPaths, visibleRows, type TreeNode } from '../utils/fileTree'
@@ -19,6 +20,8 @@ const props = defineProps<{
   active: string | null
   viewed: ReadonlySet<string>
   marks: (path: string) => FileMarks
+  bare?: boolean
+  label?: string
 }>()
 const emit = defineEmits<{ select: [path: string]; toggleViewed: [path: string] }>()
 
@@ -81,11 +84,14 @@ const indent = (depth: number) => ({ paddingLeft: `${0.25 + depth * 0.5}rem` })
 
 <template>
   <nav
-    aria-label="Files"
+    :aria-label="label ?? 'Files'"
     class="grid min-h-0 content-start gap-2 text-xs"
     data-testid="file-tree"
   >
-    <div class="flex items-center gap-2">
+    <div
+      v-if="!bare"
+      class="flex items-center gap-2"
+    >
       <span class="font-semibold">Files</span>
       <span
         class="text-muted tabular-nums"
@@ -101,12 +107,14 @@ const indent = (depth: number) => ({ paddingLeft: `${0.25 + depth * 0.5}rem` })
       </button>
     </div>
     <progress
+      v-if="!bare"
       class="progress progress-primary h-1"
       :value="viewedCount"
       :max="Math.max(files.length, 1)"
       aria-label="Files viewed"
     />
     <input
+      v-if="!bare"
       v-model="filter"
       type="search"
       class="input input-xs w-full"
@@ -153,6 +161,7 @@ const indent = (depth: number) => ({ paddingLeft: `${0.25 + depth * 0.5}rem` })
         </template>
         <template v-else>
           <input
+            v-if="!bare"
             type="checkbox"
             class="checkbox checkbox-xs shrink-0 rounded-sm"
             :class="viewed.has(row.path) || row.path === active ? '' : 'opacity-0 group-hover:opacity-100 focus:opacity-100'"
