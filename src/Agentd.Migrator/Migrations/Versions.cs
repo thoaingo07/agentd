@@ -125,5 +125,8 @@ public sealed class ReviewSessionPosts : SqlMigration;
 [Migration(2026_11_06_0001, "Artifacts without S3 are HTML files in a local folder")]
 public sealed class ArtifactLocal : SqlMigration;
 
+[Migration(2026_11_07_0001, "The PR Monitor is turned off for now: its routines are dropped, its tables kept")]
+public sealed class DropPrWatchRoutines : SqlMigration;
+
 [Migration(2026_11_08_0001, "Incidents the monitor finds in Application Insights, and each app's read position")]
 public sealed class Incidents : SqlMigration;

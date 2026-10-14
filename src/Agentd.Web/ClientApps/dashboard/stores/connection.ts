@@ -7,7 +7,6 @@ import { useIdeasStore } from './ideas'
 import { useChatsStore } from './chats'
 import { useInboxStore } from './inbox'
 import { useJobsStore } from './jobs'
-import { useWatchesStore } from './watches'
 import { useWorkItemsStore } from './workItems'
 
 export type ConnectionStatus = 'connecting' | 'live' | 'reconnecting' | 'offline'
@@ -34,7 +33,6 @@ export const useConnectionStore = defineStore('connection', () => {
     if (stream === 'all') {
       useJobsStore().apply(evt)
       useIdeasStore().apply(evt)
-      useWatchesStore().apply(evt)
       useChatsStore().apply(evt)
       useInboxStore().apply(evt)
     } else {

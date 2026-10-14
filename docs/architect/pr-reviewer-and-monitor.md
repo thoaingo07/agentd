@@ -4,7 +4,7 @@ agentd's job doesn't end when a PR opens. Three capabilities cover the rest of t
 
 - **PR Reviewer** runs the repo's **predefined reviewers** (security, architecture, tests, …, defined
   in the ai-sdlc kit) against any open PR, and posts findings as PR comment threads.
-- **PR Monitor** watches open PRs for review comments, failing builds, merge conflicts and a moved
+- **PR Monitor** (turned off for now, §2) watches open PRs for review comments, failing builds, merge conflicts and a moved
   target branch. It **keeps fixing** them by pushing follow-up commits to the PR branch and replying
   on the threads.
 - **Hotfix** (dropped, §4): a hotfix is an ordinary Task or Bug run with `!run`. *Formerly:* an expedited flow that branches from a release branch, fixes, opens a PR, and
@@ -79,6 +79,8 @@ That means one set of reviewer definitions for both agent PRs and human PRs.
 ---
 
 ## 2. PR Monitor
+
+> **Turned off for now (2026-10-14).** The PR Monitor's code, `!watch`, the Reviews page's Watch and its routines are removed; `!watch` / `!unwatch` answer that it's off. The `agentd.pr_watches` and `agentd.pr_watch_messages` tables and their rows are kept, and old 👀 threads stay readable in the Inbox. The design below is kept for when it returns.
 
 ### 2.0 First version (decided 2026-10-10)
 

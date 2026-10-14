@@ -6,7 +6,7 @@ namespace Agentd.Host.Workers;
 
 /// <summary>
 /// Every <see cref="JobOptions.ReviewPollInterval"/> while the scheduler is enabled: <see cref="ReviewPullRequests"/> for agentd's own PRs
-/// (with <see cref="JobOptions.ReviewLoop"/>), the re-checks of posted <c>!review</c>s, review sessions a restart interrupted, and watched PRs (the PR Monitor).
+/// (with <see cref="JobOptions.ReviewLoop"/>), the re-checks of posted <c>!review</c>s, and review sessions a restart interrupted.
 /// </summary>
 internal sealed partial class ReviewMonitorWorker(
     IServiceScopeFactory scopes,
@@ -42,7 +42,6 @@ internal sealed partial class ReviewMonitorWorker(
                         await chatReviews.ResumeAsync(stoppingToken).ConfigureAwait(false);   // chat reviews a restart interrupted
                         await scope.ServiceProvider.GetRequiredService<Application.Reviews.ReviewSessionReviewer>().ResumeAsync(stoppingToken).ConfigureAwait(false);
                         await scope.ServiceProvider.GetRequiredService<Application.Reviews.ReviewSessionRechecker>().MonitorAsync(stoppingToken).ConfigureAwait(false);   // page Sends
-                        await scope.ServiceProvider.GetRequiredService<Application.Monitor.PrMonitor>().PassAsync(stoppingToken).ConfigureAwait(false);
                     }
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
