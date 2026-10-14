@@ -14,7 +14,8 @@ namespace Agentd.Application.Monitor;
 /// watched from the Web UI (<see cref="Web"/>) has no thread: what the monitor says is kept with the watch and shown there.
 /// </summary>
 public sealed partial class PrWatchService(IPrWatchStore watches, IRepositoryRegistry repositories, IPullRequestService pullRequests, IMessagingProviderRegistry providers,
-    IPrFixRounds? rounds = null)
+    IPrFixRounds? rounds = null,
+    Inbox.IInbox? inbox = null)
 {
     public const string Usage = "Use `!watch <PR url or id> [--repo r]`.";
 
@@ -122,7 +123,7 @@ public sealed partial class PrWatchService(IPrWatchStore watches, IRepositoryReg
         return reply;
     }
 
-    private Task PostAsync(PrWatch watch, string text, CancellationToken ct) => PrWatchNotices.PostAsync(watches, providers, watch, text, ct);
+    private Task PostAsync(PrWatch watch, string text, CancellationToken ct) => PrWatchNotices.PostAsync(watches, providers, watch, text, ct, inbox);
 
     private async Task<string> StopAsync(PrWatch watch, CancellationToken ct)
     {

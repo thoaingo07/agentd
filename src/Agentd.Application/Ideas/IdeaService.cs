@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Globalization;
 using Agentd.Application.Artifacts;
+using Agentd.Application.Inbox;
 using Agentd.Application.Messaging;
 using Agentd.Application.Ports;
 using Agentd.Domain.Common;
@@ -25,7 +26,8 @@ public sealed partial class IdeaService(
     IMessagingProviderRegistry providers,
     ILogger<IdeaService> logger,
     IWorkItemSource? workItems = null,
-    IMcpTokenIssuer? tokens = null) : IDisposable
+    IMcpTokenIssuer? tokens = null,
+    Inbox.IInbox? inbox = null) : IDisposable
 {
     public const int MaxConcurrentIdeas = 2;
     public const int TitleLength = 60;
@@ -573,6 +575,11 @@ public sealed partial class IdeaService(
             if (record)
             {
                 await ideas.AddMessageAsync(idea.Id, "out", "agentd", message.Markdown, ct).ConfigureAwait(false);
+            }
+
+            if (record || message.Kind == MessageKind.Question)
+            {
+                await inbox.TryAddAsync(new Inbox.InboxEntry(Inbox.InboxSources.Idea, idea.Id, $"💡 {idea.Title}", idea.Author, message), logger, ct).ConfigureAwait(false);
             }
 
             if (idea.ThreadId is not { } threadId)

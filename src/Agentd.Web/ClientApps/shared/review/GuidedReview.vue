@@ -4,13 +4,15 @@ import UButton from '@nuxt/ui/components/Button.vue'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { GuideChapter, GuideNote, ReviewFinding, ReviewGuide } from '../api/types'
 import type { DiffFile } from '../utils/diff'
-import { fileName, folder } from '../utils/paths'
+import { fileName } from '../utils/paths'
+import ReviewFileTree, { type FileMarks } from './ReviewFileTree.vue'
 
 // The guided review (docs/architect/review-sessions.md §2a): the reviewer's guide to the change, one chapter at a time.
-// Step 0 is the overview; each chapter shows its story beside its own files' real diffs (rendered by the page through the
-// `file` slot, with the chapter's notes). Reviewed chapters are remembered in this browser. Explain this chapter asks the
-// reviewer's agent (the page does the asking: the answer lands in its Questions).
-const props = defineProps<{ sessionId: number; guide: ReviewGuide; files: DiffFile[]; findings: ReviewFinding[]; readonly?: boolean }>()
+// Step 0 is the overview; a chapter is two panes, like Plannotator's guided review: its story and file cards on the left,
+// the picked file's real diff on the right (rendered by the page through the `file` slot, with the chapter's notes).
+// Reviewed chapters are remembered in this browser. Explain this chapter asks the reviewer's agent (the page does the
+// asking: the answer lands in its Questions). `by`: who wrote the guide (the reviewer and its model).
+const props = defineProps<{ sessionId: number; guide: ReviewGuide; files: DiffFile[]; findings: ReviewFinding[]; readonly?: boolean; by?: string }>()
 const emit = defineEmits<{ explainChapter: [chapter: GuideChapter] }>()
 defineSlots<{ file(props: { file: DiffFile; notes: GuideNote[] }): unknown }>()
 
@@ -51,6 +53,34 @@ const calloutLabels: Record<string, string> = {
 }
 const firstUnread = computed(() => chapters.value.findIndex((_, i) => !reviewed.value.has(i + 1)) + 1)
 
+/** The header above a chapter: the overview's first sentence as its title, the rest under it. */
+const headline = computed(() => {
+  const text = props.guide.overview.trim()
+  const end = text.search(/[.!?](\s|$)/)
+  return end < 0 ? { title: text, lede: '' } : { title: text.slice(0, end + 1), lede: text.slice(end + 1).trim() }
+})
+
+/** The file shown on the right: the first of the chapter until another card is picked. */
+const picked = ref<string | null>(null)
+const current = computed(() => chapter.value?.files.find((f) => f.path === picked.value) ?? chapter.value?.files[0] ?? null)
+const storyOpen = ref(true)
+watch(step, () => {
+  picked.value = null
+  storyOpen.value = true
+})
+const counts = (path: string) => byPath.value.get(path)
+/** The chapter's files for its tree: their diffs, or an empty stand-in for one too big to show. */
+const chapterFiles = computed<DiffFile[]>(() => (chapter.value?.files ?? []).map((f) => byPath.value.get(f.path)
+  ?? { oldPath: f.path, newPath: f.path, status: 'modified', binary: false, hunks: [], additions: 0, deletions: 0 }))
+const noneViewed: ReadonlySet<string> = new Set()
+const marks = (path: string): FileMarks => {
+  const found = props.findings.filter((f) => f.file === path)
+  return { severity: found.some((f) => f.severity === 'breaks') ? 'breaks' : found.length ? 'performance' : null, findings: found.length, comments: 0 }
+}
+const pad = (n: number) => String(n).padStart(2, '0')
+/** The whole folder of a path, with its slash ("src/export/"), for the path above the diff. */
+const dirOf = (path: string) => path.slice(0, path.lastIndexOf('/') + 1)
+
 function go(to: number): void {
   step.value = Math.max(0, Math.min(chapters.value.length, to))
   window.scrollTo?.({ top: 0 })
@@ -61,6 +91,14 @@ function done(): void {
   reviewed.value = new Set([...reviewed.value, step.value])
   remember()
   go(step.value < chapters.value.length ? step.value + 1 : 0)
+}
+
+/** The Reviewed checkbox: marks or unmarks this chapter without moving on. */
+function toggleReviewed(): void {
+  const next = new Set(reviewed.value)
+  if (!next.delete(step.value)) next.add(step.value)
+  reviewed.value = next
+  remember()
 }
 
 /** ] next chapter, [ previous (not while typing). */
@@ -76,132 +114,41 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 
 <template>
   <div
-    class="grid gap-4 lg:grid-cols-[18rem_minmax(0,1fr)]"
+    class="grid min-w-0 gap-4"
     data-testid="guided-review"
   >
     <nav
       aria-label="Guide"
-      class="min-w-0"
+      class="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm"
     >
-      <div class="sticky top-4 grid gap-3 text-sm">
-        <ol
-          class="flex flex-wrap gap-1"
-          aria-label="Chapters"
+      <ol
+        class="flex flex-wrap gap-1"
+        aria-label="Chapters"
+      >
+        <li
+          v-for="i in chapters.length + 1"
+          :key="i"
         >
-          <li
-            v-for="i in chapters.length + 1"
-            :key="i"
+          <button
+            type="button"
+            class="relative size-7 rounded-md border text-xs tabular-nums"
+            :class="step === i - 1 ? 'border-primary bg-primary font-semibold text-primary-content' : reviewed.has(i - 1) ? 'border-success/50 bg-success/10' : 'border-base-300'"
+            :aria-current="step === i - 1 ? 'step' : undefined"
+            :aria-label="i === 1 ? 'Overview' : `Chapter ${i - 1}: ${chapters[i - 2]!.title}${reviewed.has(i - 1) ? ' (reviewed)' : ''}`"
+            @click="go(i - 1)"
           >
-            <button
-              type="button"
-              class="relative size-7 rounded-md border text-xs tabular-nums"
-              :class="step === i - 1 ? 'border-primary bg-primary font-semibold text-primary-content' : reviewed.has(i - 1) ? 'border-success/50 bg-success/10' : 'border-base-300'"
-              :aria-current="step === i - 1 ? 'step' : undefined"
-              :aria-label="i === 1 ? 'Overview' : `Chapter ${i - 1}: ${chapters[i - 2]!.title}${reviewed.has(i - 1) ? ' (reviewed)' : ''}`"
-              @click="go(i - 1)"
-            >
-              {{ i - 1 }}
-              <span
-                v-if="i > 1 && critical(chapters[i - 2]!)"
-                class="absolute -top-1 -right-1 size-2 rounded-full bg-warning"
-                aria-hidden="true"
-              />
-            </button>
-          </li>
-        </ol>
-
-        <template v-if="chapter">
-          <p class="flex items-center gap-2 text-xs text-muted tabular-nums">
-            {{ String(step).padStart(2, '0') }} / {{ String(chapters.length).padStart(2, '0') }}
-            <UBadge
-              :color="chapter.attention === 'skim' ? 'neutral' : 'primary'"
-              :variant="chapter.attention === 'skim' ? 'subtle' : 'solid'"
-              size="sm"
-            >
-              {{ chapter.attention === 'skim' ? 'Skim' : 'Core' }}
-            </UBadge>
-            <span v-if="critical(chapter)">⚠️ {{ critical(chapter) === 1 ? '1 spot needs' : `${critical(chapter)} spots need` }} care</span>
-          </p>
-          <h2 class="text-base font-semibold">
-            {{ chapter.title }}
-          </h2>
-          <p
-            v-if="chapter.why"
-            class="whitespace-pre-wrap"
-          >
-            {{ chapter.why }}
-          </p>
-          <div
-            v-if="chapter.focus?.length"
-            class="grid gap-1"
-          >
-            <p class="text-xs font-semibold text-muted">
-              While reading, check
-            </p>
-            <ul class="grid list-disc gap-0.5 pl-5">
-              <li
-                v-for="(f, fi) in chapter.focus"
-                :key="fi"
-              >
-                {{ f }}
-              </li>
-            </ul>
-          </div>
-          <div v-if="!readonly">
-            <UButton
-              size="sm"
-              variant="soft"
-              color="neutral"
-              icon="i-lucide-message-circle-question"
-              data-testid="explain-chapter"
-              @click="emit('explainChapter', chapter)"
-            >
-              Explain this chapter
-            </UButton>
-          </div>
-          <ul class="grid gap-1 text-xs">
-            <li
-              v-for="f in chapter.files"
-              :key="f.path"
-              class="min-w-0"
-            >
-              <a
-                :href="`#file-${f.path}`"
-                :title="f.path"
-                class="grid min-w-0 font-mono hover:underline"
-              >
-                <span class="truncate">{{ fileName(f.path) }}</span>
-                <span class="truncate text-muted">{{ folder(f.path) }}</span>
-              </a>
-            </li>
-          </ul>
-          <div class="flex flex-wrap gap-2">
-            <UButton
-              size="sm"
-              variant="outline"
-              color="neutral"
-              @click="go(step - 1)"
-            >
-              ← {{ step === 1 ? 'Overview' : 'Previous' }}
-            </UButton>
-            <UButton
-              v-if="step < chapters.length"
-              size="sm"
-              variant="outline"
-              color="neutral"
-              @click="go(step + 1)"
-            >
-              Next →
-            </UButton>
-          </div>
-        </template>
-        <p
-          v-else
-          class="text-xs text-muted"
-        >
-          {{ reviewed.size }} of {{ chapters.length }} chapters reviewed · <kbd>]</kbd> next · <kbd>[</kbd> previous
-        </p>
-      </div>
+            {{ i - 1 }}
+            <span
+              v-if="i > 1 && critical(chapters[i - 2]!)"
+              class="absolute -top-1 -right-1 size-2 rounded-full bg-warning"
+              aria-hidden="true"
+            />
+          </button>
+        </li>
+      </ol>
+      <p class="text-xs text-muted">
+        {{ reviewed.size }} of {{ chapters.length }} chapters reviewed · <kbd>]</kbd> next · <kbd>[</kbd> previous
+      </p>
     </nav>
 
     <div
@@ -277,7 +224,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             @click="go(i + 1)"
           >
             <span class="flex flex-wrap items-center gap-2">
-              <span class="text-xs text-muted tabular-nums">{{ reviewed.has(i + 1) ? '✓' : String(i + 1).padStart(2, '0') }}</span>
+              <span class="text-xs text-muted tabular-nums">{{ reviewed.has(i + 1) ? '✓' : pad(i + 1) }}</span>
               <span class="font-medium">{{ c.title }}</span>
               <UBadge
                 :color="c.attention === 'skim' ? 'neutral' : 'primary'"
@@ -307,42 +254,187 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       class="grid min-w-0 content-start gap-4"
       data-testid="guide-chapter"
     >
-      <template
-        v-for="f in chapter.files"
-        :key="f.path"
-      >
+      <header class="grid max-w-4xl gap-1">
+        <h2 class="text-xl font-semibold">
+          {{ headline.title }}
+        </h2>
         <p
-          v-if="f.summary"
-          class="text-sm"
+          v-if="headline.lede"
+          class="text-muted"
         >
-          <span class="font-mono text-xs text-muted">{{ fileName(f.path) }}</span> · {{ f.summary }}
+          {{ headline.lede }}
         </p>
-        <slot
-          v-if="byPath.get(f.path)"
-          name="file"
-          :file="byPath.get(f.path)!"
-          :notes="notesFor(f.path)"
-        />
-        <p
-          v-else
-          class="text-sm text-muted"
-        >
-          {{ f.path }}: no diff to show (too big, or binary).
+        <p class="font-mono text-xs text-muted">
+          {{ chapters.length }} chapter{{ chapters.length === 1 ? '' : 's' }} · from {{ by ?? 'agentd' }}
         </p>
-      </template>
-      <footer class="flex flex-wrap items-center gap-2 border-t border-base-300 pt-3">
-        <UButton @click="done()">
-          {{ step < chapters.length ? 'Mark reviewed and continue' : 'Mark reviewed · back to the overview' }}
-        </UButton>
-        <UButton
-          v-if="step < chapters.length"
-          variant="ghost"
-          color="neutral"
-          @click="go(step + 1)"
+      </header>
+
+      <div class="grid min-w-0 overflow-hidden rounded-box border border-base-300 bg-base-200/30 lg:grid-cols-[minmax(15rem,1fr)_minmax(0,2fr)]">
+        <section
+          class="grid content-start gap-3 border-b border-base-300 p-4 lg:border-r lg:border-b-0"
+          aria-labelledby="guide-chapter-title"
         >
-          Next: {{ chapters[step]!.title }} →
-        </UButton>
-      </footer>
+          <div class="flex items-start gap-2">
+            <h3
+              id="guide-chapter-title"
+              class="flex-1 text-lg font-semibold leading-snug"
+            >
+              {{ chapter.title }}
+            </h3>
+            <button
+              type="button"
+              class="btn btn-ghost btn-xs btn-square"
+              :aria-expanded="storyOpen"
+              :aria-label="storyOpen ? 'Hide the chapter\'s story and files' : 'Show the chapter\'s story and files'"
+              @click="storyOpen = !storyOpen"
+            >
+              <svg
+                class="size-4 transition-transform"
+                :class="storyOpen ? '' : 'rotate-180'"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                aria-hidden="true"
+              ><path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M6 15l6-6 6 6"
+              /></svg>
+            </button>
+          </div>
+          <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
+            <span class="font-mono tabular-nums">{{ pad(step) }} / {{ pad(chapters.length) }}</span>
+            <label class="flex cursor-pointer items-center gap-1.5">
+              <input
+                type="checkbox"
+                class="checkbox checkbox-xs"
+                :checked="reviewed.has(step)"
+                data-testid="chapter-reviewed"
+                @change="toggleReviewed"
+              >
+              Reviewed
+            </label>
+            <UBadge
+              :color="chapter.attention === 'skim' ? 'neutral' : 'primary'"
+              :variant="chapter.attention === 'skim' ? 'subtle' : 'solid'"
+              size="sm"
+            >
+              {{ chapter.attention === 'skim' ? 'Skim' : 'Core' }}
+            </UBadge>
+            <span v-if="critical(chapter)">⚠️ {{ critical(chapter) === 1 ? '1 spot needs' : `${critical(chapter)} spots need` }} care</span>
+          </div>
+
+          <template v-if="storyOpen">
+            <p
+              v-if="chapter.why"
+              class="whitespace-pre-wrap leading-relaxed"
+            >
+              {{ chapter.why }}
+            </p>
+            <div
+              v-if="chapter.focus?.length"
+              class="grid gap-1 text-sm"
+            >
+              <p class="text-xs font-semibold text-muted">
+                While reading, check
+              </p>
+              <ul class="grid list-disc gap-0.5 pl-5">
+                <li
+                  v-for="(f, fi) in chapter.focus"
+                  :key="fi"
+                >
+                  {{ f }}
+                </li>
+              </ul>
+            </div>
+            <div v-if="!readonly">
+              <UButton
+                size="sm"
+                variant="soft"
+                color="neutral"
+                icon="i-lucide-message-circle-question"
+                data-testid="explain-chapter"
+                @click="emit('explainChapter', chapter)"
+              >
+                Explain this chapter
+              </UButton>
+            </div>
+            <div class="rounded-box border border-base-300 bg-base-100 p-1">
+              <ReviewFileTree
+                bare
+                label="Files in this chapter"
+                :files="chapterFiles"
+                :active="current?.path ?? null"
+                :viewed="noneViewed"
+                :marks="marks"
+                @select="(path: string) => (picked = path)"
+              />
+            </div>
+          </template>
+
+          <footer class="flex flex-wrap items-center gap-2 border-t border-base-300 pt-3">
+            <UButton
+              size="sm"
+              @click="done()"
+            >
+              {{ step < chapters.length ? 'Mark reviewed and continue' : 'Mark reviewed · back to the overview' }}
+            </UButton>
+            <UButton
+              size="sm"
+              variant="ghost"
+              color="neutral"
+              @click="go(step - 1)"
+            >
+              ← {{ step === 1 ? 'Overview' : 'Previous' }}
+            </UButton>
+            <UButton
+              v-if="step < chapters.length"
+              size="sm"
+              variant="ghost"
+              color="neutral"
+              :title="`Next: ${chapters[step]!.title}`"
+              @click="go(step + 1)"
+            >
+              Next →
+            </UButton>
+          </footer>
+        </section>
+
+        <section
+          v-if="current"
+          class="grid min-w-0 content-start gap-3 p-4"
+          aria-label="The file"
+          data-testid="guide-file"
+        >
+          <p
+            v-if="current.summary"
+            class="leading-relaxed"
+          >
+            {{ current.summary }}
+          </p>
+          <p class="flex flex-wrap items-baseline gap-x-2 border-b border-base-300 pb-2 font-mono text-sm">
+            <span class="min-w-0 break-all"><span class="text-muted">{{ dirOf(current.path) }}</span><span class="font-semibold">{{ fileName(current.path) }}</span></span>
+            <template v-if="counts(current.path)">
+              <span class="text-success">+{{ counts(current.path)!.additions }}</span>
+              <span class="text-error">-{{ counts(current.path)!.deletions }}</span>
+            </template>
+          </p>
+          <slot
+            v-if="byPath.get(current.path)"
+            name="file"
+            :file="byPath.get(current.path)!"
+            :notes="notesFor(current.path)"
+          />
+          <p
+            v-else
+            class="text-sm text-muted"
+          >
+            {{ current.path }}: no diff to show (too big, or binary).
+          </p>
+        </section>
+      </div>
     </div>
   </div>
 </template>
+

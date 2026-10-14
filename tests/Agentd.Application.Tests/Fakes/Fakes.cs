@@ -750,3 +750,25 @@ internal sealed class TestContext
         return (await StartNext().Handle(new StartNextJob("w1"), CancellationToken.None)).Value!;
     }
 }
+
+/// <summary>The Inbox, in memory: what agentd wrote for people.</summary>
+internal sealed class FakeInbox : Agentd.Application.Inbox.IInbox
+{
+    public System.Collections.Concurrent.ConcurrentQueue<Agentd.Application.Inbox.InboxEntry> Entries { get; } = new();
+
+    public Task<long> AddAsync(Agentd.Application.Inbox.InboxEntry entry, CancellationToken cancellationToken)
+    {
+        Entries.Enqueue(entry);
+        return Task.FromResult((long)Entries.Count);
+    }
+
+    public Task<IReadOnlyList<Agentd.Application.Inbox.InboxThread>> ThreadsAsync(string user, string? recipient, int limit, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<IReadOnlyList<Agentd.Application.Inbox.InboxItem>> ThreadAsync(string source, long sourceId, long? before, int limit, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task MarkReadAsync(string user, string source, long sourceId, long until, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<Agentd.Application.Inbox.InboxCounts> CountsAsync(string user, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<int> DeleteBeforeAsync(DateTimeOffset before, CancellationToken cancellationToken) => throw new NotSupportedException();
+}

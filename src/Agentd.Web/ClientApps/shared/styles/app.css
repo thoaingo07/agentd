@@ -142,3 +142,34 @@
   color: var(--color-muted);
 }
 
+
+/* Tailwind 4's preflight gives buttons the default cursor: everything you can click shows the pointer, everything
+   disabled the not-allowed one. In the base layer, so a component's own cursor (a resize handle, a text field) wins. */
+@layer base {
+  a[href],
+  button,
+  [role="button"],
+  [role="tab"],
+  [role="treeitem"],
+  [role="menuitem"],
+  [role="option"],
+  [role="radio"],
+  [role="checkbox"],
+  [role="switch"],
+  summary,
+  label[for],
+  select,
+  input[type="checkbox"],
+  input[type="radio"],
+  input[type="file"],
+  input[type="submit"],
+  input[type="button"],
+  input[type="reset"] {
+    cursor: pointer;
+  }
+
+  :is(button, select, input, [role="button"], [role="tab"], [role="option"]):disabled,
+  [aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+}

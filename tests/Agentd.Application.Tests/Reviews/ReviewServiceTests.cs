@@ -338,6 +338,17 @@ public sealed class ReviewServiceTests
         Assert.AreEqual(turns, h.Agent.Turns.Count);
     }
 
+    [TestMethod]
+    public async Task A_reviews_messages_reach_the_inbox_for_who_asked()
+    {
+        var h = await PostedAsync();
+
+        var entries = h.Inbox.Entries.ToList();
+        Assert.IsTrue(entries.All(e => (e.Source, e.SourceId, e.Recipient, e.Title) == ("review", 1L, "tngo", "🔍 PR !3944 Deploy to AKS")));
+        Assert.IsTrue(entries.Any(e => e.Message.Markdown.Contains("**1.** 🔴 **Readiness probe path is wrong**", StringComparison.Ordinal)), "the findings");
+        Assert.IsTrue(entries.Any(e => e.Message.Markdown.Contains("Posted 2 finding(s)", StringComparison.Ordinal)));
+    }
+
     private static async Task<Harness> PostedAsync()
     {
         var h = new Harness();
@@ -467,7 +478,7 @@ public sealed class ReviewServiceTests
             var page = withPage ? new ReviewSessionService(Sessions, Registry, Worktrees, PullRequests) : null;
             Service = new ReviewService(Store, Registry, PullRequests, Worktrees, Agent, new MessagingProviderRegistry([Chat], options), NullLogger<ReviewService>.Instance, WorkItems,
                 jobs is null ? null : Microsoft.Extensions.Options.Options.Create(jobs), sessions: page,
-                web: Microsoft.Extensions.Options.Options.Create(new WebLinkOptions { PublicOrigin = "https://agentd.example" }));
+                web: Microsoft.Extensions.Options.Options.Create(new WebLinkOptions { PublicOrigin = "https://agentd.example" }), inbox: Inbox);
         }
 
         public ReviewSessionServiceTests.MemoryReviewSessions Sessions { get; } = new();
@@ -487,6 +498,8 @@ public sealed class ReviewServiceTests
         public Store Store { get; } = new();
 
         public ReviewService Service { get; }
+
+        public FakeInbox Inbox { get; } = new();
 
         public async Task ReviewedAsync()
         {
