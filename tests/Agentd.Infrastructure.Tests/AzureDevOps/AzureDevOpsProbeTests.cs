@@ -74,6 +74,28 @@ public sealed class AzureDevOpsProbeTests : IDisposable
     }
 
     [TestMethod]
+    public async Task The_machines_entra_sign_in_is_used_with_its_tenant_and_a_failure_says_how_to_sign_in()
+    {
+        _ado.On(HttpMethod.Post, "/myorg/Portal/_apis/wit/wiql", HttpStatusCode.OK, """{"workItems":[]}""");
+        string? tenant = "unset";
+        var probe = new AzureDevOpsProbe(() => _ado, new FixedAuth(), entra: t =>
+        {
+            tenant = t;
+            return new BearerAuth("from-entra");
+        });
+
+        var ok = await probe.TestAsync(new AzureDevOpsConnection("myorg", "Portal", false, null, Entra: true, TenantId: "contoso.onmicrosoft.com"), new JobOptions(), CancellationToken.None);
+        _ado.On(HttpMethod.Post, "/myorg/Portal/_apis/wit/wiql", HttpStatusCode.Unauthorized);
+        var refused = await probe.TestAsync(new AzureDevOpsConnection("myorg", "Portal", false, null, Entra: true), new JobOptions(), CancellationToken.None);
+
+        Assert.IsTrue(ok.Ok, ok.Message);
+        Assert.AreEqual("Bearer from-entra", _ado.Requests[0].Auth);
+        Assert.IsNull(tenant, "the second test had no tenant");
+        Assert.IsFalse(refused.Ok);
+        Assert.Contains("Connect-AzAccount", refused.Fix!);
+    }
+
+    [TestMethod]
     public async Task A_service_principal_without_its_settings_fails_on_use_and_says_what_to_set()
     {
         var auth = AzCliAuthProvider.ForServicePrincipal("tenant", "  ", "secret");

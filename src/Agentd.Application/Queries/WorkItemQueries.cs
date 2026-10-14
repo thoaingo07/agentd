@@ -88,9 +88,10 @@ public sealed class GetWorkItemTimelineHandler(IWorkItemHistory history) : IQuer
 
 /// <summary>
 /// The chat as it happened, both directions: agentd's posts (outbox rows, with delivery status) and the
-/// developers' replies and commands (from the <c>DeveloperReplied</c> and <c>chat.command</c> events).
+/// developers' replies and commands (from the <c>DeveloperReplied</c> and <c>chat.command</c> events). A job with no chat
+/// thread (chat off) has no outbox rows: its side comes from the Inbox, which keeps every job message regardless.
 /// </summary>
-public sealed class GetWorkItemConversationHandler(IWorkItemHistory history) : IQueryHandler<GetWorkItemConversation, IReadOnlyList<ConversationEntry>>
+public sealed class GetWorkItemConversationHandler(IWorkItemHistory history, Inbox.IInbox? inbox = null) : IQueryHandler<GetWorkItemConversation, IReadOnlyList<ConversationEntry>>
 {
     public const int MaxPosted = 2000;
     private const int EventPage = 1000;
@@ -103,17 +104,26 @@ public sealed class GetWorkItemConversationHandler(IWorkItemHistory history) : I
             .Select(m => new ConversationEntry(m.At, m.JobId, "out", m.Kind, m.Markdown, m.Provider, null, m.Status, m.LastError))
             .ToList();
 
+        var jobs = new HashSet<long>();
         long after = 0;
         for (var i = 0; i < MaxEventPages; i++)
         {
             var events = await history.ReadEventsAsync(query.WorkItemId, after, null, EventPage, cancellationToken).ConfigureAwait(false);
             entries.AddRange(events.Select(Incoming).OfType<ConversationEntry>());
+            jobs.UnionWith(events.Select(e => e.JobId).OfType<long>());
             if (events.Count < EventPage)
             {
                 break;
             }
 
             after = events[^1].Seq;
+        }
+
+        var posted = entries.Where(e => e.Direction == "out").Select(e => e.JobId).OfType<long>().ToHashSet();
+        foreach (var job in jobs.Where(j => !posted.Contains(j) && inbox is not null))
+        {
+            var items = await inbox!.ThreadAsync(Inbox.InboxSources.Job, job, null, MaxPosted, cancellationToken).ConfigureAwait(false);
+            entries.AddRange(items.Select(m => new ConversationEntry(m.CreatedAt, job, "out", m.Kind, m.Markdown, null, null, null, null)));
         }
 
         return entries.OrderBy(e => e.At).ToList();

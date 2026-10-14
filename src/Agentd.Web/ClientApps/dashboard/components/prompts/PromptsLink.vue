@@ -11,7 +11,7 @@ const isAdmin = computed(() => session.user?.roles.includes('Admin') ?? false)
 <template>
   <RouterLink
     v-if="isAdmin"
-    :to="{ name: 'prompts', query: { source: props.source, sourceId: String(props.sourceId) } }"
+    :to="{ name: 'prompt-conversation', params: { source: props.source, sourceId: props.sourceId } }"
     class="link"
     title="What agentd sent the agent, with its rules and the reply"
     data-testid="prompts-link"

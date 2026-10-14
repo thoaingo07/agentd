@@ -7,6 +7,7 @@ import MarkdownText from '../../shared/components/MarkdownText.vue'
 import DiffFileReview from '../../shared/review/DiffFileReview.vue'
 import FindingCard from '../../shared/review/FindingCard.vue'
 import GuidedReview from '../../shared/review/GuidedReview.vue'
+import OnPullRequest from '../../shared/review/OnPullRequest.vue'
 import ReviewFileTree, { type FileMarks } from '../../shared/review/ReviewFileTree.vue'
 import PaneResizer from '../../shared/components/PaneResizer.vue'
 import { usePaneWidth } from '../../shared/utils/paneWidth'
@@ -464,6 +465,10 @@ const where = (a: { file?: string | null; line?: number | null; endLine?: number
         </template>
 
         <aside class="grid content-start gap-4">
+          <OnPullRequest
+            v-if="reviews.current?.onPullRequest"
+            :posted="reviews.current.onPullRequest"
+          />
           <section
             v-if="suggestions.length"
             aria-labelledby="suggestions-title"

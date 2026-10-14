@@ -55,6 +55,7 @@ agentd claims the work item by adding **`ai-in-progress`**, so it's never picked
 7. **Hand-off.** The agent proposes knowledge and learnings to keep in the repository (for example notes in
    `AGENTS.md`). Agree, ask for changes, or decline.
 8. **Close-out.** "Delete this thread? `1` delete · `2` keep (archived)". The full conversation stays in agentd either way.
+   Without chat (no thread), there's nothing to ask: the job is done at once with "🧹 All done".
 
 After the merge the job is finished. **Messages in its thread still get answers** (the same session, read-only),
 but nothing is changed or published anymore; for more changes start a new run with `!run <id>`. agentd never opens

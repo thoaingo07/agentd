@@ -64,6 +64,8 @@ describe('work item page', () => {
     expect(view.get('[role=radio][aria-checked=true]').text()).toBe('Run 2 (rework)')
     expect(view.findAll('button').map((b) => b.text())).toEqual(expect.arrayContaining(['Pause', 'Cancel']))
     expect(view.find('textarea').exists()).toBe(true)
+    expect(view.get('[data-testid=no-thread]').text(), 'chat is off: no thread').toContain('the conversation is here')
+    expect(view.text()).not.toContain("It's also posted to the job's chat thread")
 
     await view.findAll('[role=radio]').find((b) => b.text() === 'Run 1')!.trigger('click')
     await flushPromises()

@@ -59,6 +59,37 @@ public sealed class PromptLogStore(NpgsqlDataSource dataSource) : IPromptLog
             : null;
     }
 
+    public async Task<IReadOnlyList<PromptConversation>> ConversationsAsync(string? source, long? before, int limit, CancellationToken cancellationToken)
+    {
+        await using var cmd = dataSource.CreateCommand("SELECT * FROM agentd.agent_prompt_conversations($1, $2, $3)");
+        cmd.Parameters.AddRange(new[] { T(source), P(before, NpgsqlDbType.Bigint), P(limit, NpgsqlDbType.Integer) });
+        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        var rows = new List<PromptConversation>();
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            rows.Add(new PromptConversation(reader.GetString(0), reader.GetInt64(1), reader.GetInt32(2), reader.GetFieldValue<DateTimeOffset>(3),
+                reader.GetFieldValue<DateTimeOffset>(4), reader.GetInt64(5), S(reader, 6), reader.GetBoolean(7), reader.GetFieldValue<string[]>(8), reader.GetString(9)));
+        }
+
+        return rows;
+    }
+
+    public async Task<IReadOnlyList<PromptDetail>> ConversationAsync(string source, long sourceId, int limit, CancellationToken cancellationToken)
+    {
+        await using var cmd = dataSource.CreateCommand("SELECT * FROM agentd.agent_prompt_conversation($1, $2, $3)");
+        cmd.Parameters.AddRange(new[] { T(source), P(sourceId, NpgsqlDbType.Bigint), P(limit, NpgsqlDbType.Integer) });
+        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        var rows = new List<PromptDetail>();
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            rows.Add(new PromptDetail(reader.GetInt64(0), reader.GetString(1), reader.GetInt64(2), S(reader, 3), G(reader, 4), reader.GetBoolean(5),
+                S(reader, 6), S(reader, 7), S(reader, 8), S(reader, 9), S(reader, 10), reader.GetFieldValue<DateTimeOffset>(11), D(reader, 12),
+                reader.GetString(13), S(reader, 14), S(reader, 15)));
+        }
+
+        return rows;
+    }
+
     public async Task<int> DeleteBeforeAsync(DateTimeOffset before, CancellationToken cancellationToken)
     {
         await using var cmd = dataSource.CreateCommand("SELECT agentd.agent_prompt_delete_before($1)");

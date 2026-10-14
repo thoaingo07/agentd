@@ -82,9 +82,23 @@ const chars = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n
 
 <template>
   <section class="grid gap-4">
-    <h1 class="text-xl font-semibold">
-      Prompts
-    </h1>
+    <div class="flex flex-wrap items-center gap-3">
+      <h1 class="text-xl font-semibold">
+        Prompts
+      </h1>
+      <nav
+        class="join ml-auto"
+        aria-label="Prompts view"
+      >
+        <RouterLink
+          :to="{ name: 'prompts' }"
+          class="btn btn-sm join-item"
+        >
+          By conversation
+        </RouterLink>
+        <span class="btn btn-sm btn-primary join-item">All prompts</span>
+      </nav>
+    </div>
     <p class="text-sm text-muted">
       Every prompt agentd sent an agent: what it asked, with which model, and how it ended. Open one for the whole text, its
       system rules and the reply.

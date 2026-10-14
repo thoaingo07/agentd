@@ -1876,6 +1876,123 @@
         }
       }
     },
+    "/api/prompts/conversations": {
+      "get": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "ListPromptConversations",
+        "parameters": [
+          {
+            "name": "source",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptConversationPageVm"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/prompts/conversations/{source}/{sourceId}": {
+      "get": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "GetPromptConversation",
+        "parameters": [
+          {
+            "name": "source",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sourceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PromptDetailVm"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/inbox": {
       "get": {
         "tags": [
@@ -4711,7 +4828,7 @@
               "null",
               "string"
             ],
-            "description": "\u0060Pat\u0060, \u0060AzCli\u0060 or \u0060ServicePrincipal\u0060."
+            "description": "\u0060Pat\u0060, \u0060AzCli\u0060, \u0060Entra\u0060 or \u0060ServicePrincipal\u0060."
           },
           "pat": {
             "type": [
@@ -4790,7 +4907,7 @@
             "$ref": "#/components/schemas/SecretStatusVm"
           }
         },
-        "description": "\u0060Auth\u0060 is \u0060Pat\u0060, \u0060AzCli\u0060 or \u0060ServicePrincipal\u0060 (tenant and client ids; the client secret as a status only)."
+        "description": "\u0060Auth\u0060 is \u0060Pat\u0060, \u0060AzCli\u0060, \u0060Entra\u0060 or \u0060ServicePrincipal\u0060 (tenant and client ids; the client secret as a status only)."
       },
       "ChatDetailVm": {
         "required": [
@@ -5652,7 +5769,8 @@
           "exists",
           "publicKey",
           "fingerprint",
-          "path"
+          "path",
+          "overHttps"
         ],
         "type": "object",
         "properties": {
@@ -5676,6 +5794,9 @@
               "null",
               "string"
             ]
+          },
+          "overHttps": {
+            "type": "boolean"
           }
         },
         "description": "agentd\u0027s SSH key for git: the public key to add in Azure DevOps or GitHub, and its fingerprint. Never the private key."
@@ -6893,6 +7014,79 @@
         },
         "description": "A remembered approval; \u0060jobId\u0060 null means every job of the repository."
       },
+      "PostedFindingVm": {
+        "required": [
+          "severity",
+          "title",
+          "file",
+          "line",
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "severity": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "file": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "line": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "description": "A posted finding and its status on the PR."
+      },
+      "PostedVm": {
+        "required": [
+          "pullRequestId",
+          "head",
+          "done",
+          "findings",
+          "rechecks"
+        ],
+        "type": "object",
+        "properties": {
+          "pullRequestId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "head": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "done": {
+            "type": "boolean"
+          },
+          "findings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PostedFindingVm"
+            }
+          },
+          "rechecks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SessionRecheck"
+            }
+          }
+        },
+        "description": "A Send to a PR as it stands: each posted finding\u0027s status (\u0060open\u0060, \u0060fixed\u0060, \u0060closed\u0060) and the re-checks after\npushes, newest last. \u0060done\u0060 once the PR completed or was abandoned."
+      },
       "ProblemDetails": {
         "type": "object",
         "properties": {
@@ -7008,6 +7202,84 @@
           }
         },
         "description": "Another provider: endpoint and models; the API key as a status only."
+      },
+      "PromptConversationPageVm": {
+        "required": [
+          "conversations",
+          "hasMore"
+        ],
+        "type": "object",
+        "properties": {
+          "conversations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PromptConversationVm"
+            }
+          },
+          "hasMore": {
+            "type": "boolean"
+          }
+        },
+        "description": "A page of conversations, the latest activity first; \u0060hasMore\u0060: ask again with \u0060before\u0060 = the last \u0060lastId\u0060."
+      },
+      "PromptConversationVm": {
+        "required": [
+          "source",
+          "sourceId",
+          "turns",
+          "firstAt",
+          "lastAt",
+          "lastId",
+          "lastOutcome",
+          "running",
+          "models",
+          "preview"
+        ],
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string"
+          },
+          "sourceId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "turns": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "firstAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "lastOutcome": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "running": {
+            "type": "boolean"
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "preview": {
+            "type": "string"
+          }
+        },
+        "description": "A conversation: every turn for one source, the latest\u0027s outcome, whether one runs, the models used; \u0060preview\u0060 starts its first prompt."
       },
       "PromptDetailVm": {
         "required": [
@@ -7781,9 +8053,19 @@
             "items": {
               "$ref": "#/components/schemas/ReviewAskVm"
             }
+          },
+          "onPullRequest": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PostedVm"
+              }
+            ]
           }
         },
-        "description": "A session with its comments and questions, as the review page shows it."
+        "description": "A session with its comments and questions, as the review page shows it; \u0060onPullRequest\u0060 once it was sent to a PR with findings."
       },
       "ReviewSessionVm": {
         "required": [
@@ -7991,6 +8273,52 @@
             "description": "\u0060pr\u0060 (a PR\u0027s review: post it there) or \u0060text\u0060 (copy it)."
           }
         }
+      },
+      "SessionRecheck": {
+        "required": [
+          "at",
+          "head",
+          "fixed",
+          "open",
+          "closed",
+          "added"
+        ],
+        "type": "object",
+        "properties": {
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "head": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "fixed": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "open": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "closed": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "added": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "problem": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "One re-check of a Send: when, at which PR head, and how the posted findings stood after it (or what went wrong)."
       },
       "SetupSessionVm": {
         "required": [

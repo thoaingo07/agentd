@@ -37,6 +37,17 @@ public sealed class AzCliAuthProvider(TokenCredential credential) : IAdoAuthProv
             ? new MissingAuthProvider("Azure DevOps auth is 'ServicePrincipal' but Agentd:AzureDevOps:TenantId, ClientId or the secret ClientSecret isn't set.")
             : new AzCliAuthProvider(new ClientSecretCredential(tenantId.Trim(), clientId.Trim(), clientSecret.Trim()));
 
+    /// <summary>
+    /// The machine's own Microsoft Entra sign-in, never a browser prompt (agentd runs unattended): the environment, a
+    /// managed identity, Visual Studio, Azure PowerShell, the az CLI or azd, in that order (DefaultAzureCredential).
+    /// </summary>
+    public static IAdoAuthProvider ForEntra(string? tenantId) =>
+        new AzCliAuthProvider(new DefaultAzureCredential(new DefaultAzureCredentialOptions
+        {
+            ExcludeInteractiveBrowserCredential = true,
+            TenantId = string.IsNullOrWhiteSpace(tenantId) ? null : tenantId.Trim(),
+        }));
+
     public async ValueTask<AuthenticationHeaderValue> GetAsync(bool forceRefresh, CancellationToken cancellationToken)
     {
         await _lock.WaitAsync(cancellationToken).ConfigureAwait(false);

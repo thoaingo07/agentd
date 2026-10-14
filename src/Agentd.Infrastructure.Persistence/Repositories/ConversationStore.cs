@@ -110,5 +110,14 @@ public sealed class ConversationStore(NpgsqlDataSource dataSource) : IConversati
         return list;
     }
 
+    public async Task<DisabledProviders> DropDisabledAsync(IReadOnlyList<ProviderKey> enabled, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(enabled);
+        await using var cmd = dataSource.CreateCommand("SELECT failed, closed FROM agentd.outbox_drop_disabled($1)");
+        cmd.Parameters.Add(new NpgsqlParameter { Value = enabled.Select(p => p.Value).ToArray(), NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Array | NpgsqlTypes.NpgsqlDbType.Text });
+        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        return await reader.ReadAsync(cancellationToken).ConfigureAwait(false) ? new DisabledProviders(reader.GetInt32(0), reader.GetInt32(1)) : new DisabledProviders(0, 0);
+    }
+
     private static NpgsqlParameter P(object? value, NpgsqlDbType type) => PgParameter.Of(value, type);
 }

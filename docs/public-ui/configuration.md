@@ -27,6 +27,13 @@ secrets (`agentd daemon restart`).
 }
 ```
 
+`AzureDevOps:Auth` is `Pat`, `AzCli` (`az login`), `ServicePrincipal` (an Entra app with a client secret) or `Entra`
+(the machine's own Entra sign-in without a browser: Visual Studio, Azure PowerShell, `azd`, `az`, a managed identity or
+`AZURE_CLIENT_ID`/`AZURE_TENANT_ID`/`AZURE_CLIENT_SECRET`; with `Entra`, an optional `TenantId` picks the directory).
+Repository URLs can be SSH or HTTPS (`https://dev.azure.com/myorg/MyProject/_git/my-repo`); either way agentd reaches
+Azure DevOps over HTTPS with that sign-in, so no SSH key is needed (`Git:AzureDevOpsOverHttps = false` keeps SSH for SSH
+URLs).
+
 **Never put secrets in this file.** Store them with `agentd secrets set` (see [Secrets](#secrets)).
 
 ## Secrets
