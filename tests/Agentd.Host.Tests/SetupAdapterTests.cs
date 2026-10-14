@@ -115,6 +115,23 @@ public sealed class SetupAdapterTests : IDisposable
     }
 
     [TestMethod]
+    public async Task Settings_Folders_shows_the_running_folders_and_saving_one_changes_the_configuration()
+    {
+        var running = new ConfigurationManager();
+        running.AddConfigHome(_home, []);
+        using var file = new AgentdJsonFile(_home, running);
+        var folders = new FolderSettings(file, new NoAudit(), new NoProbe(), TimeProvider.System);
+        Assert.AreEqual(_home.Worktrees, folders.Get().Worktrees, "the default in agentd's home, not empty");
+
+        await folders.SaveAsync(new FoldersInput("/srv/agentd/worktrees", null), "tngo", CancellationToken.None);
+
+        var settled = new ConfigurationManager();
+        settled.AddConfigHome(_home, []);
+        Assert.AreEqual("/srv/agentd/worktrees", settled["Agentd:Git:WorktreeRoot"], "what the daemon reads after a restart");
+        Assert.IsNull(settled["Agentd:Agentd:Git:WorktreeRoot"]);
+    }
+
+    [TestMethod]
     public async Task A_list_from_appsettings_is_set_below_agentd_json_and_a_copy_there_merges_cleanly()
     {
         // The demo's sysmin comes from appsettings.Development.json; agentd.json has no list until the first add.
@@ -192,4 +209,14 @@ public sealed class SetupAdapterTests : IDisposable
     }
 
     public void Dispose() => Directory.Delete(_home.Root, recursive: true);
+
+    private sealed class NoAudit : ISettingsAudit
+    {
+        public Task RecordAsync(IReadOnlyList<SettingsChange> changes, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    private sealed class NoProbe : IFolderProbe
+    {
+        public StepCheck Test(string path) => new(true, "ok");
+    }
 }

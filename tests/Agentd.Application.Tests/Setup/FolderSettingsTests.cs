@@ -21,7 +21,7 @@ public sealed class FolderSettingsTests
         Assert.IsTrue(saved.Value!.RestartRequired);
         Assert.IsFalse(again.Value!.RestartRequired, "nothing changed");
         Assert.AreEqual(("/srv/agentd/worktrees", "~/.agentd/repos"), (_config.Values[FolderSettings.WorktreesKey], _config.Values[FolderSettings.RepositoriesKey]));
-        Assert.AreEqual("Agentd:Git:WorktreeRoot set tngo", $"{_audit.Changes.Single().Key} {_audit.Changes.Single().Action} {_audit.Changes.Single().By}");
+        Assert.AreEqual("Git:WorktreeRoot set tngo", $"{_audit.Changes.Single().Key} {_audit.Changes.Single().Action} {_audit.Changes.Single().By}");
     }
 
     [TestMethod]
@@ -33,7 +33,7 @@ public sealed class FolderSettingsTests
         await Settings().SaveAsync(new("", null), "tngo", default);
 
         Assert.IsNull(_config.Values[FolderSettings.WorktreesKey]);
-        Assert.AreEqual("Agentd:Git:WorktreeRoot removed", $"{_audit.Changes.Single().Key} {_audit.Changes.Single().Action}");
+        Assert.AreEqual("Git:WorktreeRoot removed", $"{_audit.Changes.Single().Key} {_audit.Changes.Single().Action}");
         Assert.AreEqual("the environment variable Agentd__Git__RepositoriesRoot", Settings().Get().RepositoriesOverriddenBy);
     }
 

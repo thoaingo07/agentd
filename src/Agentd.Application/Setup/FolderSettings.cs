@@ -21,8 +21,9 @@ public interface IFolderProbe
 /// <summary>The folders agentd works in (docs/architect/deployment.md §5): Save, Test, and what's set now.</summary>
 public sealed class FolderSettings(IConfigWriter config, ISettingsAudit audit, IFolderProbe probe, TimeProvider time)
 {
-    public const string WorktreesKey = "Agentd:Git:WorktreeRoot";
-    public const string RepositoriesKey = "Agentd:Git:RepositoriesRoot";
+    // Under the Agentd section, like every IConfigWriter key (agentd.json is that section).
+    public const string WorktreesKey = "Git:WorktreeRoot";
+    public const string RepositoriesKey = "Git:RepositoriesRoot";
 
     public FoldersStep Get() => new(Blank(config.Read(WorktreesKey)), Blank(config.Read(RepositoriesKey)), config.OverriddenBy(WorktreesKey), config.OverriddenBy(RepositoriesKey));
 
