@@ -128,3 +128,44 @@ AS $$
      ORDER BY t.ord
      LIMIT greatest(1, least(coalesce(p_limit, 5000), 20000))
 $$;
+
+-- The Prompts page by conversation: one row per (source, source_id), the latest activity first, a page of p_limit
+-- below p_before (a conversation's latest prompt id). preview: the first prompt's start.
+CREATE OR REPLACE FUNCTION agentd.agent_prompt_conversations(p_source text, p_before bigint, p_limit int)
+RETURNS TABLE (source text, source_id bigint, turns int, first_at timestamptz, last_at timestamptz, last_id bigint,
+               last_outcome text, running boolean, models text[], preview text)
+LANGUAGE sql
+STABLE
+AS $$
+    SELECT g.source, g.source_id, g.turns, g.first_at, g.last_at, g.last_id, l.outcome, g.running, g.models, left(f.prompt, 200)
+      FROM (
+        SELECT p.source, p.source_id, count(*)::int AS turns, min(p.started_at) AS first_at, max(p.started_at) AS last_at,
+               max(p.id) AS last_id, min(p.id) AS first_id, bool_or(p.finished_at IS NULL) AS running,
+               coalesce(array_agg(DISTINCT p.model ORDER BY p.model) FILTER (WHERE p.model IS NOT NULL), '{}') AS models
+          FROM agentd.agent_prompts AS p
+         WHERE p_source IS NULL OR p.source = p_source
+         GROUP BY p.source, p.source_id
+      ) AS g
+      JOIN agentd.agent_prompts AS l ON l.id = g.last_id
+      JOIN agentd.agent_prompts AS f ON f.id = g.first_id
+     WHERE p_before IS NULL OR g.last_id < p_before
+     ORDER BY g.last_id DESC
+     LIMIT greatest(least(coalesce(p_limit, 50), 200), 0)
+$$;
+
+-- One conversation's turns, oldest first, whole: what was sent, its rules, the reply and how each ended.
+CREATE OR REPLACE FUNCTION agentd.agent_prompt_conversation(p_source text, p_source_id bigint, p_limit int)
+RETURNS TABLE (id bigint, source text, source_id bigint, step text, session uuid, resume boolean, model text, effort text,
+               profile text, outcome text, error text, started_at timestamptz, finished_at timestamptz, prompt text,
+               reply text, rules text)
+LANGUAGE sql
+STABLE
+AS $$
+    SELECT p.id, p.source, p.source_id, p.step, p.session, p.resume, p.model, p.effort, p.profile, p.outcome, p.error,
+           p.started_at, p.finished_at, p.prompt, p.reply, r.text
+      FROM agentd.agent_prompts AS p
+      LEFT JOIN agentd.agent_prompt_rules AS r ON r.hash = p.rules_hash
+     WHERE p.source = p_source AND p.source_id = p_source_id
+     ORDER BY p.id
+     LIMIT greatest(least(coalesce(p_limit, 200), 500), 0)
+$$;

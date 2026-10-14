@@ -612,6 +612,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/prompts/conversations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ListPromptConversations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/prompts/conversations/{source}/{sourceId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetPromptConversation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/inbox": {
         parameters: {
             query?: never;
@@ -2148,6 +2180,29 @@ export interface components {
             model: null | string;
             smallModel: null | string;
             apiKey: components["schemas"]["SecretStatusVm"];
+        };
+        /** @description A page of conversations, the latest activity first; `hasMore`: ask again with `before` = the last `lastId`. */
+        PromptConversationPageVm: {
+            conversations: components["schemas"]["PromptConversationVm"][];
+            hasMore: boolean;
+        };
+        /** @description A conversation: every turn for one source, the latest's outcome, whether one runs, the models used; `preview` starts its first prompt. */
+        PromptConversationVm: {
+            source: string;
+            /** Format: int64 */
+            sourceId: number;
+            /** Format: int32 */
+            turns: number;
+            /** Format: date-time */
+            firstAt: string;
+            /** Format: date-time */
+            lastAt: string;
+            /** Format: int64 */
+            lastId: number;
+            lastOutcome: null | string;
+            running: boolean;
+            models: string[];
+            preview: string;
         };
         /** @description A prompt, whole: what was sent, the system rules with it, and the reply. */
         PromptDetailVm: {
@@ -3887,6 +3942,80 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EventVm"][];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    ListPromptConversations: {
+        parameters: {
+            query?: {
+                source?: string;
+                before?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PromptConversationPageVm"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetPromptConversation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                source: string;
+                sourceId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PromptDetailVm"][];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
             /** @description Not Found */

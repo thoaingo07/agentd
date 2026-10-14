@@ -62,6 +62,28 @@ public sealed class PromptEndpointTests
         Assert.AreEqual((HttpStatusCode.NotFound, HttpStatusCode.Forbidden), (missing.StatusCode, other.StatusCode));
     }
 
+    [TestMethod]
+    public async Task Admins_page_through_conversations_and_read_one_turn_by_turn()
+    {
+        await using var app = await StartAsync();
+
+        using var page = await GetAsync(app, "/api/prompts/conversations?source=idea&limit=2", "thoaingo07@gmail.com");
+        using var bad = await GetAsync(app, "/api/prompts/conversations?source=email", "thoaingo07@gmail.com");
+        using var one = await GetAsync(app, "/api/prompts/conversations/idea/7", "thoaingo07@gmail.com");
+        using var none = await GetAsync(app, "/api/prompts/conversations/idea/8", "thoaingo07@gmail.com");
+        using var other = await GetAsync(app, "/api/prompts/conversations", "dev@example.com");
+
+        var body = JsonDocument.Parse(await page.Content.ReadAsStringAsync()).RootElement;
+        Assert.AreEqual((2, true), (body.GetProperty("conversations").GetArrayLength(), body.GetProperty("hasMore").GetBoolean()));
+        Assert.AreEqual(("idea", 7L, true, "opus"), (body.GetProperty("conversations")[0].GetProperty("source").GetString(), body.GetProperty("conversations")[0].GetProperty("sourceId").GetInt64(),
+            body.GetProperty("conversations")[0].GetProperty("running").GetBoolean(), body.GetProperty("conversations")[0].GetProperty("models")[0].GetString()));
+        Assert.AreEqual(("idea", (long?)null, 3), _log.AskedConversations.Single(), "one more than the page, to tell there's more");
+        var turns = JsonDocument.Parse(await one.Content.ReadAsStringAsync()).RootElement;
+        Assert.AreEqual(("Dark mode please", "Which pages?", "idea rules"), (turns[0].GetProperty("prompt").GetString(), turns[0].GetProperty("reply").GetString(), turns[0].GetProperty("rules").GetString()));
+        Assert.AreEqual(2, turns.GetArrayLength());
+        Assert.AreEqual((HttpStatusCode.BadRequest, HttpStatusCode.NotFound, HttpStatusCode.Forbidden), (bad.StatusCode, none.StatusCode, other.StatusCode));
+    }
+
     private static async Task<HttpResponseMessage> GetAsync(WebApplication app, string url, string login)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(url, UriKind.Relative));
@@ -119,5 +141,22 @@ public sealed class PromptEndpointTests
                 new PromptEvent("agent.text", "{\"text\":\"Reading the login.\"}", DateTimeOffset.UnixEpoch),
                 new PromptEvent("agent.tool_call", "{\"id\":\"t1\",\"name\":\"Read\"}", DateTimeOffset.UnixEpoch),
             ]);
+
+        public List<(string? Source, long? Before, int Limit)> AskedConversations { get; } = [];
+
+        public Task<IReadOnlyList<PromptConversation>> ConversationsAsync(string? source, long? before, int limit, CancellationToken cancellationToken)
+        {
+            AskedConversations.Add((source, before, limit));
+            return Task.FromResult<IReadOnlyList<PromptConversation>>([.. Enumerable.Range(0, 3).Select(i =>
+                new PromptConversation(PromptSources.Idea, 7 - i, 2, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, 30 - i, PromptOutcomes.Ok, i == 0, ["opus"], "Dark mode please"))]);
+        }
+
+        public Task<IReadOnlyList<PromptDetail>> ConversationAsync(string source, long sourceId, int limit, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<PromptDetail>>(sourceId == 7
+                ? [
+                    new PromptDetail(1, source, 7, null, null, false, "opus", null, null, PromptOutcomes.Ok, null, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, "Dark mode please", "Which pages?", "idea rules"),
+                    new PromptDetail(2, source, 7, null, null, true, "opus", null, null, null, null, DateTimeOffset.UnixEpoch, null, "Only the portal", null, "idea rules"),
+                ]
+                : []);
     }
 }

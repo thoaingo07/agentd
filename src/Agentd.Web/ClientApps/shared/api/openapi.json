@@ -1876,6 +1876,123 @@
         }
       }
     },
+    "/api/prompts/conversations": {
+      "get": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "ListPromptConversations",
+        "parameters": [
+          {
+            "name": "source",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptConversationPageVm"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/prompts/conversations/{source}/{sourceId}": {
+      "get": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "GetPromptConversation",
+        "parameters": [
+          {
+            "name": "source",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sourceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PromptDetailVm"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/inbox": {
       "get": {
         "tags": [
@@ -7008,6 +7125,84 @@
           }
         },
         "description": "Another provider: endpoint and models; the API key as a status only."
+      },
+      "PromptConversationPageVm": {
+        "required": [
+          "conversations",
+          "hasMore"
+        ],
+        "type": "object",
+        "properties": {
+          "conversations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PromptConversationVm"
+            }
+          },
+          "hasMore": {
+            "type": "boolean"
+          }
+        },
+        "description": "A page of conversations, the latest activity first; \u0060hasMore\u0060: ask again with \u0060before\u0060 = the last \u0060lastId\u0060."
+      },
+      "PromptConversationVm": {
+        "required": [
+          "source",
+          "sourceId",
+          "turns",
+          "firstAt",
+          "lastAt",
+          "lastId",
+          "lastOutcome",
+          "running",
+          "models",
+          "preview"
+        ],
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string"
+          },
+          "sourceId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "turns": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "firstAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "lastOutcome": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "running": {
+            "type": "boolean"
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "preview": {
+            "type": "string"
+          }
+        },
+        "description": "A conversation: every turn for one source, the latest\u0027s outcome, whether one runs, the models used; \u0060preview\u0060 starts its first prompt."
       },
       "PromptDetailVm": {
         "required": [
