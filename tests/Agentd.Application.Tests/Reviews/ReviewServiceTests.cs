@@ -174,6 +174,7 @@ public sealed class ReviewServiceTests
         StringAssert.Contains(main, "| 🔴 | Liveness probe now hits the DB |");
         Assert.IsTrue(h.Chat.SentText.Any(t => t.Contains("re-checked at def5678:** 1 fixed ✅, 2 open, 1 new", StringComparison.Ordinal)));
         Assert.AreEqual("def5678aa", h.Store.Rows[1].HeadCommit);
+        Assert.IsFalse(h.PullRequests.ThreadStatus.ContainsKey(103), "findings still open: the main message stays active");
     }
 
     [TestMethod]
@@ -195,7 +196,56 @@ public sealed class ReviewServiceTests
         Assert.AreEqual(PullRequestThreadStatus.Closed, h.PullRequests.ThreadStatus[101]);
         Assert.AreEqual("Agreed: /health is the readiness path in this chart.", h.PullRequests.Replies.First(r => r.Thread == 101).Text);
         StringAssert.Contains(h.PullRequests.Edited[103], "0 open, 1 fixed");
+        StringAssert.Contains(h.PullRequests.Edited[103], "all resolved ✅");
+        Assert.AreEqual(PullRequestThreadStatus.Fixed, h.PullRequests.ThreadStatus[103], "everything fixed or closed: the main message is resolved too");
         Assert.IsTrue(h.Chat.SentText.Any(t => t.Contains("Everything is resolved", StringComparison.Ordinal)));
+    }
+
+    [TestMethod]
+    public async Task A_finding_open_again_reopens_the_main_message()
+    {
+        var h = await PostedAsync();
+        h.Agent.Replies.Enqueue(AllFixed);
+        var sent = h.Chat.SentText.Count;
+        await h.Service.HandleMessageAsync(h.Store.Rows[1], "tngo", "review again", default);
+        await h.WaitForSentAsync(sent + 2);
+        Assert.AreEqual(PullRequestThreadStatus.Fixed, h.PullRequests.ThreadStatus[103]);
+
+        h.PullRequests.Details[3944] = h.PullRequests.Details[3944] with { SourceCommit = "9a8b7c6dd" };
+        h.Agent.Replies.Enqueue("""
+            ```review-recheck
+            {"findings":[{"n":1,"status":"open","reply":"the probe points at /health again."},{"n":2,"status":"fixed"}]}
+            ```
+            """);
+        sent = h.Chat.SentText.Count;
+        await h.Service.HandleMessageAsync(h.Store.Rows[1], "tngo", "review again", default);
+        await h.WaitForSentAsync(sent + 2);
+
+        Assert.AreEqual(PullRequestThreadStatus.Active, h.PullRequests.ThreadStatus[101], "the finding's thread is active again");
+        Assert.AreEqual(PullRequestThreadStatus.Active, h.PullRequests.ThreadStatus[103], "and so is the main message");
+        Assert.DoesNotContain("all resolved", h.PullRequests.Edited[103]);
+    }
+
+    [TestMethod]
+    public async Task A_review_without_findings_is_resolved_as_its_posted()
+    {
+        var h = new Harness();
+        h.Agent.Replies.Enqueue("""
+            Looks good.
+
+            ```review-findings
+            {"summary":"Adds a deploy pipeline; nothing to fix.","findings":[]}
+            ```
+            """);
+        await h.Service.StartAsync(s_discord, "tngo", ["3944"], default);
+        await h.WaitForSentAsync(2);
+
+        await h.Service.HandleMessageAsync(h.Store.Rows[1], "tngo", "1", default);
+
+        var main = h.PullRequests.Threads.Single();
+        StringAssert.StartsWith(main.Text, "**Review** · 0 finding(s): 0 open, 0 fixed");
+        Assert.DoesNotContain("agentd checks again", main.Text, "nothing to re-check");
+        Assert.AreEqual(PullRequestThreadStatus.Fixed, h.PullRequests.ThreadStatus[101], "posted resolved");
     }
 
     private const string AllFixed = """

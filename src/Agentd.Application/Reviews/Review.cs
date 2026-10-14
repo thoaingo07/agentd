@@ -233,7 +233,7 @@ public static partial class ReviewFindings
         var fixedCount = result.Findings.Count(f => f.Status == Fixed);
         var lines = new List<string>
         {
-            $"**Review** · {result.Findings.Count} finding(s): {open} open, {fixedCount} fixed{(checkedAt is { Length: > 0 } c ? $" · checked at {c[..Math.Min(7, c.Length)]}" : string.Empty)}",
+            $"**Review** · {result.Findings.Count} finding(s): {open} open, {fixedCount} fixed{(checkedAt is { Length: > 0 } c ? $" · checked at {c[..Math.Min(7, c.Length)]}" : string.Empty)}{(AllResolved(result) ? " · all resolved ✅" : string.Empty)}",
             string.Empty,
             result.Summary.Trim(),
         };
@@ -243,8 +243,22 @@ public static partial class ReviewFindings
             lines.AddRange(result.Findings.Select(f => $"| {Mark(f)} | {Cell(f.Title)} | {Where(f, string.Empty)} |"));
         }
 
-        lines.AddRange([string.Empty, Legend, rechecks ? "Reply on a finding's thread if you disagree. agentd checks again after every push." : "Reply on a finding's thread if you disagree."]);
+        if (result.Findings.Count > 0)
+        {
+            lines.AddRange([string.Empty, Legend, rechecks ? "Reply on a finding's thread if you disagree. agentd checks again after every push." : "Reply on a finding's thread if you disagree."]);
+        }
+
         return string.Join('\n', lines);
+    }
+
+    /// <summary>
+    /// Nothing left to do on the PR: no findings, or every one fixed or closed. The main message's thread is then resolved
+    /// (Fixed, "Resolved" in Azure DevOps), and set active again if a later re-check opens one.
+    /// </summary>
+    public static bool AllResolved(ReviewResult result)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        return result.Findings.All(f => (f.Status ?? Open) != Open);
     }
 
     public const string Legend = "🔴 can break the app · 🟠 performance · ✅ fixed · ⚪ closed";

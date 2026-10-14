@@ -94,9 +94,14 @@ public sealed class ReviewSessionSend(
                     threads++;
                 }
 
-                await pullRequests.CreateThreadAsync(repo, pr, ReviewFindings.MainMessage(new ReviewResult(session.Summary ?? string.Empty, posted), session.HeadCommit, rechecks: false), null, null, ct)
+                var main = await pullRequests.CreateThreadAsync(repo, pr, ReviewFindings.MainMessage(new ReviewResult(session.Summary ?? string.Empty, posted), session.HeadCommit, rechecks: false), null, null, ct)
                     .ConfigureAwait(false);
                 threads++;
+                if (posted.Count == 0)
+                {
+                    // No findings: nothing to fix, so the main message is resolved as it's posted (your comments stay open).
+                    await pullRequests.SetThreadStatusAsync(repo, pr, main, PullRequestThreadStatus.Fixed, ct).ConfigureAwait(false);
+                }
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
