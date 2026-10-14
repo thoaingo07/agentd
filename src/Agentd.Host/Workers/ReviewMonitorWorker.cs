@@ -37,7 +37,9 @@ internal sealed partial class ReviewMonitorWorker(
                                 .Handle(new ReviewPullRequests(), stoppingToken).ConfigureAwait(false);
                         }
 
-                        await scope.ServiceProvider.GetRequiredService<Application.Reviews.ReviewService>().MonitorAsync(stoppingToken).ConfigureAwait(false);
+                        var chatReviews = scope.ServiceProvider.GetRequiredService<Application.Reviews.ReviewService>();
+                        await chatReviews.MonitorAsync(stoppingToken).ConfigureAwait(false);
+                        await chatReviews.ResumeAsync(stoppingToken).ConfigureAwait(false);   // chat reviews a restart interrupted
                         await scope.ServiceProvider.GetRequiredService<Application.Reviews.ReviewSessionReviewer>().ResumeAsync(stoppingToken).ConfigureAwait(false);
                         await scope.ServiceProvider.GetRequiredService<Application.Monitor.PrMonitor>().PassAsync(stoppingToken).ConfigureAwait(false);
                     }

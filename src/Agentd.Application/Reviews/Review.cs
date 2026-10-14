@@ -88,6 +88,9 @@ public interface IReviewStore
     /// <summary>Reviews posted to their PR (re-checked after pushes until the PR closes).</summary>
     Task<IReadOnlyList<Review>> ListPostedAsync(CancellationToken cancellationToken);
 
+    /// <summary>The reviews in <paramref name="status"/>, oldest first.</summary>
+    Task<IReadOnlyList<Review>> ListByStatusAsync(string status, CancellationToken cancellationToken);
+
     /// <summary>The PR's latest review, or null.</summary>
     Task<Review?> FindLatestAsync(string repository, int pullRequestId, CancellationToken cancellationToken);
 

@@ -301,6 +301,43 @@ public sealed class ReviewServiceTests
         StringAssert.Contains(h.Chat.SentText.Last(), "PR !3944 is completed: this review is done.");
     }
 
+    [TestMethod]
+    public async Task A_review_a_restart_interrupted_is_started_again_once_from_its_request()
+    {
+        // The first turn never finished (agentd restarted); a question after it ran in a session of its own.
+        var h = new Harness();
+        var id = await h.Store.InsertAsync("sysmin", 3944, "Deploy to AKS", "tngo", s_discord, "t-9", null, default);
+        h.Store.Rows[id] = h.Store.Rows[id] with { Status = ReviewStatus.Reviewing, Focus = "security", Session = Guid.NewGuid(), HeadCommit = "old0000" };
+        await h.Store.AddMessageAsync(id, "in", "tngo", "!review 3944 check the helm probes --focus security", default);
+        await h.Store.AddMessageAsync(id, "in", "tngo", "still running?", default);
+        h.Agent.Replies.Enqueue(Findings);
+
+        await h.Service.ResumeAsync(default);
+        await h.WaitForSentAsync(2);
+        await h.Service.ResumeAsync(default);
+
+        var turn = h.Agent.Turns.Single();
+        Assert.IsFalse(turn.Resume, "a fresh session from the original request");
+        StringAssert.Contains(turn.Prompt, "Review pull request !3944");
+        StringAssert.Contains(turn.Prompt, "Instructions from tngo: check the helm probes");
+        StringAssert.Contains(turn.Prompt, "Focus on: security");
+        StringAssert.Contains(h.Chat.SentText[0], "agentd restarted while I was reviewing");
+        Assert.AreEqual(ReviewStatus.Reviewed, h.Store.Rows[id].Status);
+        Assert.AreEqual("abc1234", h.Store.Rows[id].HeadCommit, "the PR's head now");
+    }
+
+    [TestMethod]
+    public async Task A_review_with_findings_or_a_turn_running_isnt_started_again()
+    {
+        var h = await PostedAsync();
+        h.Store.Rows[1] = h.Store.Rows[1] with { Status = ReviewStatus.Reviewing };   // has its findings already
+        var turns = h.Agent.Turns.Count;
+
+        await h.Service.ResumeAsync(default);
+
+        Assert.AreEqual(turns, h.Agent.Turns.Count);
+    }
+
     private static async Task<Harness> PostedAsync()
     {
         var h = new Harness();
@@ -498,6 +535,9 @@ public sealed class ReviewServiceTests
         public Task<IReadOnlyList<Review>> ListPostedAsync(CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<Review>>([.. Rows.Values.Where(r => r.Status == ReviewStatus.Posted).OrderBy(r => r.Id)]);
 
+        public Task<IReadOnlyList<Review>> ListByStatusAsync(string status, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<Review>>([.. Rows.Values.Where(r => r.Status == status).OrderBy(r => r.Id)]);
+
         public Task<Review?> FindLatestAsync(string repository, int pullRequestId, CancellationToken cancellationToken) =>
             Task.FromResult(Rows.Values.Where(r => r.Repository == repository && r.PullRequestId == pullRequestId).OrderByDescending(r => r.Id).FirstOrDefault());
 
@@ -510,9 +550,25 @@ public sealed class ReviewServiceTests
             return Task.CompletedTask;
         }
 
-        public Task AddMessageAsync(long reviewId, string direction, string author, string text, CancellationToken cancellationToken) => Task.CompletedTask;
+        public List<(long ReviewId, IdeaMessage Message)> Messages { get; } = [];
 
-        public Task<IReadOnlyList<IdeaMessage>> ListMessagesAsync(long reviewId, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<IdeaMessage>>([]);
+        public Task AddMessageAsync(long reviewId, string direction, string author, string text, CancellationToken cancellationToken)
+        {
+            lock (Messages)
+            {
+                Messages.Add((reviewId, new IdeaMessage(direction, author, text, DateTimeOffset.UtcNow)));
+            }
+
+            return Task.CompletedTask;
+        }
+
+        public Task<IReadOnlyList<IdeaMessage>> ListMessagesAsync(long reviewId, CancellationToken cancellationToken)
+        {
+            lock (Messages)
+            {
+                return Task.FromResult<IReadOnlyList<IdeaMessage>>([.. Messages.Where(m => m.ReviewId == reviewId).Select(m => m.Message)]);
+            }
+        }
 
         public Task<IReadOnlyList<string>> ListOpenThreadsAsync(ProviderKey provider, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<string>>(Rows.Values.Where(r => r.Status != ReviewStatus.Closed).Select(r => r.ThreadId).ToList());

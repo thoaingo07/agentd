@@ -36,7 +36,11 @@ worked in chat or on the page (built 2026-10-12):
   its head (re-pinned from where it leaves its base), its latest findings (`review_session_set_findings`: they replace the
   old ones, and a finding with the same file and title keeps the decision made on the page) and its status (Reviewing →
   Reviewing, Reviewed/Kept → Ready, Posted → Sent `pr:<id>`, Discarded/Closed → Closed; a session sent from the page isn't
-  moved back to Ready). The restart pickup (`ReviewSessionReviewer.ResumeAsync`) skips it.
+  moved back to Ready). The restart pickup (`ReviewSessionReviewer.ResumeAsync`) skips it: the chat review resumes
+  itself (`ReviewService.ResumeAsync`, added 2026-10-14). A chat review still Reviewing with no findings and no turn
+  running (a restart cut its first turn) is started again on the monitor's next pass, once per process: a fresh session
+  from its saved `!review` request (instructions and focus), with a note in the thread that questions asked meanwhile
+  were answered without the review.
 - The chat's reply links the page; the page links the thread (**💬 From chat**).
 - **Post to the PR** stays in the thread, so the PR gets the review once and the re-checks of posted findings keep running (`ReviewService.MonitorAsync`);
   the page can still Copy as text or Fix it.

@@ -65,4 +65,23 @@ public sealed class ReviewStoreTests
         await store.SaveAsync(posted, default);
         CollectionAssert.AreEqual(new[] { latest }, (await store.ListPostedAsync(default)).Select(r => r.Id).ToList(), "only posted reviews are re-checked");
     }
+
+    [TestMethod]
+    public async Task Reviews_are_listed_by_status_oldest_first_and_parallel_readers_agree()
+    {
+        await using var db = await Database.CreateMigratedAsync("pr_reviews_by_status");
+        var store = new ReviewStore(db);
+        var discord = ProviderKey.From("discord");
+        var first = await store.InsertAsync("sysmin", 1, "One", "tngo", discord, "t-1", null, default);
+        var posted = await store.InsertAsync("sysmin", 2, "Two", "tngo", discord, "t-2", null, default);
+        var second = await store.InsertAsync("portal-api", 3, "Three", "tngo", discord, "t-3", null, default);
+        await store.SaveAsync((await store.GetAsync(posted, default))! with { Status = ReviewStatus.Posted }, default);
+
+        CollectionAssert.AreEqual(new[] { first, second }, (await store.ListByStatusAsync(ReviewStatus.Reviewing, default)).Select(r => r.Id).ToList());
+        CollectionAssert.AreEqual(new[] { posted }, (await store.ListByStatusAsync(ReviewStatus.Posted, default)).Select(r => r.Id).ToList());
+        Assert.IsEmpty(await store.ListByStatusAsync(ReviewStatus.Closed, default));
+
+        var lists = await Task.WhenAll(Enumerable.Range(0, 16).Select(_ => store.ListByStatusAsync(ReviewStatus.Reviewing, default)));
+        Assert.IsTrue(lists.All(l => l.Select(r => r.Id).SequenceEqual([first, second])), "each caller its own connection, same answer");
+    }
 }
