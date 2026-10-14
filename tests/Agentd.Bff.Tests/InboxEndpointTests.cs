@@ -60,7 +60,7 @@ public sealed class InboxEndpointTests
 
         Assert.AreEqual((HttpStatusCode.BadRequest, HttpStatusCode.BadRequest), (empty.StatusCode, badSource.StatusCode));
         Assert.AreEqual(HttpStatusCode.NotFound, noService.StatusCode, "no chats here");
-        Assert.AreEqual(HttpStatusCode.Conflict, incident.StatusCode, "an incident's thread is readable, answers come next");
+        Assert.AreEqual(HttpStatusCode.NotFound, incident.StatusCode, "an incident takes answers where the monitor runs; none here");
     }
 
     private static async Task<HttpResponseMessage> PostAsync(WebApplication app, string url, object? body) =>

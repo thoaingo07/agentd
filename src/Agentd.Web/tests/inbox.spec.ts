@@ -113,6 +113,33 @@ describe('Inbox', () => {
     w.unmount()
   })
 
+  it("an incident's thread offers Fix it and Ignore, answers its source, and has no page yet", async () => {
+    const analysis = { id: 30, source: 'incident', sourceId: 5, title: '🚨 orders-api: NullReferenceException', recipient: null, kind: 'Question',
+      markdown: '🔎 **Investigation of incident #5**', options: [{ id: 'incident-fix', label: '🛠 Fix it' }, { id: 'incident-ignore', label: '🙈 Ignore' }],
+      createdAt: '2026-10-14T10:00:00Z' }
+    const fetch = vi.mocked(globalThis.fetch).getMockImplementation()!
+    vi.stubGlobal('fetch', vi.fn(async (req: Request) => {
+      const url = new URL(req.url)
+      if (url.pathname === '/api/inbox' && req.method === 'GET') {
+        return new Response(JSON.stringify({ counts: { waiting: 1, unread: 1 }, threads: [
+          thread('incident', 5, { title: analysis.title, waiting: true, unread: 1, latestKind: 'Question', latestPreview: 'Investigation', question: analysis }),
+        ] }))
+      }
+      if (url.pathname === '/api/inbox/incident/5') return new Response(JSON.stringify([analysis]))
+      return fetch(req)
+    }))
+
+    const { w } = await open('/inbox/incident/5')
+    expect(w.get('[data-testid=inbox-open] h2').text()).toBe('🚨 orders-api: NullReferenceException')
+    expect(w.find('[data-testid=inbox-open] a').exists(), 'no Incidents page yet').toBe(false)
+    expect(w.get('[aria-label=Answer]').findAll('button').map((b) => b.text())).toEqual(['🛠 Fix it', '🙈 Ignore'])
+
+    await w.get('[aria-label=Answer]').findAll('button')[0]!.trigger('click')
+    await flushPromises()
+    expect(posts.at(-1)).toEqual({ path: '/api/inbox/incident/5/reply', body: { text: '🛠 Fix it' } })
+    w.unmount()
+  })
+
   it('inbox and job events re-read the counts once per burst', async () => {
     vi.useFakeTimers()
     const inbox = useInboxStore()

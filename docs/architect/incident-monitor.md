@@ -5,15 +5,15 @@
 > - **PR 1 detects incidents and alerts on them.** It's split in two to stay small: **1a** has the incident types,
 >   options, tables, routines and store; **1b** has the monitor pass, the Application Insights source, the worker and
 >   the alerts.
-> - **PR 2** investigates and offers **Fix it**, also in two parts: **2a** investigates (built); **2b** adds Fix it, Ignore,
+> - **PR 2** investigates and offers **Fix it**, also in two parts: **2a** investigates; **2b** adds Fix it, Ignore,
 >   questions in the thread and Resolved.
 > - **PR 3** adds the web pages.
 >
-> The PR 2b and PR 3 parts below are marked *next*.
+> The PR 3 part below is marked *next*.
 
 agentd reads each configured app's **Application Insights** telemetry for exceptions and failed requests. It groups
 them into **incidents**, one per bug however often it happens, and alerts in a 🚨 thread on the chat channel, or in the
-Inbox when there is no chat. An agent then investigates each incident against the app's repository. *Next:* on
+Inbox when there is no chat. An agent then investigates each incident against the app's repository, and on
 **Fix it** agentd files an Azure DevOps Bug for the normal job pipeline: plan, implement, verify, PR, review loop.
 
 Decisions made with the user:
@@ -21,8 +21,8 @@ Decisions made with the user:
 | Question | Decision |
 |---|---|
 | What triggers an incident | agentd **queries the telemetry itself** (exceptions, failed requests). It does not use Azure Monitor alert rules, so the only Azure setup is read access, and it works behind Tailscale with no inbound webhook. |
-| How a fix reaches a PR | *(next)* agentd **creates a work item** (a Bug with the analysis, tagged for agentd). The normal job runs, which keeps it traceable on the board. |
-| When fixing starts | *(next)* **A person asks first**: the alert and the investigation are automatic, and **Fix it** (a button or a reply) files the work item. |
+| How a fix reaches a PR | agentd **creates a work item** (a Bug with the analysis, tagged for agentd). The normal job runs, which keeps it traceable on the board. |
+| When fixing starts | **A person asks first**: the alert and the investigation are automatic, and **Fix it** (a button or a reply) files the work item. |
 
 ## 1. Configuration (`Agentd:Monitor`)
 
@@ -36,7 +36,7 @@ Decisions made with the user:
 | `TenantId` | (default directory) | The Entra tenant to sign in to. |
 | `Apps:N:Name` | | The app's name in alerts. Unique; letters, digits, `.`, `_` and `-`. |
 | `Apps:N:ResourceId` | | The Application Insights component's ARM id: `/subscriptions/…/resourceGroups/…/providers/Microsoft.Insights/components/…`. |
-| `Apps:N:Repository` | | The registered repository the app's code is in: investigations run there (*next:* fixes too). |
+| `Apps:N:Repository` | | The registered repository the app's code is in: investigations run there, and its Bugs are filed for it. |
 | `Apps:N:RoleName` | (all) | Only telemetry with this `cloud_RoleName`, when several apps share one resource. |
 
 **Sign-in** uses `DefaultAzureCredential`, never with a browser prompt. It tries a managed identity, then a service
@@ -81,11 +81,11 @@ permissions, a query error) is logged and read again next pass from the same poi
 chat post is logged, and the Inbox still has the alert.
 
 **Data:** `agentd.incidents` (migration `2026_11_08_0001`) holds status, total count, first and last seen, the sample
-(jsonb), the 🚨 thread and *next* the work item. `agentd.incident_cursors` holds each app's read position. Routines:
+(jsonb), the 🚨 thread and the work item. `agentd.incident_cursors` holds each app's read position. Routines:
 `incident_record`, `incident_get`, `incident_list`, `incident_set_thread`, `incident_cursor_get` and
 `incident_cursor_set`.
 
-## 3. Investigating and Fix it (PR 2: 2a built, 2b next)
+## 3. Investigating and Fix it (PR 2)
 
 ### 3.1 Investigating (2a)
 
@@ -106,10 +106,11 @@ background, so the pass doesn't wait for it. At most two run at once, and one pe
    **Impact**, **Proposed fix** and **Confidence**. The turn is in the prompt log as source `incident` and in Restart
    now's list ("Incident N: the agent is investigating").
 4. **Analysis:** redacted, kept on the incident with its session (`incident_set_analysis`: `analysis`, `session`,
-   `analyzed_at`; Investigating → Open), and posted as **🔎 Investigation of incident #N** in the 🚨 thread and the Inbox.
+   `analyzed_at`; Investigating → Open), and posted as **🔎 Investigation of incident #N** in the 🚨 thread and the Inbox,
+   as a question with **🛠 Fix it** and **🙈 Ignore**.
 5. **Failures** (an unregistered repository, an app no longer configured, a failed checkout, no answer, the usage limit)
    post a short line and put the incident back to Open, never leaving it in Investigating. An investigation a restart
-   interrupts stays Investigating; 2b's "investigate again" reply restarts it.
+   interrupts stays Investigating; an **investigate again** reply restarts it.
 
 The `incident-{id}` checkout stays, because follow-up questions resume the session there. The worktree sweep leaves
 folders it doesn't know.
@@ -119,18 +120,33 @@ to the prompt log's sources and to the Inbox's (`ck_inbox_source`). That last on
 refused 1b's Inbox entries for incidents, and `InboxWriter` only logged it. Routines: `incident_set_status` (compare-and-set; parallel callers moving it from one status
 have exactly one winner) and `incident_set_analysis`.
 
-### 3.2 Fix it, Ignore and questions (2b, next)
+### 3.2 Fix it, Ignore and questions (2b)
 
-- **Ask first:** after the analysis, the thread and the Inbox (now *waiting*: an Open incident with an analysis and no
-  work item) offer **🛠 Fix it** and **🙈 Ignore**.
-- **Fix it** (Operators and Admins) files an Azure DevOps **Bug** in the repository's area path. It's tagged
-  `ai-workflow` and the repository's match tag, like an idea's Start, so a normal job picks it up. Its repro steps are
-  the analysis, the stack, the counts and a portal link. Status Fixing. A second Fix it reports the same Bug.
-- **Ignore:** status Ignored. Recurrences are counted without alerts (the routine already keeps it ignored). "reopen"
-  in the thread makes it Open again.
-- **Anything else** in the thread or the Inbox reply is a question: a read-only turn resuming the investigation's session.
-- **Resolved:** in the monitor pass, a Fixing incident whose job is Done is Resolved ("✅ Fixed by PR …"). A Resolved
-  incident that recurs reopens and says it's back.
+Messages in the 🚨 thread (`InboundMessageHandler`, found by `incident_find_by_thread`) and Inbox replies
+(`POST /api/inbox/incident/{id}/reply`) go to `IncidentService.HandleAsync`. One answer runs at a time per incident.
+
+| Message | Who | What happens |
+|---|---|---|
+| **🛠 Fix it** · `fix` · `1` | Operators, Admins | A **Bug** in Azure DevOps: `[app] Title in operation`, in the repository's first match area path, tagged `ai-workflow` (`Jobs:Tag`), the repository's match tag (or `repo:<name>`) and `incident`, like an idea's Start, so agentd's poll picks it up and the normal job runs. Its description and **Repro Steps** are the redacted incident: the message, counts, stack, analysis and the portal link. `incident_set_work_item` keeps the first Bug only (parallel callers all get it back) and sets Fixing. A second Fix it names the filed Bug. |
+| **🙈 Ignore** · `ignore` · `2` | Operators, Admins | Ignored: recurrences are counted without alerts (`incident_record` keeps it Ignored). |
+| `reopen` · `watch again` | Operators, Admins | An Ignored or Resolved incident is Open again. |
+| `investigate again` · `retry` | Operators, Admins | Investigating → Open, then a new investigation (for one a restart cut off, or a stale analysis). |
+| anything else | anyone | A question: a read-only turn **resuming the investigation's session** in `incident-{id}`. It answers in the thread and the Inbox. Without an analysis yet, it investigates. |
+
+Someone else gets "🔒 Only Operators and Admins can do that". Strangers on an open provider are Operators.
+
+**Inbox:** an incident waits on you while it's **Open with an analysis and no Bug** (`inbox_waiting`). The Inbox shows
+the question's buttons, and an incident has no page yet (PR 3).
+
+**Resolved:** each monitor pass first checks Fixing incidents. When the Bug's latest job is **Done**, the incident is
+Resolved: "✅ Incident #N is resolved: agentd's job for Bug #M is done (PR …)". If the error comes back, recording
+reopens it and the alert says **🔁 Incident #N is back** in the same thread.
+
+**Bugs:** the work item adapter writes a Bug's description to `Microsoft.VSTS.TCM.ReproSteps` too, because that is
+what a Bug's form shows.
+
+**Data:** migration `2026_11_10_0001` indexes `(provider, thread_id)`. Routines: `incident_set_work_item` (the first
+Bug wins, with parallel callers) and `incident_find_by_thread`.
 
 ## 4. Web (PR 3, next)
 

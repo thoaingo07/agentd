@@ -60,6 +60,7 @@ public static class DependencyInjection
         services.AddSingleton<Chats.ChatService>();
         services.AddSingleton<Incidents.IncidentMonitor>();
         services.AddSingleton<Incidents.IncidentInvestigator>();
+        services.AddSingleton<Incidents.IncidentService>();
         services.AddSingleton<AzureDevOps.AdoConnections>();
         services.AddSingleton<Reviews.OpenPullRequests>();
         services.AddSingleton<AzureDevOps.AdoActor>();

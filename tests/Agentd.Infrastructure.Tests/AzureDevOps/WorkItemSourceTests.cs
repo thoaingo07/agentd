@@ -183,4 +183,15 @@ public sealed class WorkItemSourceTests
         Assert.AreEqual("System.LinkTypes.Hierarchy-Reverse", ops["/relations/-"]["rel"]!.GetValue<string>());
         StringAssert.EndsWith(ops["/relations/-"]["url"]!.GetValue<string>(), "ermsystem/_apis/wit/workItems/9001");
     }
+
+    [TestMethod]
+    public async Task A_bugs_description_is_its_repro_steps_too()
+    {
+        var ado = new FakeAdo().On(HttpMethod.Post, "/ermsystem/Portal/_apis/wit/workitems/$Bug", HttpStatusCode.OK, """{ "id": 9003 }""");
+
+        await Source(ado).CreateAsync(new Agentd.Application.Ports.NewWorkItem("Bug", "Orders 500", "It fails", null, ["ai-workflow"], null, null, null), default);
+
+        var ops = JsonNode.Parse(ado.Requests.Single().Body!)!.AsArray().ToDictionary(o => o!["path"]!.GetValue<string>(), o => o!["value"]!);
+        Assert.AreEqual(("<p>It fails</p>", "<p>It fails</p>"), (ops["/fields/Microsoft.VSTS.TCM.ReproSteps"].GetValue<string>(), ops["/fields/System.Description"].GetValue<string>()));
+    }
 }

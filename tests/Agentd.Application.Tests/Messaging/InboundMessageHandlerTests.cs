@@ -147,6 +147,26 @@ public sealed class InboundMessageHandlerTests
     }
 
     [TestMethod]
+    public async Task A_message_in_an_incidents_thread_goes_to_the_incident_with_the_authors_role()
+    {
+        var store = new Incidents.FakeIncidentStore();
+        var recorded = (await store.RecordAsync("orders-api", new Agentd.Application.Incidents.ErrorGroup("ex|p|op", "exception", "Boom", null, "op", null, 5, 1,
+            DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, new Agentd.Application.Incidents.ErrorSample(null, null, null)), 1, default))!;
+        await store.SetThreadAsync(recorded.Id, "discord", "thread-1", null, default);
+        var options = Microsoft.Extensions.Options.Options.Create(new Agentd.Application.Incidents.IncidentMonitorOptions());
+        using var investigator = new Agentd.Application.Incidents.IncidentInvestigator(store, new Incidents.FakeTelemetry(), new FakeRegistry(), new FakeWorktrees(),
+            new IdleAgent(), new MessagingProviderRegistry([], Microsoft.Extensions.Options.Options.Create(new MessagingOptions())), options,
+            NullLogger<Agentd.Application.Incidents.IncidentInvestigator>.Instance);
+        using var incidents = new Agentd.Application.Incidents.IncidentService(store, investigator, new FakeRegistry(), options,
+            Microsoft.Extensions.Options.Options.Create(new JobOptions()), NullLogger<Agentd.Application.Incidents.IncidentService>.Instance);
+
+        var outcome = await Handler(incidents: incidents, incidentStore: store).ProcessAsync(Message("ignore"), default);
+
+        Assert.AreEqual("incident:ignored", outcome.Code, "tngo is an Admin");
+        Assert.AreEqual(Agentd.Application.Incidents.IncidentStatus.Ignored, store.Rows.Single().Status);
+    }
+
+    [TestMethod]
     public async Task A_failure_releases_the_message_for_redelivery()
     {
         await JobInThreadAsync(waiting: true);
@@ -178,9 +198,10 @@ public sealed class InboundMessageHandlerTests
         }
     }
 
-    private InboundMessageHandler Handler(MessagingOptions? messaging = null, ICommandHandler<Agentd.Application.Permissions.PermissionAnswer, bool>? permissions = null) =>
+    private InboundMessageHandler Handler(MessagingOptions? messaging = null, ICommandHandler<Agentd.Application.Permissions.PermissionAnswer, bool>? permissions = null,
+        Agentd.Application.Incidents.IncidentService? incidents = null, Agentd.Application.Incidents.IIncidentStore? incidentStore = null) =>
         new(_log, _users, _t.Conversations, new SubmitDeveloperMessageHandler(_t.Jobs), ChatCommandsTests.Commands(_t, _outbox, new FakeTranscripts()), _t.AnswerCloseOut(), _outbox, _t.Jobs, _activity, _t.Clock, NullLogger<InboundMessageHandler>.Instance,
-            messaging is null ? null : new Monitor(messaging), permissions);
+            messaging is null ? null : new Monitor(messaging), permissions, incidents: incidents, incidentStore: incidentStore);
 
     private sealed class FakePermissions : ICommandHandler<Agentd.Application.Permissions.PermissionAnswer, bool>
     {
@@ -262,5 +283,11 @@ public sealed class InboundMessageHandlerTests
                 });
 
         public Task SyncAsync(IReadOnlyList<User> users, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    private sealed class IdleAgent : Agentd.Application.Ideas.IBrainstormAgent
+    {
+        public Task<Agentd.Application.Ideas.BrainstormReply> RunAsync(Agentd.Application.Ideas.BrainstormTurn turn, CancellationToken cancellationToken) =>
+            Task.FromResult(new Agentd.Application.Ideas.BrainstormReply("ok", null, null));
     }
 }

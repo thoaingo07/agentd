@@ -1,5 +1,5 @@
 -- The Inbox (docs/architect/inbox.md): agentd's messages to people, one thread per source (job, idea, review, chat,
--- watch). Whether a thread waits on a person is read live from its source, never guessed from the messages.
+-- incident, and old watches). Whether a thread waits on a person is read live from its source, never guessed from the messages.
 
 CREATE OR REPLACE FUNCTION agentd.inbox_add(
     p_source text, p_source_id bigint, p_title text, p_recipient text, p_kind text, p_markdown text, p_options jsonb)
@@ -32,6 +32,8 @@ AS $$
         WHEN 'idea' THEN EXISTS (SELECT 1 FROM agentd.ideas AS i WHERE i.id = p_source_id
                                    AND (i.status = 'Proposed' OR (i.status IN ('Created', 'Discarded') AND i.thread_id IS NOT NULL)))
         WHEN 'review' THEN EXISTS (SELECT 1 FROM agentd.pr_reviews AS r WHERE r.id = p_source_id AND r.status IN ('Reviewed', 'Kept', 'Discarded'))
+        WHEN 'incident' THEN EXISTS (SELECT 1 FROM agentd.incidents AS i WHERE i.id = p_source_id AND i.status = 'Open'
+                                       AND i.analysis IS NOT NULL AND i.work_item_id IS NULL)
         ELSE false
     END
 $$;

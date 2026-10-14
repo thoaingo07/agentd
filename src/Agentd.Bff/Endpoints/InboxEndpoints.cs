@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Agentd.Application.Chats;
 using Agentd.Application.Ideas;
 using Agentd.Application.Inbox;
+using Agentd.Application.Incidents;
 using Agentd.Application.Jobs;
 using Agentd.Application.Reviews;
 using Agentd.Bff.Http;
@@ -72,7 +73,8 @@ public static class InboxEndpoints
                 return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["text"] = [$"text must be 1 to {JobActionEndpoints.MaxMessageLength} characters."] });
             }
 
-            var result = await ReplyAsync(http.RequestServices, source, sourceId, body.Text.Trim(), Name(user), ct).ConfigureAwait(false);
+            var result = await ReplyAsync(http.RequestServices, source, sourceId, body.Text.Trim(), Name(user), user.IsInRole("Operator") || user.IsInRole("Admin"), ct)
+                .ConfigureAwait(false);
             return result.IsSuccess ? TypedResults.Accepted((string?)null, new InboxReplyVm(result.Value!)) : result.Error.ToProblem();
         }).WithName("ReplyInInbox").Accepts<InboxReplyRequest>("application/json").Produces<InboxReplyVm>(StatusCodes.Status202Accepted)
             .ProducesValidationProblem().ProducesProblem(StatusCodes.Status400BadRequest).ProducesProblem(StatusCodes.Status404NotFound)
@@ -82,7 +84,7 @@ public static class InboxEndpoints
     }
 
     /// <summary>The reply, to its source: a job like its page's message box, an idea, chat or review like a message in its thread. A watched PR's old thread stays readable but takes no answers.</summary>
-    private static async Task<Result<string>> ReplyAsync(IServiceProvider services, string source, long id, string text, string author, CancellationToken ct)
+    private static async Task<Result<string>> ReplyAsync(IServiceProvider services, string source, long id, string text, string author, bool canAct, CancellationToken ct)
     {
         var finished = DomainError.Conflict($"This {source} doesn't take messages any more.");
         switch (source)
@@ -106,8 +108,10 @@ public static class InboxEndpoints
             case InboxSources.Watch:
                 return DomainError.Conflict("Watching PRs is turned off for now.");
 
-            case InboxSources.Incident:
-                return DomainError.Conflict("Incidents don't take answers yet: investigating and Fix it come in the next version.");
+            case InboxSources.Incident when services.GetService<IncidentService>() is { } incidents && services.GetService<IIncidentStore>() is { } store:
+                // 🛠 Fix it, 🙈 Ignore, reopen (Operators and Admins), or a question for the investigating agent.
+                return await store.GetAsync(id, ct).ConfigureAwait(false) is not { } incident ? DomainError.NotFound($"Incident {id}")
+                    : await incidents.HandleAsync(incident, author, canAct, text, ct).ConfigureAwait(false);
 
             default:
                 return DomainError.NotFound($"{source} {id}");

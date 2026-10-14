@@ -3,6 +3,7 @@ using System.Text;
 using Agentd.Application.Events;
 using Agentd.Application.Inbox;
 using Agentd.Application.Messaging;
+using Agentd.Application.Ports;
 using Agentd.Domain.Common;
 using Agentd.Domain.Jobs.ValueObjects;
 using Agentd.Domain.Messaging;
@@ -27,7 +28,8 @@ public sealed partial class IncidentMonitor(
     IClock clock,
     ILogger<IncidentMonitor> logger,
     IInbox? inbox = null,
-    IncidentInvestigator? investigator = null)
+    IncidentInvestigator? investigator = null,
+    IWorkItemHistory? history = null)
 {
     /// <summary>The longest window one pass reads, after agentd was down for a while.</summary>
     public static readonly TimeSpan MaxWindow = TimeSpan.FromDays(1);
@@ -39,6 +41,15 @@ public sealed partial class IncidentMonitor(
     public async Task<int> PassAsync(CancellationToken cancellationToken)
     {
         var o = options.Value;
+        try
+        {
+            await ResolveFixedAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            LogResolveFailed(logger, ex);
+        }
+
         var alerts = 0;
         foreach (var app in o.Apps)
         {
@@ -53,6 +64,37 @@ public sealed partial class IncidentMonitor(
         }
 
         return alerts;
+    }
+
+    /// <summary>A Fixing incident whose Bug's latest job is Done is Resolved; if it recurs, recording reopens it ("is back").</summary>
+    private async Task ResolveFixedAsync(CancellationToken ct)
+    {
+        if (history is null)
+        {
+            return;
+        }
+
+        foreach (var incident in await store.ListAsync(IncidentStatus.Fixing, 200, ct).ConfigureAwait(false))
+        {
+            var jobs = incident.WorkItemId is { } bug ? await history.ListJobsAsync(WorkItemId.From(bug), ct).ConfigureAwait(false) : [];
+            if (jobs.Count == 0 || jobs[^1] is not { State: Domain.Jobs.JobState.Done } job
+                || !await store.SetStatusAsync(incident.Id, IncidentStatus.Resolved, IncidentStatus.Fixing, ct).ConfigureAwait(false))
+            {
+                continue;
+            }
+
+            var message = new OutboundMessage(MessageKind.Result, $"✅ **Incident #{incident.Id} is resolved**: agentd's job for Bug #{incident.WorkItemId} is done" +
+                (job.PullRequest is { } pr ? $" (PR {pr.Value})" : string.Empty) + ". If it happens again, I'll reopen it here.");
+            if (investigator is not null)
+            {
+                await investigator.PostAsync(incident, message, ct).ConfigureAwait(false);
+            }
+            else
+            {
+                await inbox.TryAddAsync(new InboxEntry(InboxSources.Incident, incident.Id, Ideas.IdeaService.Title($"🚨 {incident.App}: {incident.Title}"), null, message), logger, ct)
+                    .ConfigureAwait(false);
+            }
+        }
     }
 
     private async Task<int> CheckAsync(MonitoredApp app, IncidentMonitorOptions o, int budget, CancellationToken ct)
@@ -173,6 +215,9 @@ public sealed partial class IncidentMonitor(
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Incident monitor: reading {App} failed; trying again next pass from the same point")]
     private static partial void LogAppFailed(ILogger logger, Exception exception, string app);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Incident monitor: checking fixed incidents failed; trying again next pass")]
+    private static partial void LogResolveFailed(ILogger logger, Exception exception);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Incident {IncidentId}: posting the alert failed; the Inbox has it")]
     private static partial void LogPostFailed(ILogger logger, Exception exception, long incidentId);
