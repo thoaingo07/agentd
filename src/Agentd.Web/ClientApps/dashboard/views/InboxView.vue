@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // The Inbox (docs/architect/inbox.md, like Plannotator's): agentd's messages to people, one thread per job, idea,
-// review, chat or watched PR. Threads waiting on you come first; open one to read it and answer with its buttons or a
+// review, chat, incident or watched PR. Threads waiting on you come first; open one to read it and answer with its buttons or a
 // reply, which goes to its source as its page or chat thread would take it. j/k move, e marks read.
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter, type RouteLocationRaw } from 'vue-router'
@@ -36,13 +36,13 @@ const icon: Record<string, string> = { job: '🛠', idea: '💡', review: '🔍'
 const titled = (t: { source: string; title: string }) => (/^\p{Extended_Pictographic}/u.test(t.title) ? t.title : `${icon[t.source] ?? '•'} ${t.title}`)
 const views: { value: InboxView; label: string }[] = [{ value: 'all', label: 'Everyone' }, { value: 'mine', label: 'Mine' }]
 
-/** The source's own page: a job's work item, an idea, a chat, the Reviews page for chat reviews (and old watched PRs); an incident has none yet. */
-function page(t: { source: string; sourceId: number }): RouteLocationRaw | null {
+/** The source's own page: a job's work item, an idea, a chat, an incident, the Reviews page for chat reviews (and old watched PRs). */
+function page(t: { source: string; sourceId: number }): RouteLocationRaw {
   switch (t.source) {
     case 'job': return { name: 'job', params: { id: t.sourceId } }
     case 'idea': return { name: 'idea', params: { id: t.sourceId } }
     case 'chat': return { name: 'chat', params: { id: t.sourceId } }
-    case 'incident': return null
+    case 'incident': return { name: 'incident', params: { id: t.sourceId } }
     default: return { name: 'reviews' }
   }
 }
@@ -236,8 +236,7 @@ watch(() => [props.source, props.id] as const, ([source, id]) => {
             {{ titled(inbox.current) }}
           </h2>
           <RouterLink
-            v-if="page(inbox.current)"
-            :to="page(inbox.current)!"
+            :to="page(inbox.current)"
             class="link text-sm"
           >
             Open its page

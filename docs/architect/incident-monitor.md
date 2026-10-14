@@ -7,9 +7,9 @@
 >   the alerts.
 > - **PR 2** investigates and offers **Fix it**, also in two parts: **2a** investigates; **2b** adds Fix it, Ignore,
 >   questions in the thread and Resolved.
-> - **PR 3** adds the web pages.
+> - **PR 3** adds the web pages, in two parts: **3a** the Incidents page; **3b** Settings → Monitoring and live occurrences.
 >
-> The PR 3 part below is marked *next*.
+> The 3b part below is marked *next*.
 
 agentd reads each configured app's **Application Insights** telemetry for exceptions and failed requests. It groups
 them into **incidents**, one per bug however often it happens, and alerts in a 🚨 thread on the chat channel, or in the
@@ -136,7 +136,7 @@ Messages in the 🚨 thread (`InboundMessageHandler`, found by `incident_find_by
 Someone else gets "🔒 Only Operators and Admins can do that". Strangers on an open provider are Operators.
 
 **Inbox:** an incident waits on you while it's **Open with an analysis and no Bug** (`inbox_waiting`). The Inbox shows
-the question's buttons, and an incident has no page yet (PR 3).
+the question's buttons, and **Open its page** goes to the incident's page (§4).
 
 **Resolved:** each monitor pass first checks Fixing incidents. When the Bug's latest job is **Done**, the incident is
 Resolved: "✅ Incident #N is resolved: agentd's job for Bug #M is done (PR …)". If the error comes back, recording
@@ -148,8 +148,37 @@ what a Bug's form shows.
 **Data:** migration `2026_11_10_0001` indexes `(provider, thread_id)`. Routines: `incident_set_work_item` (the first
 Bug wins, with parallel callers) and `incident_find_by_thread`.
 
-## 4. Web (PR 3, next)
+## 4. Web (PR 3)
 
-- An **Incidents** page: the list by status and app, and each incident's alert, analysis and occurrences, with the
-  same actions as the thread.
-- **Settings → Monitoring**: the apps, with **Test connection**, which runs the query over the last hour.
+### 4.1 Incidents page (3a)
+
+**Incidents** in the menu (`/incidents`) lists them newest first, filtered by **Active** (Open, Investigating,
+Fixing), Resolved, Ignored or All, and by app. Each row shows the title and operation, the status, the count, when it
+was last seen, and the Bug filed for it.
+
+An incident's page (`/incidents/{id}`) shows:
+- the app, its repository, the kind, the operation and the counts;
+- links to the Bug, the Azure portal's Failures blade, the Inbox thread and (for Admins) its prompts;
+- the **🔎 Investigation**, and **What the telemetry recorded**: the message, result code and top of the stack;
+- the thread (the alert, the investigation, answers) and an **Ask** box.
+
+**Actions** are for Operators and Admins and depend on the status:
+- **🛠 Fix it** until a Bug is filed, confirmed first;
+- **🙈 Ignore** and **🔎 Investigate again** while it isn't quiet;
+- **👀 Reopen** once it's Resolved or Ignored.
+
+The page has no actions of its own. Buttons and questions are Inbox replies (`POST /api/inbox/incident/{id}/reply`),
+so they do exactly what the 🚨 thread does, and the server checks the role again. An `inbox.added` event for an
+incident re-reads the list and the open incident.
+
+| Endpoint | Who | What |
+|---|---|---|
+| `GET /api/incidents?status=&limit=` | signed in | Newest first (`incident_list`); `status` is one of the five; `limit` at most 500. |
+| `GET /api/incidents/{id}` | signed in | The incident, its redacted sample, analysis, repository and portal link (null when the app isn't configured anymore), and whether it has a thread. |
+
+The Inbox's incident threads now open (`/inbox/incident/{id}`; the route was missing the source).
+
+### 4.2 Settings → Monitoring (3b, next)
+
+- The apps, with **Test connection**, which runs the query over the last hour.
+- On an incident's page, **Latest occurrences**, read live from Application Insights when asked (Operators, Admins).

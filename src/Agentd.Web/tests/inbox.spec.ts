@@ -23,6 +23,7 @@ const router = () => createRouter({ history: createMemoryHistory(), routes: [
   { path: '/ideas/:id', name: 'idea', component: { template: '<div />' } },
   { path: '/chats/:id', name: 'chat', component: { template: '<div />' } },
   { path: '/reviews', name: 'reviews', component: { template: '<div />' } },
+  { path: '/incidents/:id', name: 'incident', component: { template: '<div />' } },
 ] })
 
 beforeEach(() => {
@@ -113,7 +114,7 @@ describe('Inbox', () => {
     w.unmount()
   })
 
-  it("an incident's thread offers Fix it and Ignore, answers its source, and has no page yet", async () => {
+  it("an incident's thread offers Fix it and Ignore, answers its source, and opens its Incidents page", async () => {
     const analysis = { id: 30, source: 'incident', sourceId: 5, title: '🚨 orders-api: NullReferenceException', recipient: null, kind: 'Question',
       markdown: '🔎 **Investigation of incident #5**', options: [{ id: 'incident-fix', label: '🛠 Fix it' }, { id: 'incident-ignore', label: '🙈 Ignore' }],
       createdAt: '2026-10-14T10:00:00Z' }
@@ -131,7 +132,7 @@ describe('Inbox', () => {
 
     const { w } = await open('/inbox/incident/5')
     expect(w.get('[data-testid=inbox-open] h2').text()).toBe('🚨 orders-api: NullReferenceException')
-    expect(w.find('[data-testid=inbox-open] a').exists(), 'no Incidents page yet').toBe(false)
+    expect(w.get('[data-testid=inbox-open] a').attributes('href')).toBe('/incidents/5')
     expect(w.get('[aria-label=Answer]').findAll('button').map((b) => b.text())).toEqual(['🛠 Fix it', '🙈 Ignore'])
 
     await w.get('[aria-label=Answer]').findAll('button')[0]!.trigger('click')

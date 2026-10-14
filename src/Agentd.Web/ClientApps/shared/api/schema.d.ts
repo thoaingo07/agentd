@@ -676,6 +676,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/incidents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetIncidents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/incidents/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetIncident"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/settings/restart": {
         parameters: {
             query?: never;
@@ -1986,6 +2018,42 @@ export interface components {
             unread: number;
             waiting: boolean;
             question: null | components["schemas"]["InboxItemVm"];
+        };
+        /**
+         * @description An incident whole: the recorded sample (top of the stack, result code), the investigation's analysis (Markdown), the app's
+         *     repository and Azure portal link (null when the app isn't monitored anymore), and whether it has a chat thread.
+         */
+        IncidentDetailVm: {
+            summary: components["schemas"]["IncidentSummaryVm"];
+            stack: null | string;
+            resultCode: null | string;
+            operationId: null | string;
+            analysis: null | string;
+            /** Format: date-time */
+            analyzedAt: null | string;
+            repository: null | string;
+            portalUrl: null | string;
+            hasThread: boolean;
+        };
+        /** @description An incident in the list: one error group of one app, its status and counts, and the Bug filed for it. */
+        IncidentSummaryVm: {
+            /** Format: int64 */
+            id: number;
+            app: string;
+            kind: string;
+            title: string;
+            message: null | string;
+            operation: null | string;
+            status: string;
+            /** Format: int64 */
+            totalCount: number;
+            /** Format: date-time */
+            firstSeen: string;
+            /** Format: date-time */
+            lastSeen: string;
+            /** Format: int32 */
+            workItemId: null | number;
+            analyzed: boolean;
         };
         JobDetailVm: {
             job: components["schemas"]["JobSummaryVm"];
@@ -4051,6 +4119,69 @@ export interface operations {
             };
             /** @description Conflict */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetIncidents: {
+        parameters: {
+            query?: {
+                status?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IncidentSummaryVm"][];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetIncident: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IncidentDetailVm"];
+                };
+            };
+            /** @description Not Found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

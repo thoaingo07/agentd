@@ -6,6 +6,7 @@ import { useEventsStore } from './events'
 import { useIdeasStore } from './ideas'
 import { useChatsStore } from './chats'
 import { useInboxStore } from './inbox'
+import { useIncidentsStore } from './incidents'
 import { useJobsStore } from './jobs'
 import { useWorkItemsStore } from './workItems'
 
@@ -35,6 +36,7 @@ export const useConnectionStore = defineStore('connection', () => {
       useIdeasStore().apply(evt)
       useChatsStore().apply(evt)
       useInboxStore().apply(evt)
+      useIncidentsStore().apply(evt)
     } else {
       useEventsStore().append(evt)
       useWorkItemsStore().append(evt)
