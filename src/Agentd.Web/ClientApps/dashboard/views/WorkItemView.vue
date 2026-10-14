@@ -197,6 +197,12 @@ onBeforeUnmount(() => {
               title="The chat thread is closed or deleted; the conversation is kept here."
             >{{ c.provider }} thread closed</span>
           </template>
+          <span
+            v-if="!store.summary.conversations.length"
+            class="badge badge-ghost"
+            title="agentd runs without chat here: questions, answers and results are on this page and in the Inbox."
+            data-testid="no-thread"
+          >No chat thread · the conversation is here</span>
           <span class="flex-1" />
           <RunActions
             v-if="run"

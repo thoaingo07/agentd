@@ -37,7 +37,7 @@ beforeEach(() => {
     'GET /api/setup/azure-devops': json({ organization: 'myorg', project: 'Portal', auth: 'Pat', pat: set, tenantId: null, clientId: null, clientSecret: unset }),
     'PUT /api/setup/azure-devops': json({ restartRequired: true }),
     'POST /api/setup/azure-devops/test': json({ ok: true, message: 'Signed in to myorg/Portal.', fix: null }),
-    'GET /api/setup/git-key': json({ exists: false, publicKey: null, fingerprint: null, path: null }),
+    'GET /api/setup/git-key': json({ exists: false, publicKey: null, fingerprint: null, path: null, overHttps: false }),
     'POST /api/setup/git-key': json({ exists: true, publicKey: 'ssh-ed25519 AAAAC3 agentd@vps', fingerprint: 'SHA256:abc', path: '/home/a/.agentd/ssh/id_ed25519' }),
     'GET /api/setup/claude': json({ token: unset, server: { installed: true, version: '2.1.300 (Claude Code)', loggedIn: false, method: null, plan: null } }),
     'PUT /api/setup/claude': json({ restartRequired: true }),
@@ -185,6 +185,34 @@ describe('steps', () => {
     expect(JSON.stringify(useSetupStore().$state)).not.toContain('SECRET')
   })
 
+  it('azure devops: the machine\'s Entra sign-in sends an optional tenant and needs no secret', async () => {
+    const step = mount(AzureDevOpsStep, { global: { plugins: [router()] } })
+    await flushPromises()
+
+    await step.get('input[value="Entra"]').setValue(true)
+    expect(step.text()).not.toContain('Personal access token')
+    expect(step.text()).toContain('no SSH key is needed')
+    await step.findAll('button').find((b) => b.text() === 'Test')!.trigger('click')
+    await flushPromises()
+    await step.get('input[placeholder^="only when"]').setValue(' contoso.onmicrosoft.com ')
+    await step.findAll('button').find((b) => b.text() === 'Test')!.trigger('click')
+    await flushPromises()
+
+    const tests = calls.filter((c) => c.path === '/api/setup/azure-devops/test').map((c) => c.body)
+    expect(tests).toEqual([
+      { organization: 'myorg', project: 'Portal', auth: 'Entra', pat: null, tenantId: null, clientId: null, clientSecret: null },
+      { organization: 'myorg', project: 'Portal', auth: 'Entra', pat: null, tenantId: 'contoso.onmicrosoft.com', clientId: null, clientSecret: null },
+    ])
+  })
+
+  it('git: over HTTPS it says no SSH key is needed', async () => {
+    routes['GET /api/setup/git-key'] = json({ exists: false, publicKey: null, fingerprint: null, path: null, overHttps: true })
+    const step = mount(GitKeyStep, { global: { plugins: [router()] } })
+    await flushPromises()
+
+    expect(step.get('[data-testid=git-over-https]').text()).toContain('no SSH key')
+  })
+
   it('git: generates the key, shows the public half with a link to add it, and tests a clone URL', async () => {
     const step = mount(GitKeyStep, { global: { plugins: [router()] } })
     await flushPromises()
@@ -224,9 +252,12 @@ describe('steps', () => {
     expect(JSON.stringify(useSetupStore().$state)).not.toContain('SECRET')
   })
 
-  it('chat: sends a test message and saves you as a user; off hides the Discord fields', async () => {
+  it('chat: opens as saved (off), sends a test message and saves you as a user; off hides the Discord fields', async () => {
     const step = mount(ChatStep, { global: { plugins: [router()] } })
     await flushPromises()
+    expect((step.get('input[type="checkbox"]').element as HTMLInputElement).checked, 'chat is off as saved').toBe(false)
+    expect(step.text()).not.toContain('Bot token')
+    await step.get('input[type="checkbox"]').setValue(true)
     const inputs = step.findAll('input:not([type="checkbox"])')
     await inputs[0]!.setValue('bot-SECRET')
     await inputs[1]!.setValue('770517485715193877')
