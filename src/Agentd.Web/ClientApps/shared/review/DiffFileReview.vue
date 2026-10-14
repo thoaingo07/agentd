@@ -1,14 +1,15 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import type { GuideNote, ReviewComment, ReviewFinding } from '../api/types'
-import type { DiffFile } from '../utils/diff'
+import type { DiffFile, DiffLine } from '../utils/diff'
 import { isGenerated } from '../utils/generated'
 import { AgButton } from '../components/ui'
 import FindingCard from './FindingCard.vue'
 
 // One file of the change with its findings, comments and (in a guided review) the reviewer's notes at their lines; click a
-// line number to comment there.
-const props = defineProps<{ file: DiffFile; findings: ReviewFinding[]; comments: ReviewComment[]; readonly?: boolean; notes?: GuideNote[] }>()
+// line number to comment there. `guided`: the guided review's right pane, which shows the path itself: no frame, the gap
+// between hunks as "N unmodified lines", and long unchanged runs folded (a click unfolds them).
+const props = defineProps<{ file: DiffFile; findings: ReviewFinding[]; comments: ReviewComment[]; readonly?: boolean; notes?: GuideNote[]; guided?: boolean }>()
 const emit = defineEmits<{
   decide: [n: number, decision: 'kept' | 'dropped' | 'edited', text?: string]
   comment: [line: number, text: string]
@@ -18,6 +19,8 @@ const emit = defineEmits<{
   explainFinding: [finding: ReviewFinding]
 }>()
 const tint = { add: 'bg-success/10', del: 'bg-error/10', context: '' } as const
+/** The guided view's left edge on changed lines, like Plannotator's. */
+const accent = { add: 'border-l-2 border-success', del: 'border-l-2 border-error', context: 'border-l-2 border-transparent' } as const
 const mark = { add: '+', del: '-', context: ' ' } as const
 const at = ref<number | null>(null)
 const generated = computed(() => isGenerated(props.file.newPath))
@@ -41,6 +44,61 @@ const byLine = computed(() => {
   return { findings, comments, loose, notes }
 })
 
+/** Unchanged runs at least this long fold in the guided view, keeping this many lines on each side. */
+const foldAt = 8
+const foldKeep = 3
+const unfolded = ref(new Set<string>())
+type Row = { kind: 'line'; line: DiffLine } | { kind: 'fold'; id: string; lines: DiffLine[] }
+
+/** A line that carries a note, finding, comment or the comment being written never folds away. */
+const busy = (n: number | null) => n != null && (byLine.value.findings.has(n) || byLine.value.comments.has(n) || byLine.value.notes.has(n) || at.value === n)
+
+/** Each hunk's rows: its lines, with long unchanged runs folded in the guided view. */
+const rows = computed<Row[][]>(() => props.file.hunks.map((h, hi) => {
+  const lines = (list: DiffLine[]): Row[] => list.map((line) => ({ kind: 'line', line }))
+  if (!props.guided) return lines(h.lines)
+  const out: Row[] = []
+  let run: DiffLine[] = []
+  const flush = () => {
+    const id = `${hi}:${run[0]?.newNo ?? run[0]?.oldNo}`
+    if (run.length >= foldAt && !unfolded.value.has(id)) {
+      out.push(...lines(run.slice(0, foldKeep)), { kind: 'fold', id, lines: run.slice(foldKeep, -foldKeep) }, ...lines(run.slice(-foldKeep)))
+    } else {
+      out.push(...lines(run))
+    }
+    run = []
+  }
+  for (const l of h.lines) {
+    if (l.kind === 'context' && !busy(l.newNo)) {
+      run.push(l)
+    } else {
+      flush()
+      out.push({ kind: 'line', line: l })
+    }
+  }
+  flush()
+  return out
+}))
+
+/** The unchanged lines before each hunk (from its header: where it starts on the old side, after the last one ended). */
+const gaps = computed(() => {
+  let end = 1
+  return props.file.hunks.map((h) => {
+    const m = /^@@ -(\d+)(?:,(\d+))? /.exec(h.header)
+    if (!m) return 0
+    const start = Number(m[1])
+    const count = m[2] === undefined ? 1 : Number(m[2])
+    const gap = Math.max(0, start - end)
+    end = start + count
+    return gap
+  })
+})
+const unmodified = (n: number) => `${n} unmodified line${n === 1 ? '' : 's'}`
+
+function unfold(id: string): void {
+  unfolded.value = new Set([...unfolded.value, id])
+}
+
 function startComment(line: number | null): void {
   if (props.readonly || line == null) return
   at.value = line
@@ -58,11 +116,18 @@ function send(kind: 'comment' | 'ask'): void {
 <template>
   <section
     :id="`file-${file.newPath}`"
-    class="grid gap-2 rounded-box border border-base-300"
+    class="grid gap-2"
+    :class="guided ? '' : 'rounded-box border border-base-300'"
   >
-    <h3 class="flex items-center gap-2 border-b border-base-300 px-3 py-2 font-mono text-xs">
-      <span class="font-semibold">{{ file.newPath }}</span>
-      <span class="text-success">+{{ file.additions }}</span><span class="text-error">−{{ file.deletions }}</span>
+    <h3
+      v-if="!guided || generated || !readonly"
+      class="flex items-center gap-2 font-mono text-xs"
+      :class="guided ? '-mt-2 justify-end' : 'border-b border-base-300 px-3 py-2'"
+    >
+      <template v-if="!guided">
+        <span class="font-semibold">{{ file.newPath }}</span>
+        <span class="text-success">+{{ file.additions }}</span><span class="text-error">−{{ file.deletions }}</span>
+      </template>
       <span
         v-if="generated"
         class="badge badge-sm font-sans"
@@ -115,124 +180,165 @@ function send(kind: 'comment' | 'ask'): void {
       v-for="(h, hi) in shown ? file.hunks : []"
       :key="hi"
       class="w-full border-collapse font-mono text-[12px] leading-5"
+      :class="guided ? 'overflow-hidden rounded-box bg-base-100' : ''"
     >
       <tbody>
-        <tr class="bg-base-200 text-muted">
+        <tr
+          v-if="!guided"
+          class="bg-base-200 text-muted"
+        >
           <td
-            colspan="3"
+            :colspan="guided ? 2 : 3"
             class="px-2"
           >
             {{ h.header }}
           </td>
         </tr>
-        <template
-          v-for="(l, li) in h.lines"
-          :key="li"
+        <tr
+          v-else-if="gaps[hi]"
+          class="bg-base-200 text-muted"
+          data-testid="unmodified-gap"
         >
-          <tr :class="tint[l.kind]">
-            <td class="w-12 select-none pr-2 text-right tabular-nums">
+          <td
+            :colspan="guided ? 2 : 3"
+            class="px-3 py-1 font-sans text-xs"
+          >
+            {{ unmodified(gaps[hi]!) }}
+          </td>
+        </tr>
+        <template
+          v-for="(row, ri) in rows[hi]"
+          :key="ri"
+        >
+          <tr
+            v-if="row.kind === 'fold'"
+            class="bg-base-200 text-muted"
+          >
+            <td :colspan="guided ? 2 : 3">
               <button
-                v-if="l.newNo != null && !readonly"
                 type="button"
-                class="text-muted hover:text-base-content"
-                :aria-label="`Comment on line ${l.newNo}`"
-                @click="startComment(l.newNo)"
+                class="w-full px-3 py-1 text-left font-sans text-xs hover:text-base-content"
+                :aria-label="`Show ${unmodified(row.lines.length)}`"
+                data-testid="unmodified-fold"
+                @click="unfold(row.id)"
               >
-                {{ l.newNo }}
+                {{ unmodified(row.lines.length) }}
               </button>
-              <span
-                v-else
-                class="text-muted"
-              >{{ l.newNo ?? l.oldNo ?? '' }}</span>
-            </td>
-            <td
-              class="w-4 select-none text-muted"
-              aria-hidden="true"
-            >
-              {{ mark[l.kind] }}
-            </td>
-            <td class="whitespace-pre-wrap break-all pr-2">
-              {{ l.text }}
             </td>
           </tr>
-          <tr v-if="l.newNo != null && (byLine.findings.has(l.newNo) || byLine.comments.has(l.newNo) || byLine.notes.has(l.newNo) || at === l.newNo)">
-            <td
-              colspan="3"
-              class="bg-base-200/40 p-2"
-            >
-              <div class="grid gap-2 font-sans">
-                <p
-                  v-for="(n, ni) in byLine.notes.get(l.newNo) ?? []"
-                  :key="`n${ni}`"
-                  class="flex items-start gap-2 rounded-box border p-2 text-sm"
-                  :class="n.critical ? 'border-warning bg-warning/10' : 'border-info/40 bg-info/5'"
-                  data-testid="guide-note"
+          <template v-else>
+            <tr :class="tint[row.line.kind]">
+              <td
+                class="w-12 select-none pr-2 text-right tabular-nums"
+                :class="guided ? accent[row.line.kind] : ''"
+              >
+                <button
+                  v-if="row.line.newNo != null && !readonly"
+                  type="button"
+                  class="text-muted hover:text-base-content"
+                  :aria-label="`Comment on line ${row.line.newNo}`"
+                  @click="startComment(row.line.newNo)"
                 >
-                  <span aria-hidden="true">{{ n.critical ? '⚠️' : '💡' }}</span>
-                  <span><span class="sr-only">{{ n.critical ? 'Needs care: ' : 'Note: ' }}</span>{{ n.text }}</span>
-                </p>
-                <FindingCard
-                  v-for="f in byLine.findings.get(l.newNo) ?? []"
-                  :key="f.number"
-                  :finding="f"
-                  :readonly="readonly"
-                  @decide="(d, t) => emit('decide', f.number, d, t)"
-                  @explain="emit('explainFinding', f)"
-                />
-                <div
-                  v-for="c in byLine.comments.get(l.newNo) ?? []"
-                  :key="c.id"
-                  class="flex items-start gap-2 rounded-box border border-base-300 bg-base-100 p-2 text-sm"
-                  data-testid="line-comment"
-                >
-                  <span aria-hidden="true">💬</span>
-                  <span class="whitespace-pre-wrap">{{ c.text }}</span>
-                  <span class="text-xs text-muted">· {{ c.author }}</span>
-                  <button
-                    v-if="!readonly"
-                    type="button"
-                    class="ml-auto text-xs text-muted hover:text-error"
-                    @click="emit('removeComment', c.id)"
+                  {{ row.line.newNo }}
+                </button>
+                <span
+                  v-else
+                  class="text-muted"
+                >{{ row.line.newNo ?? row.line.oldNo ?? '' }}</span>
+              </td>
+              <td
+                v-if="!guided"
+                class="w-4 select-none text-muted"
+                aria-hidden="true"
+              >
+                {{ mark[row.line.kind] }}
+              </td>
+              <td
+                class="whitespace-pre-wrap break-all pr-2"
+                :class="guided ? 'pl-2' : ''"
+              >
+                {{ row.line.text }}
+              </td>
+            </tr>
+            <tr v-if="row.line.newNo != null && (byLine.findings.has(row.line.newNo) || byLine.comments.has(row.line.newNo) || byLine.notes.has(row.line.newNo) || at === row.line.newNo)">
+              <td
+                :colspan="guided ? 2 : 3"
+                class="bg-base-200/40 p-2"
+              >
+                <div class="grid gap-2 font-sans">
+                  <p
+                    v-for="(n, ni) in byLine.notes.get(row.line.newNo) ?? []"
+                    :key="`n${ni}`"
+                    class="flex items-start gap-2 rounded-box border p-2 text-sm"
+                    :class="n.critical ? 'border-warning bg-warning/10' : 'border-info/40 bg-info/5'"
+                    data-testid="guide-note"
                   >
-                    Remove
-                  </button>
-                </div>
-                <div
-                  v-if="at === l.newNo"
-                  class="grid gap-2"
-                >
-                  <textarea
-                    v-model="draft"
-                    class="textarea w-full text-sm"
-                    rows="2"
-                    :aria-label="`Your comment or question on line ${l.newNo}`"
+                    <span aria-hidden="true">{{ n.critical ? '⚠️' : '💡' }}</span>
+                    <span><span class="sr-only">{{ n.critical ? 'Needs care: ' : 'Note: ' }}</span>{{ n.text }}</span>
+                  </p>
+                  <FindingCard
+                    v-for="f in byLine.findings.get(row.line.newNo) ?? []"
+                    :key="f.number"
+                    :finding="f"
+                    :readonly="readonly"
+                    @decide="(d, t) => emit('decide', f.number, d, t)"
+                    @explain="emit('explainFinding', f)"
                   />
-                  <div class="flex gap-2">
-                    <AgButton
-                      size="sm"
-                      @click="send('comment')"
+                  <div
+                    v-for="c in byLine.comments.get(row.line.newNo) ?? []"
+                    :key="c.id"
+                    class="flex items-start gap-2 rounded-box border border-base-300 bg-base-100 p-2 text-sm"
+                    data-testid="line-comment"
+                  >
+                    <span aria-hidden="true">💬</span>
+                    <span class="whitespace-pre-wrap">{{ c.text }}</span>
+                    <span class="text-xs text-muted">· {{ c.author }}</span>
+                    <button
+                      v-if="!readonly"
+                      type="button"
+                      class="ml-auto text-xs text-muted hover:text-error"
+                      @click="emit('removeComment', c.id)"
                     >
-                      Comment
-                    </AgButton>
-                    <AgButton
-                      size="sm"
-                      variant="outline"
-                      @click="send('ask')"
-                    >
-                      Ask
-                    </AgButton>
-                    <AgButton
-                      size="sm"
-                      variant="ghost"
-                      @click="at = null"
-                    >
-                      Cancel
-                    </AgButton>
+                      Remove
+                    </button>
+                  </div>
+                  <div
+                    v-if="at === row.line.newNo"
+                    class="grid gap-2"
+                  >
+                    <textarea
+                      v-model="draft"
+                      class="textarea w-full text-sm"
+                      rows="2"
+                      :aria-label="`Your comment or question on line ${row.line.newNo}`"
+                    />
+                    <div class="flex gap-2">
+                      <AgButton
+                        size="sm"
+                        @click="send('comment')"
+                      >
+                        Comment
+                      </AgButton>
+                      <AgButton
+                        size="sm"
+                        variant="outline"
+                        @click="send('ask')"
+                      >
+                        Ask
+                      </AgButton>
+                      <AgButton
+                        size="sm"
+                        variant="ghost"
+                        @click="at = null"
+                      >
+                        Cancel
+                      </AgButton>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </td>
-          </tr>
+              </td>
+            </tr>
+          </template>
         </template>
       </tbody>
     </table>

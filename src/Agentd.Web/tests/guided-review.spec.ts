@@ -24,6 +24,8 @@ const guide = {
 }
 const finding = { number: 1, severity: 'breaks', file: 'src/Sync.cs', line: 41, title: 'Unbounded read', detail: null, suggestion: null, decision: 'kept', edited: null }
 let session: Record<string, unknown>
+let diffText: string
+let diffFiles: string[]
 let asked: Record<string, unknown>[]
 let comments: Record<string, unknown>[]
 const json = (body: unknown) => new Response(JSON.stringify(body))
@@ -38,12 +40,14 @@ beforeEach(() => {
   window.localStorage.clear()
   asked = []
   comments = []
+  diffText = diff
+  diffFiles = ['src/Sync.cs', 'docs/sync.md']
   session = { id: 7, repo: 'sysmin', target: 'branch', pullRequestId: null, headRef: 'feature/keyset', baseRef: 'develop', baseCommit: 'a1b2c3d4', headCommit: 'f9e8d7c6',
     status: 'Ready', error: null, model: null, effort: null, summary: 'One real bug.', findings: [finding], createdBy: 'local', sentTo: null, createdAt: '2026-10-09T10:00:00Z',
     chatLink: null, postsFromChat: false, guide }
   vi.stubGlobal('fetch', vi.fn(async (req: Request) => {
     const path = new URL(req.url).pathname
-    if (path === '/api/reviews/7/diff') return json({ baseCommit: 'a1b2c3d4', headCommit: 'f9e8d7c6', files: ['src/Sync.cs', 'docs/sync.md'], unifiedDiff: diff, truncated: false })
+    if (path === '/api/reviews/7/diff') return json({ baseCommit: 'a1b2c3d4', headCommit: 'f9e8d7c6', files: diffFiles, unifiedDiff: diffText, truncated: false })
     if (path === '/api/reviews/7/asks' && req.method === 'POST') {
       asked.push(await req.json() as Record<string, unknown>)
       return json({})
@@ -192,6 +196,58 @@ describe('guided review', () => {
     expect(document.activeElement, 'stays on the last').toBe(cards[1]!.element)
     key('k')
     expect(document.activeElement).toBe(cards[0]!.element)
+    view.unmount()
+  })
+
+  it('a chapter is two panes: its files as a tree on the left, the picked file\'s diff on the right', async () => {
+    const unchanged = Array.from({ length: 12 }, (_, i) => ` line ${i + 1}\n`).join('')
+    diffText = [
+      'diff --git a/src/sync/Sync.cs b/src/sync/Sync.cs\n--- a/src/sync/Sync.cs\n+++ b/src/sync/Sync.cs\n@@ -40,14 +40,14 @@\n-var rows = await ReadAllAsync(table);\n+await foreach (var chunk in KeysetAsync(table))\n' + unchanged,
+      'diff --git a/src/sync/SyncTests.cs b/src/sync/SyncTests.cs\n--- a/src/sync/SyncTests.cs\n+++ b/src/sync/SyncTests.cs\n@@ -1,1 +1,2 @@\n class SyncTests {\n+  [TestMethod] public void Pages() {}\n',
+    ].join('')
+    diffFiles = ['src/sync/Sync.cs', 'src/sync/SyncTests.cs']
+    session = { ...session, findings: [], guide: { ...guide, notes: [], chapters: [
+      { title: 'Keyset paging', why: 'The read loop.', attention: 'core', focus: [], files: [{ path: 'src/sync/Sync.cs', summary: 'Pages by key.' }, { path: 'src/sync/SyncTests.cs', summary: 'Tests the paging.' }] },
+    ] } }
+    const view = await open()
+    await view.findAll('button').find((b) => b.text() === 'Start reading')!.trigger('click')
+
+    const chapter = view.get('[data-testid=guide-chapter]')
+    expect(chapter.get('h2').text(), 'the change\'s headline').toBe('Reads the table in keyset chunks instead of all at once.')
+    expect(chapter.text()).toContain('1 chapter · from agentd')
+    const rows = chapter.findAll('[role=treeitem]').map((r) => r.text().replace(/\s+/g, ' ').trim())
+    expect(rows[0], 'one folder row').toMatch(/^src\/sync/)
+    expect(chapter.findAll('[data-file]').map((r) => r.attributes('data-file'))).toEqual(['src/sync/Sync.cs', 'src/sync/SyncTests.cs'])
+    expect(rows).toHaveLength(3)
+    const pane = () => view.get('[data-testid=guide-file]')
+    expect(pane().text()).toContain('Pages by key.')
+    expect(pane().find('#file-src\\/sync\\/Sync\\.cs').exists()).toBe(true)
+
+    // Long unchanged runs fold; the gap before the hunk says how much is left out.
+    expect(pane().get('[data-testid=unmodified-gap]').text()).toBe('39 unmodified lines')
+    expect(pane().get('[data-testid=unmodified-fold]').text()).toBe('6 unmodified lines')
+    expect(pane().text()).not.toContain('line 6')
+    await pane().get('[data-testid=unmodified-fold]').trigger('click')
+    expect(pane().text()).toContain('line 6')
+    expect(pane().find('[data-testid=unmodified-fold]').exists()).toBe(false)
+
+    await chapter.get('[data-file="src/sync/SyncTests.cs"]').trigger('click')
+    expect(pane().text()).toContain('Tests the paging.')
+    expect(pane().find('#file-src\\/sync\\/SyncTests\\.cs').exists()).toBe(true)
+    expect(pane().find('#file-src\\/sync\\/Sync\\.cs').exists(), 'one file at a time').toBe(false)
+    expect(chapter.get('[data-file="src/sync/SyncTests.cs"]').attributes('aria-selected')).toBe('true')
+    view.unmount()
+  })
+
+  it('the Reviewed checkbox marks the chapter without moving on, and unmarks it', async () => {
+    const view = await open()
+    await view.findAll('button').find((b) => b.text() === 'Start reading')!.trigger('click')
+
+    await view.get('[data-testid=chapter-reviewed]').setValue(true)
+    expect(JSON.parse(window.localStorage.getItem('agentd.guide.7')!)).toEqual([1])
+    expect(view.get('[data-testid=guide-chapter]').text(), 'still on chapter 1').toContain('01 / 02')
+    await view.get('[data-testid=chapter-reviewed]').setValue(false)
+    expect(JSON.parse(window.localStorage.getItem('agentd.guide.7')!)).toEqual([])
     view.unmount()
   })
 

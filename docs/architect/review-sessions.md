@@ -137,19 +137,30 @@ the developer through the change, and they can ask about anything.
   a time, simpler than one long scroll). With a guide the page opens on **Guided** (`Guided | All files`):
 
   ```text
-  ┌ step strip 0 1 2 3 (● needs care, ✓ reviewed) ┐┌ step 0: overview ──────────────────────────┐┌ Suggestions ┐
-  │ 01 / 03 · Core · ⚠️ 1 spot needs care          ││ What this change does · Before | After      ││ Findings    │
-  │ Chapter title                                  ││ chapter cards (Core/Skim, files, findings)  ││ To post     │
-  │ why it matters                                 ││ [Start reading / Continue]                  ││ Ask         │
-  │ While reading, check: • …                      │├ step n: the chapter's own files ───────────┤│             │
-  │ its files                                      ││ file summary, the real diff, 💡/⚠️ notes and ││             │
-  │ ← Previous · Next →                            ││ findings at their lines                      ││             │
-  └────────────────────────────────────────────────┘│ [Mark reviewed and continue] Next: <title> →││             │
-                                                     └─────────────────────────────────────────────┘└─────────────┘
+  step strip 0 1 2 3 (● needs care, ✓ reviewed) · 1 of 3 chapters reviewed            ┌ Suggestions ┐
+  step 0: What this change does · Before | After · Heads-up · chapter cards · [Start]  │ Findings    │
+  step n (decided 2026-10-14, like Plannotator's guided review):                        │ To post     │
+  The overview's first sentence (the change's headline)                                 │ Ask         │
+  the rest of the overview, muted · 3 chapters · from agentd · <model>                  │             │
+  ┌ Chapter title             ⌃ ┬ the picked file's summary                          ┐ │             │
+  │ 02 / 03 ☐ Reviewed · Core   │ src/export/export-writer.ts +148 -31              │ │             │
+  │ why it matters, check: • …  │ ── 40 unmodified lines ─────────────────────────  │ │             │
+  │ [Explain this chapter]      │ 41  export async function …                       │ │             │
+  │ ⌄ src/export        +192 -31│▌42  - removed line (red, left accent)             │ │             │
+  │   M export-writer.ts ① +148 │▌42  + added line (green, left accent)             │ │             │
+  │   A export-writer.test.ts   │ ── 6 unmodified lines (click: show) ────────────  │ │             │
+  │ [Mark reviewed and continue]│ 💡/⚠️ notes, findings and comments at their lines  │ │             │
+  └─────────────────────────────┴───────────────────────────────────────────────────┘ └─────────────┘
   ```
 
-  Reviewed chapters are remembered in the browser (`agentd.guide.<id>`); `]` / `[` move between chapters. Suggestions
-  sit apart from findings and aren't posted. Comments, Ask and decisions work as in All files.
+  A chapter is two panes (stacked on narrow screens). The left pane has its story, a **Reviewed** checkbox (marks or
+  unmarks it without moving on; **Mark reviewed and continue** still moves to the next) and its files as a tree, the
+  same `ReviewFileTree` as All files in `bare` mode (no filter or viewed boxes). The right pane shows one file at a
+  time, the one picked in the tree (the first at the start), with `DiffFileReview` in its `guided` look: the gap before
+  each hunk as "N unmodified lines" (from its header) and unchanged runs of 8+ lines folded to 3 on each side until
+  clicked (lines with notes, findings or comments never fold). Reviewed chapters are remembered in the browser
+  (`agentd.guide.<id>`); `]` / `[` move between chapters. Suggestions sit apart from findings and aren't posted.
+  Comments, Ask and decisions work as in All files.
 
 Delivery (one PR each, under 1000 lines):
 1. The guide on the server: the reviewer asks for it, agentd checks and fits it, stores and serves it.

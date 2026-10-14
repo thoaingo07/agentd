@@ -394,10 +394,12 @@ const where = (a: { file?: string | null; line?: number | null; endLine?: number
           :files="reviews.files"
           :findings="s.findings"
           :readonly="readonly"
+          :by="s.model ? `agentd · ${s.model}` : 'agentd'"
           @explain-chapter="explainChapter"
         >
           <template #file="{ file, notes }">
             <DiffFileReview
+              guided
               :file="file"
               :findings="forFile(file.newPath).findings"
               :comments="forFile(file.newPath).comments"
