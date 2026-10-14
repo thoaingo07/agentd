@@ -5,6 +5,7 @@ import type { AgentEvent } from '../../shared/api/types'
 import { useEventsStore } from './events'
 import { useIdeasStore } from './ideas'
 import { useChatsStore } from './chats'
+import { useInboxStore } from './inbox'
 import { useJobsStore } from './jobs'
 import { useWatchesStore } from './watches'
 import { useWorkItemsStore } from './workItems'
@@ -35,6 +36,7 @@ export const useConnectionStore = defineStore('connection', () => {
       useIdeasStore().apply(evt)
       useWatchesStore().apply(evt)
       useChatsStore().apply(evt)
+      useInboxStore().apply(evt)
     } else {
       useEventsStore().append(evt)
       useWorkItemsStore().append(evt)

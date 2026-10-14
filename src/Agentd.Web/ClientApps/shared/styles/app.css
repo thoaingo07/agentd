@@ -1,6 +1,8 @@
 @import "tailwindcss";
 /* Nuxt UI (pilot, docs/ui §1): its components' styles, next to daisyUI while screens move over. */
 @import "@nuxt/ui";
+/* agentd's own component classes, built with @apply. */
+@import "./components.css";
 
 /* agentd green (#42b883) as a Tailwind palette, Nuxt UI's primary (vite.config.ts → ui.colors.primary). */
 @theme static {

@@ -79,7 +79,7 @@ describe('resources', () => {
     await flushPromises()
 
     const nav = w.get('nav[aria-label="Main"]')
-    expect(nav.findAll('a').map((a) => a.text())).toEqual(['Dashboard', 'History', 'Ideas', 'Chat', 'Reviews', 'Artifacts', 'Settings'])
+    expect(nav.findAll('a').map((a) => a.text())).toEqual(['Dashboard', 'Inbox', 'History', 'Ideas', 'Chat', 'Reviews', 'Artifacts', 'Settings'])
     expect(nav.get('a[href="/reviews"]').attributes('aria-current')).toBe('page')
     expect(nav.get('a[href="/"]').attributes('aria-current')).toBeUndefined()
   })

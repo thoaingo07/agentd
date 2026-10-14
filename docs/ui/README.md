@@ -43,6 +43,7 @@ Adding anything else needs a note in this section explaining why.
 |---|---|---|
 | `/` | `DashboardView` | all active jobs, live |
 | `/jobs/:id` | `JobView` | opens the job's work item with that run picked (`/workitems/:wi?run=:id`); kept for old and chat links |
+| `/inbox`, `/inbox/:source/:id` | `InboxView` | **everything agentd sends you** ([inbox.md](../architect/inbox.md)): threads grouped Waiting on you / New / Earlier, the open thread with its question's buttons and a reply box, **Everyone** / **Mine**; `j`/`k` move, `e` marks read; the nav's **Inbox** shows how many threads wait on you |
 | `/history` | `HistoryView` | finished, failed and cancelled jobs, with search and filters |
 | `/workitems/:id` | `WorkItemView` | **everything about one work item on one page**: the picked run's live transcript (tool calls), diff and actions, plus the timeline across runs, conversation, PRs, plan vs actual and usage |
 | `/ideas` | `IdeasView` | brainstormed ideas (`!idea`), newest first: status, repo, author, the work items they created |
@@ -458,6 +459,13 @@ sends the browser to the `/login` page with `returnUrl=<current path>`, which of
 ## 7. Components
 
 **Reusable (`components/ui/`, `Ag*`)**: see the [Design System §6](../design-system/README.md#6-component-layer).
+
+**Component classes (`shared/styles/components.css`, decided 2026-10-14):** a run of utilities a screen repeats gets a
+name, built with `@apply` in `@layer components` (`ag-pane`, `ag-list-row` + `is-active`, `ag-section-title`,
+`ag-count` + `is-urgent`, `ag-meta`, `ag-message` + `is-question`), so templates say what an element is rather than
+how it looks. One-off layout stays as utilities. A value that changes at run time (a dragged pane width) comes in as a
+CSS variable (`:style="{ '--inbox-list': … }"`) read by a class, never as a hand-written inline style. New screens use
+these classes; older screens move over as they're touched.
 
 **Feature (`components/`)**
 
