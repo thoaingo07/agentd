@@ -41,11 +41,14 @@ public sealed class RestartCheckTests
 
         var idea = tracked.RunAsync(Turn(4, ThreadTurnKind.Brainstorm), default);
         var review = tracked.RunAsync(Turn(9, ThreadTurnKind.ReviewAsk), default);
+        var incident = tracked.RunAsync(Turn(12, ThreadTurnKind.Incident), default);
         var running = await check.RunningAsync(default);
-        CollectionAssert.AreEqual(new[] { ("idea", 4L, "Idea 4: the agent is answering"), ("review", 9L, "Review 9: the agent is answering a question") },
-            running.Select(r => (r.Source, r.Id, r.Label)).ToArray());
+        CollectionAssert.AreEqual(new[] { ("idea", 4L, "Idea 4: the agent is answering"), ("review", 9L, "Review 9: the agent is answering a question"),
+            ("incident", 12L, "Incident 12: the agent is investigating") }, running.Select(r => (r.Source, r.Id, r.Label)).ToArray());
 
         agent.Finish(4);
+        agent.Finish(12);
+        await incident;
         agent.Fail(9);
         await idea;
         await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => review);

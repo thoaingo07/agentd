@@ -20,7 +20,7 @@ public static class PromptEndpoints
     private static readonly string[] s_sources =
     [
         PromptSources.Job, PromptSources.Idea, PromptSources.Chat, PromptSources.Review, PromptSources.ReviewSession,
-        PromptSources.ReviewAsk, PromptSources.ReviewFix, PromptSources.FollowUp,
+        PromptSources.ReviewAsk, PromptSources.ReviewFix, PromptSources.FollowUp, PromptSources.Incident,
     ];
 
     private static readonly string[] s_outcomes =

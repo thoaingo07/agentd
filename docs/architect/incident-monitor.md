@@ -5,14 +5,15 @@
 > - **PR 1 detects incidents and alerts on them.** It's split in two to stay small: **1a** has the incident types,
 >   options, tables, routines and store; **1b** has the monitor pass, the Application Insights source, the worker and
 >   the alerts.
-> - **PR 2** investigates and offers **Fix it**.
+> - **PR 2** investigates and offers **Fix it**, also in two parts: **2a** investigates (built); **2b** adds Fix it, Ignore,
+>   questions in the thread and Resolved.
 > - **PR 3** adds the web pages.
 >
-> The PR 2 and PR 3 sections below are marked *next*.
+> The PR 2b and PR 3 parts below are marked *next*.
 
 agentd reads each configured app's **Application Insights** telemetry for exceptions and failed requests. It groups
 them into **incidents**, one per bug however often it happens, and alerts in a 🚨 thread on the chat channel, or in the
-Inbox when there is no chat. *Next:* an agent investigates each incident against the app's repository, and on
+Inbox when there is no chat. An agent then investigates each incident against the app's repository. *Next:* on
 **Fix it** agentd files an Azure DevOps Bug for the normal job pipeline: plan, implement, verify, PR, review loop.
 
 Decisions made with the user:
@@ -35,7 +36,7 @@ Decisions made with the user:
 | `TenantId` | (default directory) | The Entra tenant to sign in to. |
 | `Apps:N:Name` | | The app's name in alerts. Unique; letters, digits, `.`, `_` and `-`. |
 | `Apps:N:ResourceId` | | The Application Insights component's ARM id: `/subscriptions/…/resourceGroups/…/providers/Microsoft.Insights/components/…`. |
-| `Apps:N:Repository` | | The registered repository the app's code is in. *Next:* investigations and fixes run there. |
+| `Apps:N:Repository` | | The registered repository the app's code is in: investigations run there (*next:* fixes too). |
 | `Apps:N:RoleName` | (all) | Only telemetry with this `cloud_RoleName`, when several apps share one resource. |
 
 **Sign-in** uses `DefaultAzureCredential`, never with a browser prompt. It tries a managed identity, then a service
@@ -84,16 +85,52 @@ chat post is logged, and the Inbox still has the alert.
 `incident_record`, `incident_get`, `incident_list`, `incident_set_thread`, `incident_cursor_get` and
 `incident_cursor_set`.
 
-## 3. Investigating and Fix it (PR 2, next)
+## 3. Investigating and Fix it (PR 2: 2a built, 2b next)
 
-- **Investigate:** on a new or reopened incident, a read-only agent turn (`ThreadTurnKind.Incident`) runs in a checkout
-  of `Apps:N:Repository`'s default branch. It gets the sample and stack, and a tool for further read-only KQL on that
-  component. It posts a root-cause analysis in the 🚨 thread. Status: Investigating, then Open.
-- **Ask first:** the thread, and the Inbox (now *waiting*), offer **Fix it**, **Ignore** and **Resolved**. Replies in
-  the thread go to the agent, like a chat.
-- **Fix it** files an Azure DevOps **Bug** in the repository's area path, tagged for agentd, with the analysis, the
-  sample and a link back. The normal job picks it up. Status is Fixing, and it becomes Resolved when the job's PR
-  merges. A recurrence after that reopens the incident.
+### 3.1 Investigating (2a)
+
+After the alert for a created or reopened incident, the monitor queues an investigation (`IncidentInvestigator`) in the
+background, so the pass doesn't wait for it. At most two run at once, and one per incident.
+
+1. **Status:** Open → Investigating, compare-and-set (`incident_set_status`). An incident that isn't Open (Ignored,
+   Fixing, already investigating) isn't investigated.
+2. **Telemetry, read by agentd:** the incident's three latest occurrences (`ITelemetrySource.OccurrencesAsync`,
+   `TelemetryQueries.Occurrences`). They're matched by the fingerprint's parts: `problemId` and `operation_Name` for an
+   exception, `name` and `resultCode` for a failed request. Each comes whole: the message (with the innermost one), the
+   stack, the request's url and result code (or, for a request, the exception logged in the same operation), and the
+   custom dimensions. If they can't be read, the incident's recorded sample is used.
+   - **The agent never gets Azure access**, a token or daemon secrets. It can't query the telemetry itself.
+3. **Turn:** a read-only agent turn (`ThreadTurnKind.Incident`, rules `IncidentRules`) in a detached checkout
+   `incident-{id}` of `Apps:N:Repository`'s base branch. The prompt is the incident, its occurrences and where the code
+   is, and **all of it passes through `SecretRedactor`**. The answer's shape is **Likely cause** (`path:line`),
+   **Impact**, **Proposed fix** and **Confidence**. The turn is in the prompt log as source `incident` and in Restart
+   now's list ("Incident N: the agent is investigating").
+4. **Analysis:** redacted, kept on the incident with its session (`incident_set_analysis`: `analysis`, `session`,
+   `analyzed_at`; Investigating → Open), and posted as **🔎 Investigation of incident #N** in the 🚨 thread and the Inbox.
+5. **Failures** (an unregistered repository, an app no longer configured, a failed checkout, no answer, the usage limit)
+   post a short line and put the incident back to Open, never leaving it in Investigating. An investigation a restart
+   interrupts stays Investigating; 2b's "investigate again" reply restarts it.
+
+The `incident-{id}` checkout stays, because follow-up questions resume the session there. The worktree sweep leaves
+folders it doesn't know.
+
+**Data:** migration `2026_11_09_0001` adds `analysis`, `session` and `analyzed_at` to `agentd.incidents`, and `incident`
+to the prompt log's sources and to the Inbox's (`ck_inbox_source`). That last one is a fix: until then the database
+refused 1b's Inbox entries for incidents, and `InboxWriter` only logged it. Routines: `incident_set_status` (compare-and-set; parallel callers moving it from one status
+have exactly one winner) and `incident_set_analysis`.
+
+### 3.2 Fix it, Ignore and questions (2b, next)
+
+- **Ask first:** after the analysis, the thread and the Inbox (now *waiting*: an Open incident with an analysis and no
+  work item) offer **🛠 Fix it** and **🙈 Ignore**.
+- **Fix it** (Operators and Admins) files an Azure DevOps **Bug** in the repository's area path. It's tagged
+  `ai-workflow` and the repository's match tag, like an idea's Start, so a normal job picks it up. Its repro steps are
+  the analysis, the stack, the counts and a portal link. Status Fixing. A second Fix it reports the same Bug.
+- **Ignore:** status Ignored. Recurrences are counted without alerts (the routine already keeps it ignored). "reopen"
+  in the thread makes it Open again.
+- **Anything else** in the thread or the Inbox reply is a question: a read-only turn resuming the investigation's session.
+- **Resolved:** in the monitor pass, a Fixing incident whose job is Done is Resolved ("✅ Fixed by PR …"). A Resolved
+  incident that recurs reopens and says it's back.
 
 ## 4. Web (PR 3, next)
 

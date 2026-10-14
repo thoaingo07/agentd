@@ -61,4 +61,43 @@ public sealed class TelemetryQueriesTests
         StringAssert.Contains(TelemetryQueries.Errors(null), $"take {TelemetryQueries.MaxGroups}");
         StringAssert.Contains(TelemetryQueries.Errors(null), "strcat('ex|', ProblemId, '|', Operation)");
     }
+
+    [TestMethod]
+    public void An_incidents_occurrences_are_matched_by_its_fingerprint_with_the_operation_joined()
+    {
+        var exception = TelemetryQueries.Occurrences(Incident(ErrorKinds.Exception, "ex|12|34|GET /o'rders"), "orders-api", 99);
+        StringAssert.Contains(exception, "where problemId == @'12|34' and operation_Name == @'GET /o''rders'", "the problem id keeps its own bars");
+        StringAssert.Contains(exception, $"top {TelemetryQueries.MaxOccurrences} by timestamp desc", "capped");
+        StringAssert.Contains(exception, "join kind=leftouter (requests");
+        StringAssert.Contains(exception, "let roleFilter = @'orders-api';");
+
+        var request = TelemetryQueries.Occurrences(Incident(ErrorKinds.Request, "req|GET /orders|500"), null, 3);
+        StringAssert.Contains(request, "where success == false and name == @'GET /orders' and resultCode == @'500'");
+        StringAssert.Contains(request, "top 3 by timestamp desc");
+        StringAssert.Contains(request, "join kind=leftouter (exceptions");
+        Assert.ThrowsExactly<FormatException>(() => TelemetryQueries.Occurrences(Incident(ErrorKinds.Request, "nobars"), null, 3));
+    }
+
+    [TestMethod]
+    public void An_occurrence_row_keeps_its_stack_request_and_custom_dimensions()
+    {
+        var o = TelemetryQueries.ToOccurrence(new Dictionary<string, object?>
+        {
+            ["At"] = s_first,
+            ["Message"] = "boom → inner",
+            ["Stack"] = "at Orders.Get()",
+            ["Operation"] = "GET /orders",
+            ["OperationId"] = "abc",
+            ["Url"] = "https://o/api/orders",
+            ["ResultCode"] = "500",
+            ["Properties"] = "{\"tenant\":\"acme\"}",
+        });
+        var bare = TelemetryQueries.ToOccurrence(new Dictionary<string, object?> { ["At"] = s_first, ["Properties"] = "{}", ["Url"] = "" });
+
+        Assert.AreEqual(new ErrorOccurrence(new DateTimeOffset(s_first), "boom → inner", "at Orders.Get()", "GET /orders", "abc", "https://o/api/orders", "500", "{\"tenant\":\"acme\"}"), o);
+        Assert.AreEqual((null, null), (bare.Properties, bare.Url), "empty dimensions and blanks are nothing");
+    }
+
+    private static Incident Incident(string kind, string fingerprint) =>
+        new(1, "orders-api", fingerprint, kind, "t", null, null, new ErrorSample(null, null, null), IncidentStatus.Open, 1, s_first, s_first, null, null, null, null, s_first);
 }

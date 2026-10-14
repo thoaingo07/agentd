@@ -37,6 +37,20 @@ public sealed class IncidentStore(NpgsqlDataSource dataSource) : IIncidentStore
         await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task<bool> SetStatusAsync(long id, string status, string? from, CancellationToken cancellationToken)
+    {
+        await using var cmd = dataSource.CreateCommand("SELECT agentd.incident_set_status($1, $2, $3)");
+        cmd.Parameters.AddRange(new[] { P(id, NpgsqlDbType.Bigint), T(status), T(from) });
+        return (bool)(await cmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false))!;
+    }
+
+    public async Task SetAnalysisAsync(long id, string analysis, Guid session, CancellationToken cancellationToken)
+    {
+        await using var cmd = dataSource.CreateCommand("SELECT agentd.incident_set_analysis($1, $2, $3)");
+        cmd.Parameters.AddRange(new[] { P(id, NpgsqlDbType.Bigint), T(analysis), P(session, NpgsqlDbType.Uuid) });
+        await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
     public async Task<DateTimeOffset?> GetCursorAsync(string app, CancellationToken cancellationToken)
     {
         await using var cmd = dataSource.CreateCommand("SELECT agentd.incident_cursor_get($1)");
@@ -66,7 +80,8 @@ public sealed class IncidentStore(NpgsqlDataSource dataSource) : IIncidentStore
                 JsonSerializer.Deserialize<ErrorSample>(r.GetString(O("sample")), s_json) ?? new ErrorSample(null, null, null),
                 r.GetString(O("status")), r.GetInt64(O("total_count")), r.GetFieldValue<DateTimeOffset>(O("first_seen")), r.GetFieldValue<DateTimeOffset>(O("last_seen")),
                 S("provider"), S("thread_id"), S("space_id"), r.IsDBNull(O("work_item_id")) ? null : r.GetInt32(O("work_item_id")),
-                r.GetFieldValue<DateTimeOffset>(O("created_at"))));
+                r.GetFieldValue<DateTimeOffset>(O("created_at")), S("analysis"), r.IsDBNull(O("session")) ? null : r.GetGuid(O("session")),
+                r.IsDBNull(O("analyzed_at")) ? null : r.GetFieldValue<DateTimeOffset>(O("analyzed_at"))));
         }
 
         return rows;

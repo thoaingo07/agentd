@@ -6,7 +6,7 @@ using Agentd.Domain.Jobs;
 namespace Agentd.Application.Setup;
 
 /// <summary>Something a restart would cut off: a job mid-step, or an agent's thread turn.</summary>
-/// <param name="Source">job, idea, chat or review.</param>
+/// <param name="Source">job, idea, chat, review or incident.</param>
 /// <param name="Id">The job, idea, chat, review or watch.</param>
 /// <param name="Label">What it is doing, for people.</param>
 public sealed record RunningWork(string Source, long Id, string Label);
@@ -72,6 +72,7 @@ public sealed class RestartCheck(IJobRepository jobs, ThreadTurns turns)
     {
         ThreadTurnKind.Brainstorm => new("idea", id, $"Idea {id}: the agent is answering"),
         ThreadTurnKind.Chat => new("chat", id, $"Chat {id}: the agent is answering"),
+        ThreadTurnKind.Incident => new("incident", id, $"Incident {id}: the agent is investigating"),
         ThreadTurnKind.FollowUp => new("job", id, $"Job {id}: the agent is answering a follow-up"),
         ThreadTurnKind.Review => new("review", id, $"Chat review {id}: the agent is reviewing"),
         ThreadTurnKind.ReviewSession => new("review", id, $"Review {id}: the agent is reviewing"),

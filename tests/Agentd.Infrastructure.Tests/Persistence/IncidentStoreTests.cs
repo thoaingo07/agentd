@@ -102,6 +102,41 @@ public sealed class IncidentStoreTests
         Assert.AreEqual(s_t0.AddMinutes(9), await store.GetCursorAsync(app, default));
     }
 
+    [TestMethod]
+    public async Task A_status_change_from_a_status_has_exactly_one_winner_among_parallel_callers()
+    {
+        var store = new IncidentStore(s_db);
+        var id = (await store.RecordAsync(App(), Group("ex|s|op", 5), 3, default))!.Id;
+
+        var won = await Task.WhenAll(Enumerable.Range(0, 20).Select(_ => Task.Run(() => store.SetStatusAsync(id, IncidentStatus.Investigating, IncidentStatus.Open, default))));
+
+        Assert.AreEqual(1, won.Count(w => w), "one investigation starts");
+        Assert.AreEqual(IncidentStatus.Investigating, (await store.GetAsync(id, default))!.Status);
+        Assert.IsFalse(await store.SetStatusAsync(id, IncidentStatus.Fixing, IncidentStatus.Open, default));
+        Assert.IsTrue(await store.SetStatusAsync(id, IncidentStatus.Ignored, null, default), "without a from it always moves");
+        Assert.IsFalse(await store.SetStatusAsync(id + 100_000, IncidentStatus.Open, null, default));
+    }
+
+    [TestMethod]
+    public async Task The_analysis_is_kept_with_its_session_and_an_investigating_incident_is_open_again()
+    {
+        var store = new IncidentStore(s_db);
+        var app = App();
+        var investigating = (await store.RecordAsync(app, Group("ex|a|op", 5), 3, default))!.Id;
+        var fixing = (await store.RecordAsync(app, Group("ex|f|op", 5), 3, default))!.Id;
+        await store.SetStatusAsync(investigating, IncidentStatus.Investigating, null, default);
+        await store.SetStatusAsync(fixing, IncidentStatus.Fixing, null, default);
+        var session = Guid.NewGuid();
+
+        await store.SetAnalysisAsync(investigating, "**Likely cause** `src/Orders.cs:42`", session, default);
+        await store.SetAnalysisAsync(fixing, "later answer", Guid.NewGuid(), default);
+
+        var read = (await store.GetAsync(investigating, default))!;
+        Assert.AreEqual((IncidentStatus.Open, "**Likely cause** `src/Orders.cs:42`", session), (read.Status, read.Analysis, read.Session));
+        Assert.IsNotNull(read.AnalyzedAt);
+        Assert.AreEqual(IncidentStatus.Fixing, (await store.GetAsync(fixing, default))!.Status, "only Investigating goes back to Open");
+    }
+
     private static string App() => $"app-{Interlocked.Increment(ref s_next)}";
 
     private static ErrorGroup Group(string fingerprint, long count, DateTimeOffset? first = null, DateTimeOffset? last = null, string message = "Object reference not set",

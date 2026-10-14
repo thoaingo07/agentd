@@ -147,10 +147,14 @@ public sealed record ErrorSample(string? Stack, string? ResultCode, string? Oper
 public sealed record ErrorGroup(string Fingerprint, string Kind, string Title, string? Message, string? Operation, string? RoleName, long Count, long Users,
     DateTimeOffset FirstSeen, DateTimeOffset LastSeen, ErrorSample Sample);
 
-/// <summary>A recorded error group, with its alert thread and (from the next version) its work item.</summary>
+/// <summary>A recorded error group, with its alert thread, the investigating agent's analysis and session, and the Bug filed for it.</summary>
 public sealed record Incident(long Id, string App, string Fingerprint, string Kind, string Title, string? Message, string? Operation, ErrorSample Sample,
     string Status, long TotalCount, DateTimeOffset FirstSeen, DateTimeOffset LastSeen, string? Provider, string? ThreadId, string? SpaceId, int? WorkItemId,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt, string? Analysis = null, Guid? Session = null, DateTimeOffset? AnalyzedAt = null);
+
+/// <summary>One occurrence of an incident, whole, for the investigating agent: when, the message, the full stack, the request and its custom dimensions.</summary>
+public sealed record ErrorOccurrence(DateTimeOffset At, string? Message, string? Stack, string? Operation, string? OperationId, string? Url, string? ResultCode,
+    string? Properties);
 
 /// <summary>What recording a group did: a new incident, a resolved one back, or a known one counted again.</summary>
 public sealed record IncidentRecorded(long Id, bool Created, bool Reopened);
@@ -160,6 +164,9 @@ public interface ITelemetrySource
 {
     /// <summary>The exceptions and failed requests in [<paramref name="since"/>, <paramref name="until"/>), grouped, most frequent first.</summary>
     Task<IReadOnlyList<ErrorGroup>> ErrorsAsync(MonitoredApp app, DateTimeOffset since, DateTimeOffset until, CancellationToken cancellationToken);
+
+    /// <summary>The incident's latest occurrences since <paramref name="since"/> (at most <paramref name="max"/>), newest first.</summary>
+    Task<IReadOnlyList<ErrorOccurrence>> OccurrencesAsync(MonitoredApp app, Incident incident, DateTimeOffset since, int max, CancellationToken cancellationToken);
 }
 
 /// <summary>Incidents and each app's read position, via <c>agentd.incident_*</c> routines.</summary>
@@ -177,6 +184,12 @@ public interface IIncidentStore
     Task<IReadOnlyList<Incident>> ListAsync(string? status, int limit, CancellationToken cancellationToken);
 
     Task SetThreadAsync(long id, string provider, string threadId, string? spaceId, CancellationToken cancellationToken);
+
+    /// <summary>Moves the incident to <paramref name="status"/>, only from <paramref name="from"/> when given; false when it wasn't there.</summary>
+    Task<bool> SetStatusAsync(long id, string status, string? from, CancellationToken cancellationToken);
+
+    /// <summary>Keeps the investigation's analysis and session; an incident still Investigating is Open again.</summary>
+    Task SetAnalysisAsync(long id, string analysis, Guid session, CancellationToken cancellationToken);
 
     /// <summary>Where the app's last pass ended; null before the first.</summary>
     Task<DateTimeOffset?> GetCursorAsync(string app, CancellationToken cancellationToken);

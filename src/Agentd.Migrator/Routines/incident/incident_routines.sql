@@ -86,3 +86,32 @@ AS $$
     ON CONFLICT (app) DO UPDATE SET checked_until = greatest(c.checked_until, excluded.checked_until)
     RETURNING checked_until
 $$;
+
+-- Compare-and-set: moves the incident to p_status only from p_from (any status when null). Parallel callers moving it from
+-- the same status: exactly one wins.
+CREATE OR REPLACE FUNCTION agentd.incident_set_status(p_id bigint, p_status text, p_from text)
+RETURNS boolean
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    UPDATE agentd.incidents
+       SET status = p_status, updated_at = now()
+     WHERE id = p_id AND (p_from IS NULL OR status = p_from);
+    RETURN FOUND;
+END
+$$;
+
+-- The investigating agent's analysis and its session; an incident still Investigating is Open again (waiting on a person).
+CREATE OR REPLACE FUNCTION agentd.incident_set_analysis(p_id bigint, p_analysis text, p_session uuid)
+RETURNS boolean
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    UPDATE agentd.incidents
+       SET analysis = p_analysis, session = p_session, analyzed_at = now(),
+           status = CASE WHEN status = 'Investigating' THEN 'Open' ELSE status END,
+           updated_at = now()
+     WHERE id = p_id;
+    RETURN FOUND;
+END
+$$;
