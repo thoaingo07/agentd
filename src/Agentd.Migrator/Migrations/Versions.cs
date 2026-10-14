@@ -130,3 +130,6 @@ public sealed class DropPrWatchRoutines : SqlMigration;
 
 [Migration(2026_11_08_0001, "Incidents the monitor finds in Application Insights, and each app's read position")]
 public sealed class Incidents : SqlMigration;
+
+[Migration(2026_11_09_0001, "Incidents keep the investigating agent's analysis and session; prompts may come from incidents")]
+public sealed class IncidentAnalysis : SqlMigration;

@@ -10,6 +10,7 @@ export const promptSources: { value: string; label: string }[] = [
   { value: 'review-ask', label: 'Review ask' },
   { value: 'review-fix', label: 'Review fix' },
   { value: 'follow-up', label: 'Follow-up' },
+  { value: 'incident', label: 'Incident' },
 ]
 
 export const promptOutcomes = ['running', 'ok', 'error', 'usage-limit', 'timeout', 'cancelled'] as const

@@ -13,6 +13,7 @@ public static class PromptSources
     public const string ReviewAsk = "review-ask";
     public const string ReviewFix = "review-fix";
     public const string FollowUp = "follow-up";
+    public const string Incident = "incident";
 
     /// <summary>The source of a thread turn; its id is the turn's <see cref="BrainstormTurn.IdeaId"/> (the idea, chat, review, session, …).</summary>
     public static string For(ThreadTurnKind kind) => kind switch
@@ -23,6 +24,7 @@ public static class PromptSources
         ThreadTurnKind.ReviewFix => ReviewFix,
         ThreadTurnKind.FollowUp => FollowUp,
         ThreadTurnKind.Chat => Chat,
+        ThreadTurnKind.Incident => Incident,
         _ => Idea,
     };
 }

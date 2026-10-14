@@ -9,7 +9,7 @@ One row per agent turn (`agentd.agent_prompts`), written as the turn starts and 
 
 | Field | |
 |---|---|
-| `source`, `source_id` | what it was for: `job` (the job id), `idea`, `chat`, `review` (a chat `!review`), `review-session`, `review-ask` (the ask thread), `review-fix`, `follow-up` |
+| `source`, `source_id` | what it was for: `job` (the job id), `idea`, `chat`, `review` (a chat `!review`), `review-session`, `review-ask` (the ask thread), `review-fix`, `follow-up`, `incident` (an incident's investigation, [incident-monitor.md](incident-monitor.md)) |
 | `step` | a job's cycle step (`implement`, `review`, …) |
 | `session`, `resume` | the agent's session, and whether the turn continued it |
 | `model`, `effort`, `profile` | what was asked for (none: the runner's default) |

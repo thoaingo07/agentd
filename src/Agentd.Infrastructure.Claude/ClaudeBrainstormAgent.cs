@@ -120,6 +120,17 @@ public sealed class ClaudeBrainstormAgent(IOptions<ClaudeOptions> options, Promp
         "instead of guessing. Keep answers short (under ~250 words) unless asked for detail, in the developer's language. When " +
         "something should become work, suggest `!idea <text>` (to shape work items) or `!run <work item id>`.";
 
+    /// <summary>Instructions for an incident's investigation (<see cref="ThreadTurnKind.Incident"/>): read-only, from the telemetry in the prompt.</summary>
+    public const string IncidentRules =
+        "You are agentd's incident investigator. A production app is failing; the prompt has what agentd read from its telemetry: the error, " +
+        "how often and since when, and its latest occurrences with stacks, requests and custom dimensions. Your working directory is a " +
+        "read-only checkout of the app's repository at its base branch. Find the cause in the code: follow the stack into the files (Read, " +
+        "Grep, Glob, git log/show/blame for recent changes), and name every place as `path:line`. You can't query the telemetry yourself and " +
+        "must not try to reach Azure, run the app or call its endpoints. Never edit, build, commit or push. Answer in this shape, under ~350 " +
+        "words: **Likely cause** (with `path:line`), **Impact** (who and what fails), **Proposed fix** (what to change, where; small and " +
+        "safe first), **Confidence** (high, medium or low, and what would confirm it). If the code doesn't explain it, say so and say what " +
+        "to look at next. Later messages are a person's questions about the incident: answer them the same way, briefly.";
+
     /// <summary>Every turn with agentd's MCP tools can publish artifacts (docs/architect/artifacts.md).</summary>
     public const string ArtifactRule =
         " When someone asks for an artifact (a page, report, diagram or explainer to share), publish it with agentd's `publish_artifact` tool right away, " +
@@ -176,6 +187,7 @@ public sealed class ClaudeBrainstormAgent(IOptions<ClaudeOptions> options, Promp
         ThreadTurnKind.ReviewFix => ReviewFixRules,
         ThreadTurnKind.FollowUp => FollowUpRules,
         ThreadTurnKind.Chat => ChatRules,
+        ThreadTurnKind.Incident => IncidentRules,
         _ => Rules,
     };
 
@@ -218,7 +230,7 @@ public sealed class ClaudeBrainstormAgent(IOptions<ClaudeOptions> options, Promp
     private async Task<BrainstormReply> RunCoreAsync(BrainstormTurn turn, CancellationToken cancellationToken, List<Application.Prompts.PromptEvent>? events = null)
     {
         var o = options.Value;
-        var dir = Path.Combine(Paths.Expand(o.TranscriptRoot), $"{turn.Kind switch { ThreadTurnKind.Review => "review", ThreadTurnKind.ReviewSession => "review-session", ThreadTurnKind.ReviewAsk => "review-ask", ThreadTurnKind.ReviewFix => "review-fix", ThreadTurnKind.FollowUp => "followup", ThreadTurnKind.Chat => "chat", _ => "idea" }}-{turn.IdeaId}");
+        var dir = Path.Combine(Paths.Expand(o.TranscriptRoot), $"{turn.Kind switch { ThreadTurnKind.Review => "review", ThreadTurnKind.ReviewSession => "review-session", ThreadTurnKind.ReviewAsk => "review-ask", ThreadTurnKind.ReviewFix => "review-fix", ThreadTurnKind.FollowUp => "followup", ThreadTurnKind.Chat => "chat", ThreadTurnKind.Incident => "incident", _ => "idea" }}-{turn.IdeaId}");
         Directory.CreateDirectory(dir);
         var psi = new ProcessStartInfo(o.Binary)
         {

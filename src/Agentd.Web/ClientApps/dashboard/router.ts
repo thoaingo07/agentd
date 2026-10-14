@@ -27,7 +27,7 @@ export const router = createRouter({
         { path: 'prompts', name: 'prompts', component: () => import('./views/PromptConversationsView.vue') },
         { path: 'prompts/all', name: 'prompts-all', component: () => import('./views/PromptsView.vue') },
         {
-          path: 'prompts/:source(job|idea|chat|review|review-session|review-ask|review-fix|follow-up)/:sourceId(\\d+)',
+          path: 'prompts/:source(job|idea|chat|review|review-session|review-ask|review-fix|follow-up|incident)/:sourceId(\\d+)',
           name: 'prompt-conversation',
           component: () => import('./views/PromptConversationView.vue'),
           props: (r) => ({ source: String(r.params.source), sourceId: Number(r.params.sourceId) }),

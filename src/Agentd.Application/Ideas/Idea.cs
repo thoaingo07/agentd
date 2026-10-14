@@ -103,6 +103,9 @@ public enum ThreadTurnKind
 
     /// <summary>Fix it (a review's Send): edits the review's checkout to fix the kept findings; agentd commits and pushes.</summary>
     ReviewFix,
+
+    /// <summary>An incident's investigation (docs/architect/incident-monitor.md §3): read-only, in the app's repository, from the telemetry agentd fetched.</summary>
+    Incident,
 }
 
 /// <summary>The model and effort people may pick for an idea (passed to the CLI's <c>--model</c> / <c>--effort</c>).</summary>

@@ -12,12 +12,14 @@ internal static class TelemetryQueries
     /// <summary>The most frequent groups a pass looks at.</summary>
     public const int MaxGroups = 50;
 
+    /// <summary>The most occurrences an investigation reads.</summary>
+    public const int MaxOccurrences = 5;
+
     /// <summary>Exceptions by problem and operation, failed requests by name and result code; the latest occurrence is the sample.</summary>
     public static string Errors(string? roleName)
     {
-        var role = string.IsNullOrWhiteSpace(roleName) ? "''" : "@'" + roleName.Replace("'", "''", StringComparison.Ordinal) + "'";
         return string.Create(CultureInfo.InvariantCulture, $$"""
-            let roleFilter = {{role}};
+            let roleFilter = {{Literal(roleName)}};
             union
             (exceptions
              | where isempty(roleFilter) or cloud_RoleName == roleFilter
@@ -39,6 +41,63 @@ internal static class TelemetryQueries
             | take {{MaxGroups}}
             """);
     }
+
+    /// <summary>
+    /// An incident's latest occurrences, whole: an exception's message and stack with its request's url and result code, or a
+    /// failed request with the exception logged in the same operation. Matched by the incident's fingerprint.
+    /// </summary>
+    public static string Occurrences(Incident incident, string? roleName, int max)
+    {
+        ArgumentNullException.ThrowIfNull(incident);
+        var (key, last) = Parts(incident.Fingerprint);
+        var take = Math.Clamp(max, 1, MaxOccurrences);
+        return incident.Kind == ErrorKinds.Request
+            ? string.Create(CultureInfo.InvariantCulture, $$"""
+                let roleFilter = {{Literal(roleName)}};
+                requests
+                | where success == false and name == {{Literal(key)}} and resultCode == {{Literal(last)}}
+                | where isempty(roleFilter) or cloud_RoleName == roleFilter
+                | top {{take}} by timestamp desc
+                | project At = timestamp, Operation = name, OperationId = operation_Id, Url = url, ResultCode = resultCode, Properties = tostring(customDimensions)
+                | join kind=leftouter (exceptions | summarize arg_max(timestamp, outerMessage, Raw = tostring(details[0].rawStack)) by operation_Id)
+                    on $left.OperationId == $right.operation_Id
+                | project At, Message = outerMessage, Stack = Raw, Operation, OperationId, Url, ResultCode, Properties
+                | order by At desc
+                """)
+            : string.Create(CultureInfo.InvariantCulture, $$"""
+                let roleFilter = {{Literal(roleName)}};
+                exceptions
+                | where problemId == {{Literal(key)}} and operation_Name == {{Literal(last)}}
+                | where isempty(roleFilter) or cloud_RoleName == roleFilter
+                | top {{take}} by timestamp desc
+                | project At = timestamp, Message = iff(isnotempty(innermostMessage) and innermostMessage != outerMessage, strcat(outerMessage, ' → ', innermostMessage), outerMessage),
+                          Stack = tostring(details[0].rawStack), Operation = operation_Name, OperationId = operation_Id, Properties = tostring(customDimensions)
+                | join kind=leftouter (requests | project operation_Id, Url = url, ResultCode = resultCode) on $left.OperationId == $right.operation_Id
+                | project At, Message, Stack, Operation, OperationId, Url, ResultCode, Properties
+                | order by At desc
+                """);
+    }
+
+    /// <summary>One occurrence row as an <see cref="ErrorOccurrence"/>.</summary>
+    public static ErrorOccurrence ToOccurrence(IReadOnlyDictionary<string, object?> row)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        return new ErrorOccurrence(Time(row, "At"), Text(row, "Message"), Text(row, "Stack"), Text(row, "Operation"), Text(row, "OperationId"), Text(row, "Url"),
+            Text(row, "ResultCode"), Text(row, "Properties") is { } p && p != "{}" ? p : null);
+    }
+
+    /// <summary>A fingerprint's middle (problem id or request name) and last part (operation or result code).</summary>
+    private static (string Key, string Last) Parts(string fingerprint)
+    {
+        var first = fingerprint.IndexOf('|', StringComparison.Ordinal);
+        var last = fingerprint.LastIndexOf('|');
+        return first < 0 || last <= first ? throw new FormatException($"'{fingerprint}' isn't an incident fingerprint.")
+            : (fingerprint[(first + 1)..last], fingerprint[(last + 1)..]);
+    }
+
+    /// <summary>A KQL verbatim string literal.</summary>
+    private static string Literal(string? value) =>
+        string.IsNullOrEmpty(value) ? "''" : "@'" + value.Replace("'", "''", StringComparison.Ordinal) + "'";
 
     /// <summary>One result row (column name → value) as a group.</summary>
     public static ErrorGroup ToGroup(IReadOnlyDictionary<string, object?> row)

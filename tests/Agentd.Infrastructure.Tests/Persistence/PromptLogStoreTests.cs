@@ -122,6 +122,8 @@ public sealed class PromptLogStoreTests
         await using var db = await Database.CreateMigratedAsync("prompt_log_transcript");
         var log = new PromptLogStore(db);
         var id = await log.StartAsync(Prompt("rules") with { Source = PromptSources.Idea, Step = null }, default);
+        var incident = await log.StartAsync(Prompt("rules") with { Source = PromptSources.Incident, Step = null }, default);
+        Assert.IsGreaterThan(id, incident, "an incident's investigation is a prompt source too");
         var at = DateTimeOffset.UtcNow;
 
         await log.AddEventsAsync(id, [

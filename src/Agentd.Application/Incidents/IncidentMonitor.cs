@@ -14,7 +14,8 @@ namespace Agentd.Application.Incidents;
 /// <summary>
 /// One pass of the incident monitor (docs/architect/incident-monitor.md): for each app, the exceptions and failed requests
 /// since its last pass, recorded by fingerprint. A new incident, or a resolved one that's back, gets an alert: a 🚨 thread on
-/// the default chat provider and the Inbox (the Inbox alone without chat). Every text goes through <see cref="SecretRedactor"/>.
+/// the default chat provider and the Inbox (the Inbox alone without chat), then an investigation (<see cref="IncidentInvestigator"/>).
+/// Every text goes through <see cref="SecretRedactor"/>.
 /// An app that can't be read is logged and tried again next pass from the same point; the others go on.
 /// </summary>
 public sealed partial class IncidentMonitor(
@@ -25,7 +26,8 @@ public sealed partial class IncidentMonitor(
     IOptions<MessagingOptions> messaging,
     IClock clock,
     ILogger<IncidentMonitor> logger,
-    IInbox? inbox = null)
+    IInbox? inbox = null,
+    IncidentInvestigator? investigator = null)
 {
     /// <summary>The longest window one pass reads, after agentd was down for a while.</summary>
     public static readonly TimeSpan MaxWindow = TimeSpan.FromDays(1);
@@ -77,6 +79,7 @@ public sealed partial class IncidentMonitor(
             }
 
             await AlertAsync(app, group, recorded, to - from, ct).ConfigureAwait(false);
+            investigator?.Investigate(recorded.Id);   // in the background: the analysis follows the alert
             alerts++;
         }
 
