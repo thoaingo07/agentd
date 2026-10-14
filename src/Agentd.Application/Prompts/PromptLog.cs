@@ -62,6 +62,14 @@ public sealed record PromptSummary(
     long Id, string Source, long SourceId, string? Step, Guid? Session, bool Resume, string? Model, string? Effort, string? Profile,
     string? Outcome, string? Error, DateTimeOffset StartedAt, DateTimeOffset? FinishedAt, string Preview, int PromptChars, int ReplyChars, bool HasRules);
 
+/// <summary>
+/// A conversation in the prompt log: every turn sent for one source (a job, idea, chat, review, …), how many, when, the
+/// latest turn's outcome, whether one still runs, and the models used. <see cref="Preview"/> is the first prompt's start.
+/// </summary>
+public sealed record PromptConversation(
+    string Source, long SourceId, int Turns, DateTimeOffset FirstAt, DateTimeOffset LastAt, long LastId, string? LastOutcome, bool Running,
+    IReadOnlyList<string> Models, string Preview);
+
 /// <summary>A prompt, whole: what was sent, the system rules with it, and the reply.</summary>
 public sealed record PromptDetail(
     long Id, string Source, long SourceId, string? Step, Guid? Session, bool Resume, string? Model, string? Effort, string? Profile,
@@ -91,6 +99,14 @@ public interface IPromptLog
 
     /// <summary>Deletes prompts sent before <paramref name="before"/> (and rules no prompt uses any more); returns how many.</summary>
     Task<int> DeleteBeforeAsync(DateTimeOffset before, CancellationToken cancellationToken);
+
+    /// <summary>Conversations (one per source), the latest activity first, below <paramref name="before"/> (a conversation's latest prompt id).</summary>
+    Task<IReadOnlyList<PromptConversation>> ConversationsAsync(string? source, long? before, int limit, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<PromptConversation>>([]);
+
+    /// <summary>One conversation's turns, oldest first, whole.</summary>
+    Task<IReadOnlyList<PromptDetail>> ConversationAsync(string source, long sourceId, int limit, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<PromptDetail>>([]);
 
     /// <summary>A thread turn's transcript, written once as it ends (a job's events are in the event log already).</summary>
     Task AddEventsAsync(long id, IReadOnlyList<PromptEvent> events, CancellationToken cancellationToken) => Task.CompletedTask;

@@ -9,20 +9,20 @@ namespace Agentd.Application.Setup;
 /// <summary>The database step: the connection string is a secret, so only its status is shown.</summary>
 public sealed record DatabaseStep(SecretStatus ConnectionString);
 
-/// <summary>The Azure DevOps step. <see cref="Auth"/> is <c>Pat</c>, <c>AzCli</c> or <c>ServicePrincipal</c>.</summary>
+/// <summary>The Azure DevOps step. <see cref="Auth"/> is <c>Pat</c>, <c>AzCli</c>, <c>Entra</c> or <c>ServicePrincipal</c>.</summary>
 public sealed record AzureDevOpsStep(string? Organization, string? Project, string Auth, SecretStatus Pat, string? TenantId = null, string? ClientId = null, SecretStatus? ClientSecret = null);
 
 /// <param name="Organization">A name or URL (<c>https://dev.azure.com/myorg</c>, <c>https://myorg.visualstudio.com</c>).</param>
 /// <param name="Project">The project name.</param>
-/// <param name="Auth"><c>Pat</c>, <c>AzCli</c> or <c>ServicePrincipal</c>.</param>
+/// <param name="Auth"><c>Pat</c>, <c>AzCli</c>, <c>Entra</c> or <c>ServicePrincipal</c>.</param>
 /// <param name="Pat">A new token; null keeps the stored one.</param>
 /// <param name="TenantId">The service principal's tenant (<c>ServicePrincipal</c>).</param>
 /// <param name="ClientId">The service principal's application (client) id.</param>
 /// <param name="ClientSecret">A new client secret; null keeps the stored one.</param>
 public sealed record AzureDevOpsInput(string Organization, string Project, string Auth, string? Pat, string? TenantId = null, string? ClientId = null, string? ClientSecret = null);
 
-/// <summary>The git step: agentd's public key, when it has one.</summary>
-public sealed record GitKeyStep(bool Exists, string? PublicKey, string? Fingerprint, string? Path)
+/// <summary>The git step: agentd's public key, when it has one. <see cref="OverHttps"/>: Azure DevOps goes over HTTPS with agentd's sign-in, so the key is only for SSH remotes.</summary>
+public sealed record GitKeyStep(bool Exists, string? PublicKey, string? Fingerprint, string? Path, bool OverHttps = false)
 {
     public static GitKeyStep From(GitKeyInfo? key) => key is null ? new(false, null, null, null) : new(true, key.PublicKey, key.Fingerprint, key.Path);
 }
@@ -107,6 +107,7 @@ public sealed class SetupService(
     public const string PatAuth = "Pat";
     public const string AzCliAuth = "AzCli";
     public const string ServicePrincipalAuth = "ServicePrincipal";
+    public const string EntraAuth = "Entra";
 
     public DatabaseStep GetDatabase() => new(secrets.Status(ConnectionStringSecret));
 
@@ -191,12 +192,16 @@ public sealed class SetupService(
         {
             ["AzureDevOps:Organization"] = c.Organization,
             ["AzureDevOps:Project"] = c.Project,
-            ["AzureDevOps:Auth"] = c.UsePat ? PatAuth : c.Principal is null ? AzCliAuth : ServicePrincipalAuth,
+            ["AzureDevOps:Auth"] = c.UsePat ? PatAuth : c.Principal is not null ? ServicePrincipalAuth : c.Entra ? EntraAuth : AzCliAuth,
         };
         if (c.Principal is { } principal)
         {
             values["AzureDevOps:TenantId"] = principal.TenantId;
             values["AzureDevOps:ClientId"] = principal.ClientId;
+        }
+        else if (c.Entra)
+        {
+            values["AzureDevOps:TenantId"] = c.TenantId;
         }
 
         await config.SetAsync(values, cancellationToken).ConfigureAwait(false);
@@ -252,7 +257,7 @@ public sealed class SetupService(
         return await azureDevOps.TestAsync(c, jobs.Value, cancellationToken).ConfigureAwait(false);
     }
 
-    public GitKeyStep GetGitKey() => GitKeyStep.From(gitKey.Read());
+    public GitKeyStep GetGitKey() => GitKeyStep.From(gitKey.Read()) with { OverHttps = OverHttps() };
 
     /// <summary>Generates agentd's SSH key; an existing key is never replaced (repositories may already trust it).</summary>
     public async Task<Result<GitKeyStep>> GenerateGitKeyAsync(string by, CancellationToken cancellationToken)
@@ -264,7 +269,7 @@ public sealed class SetupService(
 
         var key = await gitKey.GenerateAsync($"agentd@{Environment.MachineName}", cancellationToken).ConfigureAwait(false);
         await audit.RecordAsync([Change("Git:SshKey", "key", "generated", by)], cancellationToken).ConfigureAwait(false);
-        return GitKeyStep.From(key);
+        return GitKeyStep.From(key) with { OverHttps = OverHttps() };
     }
 
     /// <summary>Tests access to a repository (its SSH clone URL) with agentd's key, or the user's own when there's none.</summary>
@@ -536,9 +541,19 @@ public sealed class SetupService(
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            return new StepCheck(false, ex.Message, "check the Git access step: agentd's key must be added where the repository lives");
+            return new StepCheck(false, ex.Message, OverHttps(parsed.Value.Value)
+                ? "agentd reaches it over HTTPS with its Azure DevOps sign-in (the Azure DevOps step): check that sign-in can read this repository"
+                : "check the Git access step: agentd's key must be added where the repository lives");
         }
     }
+
+    /// <summary>
+    /// Whether git reaches <paramref name="url"/> over HTTPS with agentd's Azure DevOps sign-in, needing no SSH key: an
+    /// HTTPS URL always, an SSH one while <c>Git:AzureDevOpsOverHttps</c> is on (the default).
+    /// </summary>
+    private bool OverHttps(string? url = null) =>
+        url?.StartsWith("https://", StringComparison.OrdinalIgnoreCase) == true
+        || !string.Equals(config.Read("Git:AzureDevOpsOverHttps"), "false", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Every step's own Test against the saved settings (not the running daemon's, which a restart replaces). Chat is
@@ -552,6 +567,7 @@ public sealed class SetupService(
             new("azure-devops", "Azure DevOps", true, await TestAzureDevOpsAsync(null, cancellationToken).ConfigureAwait(false)),
             new("git", "Git access", false, gitKey.Read() is { } key
                 ? new StepCheck(true, $"agentd's SSH key {key.Fingerprint}.")
+                : OverHttps() ? new StepCheck(true, "Azure DevOps over HTTPS with agentd's Azure DevOps sign-in: no SSH key needed.")
                 : new StepCheck(false, "agentd has no SSH key: git uses the SSH setup of the user it runs as.", "generate one in the Git access step, unless that setup already works")),
             new("claude", "Claude", true, await TestClaudeAsync(null, cancellationToken).ConfigureAwait(false)),
         };
@@ -809,6 +825,14 @@ public sealed class SetupService(
                 return new AzureDevOpsConnection(organization, input.Project.Trim(), true, null);
             case AzCliAuth:
                 return new AzureDevOpsConnection(organization, input.Project.Trim(), false, null);
+            case EntraAuth:
+                var directory = string.IsNullOrWhiteSpace(input.TenantId) ? null : input.TenantId.Trim();
+                if (directory is not null && !Guid.TryParse(directory, out _) && !IsDomain(directory))
+                {
+                    return DomainError.Validation("The tenant is a Directory (tenant) ID or a domain (contoso.onmicrosoft.com); leave it empty for the sign-in's own.");
+                }
+
+                return new AzureDevOpsConnection(organization, input.Project.Trim(), false, null, Entra: true, TenantId: directory);
             case ServicePrincipalAuth:
                 var tenant = input.TenantId?.Trim() ?? string.Empty;
                 var client = input.ClientId?.Trim() ?? string.Empty;
@@ -824,12 +848,12 @@ public sealed class SetupService(
 
                 return new AzureDevOpsConnection(organization, input.Project.Trim(), false, null, new ServicePrincipal(tenant, client, string.Empty));
             default:
-                return DomainError.Validation("Auth is Pat, AzCli or ServicePrincipal.");
+                return DomainError.Validation("Auth is Pat, AzCli, Entra or ServicePrincipal.");
         }
     }
 
     private static string? AuthOf(string? value) =>
-        new[] { PatAuth, AzCliAuth, ServicePrincipalAuth }.FirstOrDefault(a => string.Equals(a, value?.Trim(), StringComparison.OrdinalIgnoreCase));
+        new[] { PatAuth, AzCliAuth, ServicePrincipalAuth, EntraAuth }.FirstOrDefault(a => string.Equals(a, value?.Trim(), StringComparison.OrdinalIgnoreCase));
 
     /// <summary>A tenant's domain, e.g. <c>contoso.onmicrosoft.com</c>: letters, digits, dots and hyphens.</summary>
     private static bool IsDomain(string value) =>

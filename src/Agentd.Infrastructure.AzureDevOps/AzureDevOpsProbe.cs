@@ -11,7 +11,9 @@ namespace Agentd.Infrastructure.AzureDevOps;
 /// <param name="primary">The transport (tests); default: sockets without redirects.</param>
 /// <param name="azCli">The <c>az login</c> credential (tests); default: the machine's az CLI.</param>
 /// <param name="principal">Signs a service principal in (tests); default: Entra with its client secret.</param>
-public sealed class AzureDevOpsProbe(Func<HttpMessageHandler>? primary = null, IAdoAuthProvider? azCli = null, Func<ServicePrincipal, IAdoAuthProvider>? principal = null) : IAzureDevOpsProbe
+/// <param name="entra">The machine's own Entra sign-in (tests); default: DefaultAzureCredential without a browser.</param>
+public sealed class AzureDevOpsProbe(Func<HttpMessageHandler>? primary = null, IAdoAuthProvider? azCli = null, Func<ServicePrincipal, IAdoAuthProvider>? principal = null,
+    Func<string?, IAdoAuthProvider>? entra = null) : IAzureDevOpsProbe
 {
     public static readonly TimeSpan Timeout = TimeSpan.FromSeconds(20);
 
@@ -23,13 +25,20 @@ public sealed class AzureDevOpsProbe(Func<HttpMessageHandler>? primary = null, I
         {
             Organization = connection.Organization,
             Project = connection.Project,
-            Auth = connection.UsePat ? AzureDevOpsAuth.Pat : connection.Principal is null ? AzureDevOpsAuth.AzCli : AzureDevOpsAuth.ServicePrincipal,
+            Auth = connection switch
+            {
+                { UsePat: true } => AzureDevOpsAuth.Pat,
+                { Principal: not null } => AzureDevOpsAuth.ServicePrincipal,
+                { Entra: true } => AzureDevOpsAuth.Entra,
+                _ => AzureDevOpsAuth.AzCli,
+            },
             Pat = connection.Pat,
         };
         var auth = connection switch
         {
             { UsePat: true } => new PatAuthProvider(Options.Create(options)),
             { Principal: { } sp } => principal?.Invoke(sp) ?? AzCliAuthProvider.ForServicePrincipal(sp.TenantId, sp.ClientId, sp.ClientSecret),
+            { Entra: true } => entra?.Invoke(connection.TenantId) ?? AzCliAuthProvider.ForEntra(connection.TenantId),
             _ => azCli ?? new AzCliAuthProvider(),
         };
         try
@@ -48,6 +57,8 @@ public sealed class AzureDevOpsProbe(Func<HttpMessageHandler>? primary = null, I
                 { UsePat: true } => "check the organization and project names, and that the token has Work Items (read & write), Code (read & write) and Build (read)",
                 { Principal: not null } => "check the tenant, client id and secret (not the secret's id), that the organization is connected to this Entra tenant, " +
                     "and that the app is added to the organization (Users) with a Basic license and project access",
+                { Entra: true } => "sign in to Azure as the user agentd runs as (Visual Studio, Azure PowerShell `Connect-AzAccount`, `az login` or `azd auth login`), " +
+                    "or give an Azure VM a managed identity added to the organization; set the tenant if the sign-in knows several",
                 _ => "run `az login` on the server as the user agentd runs as, and check the organization and project names",
             });
         }

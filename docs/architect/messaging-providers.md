@@ -203,6 +203,15 @@ A per-repo override lives in the repo's kit, `.agentd/kit.json`: `"messaging": {
 A work item can also pick providers with a `chat:telegram` tag, which overrides the repo and default
 settings.
 
+**No provider at all** (added 2026-10-14) is a supported setup: agentd runs from the web UI alone. Every message to
+people lands in the [Inbox](inbox.md) and the work item's Conversation tab (which falls back to the Inbox when a job
+has no outbox rows); the close-out finishes the job at once instead of asking about a thread that doesn't exist
+(`Job.CloseOutWithoutThread`, a `ClosedOut` with `HadThread = false` and a "🧹 All done" message). **A provider
+switched off later:** at startup `outbox_drop_disabled` marks its queued messages failed ("provider disabled") and
+closes its open conversations, so nothing waits for it; code that reaches a thread uses
+`IMessagingProviderRegistry.TryResolve` and skips a provider that's off. Turned back on, running jobs get new threads
+(repair).
+
 ---
 
 ## 7. Persistence (Domain + Persistence)

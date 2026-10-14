@@ -53,6 +53,7 @@ public static class DependencyInjection
         services.AddSingleton<Reviews.BranchReviews>();
         services.AddSingleton<Reviews.ReviewSessionFixer>();
         services.AddSingleton<Reviews.ReviewSessionSend>();
+        services.AddSingleton<Reviews.ReviewSessionRechecker>();
         services.AddSingleton<Monitor.PrWatchService>();
         services.AddSingleton<Artifacts.ArtifactService>();
         services.AddSingleton<Monitor.PrFixRounds>();

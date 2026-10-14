@@ -29,8 +29,10 @@ public static class ReviewSessionEndpoints
             TypedResults.Ok(OpenPullRequestsVm.From(await open.ListAsync(ct).ConfigureAwait(false))))
             .WithName("ListOpenPullRequests");
 
-        reviews.MapGet("/{id:long}", async Task<IResult> (long id, [FromServices] ReviewSessionService service, CancellationToken ct) =>
-            await service.GetAsync(id, ct).ConfigureAwait(false) is { } view ? TypedResults.Ok(ReviewSessionDetailVm.From(view)) : TypedResults.NotFound())
+        reviews.MapGet("/{id:long}", async Task<IResult> (long id, [FromServices] ReviewSessionService service, [FromServices] IReviewSessionPosts? posts, CancellationToken ct) =>
+            await service.GetAsync(id, ct).ConfigureAwait(false) is { } view
+                ? TypedResults.Ok(ReviewSessionDetailVm.From(view) with { OnPullRequest = posts is null ? null : PostedVm.From(await posts.GetAsync(id, ct).ConfigureAwait(false)) })
+                : TypedResults.NotFound())
             .WithName("GetReview").Produces<ReviewSessionDetailVm>().Produces(StatusCodes.Status404NotFound);
 
         reviews.MapGet("/{id:long}/diff", async (long id, [FromServices] ReviewSessionService service, CancellationToken ct) =>
@@ -167,8 +169,21 @@ public sealed record ReviewAskVm(long Id, string? File, int? Line, int? EndLine,
     }
 }
 
-/// <summary>A session with its comments and questions, as the review page shows it.</summary>
-public sealed record ReviewSessionDetailVm(ReviewSessionVm Session, IReadOnlyList<ReviewCommentVm> Comments, IReadOnlyList<ReviewAskVm> Asks)
+/// <summary>
+/// A Send to a PR as it stands: each posted finding's status (<c>open</c>, <c>fixed</c>, <c>closed</c>) and the re-checks after
+/// pushes, newest last. <c>done</c> once the PR completed or was abandoned.
+/// </summary>
+public sealed record PostedVm(int PullRequestId, string? Head, bool Done, IReadOnlyList<PostedFindingVm> Findings, IReadOnlyList<SessionRecheck> Rechecks)
+{
+    public static PostedVm? From(ReviewSessionPost? p) => p is null ? null : new(p.PullRequestId, p.Head, p.Done,
+        [.. p.Posted.Findings.Select(f => new PostedFindingVm(f.Severity, f.Title, f.File, f.Line, f.Status ?? ReviewFindings.Open))], p.Rechecks);
+}
+
+/// <summary>A posted finding and its status on the PR.</summary>
+public sealed record PostedFindingVm(string Severity, string Title, string? File, int? Line, string Status);
+
+/// <summary>A session with its comments and questions, as the review page shows it; <c>onPullRequest</c> once it was sent to a PR with findings.</summary>
+public sealed record ReviewSessionDetailVm(ReviewSessionVm Session, IReadOnlyList<ReviewCommentVm> Comments, IReadOnlyList<ReviewAskVm> Asks, PostedVm? OnPullRequest = null)
 {
     public static ReviewSessionDetailVm From(ReviewSessionView v)
     {

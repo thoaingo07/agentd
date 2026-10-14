@@ -66,7 +66,7 @@ public static class MessageCatalog
     /// <summary>The job's PR was abandoned while the agent worked: no new PR; the developer decides what's next.</summary>
     public static OutboundMessage AbandonedBeforePublish(Uri pr) => new(MessageKind.Info,
         $"⚠️ **The PR was abandoned** ({pr}), so I didn't open a new one and stopped this job. If you want the changes after all, " +
-        "use `!retry` (or `!run <work item id>` for a fresh start).");
+        "**Retry** it on its page or with `!retry` (**Run** / `!run <work item id>` for a fresh start).");
 
     public static OutboundMessage Question(string question, IReadOnlyList<MessageOption>? options) =>
         new(MessageKind.Question, $"**Question from the agent**\n\n{question}", options);

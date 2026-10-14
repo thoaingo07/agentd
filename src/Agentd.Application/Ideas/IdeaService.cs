@@ -266,9 +266,14 @@ public sealed partial class IdeaService(
                 return DomainError.Conflict($"Idea {idea.Id} is already closed.");
             }
 
+            if (providers.TryResolve(idea.Provider) is not { } chat)
+            {
+                return DomainError.Conflict($"{idea.Provider} is switched off, so agentd can't reach the thread to delete it.");
+            }
+
             try
             {
-                await providers.Resolve(idea.Provider).DeleteConversationAsync(new ConversationRef(idea.Provider, threadId, idea.SpaceId), ct).ConfigureAwait(false);
+                await chat.DeleteConversationAsync(new ConversationRef(idea.Provider, threadId, idea.SpaceId), ct).ConfigureAwait(false);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -497,12 +502,12 @@ public sealed partial class IdeaService(
     {
         await ideas.SaveAsync(idea with { Status = IdeaStatus.Closed }, ct).ConfigureAwait(false);
         await RemoveCheckoutAsync(idea.Repository, idea.Worktree, ct).ConfigureAwait(false);
-        if (idea.ThreadId is not { } threadId)
+        // No thread, or its chat was switched off since: nothing to delete or archive there.
+        if (idea.ThreadId is not { } threadId || providers.TryResolve(idea.Provider) is not { } provider)
         {
             return;
         }
 
-        var provider = providers.Resolve(idea.Provider);
         var thread = new ConversationRef(idea.Provider, threadId, idea.SpaceId);
         try
         {

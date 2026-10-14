@@ -103,11 +103,33 @@ public sealed class ReviewSessionEndpointTests
         Assert.IsEmpty(_store.All);
     }
 
-    private async Task<WebApplication> StartAsync()
+    [TestMethod]
+    public async Task A_sent_review_shows_its_findings_on_the_pr_and_the_rechecks()
+    {
+        var id = await _store.InsertAsync("sysmin", ReviewTargets.PullRequest, 3944, "ai/x", "develop", "local", null, null, default);
+        var post = new ReviewSessionPost(id, 3944, new ReviewResult("One bug.", [new ReviewFinding("breaks", "src/Sync.cs", 41, "Unbounded read", null, null, 101, ReviewFindings.Fixed)], 104),
+            "h2", [new SessionRecheck(DateTimeOffset.UnixEpoch, "h2", 1, 0, 0, 0)], false);
+        await using var app = await StartAsync(Stub<IReviewSessionPosts>.Create((name, args) => name == nameof(IReviewSessionPosts.GetAsync)
+            ? Task.FromResult<ReviewSessionPost?>((long)args![0]! == id ? post : null) : throw new NotSupportedException(name)));
+
+        var detail = JsonDocument.Parse(await app.GetTestClient().GetStringAsync(new Uri($"/api/reviews/{id}", UriKind.Relative))).RootElement;
+
+        var onPr = detail.GetProperty("onPullRequest");
+        Assert.AreEqual((3944, "h2", false), (onPr.GetProperty("pullRequestId").GetInt32(), onPr.GetProperty("head").GetString(), onPr.GetProperty("done").GetBoolean()));
+        Assert.AreEqual(("Unbounded read", "fixed"), (onPr.GetProperty("findings")[0].GetProperty("title").GetString(), onPr.GetProperty("findings")[0].GetProperty("status").GetString()));
+        Assert.AreEqual(1, onPr.GetProperty("rechecks")[0].GetProperty("fixed").GetInt32());
+    }
+
+    private async Task<WebApplication> StartAsync(IReviewSessionPosts? posts = null)
     {
         var builder = WebApplication.CreateSlimBuilder();
         builder.WebHost.UseTestServer();
         builder.Services.AddBff();
+        if (posts is not null)
+        {
+            builder.Services.AddSingleton(posts);
+        }
+
         builder.Services.AddSingleton<ILiveEvents>(new EventHub(NullLogger<EventHub>.Instance));
         builder.Services.AddSingleton<IReviewSessionStore>(_store);
         builder.Services.AddSingleton(Stub<IRepositoryRegistry>.Create((name, args) =>
