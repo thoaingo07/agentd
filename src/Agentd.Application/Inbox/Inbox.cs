@@ -11,6 +11,9 @@ public static class InboxSources
     public const string Review = "review";
     public const string Chat = "chat";
     public const string Watch = "watch";
+
+    /// <summary>An incident the monitor found in an app's telemetry (docs/architect/incident-monitor.md).</summary>
+    public const string Incident = "incident";
 }
 
 /// <summary>One of agentd's messages to a person, for the Inbox; <paramref name="Title"/> names its thread.</summary>

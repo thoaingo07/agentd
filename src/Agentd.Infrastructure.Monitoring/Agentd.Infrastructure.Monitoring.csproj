@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The incident monitor's telemetry: Application Insights read with Azure Monitor Logs queries, signed in with Entra ID. -->
+  <ItemGroup>
+    <ProjectReference Include="..\Agentd.Application\Agentd.Application.csproj" />
+    <ProjectReference Include="..\Agentd.Domain\Agentd.Domain.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Azure.Identity" />
+    <PackageReference Include="Azure.Monitor.Query.Logs" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Agentd.Infrastructure.Tests" />
+  </ItemGroup>
+</Project>

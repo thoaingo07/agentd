@@ -56,9 +56,11 @@ public sealed class InboxEndpointTests
         using var empty = await PostAsync(app, "/api/inbox/idea/4/reply", new { text = " " });
         using var badSource = await PostAsync(app, "/api/inbox/email/4/reply", new { text = "1" });
         using var noService = await PostAsync(app, "/api/inbox/chat/4/reply", new { text = "thanks" });
+        using var incident = await PostAsync(app, "/api/inbox/incident/4/reply", new { text = "fix it" });
 
         Assert.AreEqual((HttpStatusCode.BadRequest, HttpStatusCode.BadRequest), (empty.StatusCode, badSource.StatusCode));
         Assert.AreEqual(HttpStatusCode.NotFound, noService.StatusCode, "no chats here");
+        Assert.AreEqual(HttpStatusCode.Conflict, incident.StatusCode, "an incident's thread is readable, answers come next");
     }
 
     private static async Task<HttpResponseMessage> PostAsync(WebApplication app, string url, object? body) =>
