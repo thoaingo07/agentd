@@ -42,7 +42,7 @@ public sealed record FoldersStepVm(string? Worktrees, string? Repositories, stri
 
 public sealed record DatabaseStepVm(SecretStatusVm ConnectionString);
 
-/// <summary><c>Auth</c> is <c>Pat</c>, <c>AzCli</c> or <c>ServicePrincipal</c> (tenant and client ids; the client secret as a status only).</summary>
+/// <summary><c>Auth</c> is <c>Pat</c>, <c>AzCli</c>, <c>Entra</c> or <c>ServicePrincipal</c> (tenant and client ids; the client secret as a status only).</summary>
 public sealed record AzureDevOpsStepVm(string? Organization, string? Project, string Auth, SecretStatusVm Pat, string? TenantId, string? ClientId, SecretStatusVm ClientSecret);
 
 /// <summary>A step's "Test" result; <see cref="Fix"/> says what to do when it failed.</summary>
@@ -52,12 +52,12 @@ public sealed record StepCheckVm(bool Ok, string Message, string? Fix);
 public sealed record SaveResultVm(bool RestartRequired);
 
 /// <summary>agentd's SSH key for git: the public key to add in Azure DevOps or GitHub, and its fingerprint. Never the private key.</summary>
-public sealed record GitKeyStepVm(bool Exists, string? PublicKey, string? Fingerprint, string? Path)
+public sealed record GitKeyStepVm(bool Exists, string? PublicKey, string? Fingerprint, string? Path, bool OverHttps)
 {
     public static GitKeyStepVm From(Application.Setup.GitKeyStep s)
     {
         ArgumentNullException.ThrowIfNull(s);
-        return new(s.Exists, s.PublicKey, s.Fingerprint, s.Path);
+        return new(s.Exists, s.PublicKey, s.Fingerprint, s.Path, s.OverHttps);
     }
 }
 

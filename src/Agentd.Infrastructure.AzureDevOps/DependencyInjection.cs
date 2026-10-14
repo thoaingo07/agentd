@@ -22,6 +22,7 @@ public static class DependencyInjection
             {
                 AzureDevOpsAuth.Pat => new PatAuthProvider(options),
                 AzureDevOpsAuth.ServicePrincipal => AzCliAuthProvider.ForServicePrincipal(options.Value.TenantId, options.Value.ClientId, options.Value.ClientSecret),
+                AzureDevOpsAuth.Entra => AzCliAuthProvider.ForEntra(options.Value.TenantId),
                 _ => new AzCliAuthProvider(),
             };
         });

@@ -208,3 +208,44 @@ CREATE OR REPLACE FUNCTION agentd.review_ask_list(p_session_id bigint)
 RETURNS SETOF agentd.review_asks
 LANGUAGE sql STABLE
 AS $$ SELECT * FROM agentd.review_asks WHERE session_id = p_session_id ORDER BY id $$;
+
+-- A Send to a PR (review-sessions.md §4): what was posted, kept for the re-checks after pushes. Sending again replaces it.
+CREATE OR REPLACE FUNCTION agentd.review_session_post_set(p_session_id bigint, p_pull_request_id int, p_posted jsonb, p_head text)
+RETURNS void
+LANGUAGE sql
+AS $$
+    INSERT INTO agentd.review_session_posts (session_id, pull_request_id, posted, head)
+    VALUES (p_session_id, p_pull_request_id, p_posted, p_head)
+    ON CONFLICT (session_id) DO UPDATE
+       SET pull_request_id = excluded.pull_request_id, posted = excluded.posted, head = excluded.head,
+           rechecks = '[]'::jsonb, done = false, updated_at = now()
+$$;
+
+CREATE OR REPLACE FUNCTION agentd.review_session_post_get(p_session_id bigint)
+RETURNS SETOF agentd.review_session_posts
+LANGUAGE sql STABLE
+AS $$ SELECT * FROM agentd.review_session_posts WHERE session_id = p_session_id $$;
+
+-- The Sends still re-checked (their PR is open), oldest first.
+CREATE OR REPLACE FUNCTION agentd.review_session_post_list_open()
+RETURNS SETOF agentd.review_session_posts
+LANGUAGE sql STABLE
+AS $$ SELECT * FROM agentd.review_session_posts WHERE NOT done ORDER BY session_id $$;
+
+-- After a re-check (or the replies seen moving on): the findings' new statuses and head; p_recheck, when given, is added to
+-- the history ({ at, head, fixed, open, closed, added }). One statement, so parallel updates never lose a history entry.
+CREATE OR REPLACE FUNCTION agentd.review_session_post_update(p_session_id bigint, p_posted jsonb, p_head text, p_recheck jsonb)
+RETURNS void
+LANGUAGE sql
+AS $$
+    UPDATE agentd.review_session_posts
+       SET posted = p_posted, head = p_head, updated_at = now(),
+           rechecks = CASE WHEN p_recheck IS NULL THEN rechecks ELSE rechecks || jsonb_build_array(p_recheck) END
+     WHERE session_id = p_session_id AND NOT done
+$$;
+
+-- The PR completed or was abandoned: no more re-checks.
+CREATE OR REPLACE FUNCTION agentd.review_session_post_done(p_session_id bigint)
+RETURNS void
+LANGUAGE sql
+AS $$ UPDATE agentd.review_session_posts SET done = true, updated_at = now() WHERE session_id = p_session_id $$;

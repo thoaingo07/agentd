@@ -19,6 +19,7 @@ public sealed class GitOptions
     /// <summary>
     /// Azure DevOps over HTTPS with agentd's Azure DevOps sign-in (the default): SSH remotes (<c>git@ssh.dev.azure.com:v3/…</c>,
     /// or an SSH host alias with a <c>v3/</c> path) are used as their HTTPS address. False keeps SSH and the key above.
+    /// A repository added with an HTTPS URL always goes over HTTPS with that sign-in, so it needs no SSH key either way.
     /// </summary>
     public bool AzureDevOpsOverHttps { get; set; } = true;
 

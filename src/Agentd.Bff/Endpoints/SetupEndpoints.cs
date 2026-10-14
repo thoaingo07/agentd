@@ -167,7 +167,7 @@ public static class SetupEndpoints
     /// <summary><c>Auth</c> is <c>Pat</c> or <c>AzCli</c>. An empty <c>Pat</c> keeps the saved one.</summary>
     /// <param name="Organization">A name or URL.</param>
     /// <param name="Project">The project name.</param>
-    /// <param name="Auth"><c>Pat</c>, <c>AzCli</c> or <c>ServicePrincipal</c>.</param>
+    /// <param name="Auth"><c>Pat</c>, <c>AzCli</c>, <c>Entra</c> or <c>ServicePrincipal</c>.</param>
     /// <param name="Pat">A new token; empty keeps the stored one.</param>
     /// <param name="TenantId">The service principal's directory (tenant) id.</param>
     /// <param name="ClientId">The service principal's application (client) id.</param>

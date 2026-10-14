@@ -612,6 +612,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/prompts/conversations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ListPromptConversations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/prompts/conversations/{source}/{sourceId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetPromptConversation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/inbox": {
         parameters: {
             query?: never;
@@ -1513,7 +1545,7 @@ export interface components {
             organization: null | string;
             /** @description The project name. */
             project: null | string;
-            /** @description `Pat`, `AzCli` or `ServicePrincipal`. */
+            /** @description `Pat`, `AzCli`, `Entra` or `ServicePrincipal`. */
             auth: null | string;
             /** @description A new token; empty keeps the stored one. */
             pat: null | string;
@@ -1524,7 +1556,7 @@ export interface components {
             /** @description A new client secret; empty keeps the stored one. */
             clientSecret?: null | string;
         };
-        /** @description `Auth` is `Pat`, `AzCli` or `ServicePrincipal` (tenant and client ids; the client secret as a status only). */
+        /** @description `Auth` is `Pat`, `AzCli`, `Entra` or `ServicePrincipal` (tenant and client ids; the client secret as a status only). */
         AzureDevOpsStepVm: {
             organization: null | string;
             project: null | string;
@@ -1768,6 +1800,7 @@ export interface components {
             publicKey: null | string;
             fingerprint: null | string;
             path: null | string;
+            overHttps: boolean;
         };
         /** @description A repository's clone URL (SSH for agentd's key). */
         GitTestRequest: {
@@ -2129,6 +2162,27 @@ export interface components {
             /** Format: date-time */
             createdAt: string;
         };
+        /** @description A posted finding and its status on the PR. */
+        PostedFindingVm: {
+            severity: string;
+            title: string;
+            file: null | string;
+            /** Format: int32 */
+            line: null | number;
+            status: string;
+        };
+        /**
+         * @description A Send to a PR as it stands: each posted finding's status (`open`, `fixed`, `closed`) and the re-checks after
+         *     pushes, newest last. `done` once the PR completed or was abandoned.
+         */
+        PostedVm: {
+            /** Format: int32 */
+            pullRequestId: number;
+            head: null | string;
+            done: boolean;
+            findings: components["schemas"]["PostedFindingVm"][];
+            rechecks: components["schemas"]["SessionRecheck"][];
+        };
         ProblemDetails: {
             type?: null | string;
             title?: null | string;
@@ -2152,6 +2206,29 @@ export interface components {
             model: null | string;
             smallModel: null | string;
             apiKey: components["schemas"]["SecretStatusVm"];
+        };
+        /** @description A page of conversations, the latest activity first; `hasMore`: ask again with `before` = the last `lastId`. */
+        PromptConversationPageVm: {
+            conversations: components["schemas"]["PromptConversationVm"][];
+            hasMore: boolean;
+        };
+        /** @description A conversation: every turn for one source, the latest's outcome, whether one runs, the models used; `preview` starts its first prompt. */
+        PromptConversationVm: {
+            source: string;
+            /** Format: int64 */
+            sourceId: number;
+            /** Format: int32 */
+            turns: number;
+            /** Format: date-time */
+            firstAt: string;
+            /** Format: date-time */
+            lastAt: string;
+            /** Format: int64 */
+            lastId: number;
+            lastOutcome: null | string;
+            running: boolean;
+            models: string[];
+            preview: string;
         };
         /** @description A prompt, whole: what was sent, the system rules with it, and the reply. */
         PromptDetailVm: {
@@ -2340,11 +2417,12 @@ export interface components {
             posted: number;
             asPerson: boolean;
         };
-        /** @description A session with its comments and questions, as the review page shows it. */
+        /** @description A session with its comments and questions, as the review page shows it; `onPullRequest` once it was sent to a PR with findings. */
         ReviewSessionDetailVm: {
             session: components["schemas"]["ReviewSessionVm"];
             comments: components["schemas"]["ReviewCommentVm"][];
             asks: components["schemas"]["ReviewAskVm"][];
+            onPullRequest?: null | components["schemas"]["PostedVm"];
         };
         /** @description A review session: what it looks at (pinned commits), its state, the reviewer's summary and findings. */
         ReviewSessionVm: {
@@ -2395,6 +2473,21 @@ export interface components {
         SendRequest: {
             /** @description `pr` (a PR's review: post it there) or `text` (copy it). */
             destination: null | string;
+        };
+        /** @description One re-check of a Send: when, at which PR head, and how the posted findings stood after it (or what went wrong). */
+        SessionRecheck: {
+            /** Format: date-time */
+            at: string;
+            head: null | string;
+            /** Format: int32 */
+            fixed: number;
+            /** Format: int32 */
+            open: number;
+            /** Format: int32 */
+            closed: number;
+            /** Format: int32 */
+            added: number;
+            problem?: null | string;
         };
         /** @description The setup session (the one-time link's cookie): when it ends unless used again (it slides). */
         SetupSessionVm: {
@@ -3891,6 +3984,80 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EventVm"][];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    ListPromptConversations: {
+        parameters: {
+            query?: {
+                source?: string;
+                before?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PromptConversationPageVm"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetPromptConversation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                source: string;
+                sourceId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PromptDetailVm"][];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
             /** @description Not Found */

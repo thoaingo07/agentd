@@ -47,6 +47,9 @@ public interface IMessagingProviderRegistry
 
     /// <summary>The enabled provider with this key; throws when it is not enabled.</summary>
     IMessagingProvider Resolve(ProviderKey key);
+
+    /// <summary>The enabled provider with this key, or null when it isn't (chat switched off after a thread was opened).</summary>
+    IMessagingProvider? TryResolve(ProviderKey key) => Enabled.FirstOrDefault(p => p.Key == key);
 }
 
 /// <summary>What provider listeners call for every inbound message (implemented by the inbound use case).</summary>

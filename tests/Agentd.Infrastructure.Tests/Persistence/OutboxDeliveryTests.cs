@@ -115,17 +115,38 @@ public sealed class OutboxDeliveryTests
         CollectionAssert.AreEqual(new[] { "m1", "m2", "m3" }, chat.Delivered);
     }
 
+    [TestMethod]
+    public async Task A_chat_switched_off_gets_its_queued_messages_failed_and_its_threads_closed_once()
+    {
+        await using var db = await Database.CreateMigratedAsync(NextName());
+        var discord = await JobWithConversationAsync(db);
+        var slack = await JobWithConversationAsync(db, ProviderKey.From("slack"));
+        await EnqueueAsync(db, discord, "d1", "d2");
+        await EnqueueAsync(db, slack, "s1");
+        var store = new ConversationStore(db);
+
+        var results = await Task.WhenAll(Enumerable.Range(0, 6).Select(_ => store.DropDisabledAsync([ProviderKey.From("slack")], default)));
+
+        Assert.AreEqual((2, 1), (results.Sum(r => r.Failed), results.Sum(r => r.Closed)), "parallel callers: each row and thread once");
+        Assert.IsFalse((await store.ListByJobAsync(discord, default)).Single().IsOpen);
+        Assert.IsTrue((await store.ListByJobAsync(slack, default)).Single().IsOpen, "the chat still on is untouched");
+        Assert.AreEqual("s1", (await new OutboxDelivery(db).ClaimAsync(50, [ProviderKey.From("slack")], default)).Single().Message.Markdown);
+        await using var failed = db.CreateCommand("SELECT count(*) FROM agentd.outbound_messages WHERE status = 'failed' AND last_error = 'provider disabled'");
+        Assert.AreEqual(2L, (long)(await failed.ExecuteScalarAsync())!);
+        Assert.AreEqual(new Application.Ports.DisabledProviders(0, 0), await store.DropDisabledAsync([ProviderKey.From("slack")], default), "idempotent");
+    }
+
     private static string NextName() => $"outbox_delivery_{Interlocked.Increment(ref s_next)}";
 
     private static Task EnqueueAsync(NpgsqlDataSource db, JobId job, params string[] texts) =>
         new Outbox(db).EnqueueAsync(job, texts.Select(t => new OutboxMessage(new OutboundMessage(MessageKind.Info, t))).ToList(), default);
 
-    private static async Task<JobId> JobWithConversationAsync(NpgsqlDataSource db)
+    private static async Task<JobId> JobWithConversationAsync(NpgsqlDataSource db, ProviderKey? provider = null)
     {
         var clock = new Clock();
         var job = Job.Create(WorkItemId.From(Interlocked.Increment(ref s_next) + 100), RepositoryName.From("sysmin"), "t", clock);
         await new JobRepository(db, clock).AddAsync(job, default);
-        await new ConversationStore(db).AddAsync(Conversation.Open(job.Id, s_discord, $"thread-{job.Id}", null, null, [], clock.UtcNow).Value!, default);
+        await new ConversationStore(db).AddAsync(Conversation.Open(job.Id, provider ?? s_discord, $"thread-{job.Id}", null, null, [], clock.UtcNow).Value!, default);
         return job.Id;
     }
 

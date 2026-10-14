@@ -10,6 +10,14 @@ public enum AzureDevOpsAuth
 
     /// <summary>A Microsoft Entra service principal: <c>TenantId</c>, <c>ClientId</c> and the secret <c>Agentd:AzureDevOps:ClientSecret</c>.</summary>
     ServicePrincipal,
+
+    /// <summary>
+    /// Whatever Microsoft Entra sign-in the machine already has, without a browser: a service principal in the
+    /// environment (<c>AZURE_CLIENT_ID</c>…), a managed identity (an Azure VM), Visual Studio, Azure PowerShell,
+    /// <c>az login</c> or <c>azd</c> (DefaultAzureCredential). For a Windows machine without the az CLI. <c>TenantId</c>
+    /// picks the directory when the sign-in knows several.
+    /// </summary>
+    Entra,
 }
 
 /// <summary>Configuration section <c>Agentd:AzureDevOps</c>. Work items are polled from <see cref="Organization"/>/<see cref="Project"/>.</summary>

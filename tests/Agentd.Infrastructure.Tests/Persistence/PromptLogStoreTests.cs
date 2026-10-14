@@ -177,6 +177,52 @@ public sealed class PromptLogStoreTests
         }
     }
 
+    [TestMethod]
+    public async Task Prompts_group_into_conversations_latest_activity_first_and_one_reads_whole_in_order()
+    {
+        await using var db = await Database.CreateMigratedAsync("prompt_log_conversations");
+        var log = new PromptLogStore(db);
+        var idea1 = await log.StartAsync(Prompt("idea rules", "Dark mode please", 7) with { Source = PromptSources.Idea, Step = null, Model = "sonnet" }, default);
+        var job1 = await log.StartAsync(Prompt("job rules", "Fix the login", 42), default);
+        var idea2 = await log.StartAsync(Prompt("idea rules", "Only the portal", 7) with { Source = PromptSources.Idea, Step = null, Model = "opus" }, default);
+        await log.FinishAsync(idea1, PromptOutcomes.Ok, null, "Which pages?", default);
+        await log.FinishAsync(idea2, PromptOutcomes.Error, "boom", null, default);
+
+        var all = await log.ConversationsAsync(null, null, 50, default);
+        var ideas = await log.ConversationsAsync(PromptSources.Idea, null, 50, default);
+        var older = await log.ConversationsAsync(null, idea2, 50, default);
+
+        Assert.AreEqual(("idea", 7L, 2, idea2, "error", false), (all[0].Source, all[0].SourceId, all[0].Turns, all[0].LastId, all[0].LastOutcome, all[0].Running));
+        CollectionAssert.AreEqual(new[] { "opus", "sonnet" }, all[0].Models.ToArray());
+        Assert.AreEqual("Dark mode please", all[0].Preview, "the first prompt");
+        Assert.AreEqual(("job", 42L, true), (all[1].Source, all[1].SourceId, all[1].Running), "still running");
+        Assert.HasCount(1, ideas);
+        CollectionAssert.AreEqual(new[] { job1 }, older.Select(c => c.LastId).ToArray(), "the page below a conversation's latest prompt");
+
+        var turns = await log.ConversationAsync(PromptSources.Idea, 7, 100, default);
+        CollectionAssert.AreEqual(new[] { idea1, idea2 }, turns.Select(t => t.Id).ToArray(), "oldest first");
+        Assert.AreEqual(("Dark mode please", "Which pages?", "idea rules"), (turns[0].Prompt, turns[0].Reply, turns[0].Rules));
+        Assert.IsEmpty(await log.ConversationAsync(PromptSources.Chat, 7, 100, default));
+    }
+
+    [TestMethod]
+    public async Task Parallel_readers_see_the_same_conversations_while_turns_are_added()
+    {
+        await using var db = await Database.CreateMigratedAsync("prompt_log_conversations_parallel");
+        var log = new PromptLogStore(db);
+        for (var i = 0; i < 6; i++)
+        {
+            await log.StartAsync(Prompt("rules", $"turn {i}", i % 3) with { Source = PromptSources.Chat, Step = null }, default);
+        }
+
+        var writes = Enumerable.Range(0, 6).Select(i => log.StartAsync(Prompt("rules", $"more {i}", 100 + i), default));
+        var reads = Enumerable.Range(0, 12).Select(_ => log.ConversationsAsync(PromptSources.Chat, null, 50, default));
+        await Task.WhenAll(writes);
+        var lists = await Task.WhenAll(reads);
+
+        Assert.IsTrue(lists.All(l => l.Count == 3 && l.Sum(c => c.Turns) == 6), "each reader its own connection; chats only");
+    }
+
     private static async Task<List<Row>> RowsAsync(NpgsqlDataSource db)
     {
         await using var cmd = db.CreateCommand("SELECT p.source, p.source_id, p.step, p.model, p.effort, p.prompt, r.text, p.outcome, p.error, p.reply, p.finished_at IS NOT NULL " +
