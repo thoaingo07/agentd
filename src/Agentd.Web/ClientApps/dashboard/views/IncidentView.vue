@@ -1,6 +1,6 @@
 <script setup lang="ts">
-// One incident: what the telemetry recorded, the investigation's analysis and its thread (the alert, answers). The actions
-// and questions are the 🚨 thread's, sent as Inbox replies.
+// One incident: what the telemetry recorded, the investigation's analysis, its thread (the alert, answers) and, read live
+// from Application Insights, its latest occurrences. The actions and questions are the 🚨 thread's, sent as Inbox replies.
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { ApiError } from '../../shared/api/http'
 import { AgButton, AgCollapsible } from '../../shared/components/ui'
@@ -62,6 +62,16 @@ const ask = () => act(async () => {
   notice.value = 'Asked: the answer arrives here and in the thread.'
   setTimeout(() => (notice.value = null), 4000)
 })
+
+const reading = ref(false)
+async function readOccurrences(): Promise<void> {
+  reading.value = true
+  try {
+    await incidents.loadOccurrences()
+  } finally {
+    reading.value = false
+  }
+}
 
 watch(() => props.id, (id) => void act(() => incidents.open(id)), { immediate: true })
 onBeforeUnmount(() => incidents.close())
@@ -203,6 +213,63 @@ onBeforeUnmount(() => incidents.close())
           data-testid="incident-stack"
         >{{ detail.stack }}</pre>
       </AgCollapsible>
+
+      <section
+        v-if="canAct"
+        class="grid gap-2"
+        aria-label="Occurrences"
+      >
+        <div class="flex items-center gap-2">
+          <h2 class="font-semibold">
+            Latest occurrences
+          </h2>
+          <AgButton
+            size="sm"
+            variant="ghost"
+            :loading="reading"
+            @click="readOccurrences"
+          >
+            {{ incidents.occurrences ? 'Read again' : 'Read from Application Insights' }}
+          </AgButton>
+        </div>
+        <p
+          v-if="incidents.occurrencesError"
+          class="text-sm text-warning"
+          role="alert"
+        >
+          {{ incidents.occurrencesError }}
+        </p>
+        <p
+          v-else-if="incidents.occurrences?.length === 0"
+          class="text-sm text-muted"
+        >
+          None in the last week it was seen.
+        </p>
+        <AgCollapsible
+          v-for="(o, n) in incidents.occurrences ?? []"
+          :key="n"
+          data-testid="incident-occurrence"
+        >
+          <template #title>
+            <span class="font-mono text-xs">{{ clock(o.at) }}</span>
+            <span class="truncate font-normal">{{ o.url ?? o.operation ?? '' }} {{ o.resultCode ?? '' }}</span>
+          </template>
+          <p
+            v-if="o.message"
+            class="mb-2"
+          >
+            {{ o.message }}
+          </p>
+          <pre
+            v-if="o.stack"
+            class="mb-2 overflow-x-auto font-mono text-xs whitespace-pre"
+          >{{ o.stack }}</pre>
+          <pre
+            v-if="o.properties"
+            class="overflow-x-auto font-mono text-xs whitespace-pre-wrap"
+          >{{ o.properties }}</pre>
+        </AgCollapsible>
+      </section>
 
       <section
         class="grid gap-2"

@@ -708,6 +708,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/incidents/{id}/occurrences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetIncidentOccurrences"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/monitor": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetMonitorSettings"];
+        put: operations["SaveMonitorSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/monitor/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["TestMonitorSettings"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/settings/restart": {
         parameters: {
             query?: never;
@@ -2035,6 +2083,18 @@ export interface components {
             portalUrl: null | string;
             hasThread: boolean;
         };
+        /** @description One occurrence from the telemetry, redacted: when, the message, the stack, the request and its custom dimensions (JSON). */
+        IncidentOccurrenceVm: {
+            /** Format: date-time */
+            at: string;
+            message: null | string;
+            stack: null | string;
+            operation: null | string;
+            operationId: null | string;
+            url: null | string;
+            resultCode: null | string;
+            properties: null | string;
+        };
         /** @description An incident in the list: one error group of one app, its status and counts, and the Bug filed for it. */
         IncidentSummaryVm: {
             /** Format: int64 */
@@ -2159,6 +2219,42 @@ export interface components {
         ModelsStepVm: {
             profiles: components["schemas"]["ProfileVm"][];
             steps: components["schemas"]["StepModelVm"][];
+        };
+        MonitorRequest: {
+            /** @description Whether the monitor runs (after a restart). */
+            enabled: boolean;
+            /** @description The Entra directory to sign in to, when it isn't the default one. */
+            tenantId: null | string;
+            /** @description The whole list, in order: apps left out are removed. */
+            apps: null | components["schemas"]["MonitoredAppRequest"][];
+        };
+        /**
+         * @description Settings → Monitoring as agentd.json has it; `running` is whether the monitor runs now (it changes after a restart),
+         *     and `enabledOverriddenBy` names what sets Enabled over agentd.json.
+         */
+        MonitorStepVm: {
+            enabled: boolean;
+            tenantId: null | string;
+            apps: components["schemas"]["MonitoredAppVm"][];
+            enabledOverriddenBy: null | string;
+            running: boolean;
+        };
+        MonitoredAppRequest: {
+            /** @description A short name (letters, digits, '.', '_', '-'). */
+            name: null | string;
+            /** @description The Application Insights component's ARM id. */
+            resourceId: null | string;
+            /** @description The registered repository its code is in. */
+            repository: null | string;
+            /** @description Only this `cloud_RoleName`, when several apps share the resource. */
+            roleName: null | string;
+        };
+        /** @description An app the monitor reads. */
+        MonitoredAppVm: {
+            name: string;
+            resourceId: string;
+            repository: string;
+            roleName: null | string;
         };
         /** @description An active PR. */
         OpenPullRequestVm: {
@@ -4182,6 +4278,141 @@ export interface operations {
             };
             /** @description Not Found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetIncidentOccurrences: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IncidentOccurrenceVm"][];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetMonitorSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MonitorStepVm"];
+                };
+            };
+        };
+    };
+    SaveMonitorSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": null | components["schemas"]["MonitorRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SaveResultVm"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    TestMonitorSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": null | components["schemas"]["MonitoredAppRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StepCheckVm"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
                 headers: {
                     [name: string]: unknown;
                 };

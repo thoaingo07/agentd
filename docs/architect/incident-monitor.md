@@ -8,8 +8,7 @@
 > - **PR 2** investigates and offers **Fix it**, also in two parts: **2a** investigates; **2b** adds Fix it, Ignore,
 >   questions in the thread and Resolved.
 > - **PR 3** adds the web pages, in two parts: **3a** the Incidents page; **3b** Settings → Monitoring and live occurrences.
->
-> The 3b part below is marked *next*.
+
 
 agentd reads each configured app's **Application Insights** telemetry for exceptions and failed requests. It groups
 them into **incidents**, one per bug however often it happens, and alerts in a 🚨 thread on the chat channel, or in the
@@ -178,7 +177,28 @@ incident re-reads the list and the open incident.
 
 The Inbox's incident threads now open (`/inbox/incident/{id}`; the route was missing the source).
 
-### 4.2 Settings → Monitoring (3b, next)
+### 4.2 Settings → Monitoring and live occurrences (3b)
 
-- The apps, with **Test connection**, which runs the query over the last hour.
-- On an incident's page, **Latest occurrences**, read live from Application Insights when asked (Operators, Admins).
+**Settings → Monitoring** (Admins) edits the `Agentd:Monitor` section in agentd.json through `MonitorSettings`, like
+the other Settings pages. It's used after a restart, and the page says whether the monitor is **running now**. You set:
+- whether the monitor is on;
+- the directory (tenant) id;
+- the apps: name, resource id, repository (a registered one) and, optionally, the role name.
+
+**Save** writes the whole list (apps left out are removed) and is audited. It's refused if startup would refuse it
+(`IncidentMonitorOptionsValidator`), and an app list that's off may still be saved. It's also refused if a source under
+agentd.json would still supply an app the list drops. Poll interval, window and counts stay config-only.
+
+**Test connection** runs the monitor's query on one app over the last hour, with the sign-in agentd started with.
+It reports the error groups and occurrences it found, or the refusal with the fix: Reader or Monitoring Reader for
+agentd's identity. A new tenant id is only used after a restart.
+
+On an incident's page, **Latest occurrences** (Operators, Admins) are read live when asked. Each shows the time, the
+url and result code, the message, the stack and the custom dimensions, all redacted.
+
+| Endpoint | Who | What |
+|---|---|---|
+| `GET /api/incidents/{id}/occurrences` | Operators, Admins | At most 20 from the week before it was last seen, through `ITelemetrySource`, redacted. 409 when the app isn't configured; 502 when Application Insights fails. |
+| `GET /api/settings/monitor` | Admins | The section as agentd.json has it, what overrides Enabled, and whether the monitor runs now. |
+| `PUT /api/settings/monitor` | Admins | Saves it (at most 50 apps); `restartRequired` when something changed. |
+| `POST /api/settings/monitor/test` | Admins | Test connection for one app. |

@@ -2157,6 +2157,180 @@
         }
       }
     },
+    "/api/incidents/{id}/occurrences": {
+      "get": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "GetIncidentOccurrences",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/IncidentOccurrenceVm"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Bad Gateway",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/settings/monitor": {
+      "get": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "GetMonitorSettings",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MonitorStepVm"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "SaveMonitorSettings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/MonitorRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SaveResultVm"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/settings/monitor/test": {
+      "post": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "TestMonitorSettings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/MonitoredAppRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StepCheckVm"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/settings/restart": {
       "get": {
         "tags": [
@@ -6623,6 +6797,68 @@
         },
         "description": "An incident whole: the recorded sample (top of the stack, result code), the investigation\u0027s analysis (Markdown), the app\u0027s\nrepository and Azure portal link (null when the app isn\u0027t monitored anymore), and whether it has a chat thread."
       },
+      "IncidentOccurrenceVm": {
+        "required": [
+          "at",
+          "message",
+          "stack",
+          "operation",
+          "operationId",
+          "url",
+          "resultCode",
+          "properties"
+        ],
+        "type": "object",
+        "properties": {
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "message": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "stack": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "operation": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "operationId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "url": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "resultCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "properties": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "One occurrence from the telemetry, redacted: when, the message, the stack, the request and its custom dimensions (JSON)."
+      },
       "IncidentSummaryVm": {
         "required": [
           "id",
@@ -7071,6 +7307,140 @@
             }
           }
         }
+      },
+      "MonitorRequest": {
+        "required": [
+          "enabled",
+          "tenantId",
+          "apps"
+        ],
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether the monitor runs (after a restart)."
+          },
+          "tenantId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The Entra directory to sign in to, when it isn\u0027t the default one."
+          },
+          "apps": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/MonitoredAppRequest"
+            },
+            "description": "The whole list, in order: apps left out are removed."
+          }
+        }
+      },
+      "MonitorStepVm": {
+        "required": [
+          "enabled",
+          "tenantId",
+          "apps",
+          "enabledOverriddenBy",
+          "running"
+        ],
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "tenantId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "apps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MonitoredAppVm"
+            }
+          },
+          "enabledOverriddenBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "running": {
+            "type": "boolean"
+          }
+        },
+        "description": "Settings \u2192 Monitoring as agentd.json has it; \u0060running\u0060 is whether the monitor runs now (it changes after a restart),\nand \u0060enabledOverriddenBy\u0060 names what sets Enabled over agentd.json."
+      },
+      "MonitoredAppRequest": {
+        "required": [
+          "name",
+          "resourceId",
+          "repository",
+          "roleName"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "A short name (letters, digits, \u0027.\u0027, \u0027_\u0027, \u0027-\u0027)."
+          },
+          "resourceId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The Application Insights component\u0027s ARM id."
+          },
+          "repository": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The registered repository its code is in."
+          },
+          "roleName": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Only this \u0060cloud_RoleName\u0060, when several apps share the resource."
+          }
+        }
+      },
+      "MonitoredAppVm": {
+        "required": [
+          "name",
+          "resourceId",
+          "repository",
+          "roleName"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "resourceId": {
+            "type": "string"
+          },
+          "repository": {
+            "type": "string"
+          },
+          "roleName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "An app the monitor reads."
       },
       "OpenPullRequestVm": {
         "required": [

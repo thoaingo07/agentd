@@ -13,10 +13,12 @@ namespace Agentd.Bff.Endpoints;
 /// <summary>
 /// The Incidents page (docs/architect/incident-monitor.md §4): what the incident monitor found in Application Insights.
 /// The page's actions and questions are Inbox replies (<c>POST /api/inbox/incident/{id}/reply</c>), exactly like the 🚨 thread.
+/// Occurrences are read live from the telemetry, redacted, for Operators and Admins.
 /// </summary>
 public static class IncidentEndpoints
 {
     public const int MaxIncidents = 500;
+    public const int MaxOccurrences = 20;
 
     private static readonly string[] s_statuses =
         [IncidentStatus.Open, IncidentStatus.Investigating, IncidentStatus.Fixing, IncidentStatus.Resolved, IncidentStatus.Ignored];
@@ -37,6 +39,35 @@ public static class IncidentEndpoints
                 ? TypedResults.Ok(IncidentDetailVm.From(incident, App(options.Value, incident)))
                 : DomainError.NotFound($"Incident {id}").ToProblem())
             .WithName("GetIncident").Produces<IncidentDetailVm>().ProducesProblem(StatusCodes.Status404NotFound);
+
+        incidents.MapGet("/{id:long}/occurrences", async Task<IResult> (long id, [FromServices] IIncidentStore store, [FromServices] ITelemetrySource telemetry,
+            [FromServices] IOptions<IncidentMonitorOptions> options, CancellationToken ct) =>
+        {
+            if (await store.GetAsync(id, ct).ConfigureAwait(false) is not { } incident)
+            {
+                return DomainError.NotFound($"Incident {id}").ToProblem();
+            }
+
+            if (App(options.Value, incident) is not { } app)
+            {
+                return DomainError.Conflict($"App '{incident.App}' isn't monitored anymore.").ToProblem();
+            }
+
+            // The last week before it was last seen (or since it started), like the investigation's day but wider.
+            var since = incident.LastSeen - TimeSpan.FromDays(7) > incident.FirstSeen ? incident.LastSeen - TimeSpan.FromDays(7) : incident.FirstSeen;
+            try
+            {
+                var found = await telemetry.OccurrencesAsync(app, incident, since.AddMinutes(-1), MaxOccurrences, ct).ConfigureAwait(false);
+                return TypedResults.Ok(found.Select(IncidentOccurrenceVm.From).ToList());
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                return TypedResults.Problem($"Application Insights didn't answer: {SecretRedactor.Redact(ex.Message)}", statusCode: StatusCodes.Status502BadGateway,
+                    title: "Telemetry unavailable");
+            }
+        }).RequireAuthorization(p => p.RequireRole("Operator", "Admin"))
+            .WithName("GetIncidentOccurrences").Produces<List<IncidentOccurrenceVm>>().ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict).ProducesProblem(StatusCodes.Status502BadGateway);
 
         return api;
     }
@@ -66,7 +97,21 @@ public sealed record IncidentDetailVm(IncidentSummaryVm Summary, string? Stack, 
     public static IncidentDetailVm From(Incident i, MonitoredApp? app)
     {
         ArgumentNullException.ThrowIfNull(i);
-        return new(IncidentSummaryVm.From(i), i.Sample.Stack is { } stack ? SecretRedactor.Redact(stack) : null, i.Sample.ResultCode, i.Sample.OperationId, i.Analysis, i.AnalyzedAt, app?.Repository,
+        return new(IncidentSummaryVm.From(i), Redact(i.Sample.Stack), i.Sample.ResultCode, i.Sample.OperationId, i.Analysis, i.AnalyzedAt, app?.Repository,
             app is null ? null : $"https://portal.azure.com/#resource{app.ResourceId}/failures", i.ThreadId is not null);
+    }
+
+    internal static string? Redact(string? text) => text is null ? null : SecretRedactor.Redact(text);
+}
+
+/// <summary>One occurrence from the telemetry, redacted: when, the message, the stack, the request and its custom dimensions (JSON).</summary>
+public sealed record IncidentOccurrenceVm(DateTimeOffset At, string? Message, string? Stack, string? Operation, string? OperationId, string? Url, string? ResultCode,
+    string? Properties)
+{
+    public static IncidentOccurrenceVm From(ErrorOccurrence o)
+    {
+        ArgumentNullException.ThrowIfNull(o);
+        return new(o.At, IncidentDetailVm.Redact(o.Message), IncidentDetailVm.Redact(o.Stack), o.Operation, o.OperationId, IncidentDetailVm.Redact(o.Url), o.ResultCode,
+            IncidentDetailVm.Redact(o.Properties));
     }
 }

@@ -9,8 +9,9 @@ import RepositoriesStep from '../shared/setup/steps/RepositoriesStep.vue'
 import ReviewStep from '../shared/setup/steps/ReviewStep.vue'
 import ArtifactStorageStep from '../shared/setup/steps/ArtifactStorageStep.vue'
 import FoldersStep from '../shared/setup/steps/FoldersStep.vue'
+import MonitoringSettings from './components/MonitoringSettings.vue'
 
-/** Settings pages (Admins): the setup wizard's forms, and Health (its review, live). */
+/** Settings pages (Admins): the setup wizard's forms, Health (its review, live), and Monitoring (not in the wizard). */
 export const settingsAreas: { name: string; title: string; component: Component }[] = [
   { name: 'health', title: 'Health', component: ReviewStep },
   { name: 'database', title: 'Database', component: DatabaseStep },
@@ -22,4 +23,5 @@ export const settingsAreas: { name: string; title: string; component: Component 
   { name: 'repositories', title: 'Repositories', component: RepositoriesStep },
   { name: 'artifacts', title: 'Artifacts', component: ArtifactStorageStep },
   { name: 'folders', title: 'Folders', component: FoldersStep },
+  { name: 'monitoring', title: 'Monitoring', component: MonitoringSettings },
 ]
