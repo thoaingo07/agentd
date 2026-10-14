@@ -4711,7 +4711,7 @@
               "null",
               "string"
             ],
-            "description": "\u0060Pat\u0060, \u0060AzCli\u0060 or \u0060ServicePrincipal\u0060."
+            "description": "\u0060Pat\u0060, \u0060AzCli\u0060, \u0060Entra\u0060 or \u0060ServicePrincipal\u0060."
           },
           "pat": {
             "type": [
@@ -4790,7 +4790,7 @@
             "$ref": "#/components/schemas/SecretStatusVm"
           }
         },
-        "description": "\u0060Auth\u0060 is \u0060Pat\u0060, \u0060AzCli\u0060 or \u0060ServicePrincipal\u0060 (tenant and client ids; the client secret as a status only)."
+        "description": "\u0060Auth\u0060 is \u0060Pat\u0060, \u0060AzCli\u0060, \u0060Entra\u0060 or \u0060ServicePrincipal\u0060 (tenant and client ids; the client secret as a status only)."
       },
       "ChatDetailVm": {
         "required": [
@@ -5652,7 +5652,8 @@
           "exists",
           "publicKey",
           "fingerprint",
-          "path"
+          "path",
+          "overHttps"
         ],
         "type": "object",
         "properties": {
@@ -5676,6 +5677,9 @@
               "null",
               "string"
             ]
+          },
+          "overHttps": {
+            "type": "boolean"
           }
         },
         "description": "agentd\u0027s SSH key for git: the public key to add in Azure DevOps or GitHub, and its fingerprint. Never the private key."

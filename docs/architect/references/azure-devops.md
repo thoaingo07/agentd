@@ -7,7 +7,8 @@ Base URL: `https://dev.azure.com/{organization}/{project}/_apis`. Use `api-versi
 ### Azure CLI
 
 ```bash
-az login                       # once, interactive
+az login                       # once, interactive (Auth = AzCli)
+# Windows without the az CLI: Auth = Entra uses Visual Studio, Azure PowerShell (Connect-AzAccount), azd or a managed identity
 az extension add --name azure-devops   # for `az boards` / `az repos` commands
 az account get-access-token \
   --resource 499b84ac-1321-427f-aa17-267ca6975798 \

@@ -1509,7 +1509,7 @@ export interface components {
             organization: null | string;
             /** @description The project name. */
             project: null | string;
-            /** @description `Pat`, `AzCli` or `ServicePrincipal`. */
+            /** @description `Pat`, `AzCli`, `Entra` or `ServicePrincipal`. */
             auth: null | string;
             /** @description A new token; empty keeps the stored one. */
             pat: null | string;
@@ -1520,7 +1520,7 @@ export interface components {
             /** @description A new client secret; empty keeps the stored one. */
             clientSecret?: null | string;
         };
-        /** @description `Auth` is `Pat`, `AzCli` or `ServicePrincipal` (tenant and client ids; the client secret as a status only). */
+        /** @description `Auth` is `Pat`, `AzCli`, `Entra` or `ServicePrincipal` (tenant and client ids; the client secret as a status only). */
         AzureDevOpsStepVm: {
             organization: null | string;
             project: null | string;
@@ -1764,6 +1764,7 @@ export interface components {
             publicKey: null | string;
             fingerprint: null | string;
             path: null | string;
+            overHttps: boolean;
         };
         /** @description A repository's clone URL (SSH for agentd's key). */
         GitTestRequest: {

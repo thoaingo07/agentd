@@ -49,7 +49,18 @@ async function copy(): Promise<void> {
     <h2 class="text-lg font-semibold">
       Git access
     </h2>
-    <p class="text-sm text-muted">
+    <p
+      v-if="setup.gitKey?.overHttps"
+      class="text-sm text-muted"
+      data-testid="git-over-https"
+    >
+      agentd reaches Azure DevOps over HTTPS with its Azure DevOps sign-in (the Azure DevOps step), so it needs
+      <strong>no SSH key</strong>. A key is only for repositories you keep on SSH. Test a clone URL (HTTPS or SSH) to check.
+    </p>
+    <p
+      v-else
+      class="text-sm text-muted"
+    >
       agentd clones and pushes over SSH with its own key. Generate it, add the public key where your repositories live,
       then test a clone URL.
     </p>

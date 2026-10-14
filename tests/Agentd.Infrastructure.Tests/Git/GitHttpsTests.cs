@@ -22,6 +22,51 @@ public sealed class GitHttpsTests
         Assert.AreEqual(expected, GitCli.AzureDevOpsHttps(url));
 
     [TestMethod]
+    [DataRow(Https, Https)]
+    [DataRow("https://ermsystem@dev.azure.com/ermsystem/Portal/_git/sysmin", Https)]
+    [DataRow("https://dev.azure.com/ermsystem/Portal/_git/sysmin/", Https)]
+    [DataRow("https://ermsystem.visualstudio.com/Portal/_git/sysmin", Https)]
+    [DataRow("https://ermsystem.visualstudio.com/DefaultCollection/Portal/_git/sysmin", Https)]
+    [DataRow("https://erm@dev.azure.com/erm/My%20Project/_git/My%20Repo", "https://dev.azure.com/erm/My%20Project/_git/My%20Repo")]
+    [DataRow("https://github.com/thoaingo07/agentd.git", null)]
+    [DataRow("git@ssh.dev.azure.com:v3/ermsystem/Portal/sysmin", null)]
+    public void Azure_devops_https_remotes_have_one_canonical_address(string url, string? expected) =>
+        Assert.AreEqual(expected, GitCli.CanonicalHttps(url));
+
+    [TestMethod]
+    public void An_https_remote_stays_https_without_its_user_name_even_with_ssh_kept()
+    {
+        var off = new GitCli(Microsoft.Extensions.Options.Options.Create(new GitOptions { AzureDevOpsOverHttps = false }));
+
+        Assert.AreEqual(Https, off.Remote("https://ermsystem@dev.azure.com/ermsystem/Portal/_git/sysmin"));
+        Assert.AreEqual(Https, off.Remote("https://ermsystem.visualstudio.com/Portal/_git/sysmin"));
+    }
+
+    [TestMethod]
+    public async Task An_https_clones_fetch_carries_the_sign_in_even_with_ssh_kept_for_ssh_remotes()
+    {
+        using var box = new GitSandbox();
+        await box.Manager.EnsureCloneAsync(box.Repository, default);
+        var clone = box.Manager.ClonePathFor(box.Repository);
+        using var server = new HeaderRecorder();
+        GitSandbox.Run(clone, "config", $"url.{server.Prefix}.insteadOf", "https://dev.azure.com/");
+        var off = Microsoft.Extensions.Options.Options.Create(new GitOptions
+        {
+            AzureDevOpsOverHttps = false,
+            SshKeyPath = box.Options.Value.SshKeyPath,
+            RepositoriesRoot = box.Options.Value.RepositoriesRoot,
+            WorktreeRoot = box.Options.Value.WorktreeRoot,
+        });
+        var manager = new GitWorktreeManager(new GitCli(off, new Credentials(server.Prefix)), off);
+
+        await Assert.ThrowsAsync<GitException>(() => manager.EnsureCloneAsync(box.Repository with { RemoteUrl = "https://ermsystem.visualstudio.com/Portal/_git/sysmin" }, default));
+
+        Assert.AreEqual(Https, GitSandbox.Run(clone, "config", "--get", "remote.origin.url"), "moved to dev.azure.com");
+        Assert.AreEqual("Bearer t0ken", server.Authorization);
+        Assert.DoesNotContain("t0ken", File.ReadAllText(Path.Combine(clone, "config")));
+    }
+
+    [TestMethod]
     public void Ssh_is_kept_when_https_is_turned_off()
     {
         var on = new GitCli(Microsoft.Extensions.Options.Options.Create(new GitOptions()));

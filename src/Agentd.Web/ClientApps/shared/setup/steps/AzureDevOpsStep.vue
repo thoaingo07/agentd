@@ -29,7 +29,8 @@ async function run(action: 'test' | 'save'): Promise<void> {
   const principal = form.auth === 'ServicePrincipal'
   const input = {
     organization: form.organization, project: form.project, auth: form.auth, pat: form.auth === 'Pat' ? form.pat : null,
-    tenantId: principal ? form.tenantId.trim() : null, clientId: principal ? form.clientId.trim() : null, clientSecret: principal ? form.clientSecret : null,
+    tenantId: principal || form.auth === 'Entra' ? form.tenantId.trim() || null : null, clientId: principal ? form.clientId.trim() : null,
+    clientSecret: principal ? form.clientSecret : null,
   }
   try {
     if (action === 'test') check.value = await setup.testAzureDevOps(input)
@@ -98,12 +99,36 @@ async function run(action: 'test' | 'save'): Promise<void> {
         <input
           v-model="form.auth"
           type="radio"
+          value="Entra"
+          class="radio radio-sm"
+        >
+        <span>This machine's Microsoft Entra sign-in: Visual Studio, Azure PowerShell, a managed identity, <code>az</code> or <code>azd</code> (Windows without the az CLI)</span>
+      </label>
+      <label class="flex items-center gap-2 text-sm">
+        <input
+          v-model="form.auth"
+          type="radio"
           value="ServicePrincipal"
           class="radio radio-sm"
         >
         A service principal (Microsoft Entra app): PRs and comments show the app, not a person
       </label>
     </fieldset>
+    <label
+      v-if="form.auth === 'Entra'"
+      class="grid gap-1"
+    >
+      <span class="text-sm font-medium">Directory (tenant) ID <span class="text-muted">(optional)</span></span>
+      <input
+        v-model="form.tenantId"
+        class="input w-full font-mono"
+        autocomplete="off"
+        placeholder="only when the sign-in knows several directories"
+      >
+      <span class="text-xs text-muted">agentd never opens a browser: sign in as the user agentd runs as, for example
+        <code>Connect-AzAccount</code> in Azure PowerShell or Visual Studio's account, and git goes over HTTPS with the same
+        sign-in, so no SSH key is needed.</span>
+    </label>
     <template v-if="form.auth === 'ServicePrincipal'">
       <p class="text-xs text-muted">
         From the app registration's <strong>Overview</strong>. The organization must be connected to that Entra tenant, and

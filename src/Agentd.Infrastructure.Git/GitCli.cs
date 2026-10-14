@@ -49,8 +49,30 @@ public sealed partial class GitCli(IOptions<GitOptions> options, IGitHttpCredent
 
     private static readonly HashSet<string> s_network = new(StringComparer.Ordinal) { "clone", "fetch", "pull", "push", "ls-remote" };
 
-    /// <summary>The address agentd uses for <paramref name="url"/>: an Azure DevOps SSH remote's HTTPS address (<see cref="GitOptions.AzureDevOpsOverHttps"/>).</summary>
-    public string Remote(string url) => options.Value.AzureDevOpsOverHttps && AzureDevOpsHttps(url) is { } https ? https : url;
+    /// <summary>
+    /// The address agentd uses for <paramref name="url"/>: an Azure DevOps HTTPS remote in its one canonical form, an
+    /// Azure DevOps SSH remote's HTTPS address (<see cref="GitOptions.AzureDevOpsOverHttps"/>), anything else as given.
+    /// </summary>
+    public string Remote(string url) =>
+        CanonicalHttps(url) ?? (options.Value.AzureDevOpsOverHttps && AzureDevOpsHttps(url) is { } https ? https : url);
+
+    /// <summary>
+    /// An Azure DevOps HTTPS remote as <c>https://dev.azure.com/org/project/_git/repo</c>: without a user name
+    /// (<c>https://org@dev.azure.com/…</c>, which makes git ask for a password) and with the older
+    /// <c>https://org.visualstudio.com/[DefaultCollection/]project/_git/repo</c> moved to dev.azure.com, where agentd's
+    /// sign-in is sent. Null for anything else.
+    /// </summary>
+    public static string? CanonicalHttps(string url)
+    {
+        var value = url?.Trim() ?? string.Empty;
+        var m = AdoHttps().Match(value);
+        if (!m.Success)
+        {
+            m = VsHttps().Match(value);
+        }
+
+        return m.Success ? $"{AzureDevOpsPrefix}{m.Groups["org"].Value}/{m.Groups["project"].Value}/_git/{m.Groups["repo"].Value}" : null;
+    }
 
     /// <summary>
     /// <c>git@ssh.dev.azure.com:v3/org/project/repo</c>, <c>ssh://git@ssh.dev.azure.com/v3/…</c> or an SSH host alias with a
@@ -138,11 +160,12 @@ public sealed partial class GitCli(IOptions<GitOptions> options, IGitHttpCredent
 
     /// <summary>
     /// The HTTPS credentials for a command that reaches Azure DevOps over HTTPS (its URL in the arguments, or the clone's
-    /// origin); none for local commands, other remotes, or when SSH is kept.
+    /// origin); none for local commands or other remotes (an SSH remote uses agentd's SSH key instead).
     /// </summary>
     private async ValueTask<IReadOnlyList<GitHttpHeader>> HeadersAsync(string? workingDirectory, IReadOnlyList<string> args, CancellationToken ct)
     {
-        if (http is null || !options.Value.AzureDevOpsOverHttps || !s_network.Contains(Describe(args)))
+        // Any Azure DevOps HTTPS remote gets the sign-in, whether it was cloned over HTTPS or moved there from SSH.
+        if (http is null || !s_network.Contains(Describe(args)))
         {
             return [];
         }
@@ -166,4 +189,10 @@ public sealed partial class GitCli(IOptions<GitOptions> options, IGitHttpCredent
 
     [GeneratedRegex(@"^(?:ssh://)?(?:[^@/\s]+@)?[^:/\s]+(?::\d+)?[:/]v3/(?<org>[^/\s]+)/(?<project>[^/\s]+)/(?<repo>[^/\s]+?)/?$")]
     private static partial Regex AdoSsh();
+
+    [GeneratedRegex(@"^https://(?:[^@/\s]+@)?dev\.azure\.com/(?<org>[^/\s]+)/(?<project>[^/\s]+)/_git/(?<repo>[^/\s?#]+?)/?$", RegexOptions.IgnoreCase)]
+    private static partial Regex AdoHttps();
+
+    [GeneratedRegex(@"^https://(?:[^@/\s]+@)?(?<org>[^./\s]+)\.visualstudio\.com/(?:DefaultCollection/)?(?<project>[^/\s]+)/_git/(?<repo>[^/\s?#]+?)/?$", RegexOptions.IgnoreCase)]
+    private static partial Regex VsHttps();
 }
