@@ -32,6 +32,14 @@ it in the browser at **`/artifacts/<slug>-<hash>.html`** and find every page und
 The HTML is kept in the database on purpose: when the Web UI is hosted apart from the daemon (e.g. in the cloud), the
 database is what both share, so the web serves pages without the daemon's disk.
 
+**A local folder** (decided 2026-10-14, the default without S3): new pages are raw HTML files in
+`Agentd:Artifacts:Folder` (agentd's home sets `~/.agentd/artifacts`; Settings → Artifacts shows and changes it), named
+`<name>.html`, and the row keeps only the metadata (`storage = 'local'`). agentd serves them at the same
+`/artifacts/<name>.html` with the same sign-in, headers and sandbox CSP. `LocalArtifactFiles` writes through a temporary
+file and accepts only a page's own name (`slug-hash`), so nothing reaches outside the folder; expiring a page deletes its
+file. With the folder unset (and no S3), pages are kept in the database as before; pages already published stay where
+they were. A Web UI hosted apart from the daemon needs S3 (or the database) instead, since it can't read the daemon's disk.
+
 **S3-compatible storage** (Cloudflare R2, decided 2026-10-10): with `Agentd:Artifacts:S3` configured (`Url` = the S3
 API URL with the bucket as its path, e.g. `https://<account>.r2.cloudflarestorage.com/agentd`, plus `AccessKeyId` and
 `SecretAccessKey` from the encrypted secret store), new pages are uploaded to `artifacts/<name>.html` and the row keeps

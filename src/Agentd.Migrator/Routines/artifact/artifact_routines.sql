@@ -9,7 +9,8 @@ DROP FUNCTION IF EXISTS agentd.artifact_list(int);
 -- web, with its id) publishing the same title again replaces the HTML and
 -- keeps the first name (its link), and brings an expired page back. Parallel publishes of one title make one row. A job's page is announced on its
 -- event stream (name and title only).
--- p_storage: 'database' (p_html is the page) or 's3' (the page is in S3-compatible storage under the name; p_html is null).
+-- p_storage: 'database' (p_html is the page), 's3' (in S3-compatible storage under the name) or 'local' (an HTML file in
+-- Agentd:Artifacts:Folder); p_html is null for both.
 CREATE OR REPLACE FUNCTION agentd.artifact_publish(p_name text, p_title text, p_html text, p_source text, p_source_id bigint, p_author text,
                                                    p_storage text DEFAULT 'database')
 RETURNS TABLE (name text, created boolean)

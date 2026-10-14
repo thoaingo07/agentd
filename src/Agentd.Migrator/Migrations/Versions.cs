@@ -121,3 +121,6 @@ public sealed class AgentPromptEvents : SqlMigration;
 
 [Migration(2026_11_05_0001, "A review page's Send to a PR is kept, so it's re-checked after pushes")]
 public sealed class ReviewSessionPosts : SqlMigration;
+
+[Migration(2026_11_06_0001, "Artifacts without S3 are HTML files in a local folder")]
+public sealed class ArtifactLocal : SqlMigration;

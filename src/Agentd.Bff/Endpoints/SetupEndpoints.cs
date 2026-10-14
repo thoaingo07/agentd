@@ -189,7 +189,8 @@ public static class SetupEndpoints
     /// <param name="PublicUrl">The bucket's public domain (<c>https://agentd.example.com</c>); empty links pages to agentd.</param>
     /// <param name="AccessKeyId">A new access key ID; empty keeps the stored one.</param>
     /// <param name="SecretAccessKey">A new secret access key; empty keeps the stored one.</param>
-    public sealed record ArtifactStorageRequest(string? Url, string? PublicUrl, string? AccessKeyId, string? SecretAccessKey);
+    /// <param name="Folder">Without S3, pages are HTML files here (absolute or under ~/); empty goes back to the default.</param>
+    public sealed record ArtifactStorageRequest(string? Url, string? PublicUrl, string? AccessKeyId, string? SecretAccessKey, string? Folder = null);
 
     /// <summary>A repository to add. Only <c>Url</c> is required; the rest defaults like <c>agentd repo add</c>.</summary>
     public sealed record RepositoryRequest(string? Url, string? Name, string? BaseBranch, string? MatchTag, IReadOnlyList<string>? MatchAreaPaths);
@@ -206,7 +207,7 @@ public static class SetupEndpoints
     private static ProfileInput Profile(ProfileRequest? body) =>
         new(body?.Name ?? string.Empty, body?.BaseUrl, body?.Model, body?.SmallModel, body?.ApiKey);
 
-    private static ArtifactStorageInput Storage(ArtifactStorageRequest? body) => new(body?.Url, body?.PublicUrl, body?.AccessKeyId, body?.SecretAccessKey);
+    private static ArtifactStorageInput Storage(ArtifactStorageRequest? body) => new(body?.Url, body?.PublicUrl, body?.AccessKeyId, body?.SecretAccessKey, body?.Folder);
 
     private static ChatInput Chat(ChatRequest? body) =>
         new(body?.Enabled ?? false, body?.GuildId, body?.ChannelId, body?.BotToken, body?.UserName, body?.UserDiscordId);

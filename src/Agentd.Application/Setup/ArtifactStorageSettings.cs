@@ -6,17 +6,20 @@ namespace Agentd.Application.Setup;
 /// <summary>
 /// Settings → Artifacts: the S3 API URL and the public domain (<c>agentd.json</c>), the access keys as statuses only.
 /// <c>…OverriddenBy</c> names what supplies a value instead (Key Vault, an environment variable): saving here then changes nothing.
+/// <c>Folder</c>: without S3, pages are HTML files there (the default is in agentd's home).
 /// </summary>
-public sealed record ArtifactStorageStep(string? Url, string? PublicUrl, string? UrlOverriddenBy, string? PublicUrlOverriddenBy, SecretStatus AccessKeyId, SecretStatus SecretAccessKey);
+public sealed record ArtifactStorageStep(string? Url, string? PublicUrl, string? UrlOverriddenBy, string? PublicUrlOverriddenBy, SecretStatus AccessKeyId, SecretStatus SecretAccessKey,
+    string? Folder = null, string? FolderOverriddenBy = null);
 
 /// <param name="Url">The S3 API URL ending with the bucket; empty keeps new pages in the database.</param>
 /// <param name="PublicUrl">Where the bucket's pages are public (its custom domain); empty links them to agentd.</param>
 /// <param name="AccessKeyId">A new access key ID; empty keeps the stored one.</param>
 /// <param name="SecretAccessKey">A new secret access key; empty keeps the stored one.</param>
-public sealed record ArtifactStorageInput(string? Url, string? PublicUrl, string? AccessKeyId, string? SecretAccessKey)
+/// <param name="Folder">Where pages are HTML files without S3 (absolute, or under <c>~/</c>); null keeps it, empty goes back to the default.</param>
+public sealed record ArtifactStorageInput(string? Url, string? PublicUrl, string? AccessKeyId, string? SecretAccessKey, string? Folder = null)
 {
     /// <summary>Never print the keys (records print every property).</summary>
-    public override string ToString() => $"ArtifactStorageInput {{ Url = {Url}, PublicUrl = {PublicUrl} }}";
+    public override string ToString() => $"ArtifactStorageInput {{ Url = {Url}, PublicUrl = {PublicUrl}, Folder = {Folder} }}";
 }
 
 public interface IArtifactStorageProbe
@@ -32,10 +35,11 @@ public sealed class ArtifactStorageSettings(IConfigWriter config, ISecrets secre
     public const string PublicUrlKey = "Artifacts:S3:PublicUrl";
     public const string AccessKeyIdSecret = "Artifacts:S3:AccessKeyId";
     public const string SecretAccessKeySecret = "Artifacts:S3:SecretAccessKey";
+    public const string FolderKey = "Artifacts:Folder";
 
     public ArtifactStorageStep Get() => new(
         Blank(config.Read(UrlKey)), Blank(config.Read(PublicUrlKey)), config.OverriddenBy(UrlKey), config.OverriddenBy(PublicUrlKey),
-        secrets.Status(AccessKeyIdSecret), secrets.Status(SecretAccessKeySecret));
+        secrets.Status(AccessKeyIdSecret), secrets.Status(SecretAccessKeySecret), Blank(config.Read(FolderKey)), config.OverriddenBy(FolderKey));
 
     /// <summary>Writes both URLs to agentd.json and any new key to the secret store; agentd uses them after a restart.</summary>
     public async Task<Result<SaveResult>> SaveAsync(ArtifactStorageInput input, string by, CancellationToken cancellationToken)
@@ -47,8 +51,19 @@ public sealed class ArtifactStorageSettings(IConfigWriter config, ISecrets secre
             return resolved.Error;
         }
 
+        if (Blank(input.Folder) is { } folder && !FolderSettings.IsUsable(folder))
+        {
+            return DomainError.Validation("Use a full path (e.g. /srv/agentd/artifacts) or one under your home (~/agentd/artifacts), without '..'.");
+        }
+
         var changes = new List<SettingsChange>();
-        foreach (var (key, value) in new[] { (UrlKey, resolved.Value.Url), (PublicUrlKey, resolved.Value.PublicUrl) })
+        var values = new Dictionary<string, string?> { [UrlKey] = resolved.Value.Url, [PublicUrlKey] = resolved.Value.PublicUrl };
+        if (input.Folder is not null)
+        {
+            values[FolderKey] = Blank(input.Folder);   // empty: back to the default in agentd's home
+        }
+
+        foreach (var (key, value) in values.Select(kv => (kv.Key, kv.Value)))
         {
             if (!string.Equals(Blank(config.Read(key)), value, StringComparison.Ordinal))
             {
@@ -56,7 +71,7 @@ public sealed class ArtifactStorageSettings(IConfigWriter config, ISecrets secre
             }
         }
 
-        await config.SetAsync(new Dictionary<string, string?> { [UrlKey] = resolved.Value.Url, [PublicUrlKey] = resolved.Value.PublicUrl }, cancellationToken).ConfigureAwait(false);
+        await config.SetAsync(values, cancellationToken).ConfigureAwait(false);
         foreach (var (key, value) in new[] { (AccessKeyIdSecret, Blank(input.AccessKeyId)), (SecretAccessKeySecret, Blank(input.SecretAccessKey)) })
         {
             if (value is not null)
@@ -85,7 +100,7 @@ public sealed class ArtifactStorageSettings(IConfigWriter config, ISecrets secre
         }
 
         return resolved.Value.Url is null
-            ? new StepCheck(false, "Enter the S3 API URL to test it. Without one, pages are kept in the database.")
+            ? new StepCheck(false, "Enter the S3 API URL to test it. Without one, pages are saved as HTML files in the folder.")
             : await probe.TestAsync(resolved.Value, cancellationToken).ConfigureAwait(false);
     }
 

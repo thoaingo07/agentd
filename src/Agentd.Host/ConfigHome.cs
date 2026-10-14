@@ -23,6 +23,9 @@ internal sealed class ConfigHome(string root)
 
     public string Logs => Path.Combine(Root, "logs");
 
+    /// <summary>Artifact pages as HTML files, when no S3 storage is set up (<c>Agentd:Artifacts:Folder</c>).</summary>
+    public string Artifacts => Path.Combine(Root, "artifacts");
+
     /// <summary>Runtime files: the setup token's hash (later the control socket).</summary>
     public string Run => Path.Combine(Root, "run");
 
@@ -66,5 +69,6 @@ internal sealed class ConfigHome(string root)
         new("Agentd:Git:SshKeyPath", Path.Combine(Root, "ssh", "id_ed25519")),
         new("Agentd:Git:KnownHostsPath", Path.Combine(Root, "ssh", "known_hosts")),
         new("Agentd:Claude:TranscriptRoot", Logs),
+        new("Agentd:Artifacts:Folder", Artifacts),
     ];
 }

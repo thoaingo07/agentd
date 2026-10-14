@@ -32,6 +32,7 @@ beforeEach(() => {
     url: 'https://acct.r2.cloudflarestorage.com/agentd', publicUrl: null, urlOverriddenBy: null, publicUrlOverriddenBy: 'an environment variable or the command line',
     accessKeyId: { set: true, updatedAt: null, updatedBy: 'environment', overriddenBy: 'Key Vault (agentd-prd.vault.azure.net)' },
     secretAccessKey: { set: false, updatedAt: null, updatedBy: null, overriddenBy: null },
+    folder: '/home/agentd/.agentd/artifacts', folderOverriddenBy: null,
   }
   adoConnections = [{ identityId: 'aaaa', uniqueName: 'dev@example.com', displayName: 'Dev One', failed: false, lastError: null, connectedAt: '2026-10-09T10:00:00Z', kind: 'OAuth', commitName: null, commitEmail: null, authorName: 'Dev One', authorEmail: 'dev@example.com' }]
   vi.stubGlobal('fetch', vi.fn(async (req: Request) => {
@@ -116,13 +117,16 @@ describe('Settings', () => {
 
     await view.findAll('input[type=url]')[1]!.setValue(' https://agentd.thoaingo.com ')
     await view.get('input[type=password]').setValue('the-secret')
+    const folder = view.get('input[aria-label="Folder (without S3)"]')
+    expect((folder.element as HTMLInputElement).value, 'where pages go without S3').toBe('/home/agentd/.agentd/artifacts')
+    await folder.setValue(' ~/pages ')
     await view.findAll('button').find((b) => b.text() === 'Test connection')!.trigger('click')
     await flushPromises()
     expect(view.text()).toContain('Uploaded, read back and deleted a test page.')
     await view.findAll('button').find((b) => b.text() === 'Save')!.trigger('click')
     await flushPromises()
 
-    const body = { url: 'https://acct.r2.cloudflarestorage.com/agentd', publicUrl: 'https://agentd.thoaingo.com', accessKeyId: null, secretAccessKey: 'the-secret' }
+    const body = { url: 'https://acct.r2.cloudflarestorage.com/agentd', publicUrl: 'https://agentd.thoaingo.com', accessKeyId: null, secretAccessKey: 'the-secret', folder: '~/pages' }
     expect([bodies['POST /api/settings/artifact-storage/test'], bodies['PUT /api/settings/artifact-storage']]).toEqual([body, body])
     expect((view.get('input[type=password]').element as HTMLInputElement).value).toBe('')
     expect(view.text()).toContain('agentd daemon restart')

@@ -4874,6 +4874,13 @@
               "string"
             ],
             "description": "A new secret access key; empty keeps the stored one."
+          },
+          "folder": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Without S3, pages are HTML files here (absolute or under ~/); empty goes back to the default."
           }
         },
         "description": "Artifact storage. An empty \u0060Url\u0060 keeps new pages in the database; empty keys keep the saved ones."
@@ -4885,7 +4892,9 @@
           "urlOverriddenBy",
           "publicUrlOverriddenBy",
           "accessKeyId",
-          "secretAccessKey"
+          "secretAccessKey",
+          "folder",
+          "folderOverriddenBy"
         ],
         "type": "object",
         "properties": {
@@ -4918,6 +4927,18 @@
           },
           "secretAccessKey": {
             "$ref": "#/components/schemas/SecretStatusVm"
+          },
+          "folder": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "folderOverriddenBy": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         },
         "description": "Where artifacts are stored: the S3 API URL (none: the database) and the public domain links use; the keys as statuses.\n\u0060urlOverriddenBy\u0060 / \u0060publicUrlOverriddenBy\u0060 name what supplies a value over agentd.json."

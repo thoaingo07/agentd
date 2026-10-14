@@ -73,7 +73,8 @@ public sealed class FolderSettings(IConfigWriter config, ISettingsAudit audit, I
             ? "Use a full path (e.g. /srv/agentd/worktrees) or one under your home (~/agentd/worktrees), without '..'."
             : null;
 
-    private static bool IsUsable(string path) =>
+    /// <summary>Absolute or under <c>~/</c>, without <c>..</c> (also Settings → Artifacts' folder).</summary>
+    internal static bool IsUsable(string path) =>
         (path == "~" || path.StartsWith("~/", StringComparison.Ordinal) || Path.IsPathFullyQualified(path))
         && !path.Replace('\\', '/').Split('/').Contains("..");
 
