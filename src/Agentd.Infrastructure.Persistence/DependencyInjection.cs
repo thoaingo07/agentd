@@ -32,6 +32,7 @@ public static class DependencyInjection
         services.AddSingleton<IAdoUserConnections, AdoUserConnectionStore>();
         services.AddSingleton<Application.Reviews.IReviewSessionStore, ReviewSessionStore>();
         services.AddSingleton<Application.Monitor.IPrWatchStore, PrWatchStore>();
+        services.AddSingleton<Application.Incidents.IIncidentStore, IncidentStore>();
         services.AddSingleton<Application.Artifacts.IArtifactStore, ArtifactStore>();
         services.AddSingleton<Application.Artifacts.IArtifactBlobs, S3ArtifactBlobs>();   // used only when Agentd:Artifacts:S3 is configured
         services.AddSingleton<Application.Artifacts.IArtifactFiles, LocalArtifactFiles>();   // without S3: HTML files in Agentd:Artifacts:Folder
