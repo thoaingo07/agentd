@@ -43,7 +43,7 @@ public sealed class JobMessagesTests
 
         Assert.AreEqual(JobMessageOutcomes.FollowUp, outcome.Value);
         Assert.AreEqual(JobState.Done, _t.Jobs.Get(request.JobId).State);
-        StringAssert.Contains(_agent.Turns.Single().Prompt, "tngo writes in the thread:\n\nwhen does the sync run?");
+        StringAssert.Contains(_agent.Turns.Single().Prompt, "tngo writes:\n\nwhen does the sync run?");
     }
 
     [TestMethod]

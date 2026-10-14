@@ -68,7 +68,7 @@ public sealed class HandoffTests
         await Review();
 
         Assert.IsTrue(_t.Outbox.Enqueued.Any(e => e.Message.Message.Markdown.StartsWith("🎓 **Knowledge synced.**", StringComparison.Ordinal)));
-        AssertClosingOut(job);
+        AssertDoneWithoutThread(job);
     }
 
     [TestMethod]
@@ -97,6 +97,35 @@ public sealed class HandoffTests
     }
 
     [TestMethod]
+    public async Task With_a_chat_thread_the_close_out_asks_and_with_its_chat_switched_off_the_answer_still_closes_it()
+    {
+        var chat = new Fakes.FakeChat("discord");
+        _t.Chats.Add(chat);
+        _t.Messaging.Providers["discord"] = new Application.Messaging.MessagingProviderSettings { Enabled = true };
+        var job = await MergedAsync();
+        await Resume();
+        await Propose(job, "AGENTS.md: one note.");
+        await Reply(job, ProposeKnowledgeHandler.SkipLabel);
+        Assert.AreEqual((JobState.WaitingForHuman, HandoffStatus.Closing), (_t.Jobs.Get(job).State, _t.Jobs.Get(job).Handoff), "a thread: asked");
+
+        _t.Messaging.Providers["discord"].Enabled = false;   // Discord switched off before anyone answered
+        Assert.IsTrue((await _t.AnswerCloseOut().Handle(new AnswerCloseOut(job, "1"), default)).Value);
+
+        Assert.AreEqual(JobState.Done, _t.Jobs.Get(job).State);
+        Assert.IsFalse(_t.Conversations.All.Single().IsOpen, "closed here, nothing sent to a chat that's off");
+        Assert.IsEmpty(chat.DeletedThreads);
+    }
+
+    [TestMethod]
+    public void Done_without_a_thread_says_so_and_a_threads_close_out_needs_no_message()
+    {
+        var now = DateTimeOffset.UnixEpoch;
+
+        StringAssert.StartsWith(Application.Messaging.JobEventMessages.For(new ClosedOut(false, now, HadThread: false))!.Message.Markdown, "🧹 **All done.**");
+        Assert.IsNull(Application.Messaging.JobEventMessages.For(new ClosedOut(true, now)), "the thread itself was deleted or archived with a note");
+    }
+
+    [TestMethod]
     public async Task Declining_finishes_the_job_without_a_sync()
     {
         var job = await MergedAsync();
@@ -106,7 +135,7 @@ public sealed class HandoffTests
         var outcome = await Reply(job, ProposeKnowledgeHandler.SkipLabel);
 
         Assert.AreEqual(DeveloperMessageOutcome.HandoffDeclined, outcome);
-        AssertClosingOut(job);
+        AssertDoneWithoutThread(job);
         Assert.IsNull((await Resume()).Value, "no further agent turn");
     }
 
@@ -158,12 +187,13 @@ public sealed class HandoffTests
         Assert.AreEqual(declines, ProposeKnowledgeHandler.IsDecline(reply));
     }
 
-    private void AssertClosingOut(JobId job)
+    /// <summary>No chat thread to ask about (chat is off in these tests): the close-out finishes the job at once.</summary>
+    private void AssertDoneWithoutThread(JobId job)
     {
-        var closing = _t.Jobs.Get(job);
-        Assert.AreEqual((JobState.WaitingForHuman, HandoffStatus.Closing), (closing.State, closing.Handoff));
-        var question = (DeveloperQuestionAsked)_t.Jobs.SavedEvents.Last(e => e is DeveloperQuestionAsked);
-        StringAssert.StartsWith(question.Question, "🧹 **All done.** Delete this thread?");
+        var done = _t.Jobs.Get(job);
+        Assert.AreEqual((JobState.Done, HandoffStatus.Closing), (done.State, done.Handoff));
+        Assert.IsFalse(((ClosedOut)_t.Jobs.SavedEvents.Last(e => e is ClosedOut)).HadThread);
+        Assert.IsFalse(_t.Jobs.SavedEvents.OfType<DeveloperQuestionAsked>().Any(q => q.Question.Contains("Delete this thread", StringComparison.Ordinal)), "no question about a thread");
     }
 
     private async Task<JobId> MergedAsync()

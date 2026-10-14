@@ -2,12 +2,16 @@
 import { computed, ref } from 'vue'
 import { AgButton } from '../../../shared/components/ui'
 import { useJobsStore } from '../../stores/jobs'
+import { useWorkItemsStore } from '../../stores/workItems'
 
 const props = defineProps<{ jobId: number; state: string }>()
 const emit = defineEmits<{ sent: [text: string] }>()
 const text = ref('')
 const busy = ref(false)
 const jobs = useJobsStore()
+const workItems = useWorkItemsStore()
+/** Whether the work item has a chat thread open: only then is a message also posted there. */
+const hasThread = computed(() => workItems.summary?.conversations.some((c) => c.open) ?? false)
 // As in the job's chat thread: in review a message starts a fix round; once done it asks the job's agent (talk only).
 const hints: Record<string, string> = {
   WaitingForHuman: 'The agent is waiting for you.',
@@ -61,7 +65,7 @@ async function submit(): Promise<void> {
       </AgButton>
     </div>
     <p class="text-xs text-muted">
-      {{ hint }}<template v-if="state === 'WaitingForHuman' || state === 'Running'">
+      {{ hint }}<template v-if="hasThread && (state === 'WaitingForHuman' || state === 'Running')">
         It's also posted to the job's chat thread.
       </template>
     </p>

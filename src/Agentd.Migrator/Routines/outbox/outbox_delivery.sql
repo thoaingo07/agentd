@@ -93,3 +93,27 @@ AS $$
     )
     SELECT count(*)::int FROM released;
 $$;
+
+-- Chats switched off (p_enabled: the providers still on): their pending messages are marked failed and their open
+-- conversations closed, so nothing waits for a provider that won't send. Run at startup; idempotent.
+CREATE OR REPLACE FUNCTION agentd.outbox_drop_disabled(p_enabled text[])
+RETURNS TABLE (failed int, closed int)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_failed int;
+    v_closed int;
+BEGIN
+    UPDATE agentd.outbound_messages AS o
+       SET status = 'failed', last_error = 'provider disabled'
+     WHERE o.status IN ('pending', 'sending') AND NOT (o.provider = ANY (coalesce(p_enabled, '{}')));
+    GET DIAGNOSTICS v_failed = ROW_COUNT;
+
+    UPDATE agentd.conversations AS c
+       SET closed_at = now()
+     WHERE c.closed_at IS NULL AND NOT (c.provider = ANY (coalesce(p_enabled, '{}')));
+    GET DIAGNOSTICS v_closed = ROW_COUNT;
+
+    RETURN QUERY SELECT v_failed, v_closed;
+END
+$$;

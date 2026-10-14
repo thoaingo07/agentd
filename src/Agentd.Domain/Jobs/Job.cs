@@ -377,6 +377,20 @@ public sealed class Job : AggregateRoot<JobId>
         return Result.Ok;
     }
 
+    /// <summary>Close-out with no chat thread to delete or keep (chat off, or the job's threads already closed): done at once.</summary>
+    public Result CloseOutWithoutThread()
+    {
+        if (State is not (JobState.InReview or JobState.WaitingForHuman or JobState.Running) || Handoff is not (HandoffStatus.Agreed or HandoffStatus.Declined))
+        {
+            return DomainError.InvalidTransition(State, "close out");
+        }
+
+        Handoff = HandoffStatus.Closing;
+        WaitingSince = null;
+        Transition(JobState.Done, new ClosedOut(false, Now, HadThread: false));
+        return Result.Ok;
+    }
+
     /// <summary>The developer answered the close-out question: the job is done.</summary>
     public Result CloseOut(bool threadDeleted)
     {

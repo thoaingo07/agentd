@@ -773,7 +773,11 @@ public sealed partial class ReviewService(
     {
         await SaveAsync(review with { Status = ReviewStatus.Closed }, ct).ConfigureAwait(false);
         await RemoveCheckoutAsync(review.Repository, review.Worktree, ct).ConfigureAwait(false);
-        var provider = providers.Resolve(review.Provider);
+        if (providers.TryResolve(review.Provider) is not { } provider)
+        {
+            return;   // its chat was switched off since: nothing to delete or archive there
+        }
+
         var thread = new ConversationRef(review.Provider, review.ThreadId, review.SpaceId);
         try
         {
