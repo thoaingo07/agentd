@@ -27,6 +27,7 @@ const links = [
   { to: '/ideas', label: 'Ideas', icon: 'i-lucide-lightbulb' },
   { to: '/chats', label: 'Chat', icon: 'i-lucide-message-circle' },
   { to: '/reviews', label: 'Reviews', icon: 'i-lucide-git-pull-request' },
+  { to: '/incidents', label: 'Incidents', icon: 'i-lucide-siren' },
   { to: '/artifacts', label: 'Artifacts', icon: 'i-lucide-file-text' },
   { to: '/settings', label: 'Settings', icon: 'i-lucide-settings' },
 ]

@@ -2066,6 +2066,97 @@
         }
       }
     },
+    "/api/incidents": {
+      "get": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "GetIncidents",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/IncidentSummaryVm"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/incidents/{id}": {
+      "get": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "GetIncident",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentDetailVm"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/settings/restart": {
       "get": {
         "tags": [
@@ -6465,6 +6556,142 @@
           }
         },
         "description": "A thread in the list; \u0060question\u0060 is its latest question while it waits on someone."
+      },
+      "IncidentDetailVm": {
+        "required": [
+          "summary",
+          "stack",
+          "resultCode",
+          "operationId",
+          "analysis",
+          "analyzedAt",
+          "repository",
+          "portalUrl",
+          "hasThread"
+        ],
+        "type": "object",
+        "properties": {
+          "summary": {
+            "$ref": "#/components/schemas/IncidentSummaryVm"
+          },
+          "stack": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "resultCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "operationId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "analysis": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "analyzedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "repository": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "portalUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "hasThread": {
+            "type": "boolean"
+          }
+        },
+        "description": "An incident whole: the recorded sample (top of the stack, result code), the investigation\u0027s analysis (Markdown), the app\u0027s\nrepository and Azure portal link (null when the app isn\u0027t monitored anymore), and whether it has a chat thread."
+      },
+      "IncidentSummaryVm": {
+        "required": [
+          "id",
+          "app",
+          "kind",
+          "title",
+          "message",
+          "operation",
+          "status",
+          "totalCount",
+          "firstSeen",
+          "lastSeen",
+          "workItemId",
+          "analyzed"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "app": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "message": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "operation": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "totalCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "firstSeen": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastSeen": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "workItemId": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "analyzed": {
+            "type": "boolean"
+          }
+        },
+        "description": "An incident in the list: one error group of one app, its status and counts, and the Bug filed for it."
       },
       "JobDetailVm": {
         "required": [
