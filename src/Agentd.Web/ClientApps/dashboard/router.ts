@@ -7,6 +7,8 @@ export const router = createRouter({
     { path: '/', name: 'dashboard', component: DashboardView },
     { path: '/jobs/:id(\\d+)', name: 'job', component: () => import('./views/JobView.vue'), props: (r) => ({ id: Number(r.params.id) }) },
     { path: '/workitems/:id(\\d+)', name: 'work-item', component: () => import('./views/WorkItemView.vue'), props: (r) => ({ id: Number(r.params.id) }) },
+    { path: '/inbox', name: 'inbox', component: () => import('./views/InboxView.vue') },
+    { path: '/inbox/:source(job|idea|review|chat|watch)/:id(\\d+)', name: 'inbox-thread', component: () => import('./views/InboxView.vue'), props: (r) => ({ source: String(r.params.source), id: Number(r.params.id) }) },
     { path: '/history', name: 'history', component: () => import('./views/HistoryView.vue') },
     { path: '/chats', name: 'chats', component: () => import('./views/ChatsView.vue') },
     { path: '/chats/:id(\\d+)', name: 'chat', component: () => import('./views/ChatView.vue'), props: (r) => ({ id: Number(r.params.id) }) },

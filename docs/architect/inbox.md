@@ -46,9 +46,24 @@ thread then drops out of the top until agentd writes again. The nav shows how ma
   state above), `inbox_delete_before` (retention, `Agentd:Inbox:RetentionDays`, 90).
 - **Never fails a post:** an Inbox write that fails is logged and skipped, like the prompt log.
 
-## 4. The page (next)
+## 4. The page
 
-`/inbox`: the grouped list on the left, the open thread on the right with its messages and, when it waits on you, the
-question's buttons and a reply box (sent to the source like its page or chat thread would). **Mine** shows threads
-addressed to you, **Everyone** all of them (every signed-in user, like jobs and reviews). Browser notifications for
-threads that start waiting on you.
+`/inbox` (and `/inbox/{source}/{id}` for an open thread): the grouped list on the left (resizable), the open thread on
+the right with its messages, oldest first, and, when it waits on you, the question's buttons (a watched PR's **push** /
+**discard**) and a reply box. The open thread keeps its group while it's open, so reading it doesn't move it. **Mine**
+shows threads addressed to you (the recipient is your web login, so for now only what you started from the web),
+**Everyone** all of them (every signed-in user, like jobs and reviews). `j` / `k` move between threads, `e` marks the
+open one read. The nav's **Inbox** item shows how many threads wait on you (or, when none do, how many are unread);
+`inbox.added` and job, idea, review and watch events refresh it.
+
+API (every signed-in user):
+
+- `GET /api/inbox?view=all|mine&limit=` → `{ threads, counts }`; `GET /api/inbox/counts`.
+- `GET /api/inbox/{source}/{id}?before=` → the thread's messages, newest first.
+- `POST /api/inbox/{source}/{id}/read {until}`: marks it read for you.
+- `POST /api/inbox/{source}/{id}/reply {text}`: to the source, as its page or chat thread takes it: a job through
+  `JobMessages` (like its page's message box, mirrored to its chat threads), an idea or chat like a message from the
+  web, a chat `!review` like a message in its thread (not mirrored to the thread yet), a watched PR's `push`,
+  `discard` or `unwatch`.
+
+Next: browser notifications for threads that start waiting on you; recipients matched across chat and web identities.

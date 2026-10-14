@@ -612,6 +612,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/inbox": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetInbox"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/inbox/counts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetInboxCounts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/inbox/{source}/{sourceId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetInboxThread"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/inbox/{source}/{sourceId}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["MarkInboxRead"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/inbox/{source}/{sourceId}/reply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["ReplyInInbox"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/settings/restart": {
         parameters: {
             query?: never;
@@ -1818,6 +1898,73 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             updatedAt: string;
+        };
+        /** @description How many threads wait on you, and how many have messages you haven't read. */
+        InboxCountsVm: {
+            /** Format: int32 */
+            waiting: number;
+            /** Format: int32 */
+            unread: number;
+        };
+        /** @description One of agentd's messages in a thread (Markdown). */
+        InboxItemVm: {
+            /** Format: int64 */
+            id: number;
+            source: string;
+            /** Format: int64 */
+            sourceId: number;
+            title: string;
+            recipient: null | string;
+            kind: string;
+            markdown: string;
+            options: components["schemas"]["InboxOptionVm"][];
+            /** Format: date-time */
+            createdAt: string;
+        };
+        /** @description A button of a question: send its `label` as the reply. */
+        InboxOptionVm: {
+            id: string;
+            label: string;
+        };
+        /** @description The Inbox: its threads (waiting on you first, then unread, then the rest) and the nav's counts. */
+        InboxPageVm: {
+            threads: components["schemas"]["InboxThreadVm"][];
+            counts: components["schemas"]["InboxCountsVm"];
+        };
+        InboxReadRequest: {
+            /**
+             * Format: int64
+             * @description The newest message read.
+             */
+            until: null | number;
+        };
+        InboxReplyRequest: {
+            /** @description The answer: a question's option, or anything you'd write in the source's chat thread or page. */
+            text: null | string;
+        };
+        /** @description A reply's outcome, as the source answered it. */
+        InboxReplyVm: {
+            outcome: string;
+        };
+        /** @description A thread in the list; `question` is its latest question while it waits on someone. */
+        InboxThreadVm: {
+            source: string;
+            /** Format: int64 */
+            sourceId: number;
+            title: string;
+            recipient: null | string;
+            /** Format: int64 */
+            latestId: number;
+            latestKind: string;
+            latestPreview: string;
+            /** Format: date-time */
+            latestAt: string;
+            /** Format: int32 */
+            items: number;
+            /** Format: int32 */
+            unread: number;
+            waiting: boolean;
+            question: null | components["schemas"]["InboxItemVm"];
         };
         JobDetailVm: {
             job: components["schemas"]["JobSummaryVm"];
@@ -3744,6 +3891,171 @@ export interface operations {
             };
             /** @description Not Found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetInbox: {
+        parameters: {
+            query?: {
+                view?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InboxPageVm"];
+                };
+            };
+        };
+    };
+    GetInboxCounts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InboxCountsVm"];
+                };
+            };
+        };
+    };
+    GetInboxThread: {
+        parameters: {
+            query?: {
+                before?: number;
+            };
+            header?: never;
+            path: {
+                source: string;
+                sourceId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InboxItemVm"][];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    MarkInboxRead: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                source: string;
+                sourceId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": null | components["schemas"]["InboxReadRequest"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    ReplyInInbox: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                source: string;
+                sourceId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": null | components["schemas"]["InboxReplyRequest"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InboxReplyVm"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

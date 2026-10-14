@@ -1,0 +1,46 @@
+/* agentd's own component classes (docs/ui §2): a long run of utilities that a screen repeats gets a name here, built
+   with @apply, so templates say what an element is ("ag-list-row") instead of how it looks. Utilities stay fine for
+   one-off layout. Dynamic values (a dragged width) still come in as a CSS variable from the template. */
+@layer components {
+  /* A bordered panel: the Inbox's list and thread. */
+  .ag-pane {
+    @apply min-w-0 rounded-lg border border-base-300 bg-base-100;
+  }
+
+  /* A group heading inside a list ("Waiting on you"). */
+  .ag-section-title {
+    @apply flex items-center gap-2 px-3 pt-3 pb-1 text-xs font-semibold tracking-wide text-muted uppercase;
+  }
+
+  /* A clickable row of a list; .is-active marks the open one. */
+  .ag-list-row {
+    @apply flex w-full min-w-0 cursor-pointer items-start gap-2 rounded-md px-3 py-2 text-left transition-colors hover:bg-base-200 focus-visible:outline-2 focus-visible:outline-primary;
+  }
+
+  .ag-list-row.is-active {
+    @apply bg-primary/10;
+  }
+
+  /* A small count pill (unread, findings). */
+  .ag-count {
+    @apply inline-flex min-w-5 shrink-0 items-center justify-center rounded-full bg-base-300 px-1.5 text-[10px] leading-4 font-semibold tabular-nums;
+  }
+
+  .ag-count.is-urgent {
+    @apply bg-warning text-warning-content;
+  }
+
+  /* Secondary text: times, sources, counts. */
+  .ag-meta {
+    @apply text-xs text-muted tabular-nums;
+  }
+
+  /* One message from agentd; .is-question asks for an answer. */
+  .ag-message {
+    @apply grid min-w-0 gap-1 rounded-lg border border-base-300 p-3;
+  }
+
+  .ag-message.is-question {
+    @apply border-warning/60 bg-warning/5;
+  }
+}

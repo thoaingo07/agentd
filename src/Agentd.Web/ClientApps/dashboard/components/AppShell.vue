@@ -4,6 +4,7 @@ import { computed, onBeforeUnmount } from 'vue'
 import { useRoute } from 'vue-router'
 import { AgToastHost } from '../../shared/components/ui'
 import { bytes } from '../../shared/utils/format'
+import { useInboxStore } from '../stores/inbox'
 import { useJobsStore } from '../stores/jobs'
 import { useResourcesStore } from '../stores/resources'
 import { useUiStore } from '../stores/ui'
@@ -11,12 +12,15 @@ import ConnectionIndicator from './ConnectionIndicator.vue'
 import ThemeToggle from './ThemeToggle.vue'
 
 const jobs = useJobsStore()
+const inbox = useInboxStore()
+void inbox.loadCounts().catch(() => {})
 const ui = useUiStore()
 const resources = useResourcesStore()
 onBeforeUnmount(resources.watch())
 const route = useRoute()
 const links = [
   { to: '/', label: 'Dashboard', icon: 'i-lucide-layout-dashboard' },
+  { to: '/inbox', label: 'Inbox', icon: 'i-lucide-inbox' },
   { to: '/history', label: 'History', icon: 'i-lucide-history' },
   { to: '/ideas', label: 'Ideas', icon: 'i-lucide-lightbulb' },
   { to: '/chats', label: 'Chat', icon: 'i-lucide-message-circle' },
@@ -27,7 +31,15 @@ const links = [
 /** A section stays highlighted on its pages too (/reviews/7 → Reviews); the dashboard only on itself. */
 const isActive = (to: string) => (to === '/' ? route.path === '/' : route.path === to || route.path.startsWith(`${to}/`))
 // The active item: bold on a visible background (Nuxt UI's own highlight is too faint on agentd's base colors).
-const items = computed(() => links.map((l) => ({ ...l, active: isActive(l.to), class: isActive(l.to) ? 'font-semibold before:bg-base-300' : undefined })))
+const items = computed(() => links.map((l) => ({
+  ...l,
+  active: isActive(l.to),
+  class: isActive(l.to) ? 'font-semibold before:bg-base-300' : undefined,
+  // The Inbox shows how many threads wait on you (or, when none do, how many have unread messages).
+  badge: l.to === '/inbox' && (inbox.counts.waiting || inbox.counts.unread)
+    ? { label: String(inbox.counts.waiting || inbox.counts.unread), color: inbox.counts.waiting ? 'warning' as const : 'neutral' as const, variant: 'solid' as const, size: 'sm' as const }
+    : undefined,
+})))
 </script>
 
 <template>

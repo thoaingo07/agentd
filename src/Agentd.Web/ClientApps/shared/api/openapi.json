@@ -1876,6 +1876,266 @@
         }
       }
     },
+    "/api/inbox": {
+      "get": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "GetInbox",
+        "parameters": [
+          {
+            "name": "view",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboxPageVm"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/inbox/counts": {
+      "get": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "GetInboxCounts",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboxCountsVm"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/inbox/{source}/{sourceId}": {
+      "get": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "GetInboxThread",
+        "parameters": [
+          {
+            "name": "source",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sourceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/InboxItemVm"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/inbox/{source}/{sourceId}/read": {
+      "post": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "MarkInboxRead",
+        "parameters": [
+          {
+            "name": "source",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sourceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/InboxReadRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/inbox/{source}/{sourceId}/reply": {
+      "post": {
+        "tags": [
+          "Agentd.Host"
+        ],
+        "operationId": "ReplyInInbox",
+        "parameters": [
+          {
+            "name": "source",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sourceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/InboxReplyRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboxReplyVm"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/settings/restart": {
       "get": {
         "tags": [
@@ -5856,6 +6116,226 @@
             "format": "date-time"
           }
         }
+      },
+      "InboxCountsVm": {
+        "required": [
+          "waiting",
+          "unread"
+        ],
+        "type": "object",
+        "properties": {
+          "waiting": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "unread": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "description": "How many threads wait on you, and how many have messages you haven\u0027t read."
+      },
+      "InboxItemVm": {
+        "required": [
+          "id",
+          "source",
+          "sourceId",
+          "title",
+          "recipient",
+          "kind",
+          "markdown",
+          "options",
+          "createdAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "source": {
+            "type": "string"
+          },
+          "sourceId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "title": {
+            "type": "string"
+          },
+          "recipient": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "kind": {
+            "type": "string"
+          },
+          "markdown": {
+            "type": "string"
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InboxOptionVm"
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "One of agentd\u0027s messages in a thread (Markdown)."
+      },
+      "InboxOptionVm": {
+        "required": [
+          "id",
+          "label"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          }
+        },
+        "description": "A button of a question: send its \u0060label\u0060 as the reply."
+      },
+      "InboxPageVm": {
+        "required": [
+          "threads",
+          "counts"
+        ],
+        "type": "object",
+        "properties": {
+          "threads": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InboxThreadVm"
+            }
+          },
+          "counts": {
+            "$ref": "#/components/schemas/InboxCountsVm"
+          }
+        },
+        "description": "The Inbox: its threads (waiting on you first, then unread, then the rest) and the nav\u0027s counts."
+      },
+      "InboxReadRequest": {
+        "required": [
+          "until"
+        ],
+        "type": "object",
+        "properties": {
+          "until": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "description": "The newest message read.",
+            "format": "int64"
+          }
+        }
+      },
+      "InboxReplyRequest": {
+        "required": [
+          "text"
+        ],
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The answer: a question\u0027s option, or anything you\u0027d write in the source\u0027s chat thread or page."
+          }
+        }
+      },
+      "InboxReplyVm": {
+        "required": [
+          "outcome"
+        ],
+        "type": "object",
+        "properties": {
+          "outcome": {
+            "type": "string"
+          }
+        },
+        "description": "A reply\u0027s outcome, as the source answered it."
+      },
+      "InboxThreadVm": {
+        "required": [
+          "source",
+          "sourceId",
+          "title",
+          "recipient",
+          "latestId",
+          "latestKind",
+          "latestPreview",
+          "latestAt",
+          "items",
+          "unread",
+          "waiting",
+          "question"
+        ],
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string"
+          },
+          "sourceId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "title": {
+            "type": "string"
+          },
+          "recipient": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "latestId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "latestKind": {
+            "type": "string"
+          },
+          "latestPreview": {
+            "type": "string"
+          },
+          "latestAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "items": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "unread": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "waiting": {
+            "type": "boolean"
+          },
+          "question": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/InboxItemVm"
+              }
+            ]
+          }
+        },
+        "description": "A thread in the list; \u0060question\u0060 is its latest question while it waits on someone."
       },
       "JobDetailVm": {
         "required": [
