@@ -236,6 +236,17 @@ and Settings → General offer an Admin-only restart (`POST /api/settings/restar
 It's offered only with `Agentd:Daemon:Supervised` (`ENV AGENTD_Daemon__Supervised=true` in the image; `Environment=` in
 the unit `agentd daemon install` writes); otherwise Settings says to run `agentd daemon restart`.
 
+**Nothing running first** (added 2026-10-14): `GET /api/settings/restart` lists what a restart would cut off. That means
+jobs **preparing, running or publishing** (a job waiting for a person, in review or paused doesn't count) and agent
+**thread turns in progress** (idea, chat, review, Ask, fix and follow-up turns). Thread turns are counted in memory
+(`ThreadTurns`) by a decorator on whichever `IBrainstormAgent` is registered (`TrackThreadTurns`), so any runner is
+covered. The button reads the list again when clicked:
+- **With nothing running,** it asks once.
+- **Otherwise** it names each item and asks **Restart anyway?**, then posts `?force=true`.
+
+The server checks too: a `POST` without `force` while anything runs answers 409 with the list. The CLI's
+`agentd daemon restart` doesn't check.
+
 How it's built: `/api/settings/*` mounts the same step endpoints for **Admins** (the normal session with
 antiforgery; the setup cookie doesn't count) without Finish, and **Health** is `GET /api/settings/review`. The
 dashboard's `/settings/<area>` pages reuse the wizard's step components (`ClientApps/shared/setup`), with their store

@@ -69,6 +69,7 @@ internal static class AgentdServices
         builder.Services.AddAzureDevOps(builder.Configuration);
         builder.Services.AddGit(builder.Configuration);
         builder.Services.AddClaude(builder.Configuration);
+        builder.Services.TrackThreadTurns();   // after the runner: Restart now sees its turns
         builder.Services.AddDiscordMessaging(builder.Configuration);
         // The agent runner issues per-job MCP tokens; CLI verbs resolve it too (e.g. cancel), not only the daemon.
         builder.Services.TryAddSingleton<IMcpTokenIssuer, McpTokenIssuer>();

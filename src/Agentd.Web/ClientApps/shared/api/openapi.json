@@ -2277,6 +2277,15 @@
           "Agentd.Host"
         ],
         "operationId": "RestartDaemon",
+        "parameters": [
+          {
+            "name": "force",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
         "responses": {
           "202": {
             "description": "Accepted",
@@ -7869,7 +7878,8 @@
       "RestartVm": {
         "required": [
           "available",
-          "reason"
+          "reason",
+          "running"
         ],
         "type": "object",
         "properties": {
@@ -7881,9 +7891,15 @@
               "null",
               "string"
             ]
+          },
+          "running": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RunningWorkVm"
+            }
           }
         },
-        "description": "Whether Settings can restart agentd; \u0060reason\u0060 says why not."
+        "description": "Whether Settings can restart agentd (\u0060reason\u0060 says why not), and what a restart would interrupt now."
       },
       "ReviewAskVm": {
         "required": [
@@ -8476,6 +8492,27 @@
             "format": "int64"
           }
         }
+      },
+      "RunningWorkVm": {
+        "required": [
+          "source",
+          "id",
+          "label"
+        ],
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string"
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "label": {
+            "type": "string"
+          }
+        },
+        "description": "A job mid-step or an agent\u0027s turn: \u0060source\u0060 is job, idea, chat or review."
       },
       "SaveResultVm": {
         "required": [

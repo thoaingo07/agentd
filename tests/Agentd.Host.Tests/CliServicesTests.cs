@@ -11,6 +11,7 @@ public sealed class CliServicesTests
     {
         var home = Directory.CreateTempSubdirectory("agentd-cli-home-").FullName;
         Environment.SetEnvironmentVariable(ConfigHome.Variable, home);
+        Environment.SetEnvironmentVariable("ConnectionStrings__agentd", "Host=127.0.0.1;Port=1;Database=unused");   // resolving reaches the data source
         try
         {
             var builder = Microsoft.Extensions.Hosting.Host.CreateApplicationBuilder(new HostApplicationBuilderSettings
@@ -26,10 +27,13 @@ public sealed class CliServicesTests
             using var services = builder.Services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
 
             Assert.IsNotNull(services.GetRequiredService<Application.Ports.IMcpTokenIssuer>());
+            Assert.IsInstanceOfType<Application.Setup.TrackedBrainstormAgent>(services.GetRequiredService<Application.Ideas.IBrainstormAgent>(),
+                "thread turns are counted for Restart now, whichever runner answers them");
         }
         finally
         {
             Environment.SetEnvironmentVariable(ConfigHome.Variable, null);
+            Environment.SetEnvironmentVariable("ConnectionStrings__agentd", null);
             Directory.Delete(home, recursive: true);
         }
     }
