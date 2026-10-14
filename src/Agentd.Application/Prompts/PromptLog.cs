@@ -91,7 +91,16 @@ public interface IPromptLog
 
     /// <summary>Deletes prompts sent before <paramref name="before"/> (and rules no prompt uses any more); returns how many.</summary>
     Task<int> DeleteBeforeAsync(DateTimeOffset before, CancellationToken cancellationToken);
+
+    /// <summary>A thread turn's transcript, written once as it ends (a job's events are in the event log already).</summary>
+    Task AddEventsAsync(long id, IReadOnlyList<PromptEvent> events, CancellationToken cancellationToken) => Task.CompletedTask;
+
+    /// <summary>A turn's transcript in order: a thread turn's own events, or its job's agent events while it ran.</summary>
+    Task<IReadOnlyList<PromptEvent>> TranscriptAsync(long id, int limit, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<PromptEvent>>([]);
 }
+
+/// <summary>One event of an agent's run (<c>agent.text</c>, <c>agent.tool_call</c>, …) with its JSON payload, as a job's events.</summary>
+public sealed record PromptEvent(string Type, string PayloadJson, DateTimeOffset At);
 
 /// <summary>Configuration section <c>Agentd:PromptLog</c>.</summary>
 public sealed class PromptLogOptions
@@ -106,4 +115,7 @@ public sealed class PromptLogOptions
 
     /// <summary>Longer prompts and replies are cut to this many characters.</summary>
     public int MaxChars { get; set; } = 200_000;
+
+    /// <summary>A thread turn's transcript keeps at most this many events (the last ones are dropped, saying so).</summary>
+    public int MaxEvents { get; set; } = 5000;
 }

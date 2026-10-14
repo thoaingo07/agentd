@@ -189,9 +189,11 @@ public sealed class ClaudeBrainstormAgent(IOptions<ClaudeOptions> options, Promp
 
         var id = await prompts.StartAsync(new Application.Prompts.PromptStart(Application.Prompts.PromptSources.For(turn.Kind), turn.IdeaId, null,
             turn.Session, turn.Resume, turn.Model, turn.Effort, null, RulesFor(turn.Kind), turn.Prompt)).ConfigureAwait(false);
+        var events = new List<Application.Prompts.PromptEvent>();
         try
         {
-            var reply = await RunCoreAsync(turn, cancellationToken).ConfigureAwait(false);
+            var reply = await RunCoreAsync(turn, cancellationToken, events).ConfigureAwait(false);
+            await prompts.AddEventsAsync(id, events).ConfigureAwait(false);
             await prompts.FinishAsync(id, reply switch
             {
                 { UsageLimitedUntil: not null } => Application.Prompts.PromptOutcomes.UsageLimit,
@@ -204,12 +206,16 @@ public sealed class ClaudeBrainstormAgent(IOptions<ClaudeOptions> options, Promp
         }
         catch (Exception ex)
         {
+            await prompts.AddEventsAsync(id, events).ConfigureAwait(false);
             await prompts.FinishAsync(id, Application.Prompts.PromptOutcomes.Error, ex.Message).ConfigureAwait(false);
             throw;
         }
     }
 
-    private async Task<BrainstormReply> RunCoreAsync(BrainstormTurn turn, CancellationToken cancellationToken)
+    /// <param name="turn">The turn.</param>
+    /// <param name="cancellationToken">Stops it.</param>
+    /// <param name="events">Collects the run's events (the prompt log's transcript of the turn).</param>
+    private async Task<BrainstormReply> RunCoreAsync(BrainstormTurn turn, CancellationToken cancellationToken, List<Application.Prompts.PromptEvent>? events = null)
     {
         var o = options.Value;
         var dir = Path.Combine(Paths.Expand(o.TranscriptRoot), $"{turn.Kind switch { ThreadTurnKind.Review => "review", ThreadTurnKind.ReviewSession => "review-session", ThreadTurnKind.ReviewAsk => "review-ask", ThreadTurnKind.ReviewFix => "review-fix", ThreadTurnKind.FollowUp => "followup", ThreadTurnKind.Chat => "chat", _ => "idea" }}-{turn.IdeaId}");
@@ -253,6 +259,7 @@ public sealed class ClaudeBrainstormAgent(IOptions<ClaudeOptions> options, Promp
                 foreach (var agentEvent in StreamJsonParser.Parse(line))
                 {
                     tracker.Observe(agentEvent);
+                    events?.Add(new Application.Prompts.PromptEvent(agentEvent.LogType, StreamJsonParser.ToPayloadJson(agentEvent), DateTimeOffset.UtcNow));
                     if (agentEvent is AgentEvent.TurnResult r)
                     {
                         result = r.Result;
