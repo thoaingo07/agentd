@@ -42,6 +42,24 @@ public sealed class ArtifactStorageSettingsTests
     }
 
     [TestMethod]
+    public async Task The_folder_for_pages_without_s3_is_shown_saved_reset_and_checked()
+    {
+        _config.Values[ArtifactStorageSettings.FolderKey] = "/home/agentd/.agentd/artifacts";
+        Assert.AreEqual("/home/agentd/.agentd/artifacts", Settings().Get().Folder);
+
+        await Settings().SaveAsync(new(null, null, null, null, "~/pages"), "tngo", default);
+        Assert.AreEqual("~/pages", _config.Values[ArtifactStorageSettings.FolderKey]);
+        await Settings().SaveAsync(new(null, null, null, null), "tngo", default);
+        Assert.AreEqual("~/pages", _config.Values[ArtifactStorageSettings.FolderKey], "not sent: kept");
+        await Settings().SaveAsync(new(null, null, null, null, " "), "tngo", default);
+        Assert.IsNull(_config.Values[ArtifactStorageSettings.FolderKey], "empty: back to the default in agentd's home");
+
+        var bad = await Settings().SaveAsync(new(null, null, null, null, "../etc"), "tngo", default);
+        StringAssert.Contains(bad.Error!.Message, "full path");
+        Assert.IsTrue(_audit.Changes.Any(c => c.Key == ArtifactStorageSettings.FolderKey && c.Action == "set"));
+    }
+
+    [TestMethod]
     [DataRow("https://acct.r2.cloudflarestorage.com", null, "ends with the bucket")]
     [DataRow("https://acct.r2.cloudflarestorage.com/agentd/pages", null, "ends with the bucket")]
     [DataRow("ftp://acct/agentd", null, "ends with the bucket")]

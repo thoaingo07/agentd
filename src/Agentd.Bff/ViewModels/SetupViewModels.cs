@@ -20,12 +20,13 @@ public sealed record SecretStatusVm(bool Set, DateTimeOffset? UpdatedAt, string?
 /// Where artifacts are stored: the S3 API URL (none: the database) and the public domain links use; the keys as statuses.
 /// <c>urlOverriddenBy</c> / <c>publicUrlOverriddenBy</c> name what supplies a value over agentd.json.
 /// </summary>
-public sealed record ArtifactStorageStepVm(string? Url, string? PublicUrl, string? UrlOverriddenBy, string? PublicUrlOverriddenBy, SecretStatusVm AccessKeyId, SecretStatusVm SecretAccessKey)
+public sealed record ArtifactStorageStepVm(string? Url, string? PublicUrl, string? UrlOverriddenBy, string? PublicUrlOverriddenBy, SecretStatusVm AccessKeyId, SecretStatusVm SecretAccessKey,
+    string? Folder, string? FolderOverriddenBy)
 {
     public static ArtifactStorageStepVm From(Application.Setup.ArtifactStorageStep s)
     {
         ArgumentNullException.ThrowIfNull(s);
-        return new(s.Url, s.PublicUrl, s.UrlOverriddenBy, s.PublicUrlOverriddenBy, SecretStatusVm.From(s.AccessKeyId), SecretStatusVm.From(s.SecretAccessKey));
+        return new(s.Url, s.PublicUrl, s.UrlOverriddenBy, s.PublicUrlOverriddenBy, SecretStatusVm.From(s.AccessKeyId), SecretStatusVm.From(s.SecretAccessKey), s.Folder, s.FolderOverriddenBy);
     }
 }
 

@@ -60,6 +60,7 @@ public sealed class ConfigHomeTests
             Assert.AreEqual("env-tag", config["Agentd:Jobs:Tag"], "AGENTD_ variables beat agentd.json");
             Assert.AreEqual("from-args", config["Agentd:Jobs:ClaimTag"], "command line wins");
             Assert.AreEqual(home.Worktrees, config["Agentd:Git:WorktreeRoot"], "worktrees default inside the home");
+            Assert.AreEqual(home.Artifacts, config["Agentd:Artifacts:Folder"], "artifact pages without S3: HTML files inside the home");
             CollectionAssert.IsSubsetOf(new[] { "AzureDevOps", "Jobs", "Git" }, config.GetSection("Agentd").GetChildren().Select(c => c.Key).ToArray());
         }
         finally

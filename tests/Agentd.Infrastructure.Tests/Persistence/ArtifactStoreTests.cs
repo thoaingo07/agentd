@@ -1,3 +1,4 @@
+using Agentd.Application.Artifacts;
 using Agentd.Domain.Common;
 using Agentd.Domain.Jobs;
 using Agentd.Domain.Jobs.ValueObjects;
@@ -122,5 +123,20 @@ public sealed class ArtifactStoreTests
     private sealed class Clock : IClock
     {
         public DateTimeOffset UtcNow => DateTimeOffset.UtcNow;
+    }
+
+    [TestMethod]
+    public async Task A_local_page_keeps_only_its_metadata_here_even_with_parallel_publishes()
+    {
+        await using var db = await Database.CreateMigratedAsync("artifacts_local");
+        var store = new ArtifactStore(db);
+
+        var published = await Task.WhenAll(Enumerable.Range(0, 6).Select(i =>
+            store.PublishAsync($"sync-report-{i:x4}", "Sync report", null, ArtifactSources.Chat, 2, "chat #2", ArtifactStorage.Local, default)));
+        var page = await store.GetAsync(published[0].Name, default);
+
+        Assert.AreEqual(1, published.Select(p => p.Name).Distinct().Count(), "one page for one title");
+        Assert.AreEqual((ArtifactStorage.Local, (string?)null), (page!.Storage, page.Html), "the HTML is a file in the folder");
+        Assert.AreEqual(ArtifactStorage.Local, (await store.ExpireAsync(DateTimeOffset.UtcNow.AddMinutes(1), default)).Single().Storage, "expiring says where it was");
     }
 }

@@ -1476,6 +1476,8 @@ export interface components {
             accessKeyId: null | string;
             /** @description A new secret access key; empty keeps the stored one. */
             secretAccessKey: null | string;
+            /** @description Without S3, pages are HTML files here (absolute or under ~/); empty goes back to the default. */
+            folder?: null | string;
         };
         /**
          * @description Where artifacts are stored: the S3 API URL (none: the database) and the public domain links use; the keys as statuses.
@@ -1488,6 +1490,8 @@ export interface components {
             publicUrlOverriddenBy: null | string;
             accessKeyId: components["schemas"]["SecretStatusVm"];
             secretAccessKey: components["schemas"]["SecretStatusVm"];
+            folder: null | string;
+            folderOverriddenBy: null | string;
         };
         /** @description An artifact: open `url` (a page of its own: agentd's, or the bucket's public domain for a page in S3); `source` (job, chat, idea, review, review-session, watch, web) and `sourceId` say which agent published it. */
         ArtifactVm: {
