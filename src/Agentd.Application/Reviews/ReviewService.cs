@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Text.RegularExpressions;
 using Agentd.Application.Artifacts;
 using Agentd.Application.Ideas;
+using Agentd.Application.Inbox;
 using Agentd.Application.Messaging;
 using Agentd.Application.Ports;
 using Agentd.Domain.Common;
@@ -30,7 +31,8 @@ public sealed partial class ReviewService(
     Microsoft.Extensions.Options.IOptions<Jobs.JobOptions>? jobs = null,
     IMcpTokenIssuer? tokens = null,
     ReviewSessionService? sessions = null,
-    Microsoft.Extensions.Options.IOptions<WebLinkOptions>? web = null) : IDisposable
+    Microsoft.Extensions.Options.IOptions<WebLinkOptions>? web = null,
+    Inbox.IInbox? inbox = null) : IDisposable
 {
     public const int MaxConcurrentReviews = 2;
 
@@ -863,6 +865,8 @@ public sealed partial class ReviewService(
 
     private async Task PostAsync(Review review, OutboundMessage message, CancellationToken ct)
     {
+        await inbox.TryAddAsync(new Inbox.InboxEntry(Inbox.InboxSources.Review, review.Id, $"🔍 PR !{review.PullRequestId} {review.Title}", review.Author, message), logger, ct)
+            .ConfigureAwait(false);
         try
         {
             var provider = providers.Resolve(review.Provider);

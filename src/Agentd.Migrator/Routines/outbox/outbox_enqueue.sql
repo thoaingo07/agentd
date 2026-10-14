@@ -3,6 +3,7 @@
 -- "replace" (progress): drops the conversation's pending replaceable rows of the same kind first, so
 -- only the newest update waits. Returns the number of rows written. Called alone, or batched with
 -- job_save so the messages commit with the state change.
+-- Every message but progress also goes to the Inbox (docs/architect/inbox.md), with or without a conversation.
 CREATE OR REPLACE FUNCTION agentd.outbox_enqueue(p_job_id bigint, p_messages jsonb)
 RETURNS int
 LANGUAGE plpgsql
@@ -13,6 +14,12 @@ DECLARE
     v_count int := 0;
 BEGIN
     FOR m IN SELECT * FROM jsonb_array_elements(coalesce(p_messages, '[]'::jsonb)) LOOP
+        IF m ->> 'kind' <> 'Progress' THEN
+            PERFORM agentd.inbox_add('job', p_job_id,
+                coalesce((SELECT 'WI-' || j.work_item_id || ' ' || coalesce(j.title, '') FROM agentd.jobs AS j WHERE j.id = p_job_id), 'Job ' || p_job_id),
+                NULL, m ->> 'kind', coalesce(m -> 'payload' ->> 'markdown', ''), m -> 'payload' -> 'options');
+        END IF;
+
         FOR c IN
             SELECT conv.id, conv.provider FROM agentd.conversations AS conv
              WHERE conv.job_id = p_job_id AND conv.closed_at IS NULL

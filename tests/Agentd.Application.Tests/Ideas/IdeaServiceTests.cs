@@ -184,6 +184,22 @@ public sealed class IdeaServiceTests
     }
 
     [TestMethod]
+    public async Task Agentds_messages_and_questions_reach_the_inbox_for_the_ideas_author()
+    {
+        var h = new Harness();
+        var idea = await h.ProposedAsync();
+        await h.Service.HandleMessageAsync(h.Store.Rows[1], "tngo", "discard", default);
+
+        var entries = h.Inbox.Entries.ToList();
+        Assert.IsTrue(entries.All(e => (e.Source, e.SourceId, e.Recipient) == ("idea", idea.Id, idea.Author)));
+        Assert.IsTrue(entries.All(e => e.Title == $"💡 {idea.Title}"));
+        Assert.IsTrue(entries.Any(e => e.Message.Markdown.Contains("Discarded by tngo", StringComparison.Ordinal)));
+        var closeOut = entries.Last();
+        Assert.AreEqual(MessageKind.Question, closeOut.Message.Kind, "the close-out question, though not kept in the idea's conversation");
+        Assert.HasCount(2, closeOut.Message.Options!);
+    }
+
+    [TestMethod]
     public async Task While_proposed_other_text_goes_to_the_agent_to_revise()
     {
         var h = new Harness();
@@ -326,7 +342,7 @@ public sealed class IdeaServiceTests
             var options = Microsoft.Extensions.Options.Options.Create(new MessagingOptions());
             options.Value.Providers["discord"] = new MessagingProviderSettings { Enabled = true };
             Providers = new MessagingProviderRegistry([Chat], options);
-            Service = new IdeaService(Store, Registry, Worktrees, Agent, Providers, NullLogger<IdeaService>.Instance, WorkItems);
+            Service = new IdeaService(Store, Registry, Worktrees, Agent, Providers, NullLogger<IdeaService>.Instance, WorkItems, inbox: Inbox);
         }
 
         public MessagingProviderRegistry Providers { get; }
@@ -354,6 +370,8 @@ public sealed class IdeaServiceTests
         public Store Store { get; } = new();
 
         public IdeaService Service { get; }
+
+        public FakeInbox Inbox { get; } = new();
 
         public async Task WaitForMessagesAsync(int count)
         {

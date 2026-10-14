@@ -112,3 +112,6 @@ public sealed class ReviewSessionGuide : SqlMigration;
 
 [Migration(2026_11_02_0001, "The prompt log: every prompt sent to an agent, its rules stored once")]
 public sealed class AgentPrompts : SqlMigration;
+
+[Migration(2026_11_03_0001, "The Inbox: every message agentd sends a person, one thread per source")]
+public sealed class Inbox : SqlMigration;

@@ -43,7 +43,8 @@ public sealed partial class PrMonitor(
     IMessagingProviderRegistry providers,
     IClock clock,
     IPrFixRounds? rounds = null,
-    ILogger<PrMonitor>? logger = null)
+    ILogger<PrMonitor>? logger = null,
+    Inbox.IInbox? inbox = null)
 {
     public static readonly TimeSpan Quiet = TimeSpan.FromMinutes(5);
     public const int MaxRounds = 5;
@@ -179,7 +180,7 @@ public sealed partial class PrMonitor(
             comments > 0 ? string.Create(CultureInfo.InvariantCulture, $"{comments} new comment(s)") : null,
         }.OfType<string>());
 
-    private Task PostAsync(PrWatch w, string text, CancellationToken ct) => PrWatchNotices.PostAsync(watches, providers, w, text, ct);
+    private Task PostAsync(PrWatch w, string text, CancellationToken ct) => PrWatchNotices.PostAsync(watches, providers, w, text, ct, inbox, _logger);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Checking watched PR {Pr} failed; retrying next pass")]
     private static partial void LogFailed(ILogger logger, Exception exception, int pr);
