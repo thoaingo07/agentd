@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "The app's own servers page only. No remote URLs: a server's pages get no app access (desktop.md §2).",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

@@ -4,6 +4,10 @@ The dashboard runs inside agentd, at **http://127.0.0.1:7780** on the server. To
 `ssh -L 7780:127.0.0.1:7780 my-server`, or Cloudflare Tunnel + Access (see [Configuration → Web access](configuration.md#web-access)).
 It updates live; the dot in the header shows whether it's connected.
 
+**Desktop app** (early): `desktop/` builds a small window for the dashboard on Linux, Windows and macOS. Add your
+servers (name and URL) once and it opens the last one at start; **Servers…** in its menu switches. It runs no agentd of
+its own. Installers come from the `desktop` workflow's artifacts for now ([desktop.md](../architect/desktop.md)).
+
 ## The header
 
 - **The navigation:** Dashboard · History · Ideas · Chat · Reviews · Artifacts · Settings.

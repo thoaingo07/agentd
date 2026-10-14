@@ -653,6 +653,7 @@ agentd/
 - [workflow-and-learning.md](workflow-and-learning.md) — phases, gates, learnings capture → distill → review → apply
 - [model-profiles.md](model-profiles.md) — per-phase model and provider routing, fallbacks, cost
 - [system-log.md](system-log.md) — the daemon's own log in the database, Settings → System log (Admins)
+- [desktop.md](desktop.md) — the desktop app (Tauri): a window on your agentd servers, no local agentd
 - [artifacts.md](artifacts.md) — HTML pages agents publish (`publish_artifact`), served sandboxed at `/artifacts/<slug>-<hash>.html`
 - [ai-sdlc-kit.md](ai-sdlc-kit.md) — per-repo `.agentd/` kit: init, customize, upgrade, validate
 - [orchestration-maf.md](orchestration-maf.md) — Microsoft Agent Framework workflow graph, checkpoints, MAF agents
