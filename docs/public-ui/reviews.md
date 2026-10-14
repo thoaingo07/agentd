@@ -98,6 +98,12 @@ the changed files: **Files** finds file names (every word you type), **Text** fi
 **Match case** to be exact). A result in a changed file takes you to its diff; any other file opens read-only at the
 line it was found. Esc clears the search.
 
+### Viewing a whole file
+
+Each changed file has **📄 View file**: the entire file at the review's commit, with the lines the change added
+marked and the first change in view. **↩ Back to the diff** returns. A deleted file shows as it was before, with
+the removed lines marked.
+
 ## Talk, then choose
 
 **Keep talking:**

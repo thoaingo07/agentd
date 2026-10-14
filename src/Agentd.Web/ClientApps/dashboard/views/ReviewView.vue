@@ -421,6 +421,7 @@ const where = (a: { file?: string | null; line?: number | null; endLine?: number
             <DiffFileReview
               guided
               :file="file"
+              :session-id="s.id"
               :findings="forFile(file.newPath).findings"
               :comments="forFile(file.newPath).comments"
               :notes="notes"
@@ -465,6 +466,7 @@ const where = (a: { file?: string | null; line?: number | null; endLine?: number
               v-for="f in reviews.files"
               :key="f.newPath"
               :file="f"
+              :session-id="s.id"
               :findings="forFile(f.newPath).findings"
               :comments="forFile(f.newPath).comments"
               :readonly="readonly"

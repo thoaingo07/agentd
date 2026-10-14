@@ -2,10 +2,11 @@
 // Search beyond the diff (review-sessions.md §2): file names or text across the whole repository at the review's head
 // commit. A changed file opens its diff on the page; any other file opens here, read-only, at the line found.
 // "/" focuses the box, Esc clears it.
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ApiError, get } from '../api/http'
 import type { ReviewFile, ReviewSearch, ReviewSearchHit } from '../api/types'
 import { fileName, folder } from '../utils/paths'
+import CommitFileView from './CommitFileView.vue'
 
 const props = defineProps<{ sessionId: number; changed: readonly string[] }>()
 const emit = defineEmits<{ openDiff: [path: string] }>()
@@ -56,8 +57,6 @@ async function open(path: string, line: number | null = null): Promise<void> {
 
   try {
     viewing.value = { file: await get<ReviewFile>(`/api/reviews/${props.sessionId}/file?path=${encodeURIComponent(path)}`), line }
-    await nextTick()
-    document.getElementById(`search-line-${line}`)?.scrollIntoView?.({ block: 'center' })
   } catch (err) {
     error.value = err instanceof ApiError ? err.message : 'The file can\'t be read.'
   }
@@ -65,7 +64,6 @@ async function open(path: string, line: number | null = null): Promise<void> {
 
 /** The snippet in three parts, so the match is marked without any HTML from the server. */
 const parts = (h: ReviewSearchHit) => [h.snippet.slice(0, h.matchStart), h.snippet.slice(h.matchStart, h.matchStart + h.matchLength), h.snippet.slice(h.matchStart + h.matchLength)]
-const lines = computed(() => viewing.value?.file.text.split('\n') ?? [])
 
 function onKey(e: KeyboardEvent): void {
   const typing = e.target instanceof Element && e.target.closest('input, textarea, select, [contenteditable="true"]')
@@ -193,32 +191,13 @@ onBeforeUnmount(() => {
           Close
         </button>
       </div>
-      <p
-        v-if="viewing.file.binary"
-        class="ag-meta"
-      >
-        A binary file: not shown.
-      </p>
-      <div
-        v-else
-        class="ag-code"
-      >
-        <div
-          v-for="(text, i) in lines"
-          :id="`search-line-${i + 1}`"
-          :key="i"
-          class="ag-code-line"
-          :class="{ 'is-hit': viewing.line === i + 1 }"
-        >
-          <span class="text-right text-muted select-none">{{ i + 1 }}</span><span>{{ text }}</span>
-        </div>
-        <p
-          v-if="viewing.file.truncated"
-          class="ag-meta px-2 py-1"
-        >
-          … the rest of this file is too big to show here.
-        </p>
-      </div>
+      <CommitFileView
+        :text="viewing.file.text"
+        :truncated="viewing.file.truncated"
+        :binary="viewing.file.binary"
+        :highlight="new Set(viewing.line ? [viewing.line] : [])"
+        :focus="viewing.line"
+      />
     </section>
   </div>
 </template>
