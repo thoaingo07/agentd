@@ -24,7 +24,8 @@ public sealed class ReviewSessionSend(
     IPullRequestService pullRequests,
     AdoOnBehalf? onBehalf = null,
     AdoActor? actor = null,
-    ReviewSessionFixer? fixer = null)
+    ReviewSessionFixer? fixer = null,
+    IReviewSessionPosts? posts = null)
 {
     public const string ToPullRequest = "pr";
     public const string AsText = "text";
@@ -77,6 +78,7 @@ public sealed class ReviewSessionSend(
         var kept = ReviewFeedback.Kept(session.Findings);
         var posted = new List<ReviewFinding>();
         var threads = 0;
+        int? mainThread = null;
         using (actor?.Begin(person))
         {
             try
@@ -94,8 +96,10 @@ public sealed class ReviewSessionSend(
                     threads++;
                 }
 
-                var main = await pullRequests.CreateThreadAsync(repo, pr, ReviewFindings.MainMessage(new ReviewResult(session.Summary ?? string.Empty, posted), session.HeadCommit, rechecks: false), null, null, ct)
-                    .ConfigureAwait(false);
+                // Findings to fix are re-checked after each push (ReviewSessionRechecker) when the Send is kept.
+                var main = await pullRequests.CreateThreadAsync(repo, pr, ReviewFindings.MainMessage(new ReviewResult(session.Summary ?? string.Empty, posted), session.HeadCommit,
+                    rechecks: posts is not null), null, null, ct).ConfigureAwait(false);
+                mainThread = main;
                 threads++;
                 if (posted.Count == 0)
                 {
@@ -111,6 +115,13 @@ public sealed class ReviewSessionSend(
         }
 
         await store.SetStatusAsync(session.Id, ReviewSessionStatus.Sent, null, $"{ToPullRequest}:{pr}", ct).ConfigureAwait(false);
+        if (posts is not null && posted.Count > 0)
+        {
+            // Replies already on the PR don't count: only what people say after the Send.
+            await posts.SetAsync(session.Id, pr, new ReviewResult(session.Summary ?? string.Empty, posted, mainThread, DateTimeOffset.UtcNow), session.HeadCommit, ct)
+                .ConfigureAwait(false);
+        }
+
         var url = (await pullRequests.GetAsync(repo, pr, ct).ConfigureAwait(false))?.Url;
         return new ReviewSent(ToPullRequest, null, url, threads, person is not null);
     }
