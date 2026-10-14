@@ -75,8 +75,18 @@ internal static class DaemonHost
             pipeline.UseRateLimiter();
         });
 
+        return await RunUntilStoppedAsync(app, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Runs the host until it stops; <see cref="Cli.ExitCodes.Restart"/> when Settings asked for a restart, so the supervisor
+    /// starts agentd again. <c>RunAsync</c> disposes the host's services when it returns, so the restart is looked up first.
+    /// </summary>
+    internal static async Task<int> RunUntilStoppedAsync(WebApplication app, CancellationToken cancellationToken)
+    {
+        var restart = app.Services.GetRequiredService<DaemonRestart>();
         await app.RunAsync(cancellationToken).ConfigureAwait(false);
-        return app.Services.GetRequiredService<DaemonRestart>().Requested ? Cli.ExitCodes.Restart : Cli.ExitCodes.Ok;
+        return restart.Requested ? Cli.ExitCodes.Restart : Cli.ExitCodes.Ok;
     }
 
     /// <summary>
