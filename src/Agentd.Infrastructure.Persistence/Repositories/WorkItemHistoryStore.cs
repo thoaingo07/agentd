@@ -50,5 +50,5 @@ public sealed class WorkItemHistoryStore(NpgsqlDataSource dataSource, IClock clo
         return messages;
     }
 
-    private static NpgsqlParameter P(object? value, NpgsqlDbType type) => new() { Value = value ?? DBNull.Value, NpgsqlDbType = type };
+    private static NpgsqlParameter P(object? value, NpgsqlDbType type) => PgParameter.Of(value, type);
 }

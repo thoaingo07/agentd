@@ -38,5 +38,5 @@ public sealed class InboundLog(NpgsqlDataSource dataSource) : IInboundLog
         await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    private static NpgsqlParameter P(object? value, NpgsqlDbType type) => new() { Value = value ?? DBNull.Value, NpgsqlDbType = type };
+    private static NpgsqlParameter P(object? value, NpgsqlDbType type) => PgParameter.Of(value, type);
 }

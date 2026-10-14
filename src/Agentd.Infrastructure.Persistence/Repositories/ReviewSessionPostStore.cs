@@ -61,5 +61,5 @@ public sealed class ReviewSessionPostStore(NpgsqlDataSource dataSource) : IRevie
         return rows;
     }
 
-    private static NpgsqlParameter P(object? value, NpgsqlDbType type) => new() { Value = value ?? DBNull.Value, NpgsqlDbType = type };
+    private static NpgsqlParameter P(object? value, NpgsqlDbType type) => PgParameter.Of(value, type);
 }

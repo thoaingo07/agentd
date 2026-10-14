@@ -12,7 +12,7 @@ public sealed class Outbox(NpgsqlDataSource dataSource) : IOutbox
     {
         await using var cmd = dataSource.CreateCommand("SELECT agentd.outbox_enqueue($1, $2)");
         cmd.Parameters.Add(new NpgsqlParameter { Value = jobId.Value, NpgsqlDbType = NpgsqlDbType.Bigint });
-        cmd.Parameters.Add(new NpgsqlParameter { Value = OutboxPayload.EnqueueJson(messages), NpgsqlDbType = NpgsqlDbType.Jsonb });
+        cmd.Parameters.Add(PgParameter.Of(OutboxPayload.EnqueueJson(messages), NpgsqlDbType.Jsonb));
         await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 }

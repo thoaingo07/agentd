@@ -150,5 +150,5 @@ public sealed class JobRepository(NpgsqlDataSource dataSource, IClock clock) : I
         return (await JobRows.ReadAllAsync(reader, ct).ConfigureAwait(false)).Select(s => Job.Rehydrate(s, clock)).ToList();
     }
 
-    private static NpgsqlParameter P(object? value, NpgsqlDbType type) => new() { Value = value ?? DBNull.Value, NpgsqlDbType = type };
+    private static NpgsqlParameter P(object? value, NpgsqlDbType type) => PgParameter.Of(value, type);
 }

@@ -119,5 +119,5 @@ public sealed class ConversationStore(NpgsqlDataSource dataSource) : IConversati
         return await reader.ReadAsync(cancellationToken).ConfigureAwait(false) ? new DisabledProviders(reader.GetInt32(0), reader.GetInt32(1)) : new DisabledProviders(0, 0);
     }
 
-    private static NpgsqlParameter P(object? value, NpgsqlDbType type) => new() { Value = value ?? DBNull.Value, NpgsqlDbType = type };
+    private static NpgsqlParameter P(object? value, NpgsqlDbType type) => PgParameter.Of(value, type);
 }

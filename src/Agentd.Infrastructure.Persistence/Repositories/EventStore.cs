@@ -70,5 +70,5 @@ public sealed class EventStore(NpgsqlDataSource dataSource) : IEventStore, IEven
         return events;
     }
 
-    private static NpgsqlParameter P(object? value, NpgsqlDbType type) => new() { Value = value ?? DBNull.Value, NpgsqlDbType = type };
+    private static NpgsqlParameter P(object? value, NpgsqlDbType type) => PgParameter.Of(value, type);
 }

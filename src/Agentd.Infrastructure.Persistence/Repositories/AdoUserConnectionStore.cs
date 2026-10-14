@@ -76,7 +76,7 @@ public sealed class AdoUserConnectionStore(NpgsqlDataSource dataSource) : IAdoUs
 
     private static NpgsqlParameter Id(Guid value) => new() { Value = value, NpgsqlDbType = NpgsqlDbType.Uuid };
 
-    private static NpgsqlParameter T(string value) => new() { Value = value, NpgsqlDbType = NpgsqlDbType.Text };
+    private static NpgsqlParameter T(string value) => PgParameter.Of(value, NpgsqlDbType.Text);
 
     private static NpgsqlParameter OptionalT(string? value) => new() { Value = (object?)value ?? DBNull.Value, NpgsqlDbType = NpgsqlDbType.Text };
 
