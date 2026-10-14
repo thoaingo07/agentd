@@ -115,6 +115,44 @@ public sealed class SetupAdapterTests : IDisposable
     }
 
     [TestMethod]
+    public async Task A_list_from_appsettings_is_set_below_agentd_json_and_a_copy_there_merges_cleanly()
+    {
+        // The demo's sysmin comes from appsettings.Development.json; agentd.json has no list until the first add.
+        var appsettings = Path.Combine(_home.Root, "appsettings.Development.json");
+        File.WriteAllText(appsettings, """
+            { "Agentd": { "Repositories": { "Items": [ { "Url": "git@erm-azdo:v3/ermsystem/Portal/sysmin", "MatchTag": "repo:sysmin" } ] } } }
+            """);
+        var running = new ConfigurationManager();
+        running.AddJsonFile(appsettings);
+        running.AddConfigHome(_home, []);
+        using var file = new AgentdJsonFile(_home, running);
+
+        Assert.AreEqual("appsettings.Development.json", file.SetBelow("Repositories:Items:0:MatchTag"));
+        Assert.IsNull(file.SetBelow("Repositories:Items:0:Name"));
+        Assert.IsNull(file.SetBelow("Repositories:Items:1:Url"));
+
+        // What adding portal-api writes: the list copied into agentd.json, then the new one right after it.
+        await file.SetAsync(new Dictionary<string, string?>
+        {
+            ["Repositories:Items:0:Url"] = "git@erm-azdo:v3/ermsystem/Portal/sysmin",
+            ["Repositories:Items:0:Name"] = null,
+            ["Repositories:Items:0:MatchTag"] = "repo:sysmin",
+            ["Repositories:Items:0:MatchAreaPaths"] = null,
+            ["Repositories:Items:1:Url"] = "git@erm-azdo:v3/ermsystem/Portal/portal-api",
+            ["Repositories:Items:1:Name"] = "portal-api",
+            ["Repositories:Items:1:MatchAreaPaths"] = null,
+        }, CancellationToken.None);
+
+        var settled = new ConfigurationManager();
+        settled.AddJsonFile(appsettings);
+        settled.AddConfigHome(_home, []);
+        var items = settled.GetSection("Agentd:Repositories:Items").GetChildren().ToList();
+        CollectionAssert.AreEqual(new[] { "git@erm-azdo:v3/ermsystem/Portal/sysmin", "git@erm-azdo:v3/ermsystem/Portal/portal-api" }, items.Select(i => i["Url"]).ToArray());
+        Assert.AreEqual("repo:sysmin", items[0]["MatchTag"]);
+        Assert.IsNull(items[1]["MatchTag"]);
+    }
+
+    [TestMethod]
     public void A_secret_from_the_environment_counts_as_set()
     {
         // Docker Compose passes the database as ConnectionStrings__agentd; containers pass AGENTD_AzureDevOps__Pat.

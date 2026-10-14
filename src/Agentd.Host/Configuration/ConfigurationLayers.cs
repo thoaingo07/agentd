@@ -1,3 +1,6 @@
+using Microsoft.Extensions.Configuration.CommandLine;
+using Microsoft.Extensions.Configuration.EnvironmentVariables;
+
 namespace Agentd.Host.Configuration;
 
 /// <summary>
@@ -29,6 +32,26 @@ internal static class ConfigurationLayers
             KeyVaultConfigurationSource.Provider vault => $"Key Vault ({vault.Vault})",
             SecretsConfigurationSource.Provider => "the secret store",
             _ => "an environment variable or the command line",
+        };
+    }
+
+    /// <summary>What supplies <paramref name="key"/> (a full path, <c>Agentd:…</c>) under agentd.json, or null.</summary>
+    public static string? SetBelow(IConfiguration? configuration, string key)
+    {
+        if (configuration is not IConfigurationRoot root)
+        {
+            return null;
+        }
+
+        var providers = root.Providers.ToList();
+        var secrets = providers.FindIndex(p => p is SecretsConfigurationSource.Provider);
+        return providers.Take(Math.Max(secrets - 1, 0)).LastOrDefault(p => p.TryGet(key, out var value) && !string.IsNullOrEmpty(value)) switch
+        {
+            null => null,
+            FileConfigurationProvider file => file.Source.Path ?? "a settings file",
+            EnvironmentVariablesConfigurationProvider => "an environment variable",
+            CommandLineConfigurationProvider => "the command line",
+            _ => "agentd's built-in defaults",
         };
     }
 }

@@ -371,13 +371,55 @@ public sealed class SetupServiceTests
         var removed = await Service().RemoveRepositoryAsync("BETA", "admin", CancellationToken.None);
         var unknown = await Service().RemoveRepositoryAsync("nope", "admin", CancellationToken.None);
 
-        Assert.AreEqual((true, false), (removed, unknown));
+        Assert.AreEqual((true, false), (removed.Value, unknown.Value));
         var left = Service().GetRepositories();
         CollectionAssert.AreEqual(new[] { "alpha", "sysmin" }, left.Select(r => r.Name).ToArray());
         CollectionAssert.AreEqual(new[] { "Portal\\Sysmin" }, left[1].MatchAreaPaths.ToList(), "moved up with its own area paths only");
-        Assert.IsNull(_config.Values["Repositories:Items:2:Url"]);
-        Assert.IsNull(_config.Values["Repositories:Items:1:MatchAreaPaths:1"], "the removed one's extra area path doesn't stick to the next");
+        Assert.IsNull(_config.Read("Repositories:Items:2:Url"));
+        Assert.IsNull(_config.Read("Repositories:Items:1:MatchAreaPaths:1"), "the removed one's extra area path doesn't stick to the next");
         Assert.AreEqual(("Repositories:Items:1", "removed"), (_audit.Changes.Single().Key, _audit.Changes.Single().Action));
+    }
+
+    [TestMethod]
+    public async Task Adding_to_a_list_from_appsettings_copies_it_into_agentd_json_first()
+    {
+        // The demo: sysmin comes from appsettings.Development.json and agentd.json has no list; adding wrote slot 1 into an
+        // empty list ("Index 1 would leave a gap").
+        _config.AppSettings["Repositories:Items:0:Url"] = "git@erm-azdo:v3/ermsystem/Portal/sysmin";
+        _config.AppSettings["Repositories:Items:0:MatchTag"] = "repo:sysmin";
+
+        var result = await Service().AddRepositoryAsync(new RepositoryInput("git@erm-azdo:v3/ermsystem/Portal/portal-api", null, "develop", null, null), "admin", CancellationToken.None);
+
+        Assert.IsTrue(result.IsSuccess, result.Error?.Message);
+        Assert.AreEqual("git@erm-azdo:v3/ermsystem/Portal/sysmin", _config.Values["Repositories:Items:0:Url"], "copied as is");
+        Assert.AreEqual("repo:sysmin", _config.Values["Repositories:Items:0:MatchTag"]);
+        Assert.AreEqual("git@erm-azdo:v3/ermsystem/Portal/portal-api", _config.Values["Repositories:Items:1:Url"]);
+        CollectionAssert.AreEqual(new[] { "sysmin", "portal-api" }, Service().GetRepositories().Select(r => r.Url.Split('/')[^1]).ToArray());
+    }
+
+    [TestMethod]
+    public async Task Removing_is_refused_when_appsettings_would_bring_a_repository_or_a_value_back()
+    {
+        _config.AppSettings["Repositories:Items:0:Url"] = "git@erm-azdo:v3/ermsystem/Portal/sysmin";
+        _config.AppSettings["Repositories:Items:0:MatchTag"] = "repo:sysmin";
+        _config.Values["Repositories:Items:0:Url"] = "git@erm-azdo:v3/ermsystem/Portal/sysmin";
+        _config.Values["Repositories:Items:0:MatchTag"] = "repo:sysmin";
+        _config.Values["Repositories:Items:1:Url"] = "git@erm-azdo:v3/ermsystem/Portal/portal-api";
+        _config.Values["Repositories:Items:1:Name"] = "portal-api";
+        _config.Values["Repositories:Items:2:Url"] = "git@erm-azdo:v3/ermsystem/Portal/portal-core";
+        _config.Values["Repositories:Items:2:Name"] = "portal-core";
+        _config.Values["Repositories:Items:2:MatchAreaPaths:0"] = "Portal\\Core";
+
+        var later = await Service().RemoveRepositoryAsync("portal-api", "admin", CancellationToken.None);
+        Assert.IsTrue(later.Value, "a repository after the appsettings list goes");
+        CollectionAssert.AreEqual(new[] { "sysmin", "portal-core" }, Service().GetRepositories().Select(r => r.Url.Split('/')[^1]).ToArray());
+
+        _audit.Changes.Clear();
+        var first = await Service().RemoveRepositoryAsync("sysmin", "admin", CancellationToken.None);
+        Assert.AreEqual("validation", first.Error?.Code, "portal-core (no tag) would move into slot 0 and get sysmin's tag from appsettings");
+        Assert.Contains("Repositories:Items:0:MatchTag (appsettings.json)", first.Error!.Message);
+        Assert.AreEqual(2, Service().GetRepositories().Count, "nothing written");
+        Assert.IsEmpty(_audit.Changes);
     }
 
     [TestMethod]
@@ -569,7 +611,12 @@ public sealed class SetupServiceTests
     {
         public Dictionary<string, string?> Values { get; } = new(StringComparer.OrdinalIgnoreCase);
 
-        public string? Read(string key) => Values.GetValueOrDefault(key);
+        /// <summary>What appsettings (a source under agentd.json) supplies: read when agentd.json has no value.</summary>
+        public Dictionary<string, string> AppSettings { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+        public string? Read(string key) => Values.GetValueOrDefault(key) ?? AppSettings.GetValueOrDefault(key);
+
+        public string? SetBelow(string key) => AppSettings.ContainsKey(key) ? "appsettings.json" : null;
 
         public IReadOnlyList<string> Children(string section) =>
             [.. Values.Keys.Where(k => k.StartsWith(section + ":", StringComparison.OrdinalIgnoreCase)).Select(k => k[(section.Length + 1)..].Split(':')[0]).Distinct(StringComparer.OrdinalIgnoreCase)];
@@ -578,6 +625,15 @@ public sealed class SetupServiceTests
         {
             foreach (var (k, v) in values)
             {
+                if (v is null)
+                {
+                    // Like agentd.json: removing a key removes what's under it.
+                    foreach (var under in Values.Keys.Where(x => x.StartsWith(k + ":", StringComparison.OrdinalIgnoreCase)).ToList())
+                    {
+                        Values.Remove(under);
+                    }
+                }
+
                 Values[k] = v;
             }
 

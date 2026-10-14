@@ -305,7 +305,7 @@ public sealed class SetupEndpointTests : IDisposable
         using var gone = await admin.SendAsync(HttpMethod.Delete, "/api/settings/repositories/sysmin");
 
         Assert.AreEqual((HttpStatusCode.NoContent, HttpStatusCode.NotFound), (removed.StatusCode, gone.StatusCode));
-        Assert.IsNull(_config["Repositories:Items:0:Url"], "out of agentd.json: not registered again at the next start");
+        Assert.IsNull(_config.GetValueOrDefault("Repositories:Items:0:Url"), "out of agentd.json: not registered again at the next start");
     }
 
     [TestMethod]
@@ -384,6 +384,15 @@ public sealed class SetupEndpointTests : IDisposable
         {
             foreach (var (k, v) in changes)
             {
+                if (v is null)
+                {
+                    // Like agentd.json: removing a key removes what's under it.
+                    foreach (var under in values.Keys.Where(x => x.StartsWith(k + ":", StringComparison.OrdinalIgnoreCase)).ToList())
+                    {
+                        values.Remove(under);
+                    }
+                }
+
                 values[k] = v;
             }
 

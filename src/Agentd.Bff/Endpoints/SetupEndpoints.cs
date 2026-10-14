@@ -117,10 +117,16 @@ public static class SetupEndpoints
         {
             // Out of agentd.json (so it isn't registered again at the next start) and out of the running registry; job history stays.
             var fromConfig = await service.RemoveRepositoryAsync(name, By(user), ct).ConfigureAwait(false);
+            if (!fromConfig.IsSuccess)
+            {
+                return fromConfig.Error.ToProblem();   // set under agentd.json too: it would come back at the next start
+            }
+
             var fromRegistry = unregister is not null && RepositoryName.Create(name) is { IsSuccess: true } valid
                 && (await unregister.Handle(new RemoveRepository(valid.Value), ct).ConfigureAwait(false)).IsSuccess;
-            return fromConfig || fromRegistry ? TypedResults.NoContent() : DomainError.NotFound($"Repository '{name}'").ToProblem();
-        }).WithName($"Remove{prefix}Repository").Produces(StatusCodes.Status204NoContent).ProducesProblem(StatusCodes.Status404NotFound);
+            return fromConfig.Value || fromRegistry ? TypedResults.NoContent() : DomainError.NotFound($"Repository '{name}'").ToProblem();
+        }).WithName($"Remove{prefix}Repository").Produces(StatusCodes.Status204NoContent).ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status404NotFound);
         setup.MapPost("/repositories/test", async (GitTestRequest? body, [FromServices] SetupService service, CancellationToken ct) =>
             Check(await service.TestRepositoryAsync(body?.Url, ct).ConfigureAwait(false)))
             .WithName($"Test{prefix}Repository").Accepts<GitTestRequest>("application/json").Produces<StepCheckVm>();
