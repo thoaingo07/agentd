@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import type { GuideNote, ReviewComment, ReviewFinding } from '../api/types'
+import { ApiError, get } from '../api/http'
+import type { GuideNote, ReviewComment, ReviewFile, ReviewFinding } from '../api/types'
+import CommitFileView from './CommitFileView.vue'
 import type { DiffFile, DiffLine } from '../utils/diff'
 import { isGenerated } from '../utils/generated'
 import { AgButton } from '../components/ui'
@@ -9,7 +11,7 @@ import FindingCard from './FindingCard.vue'
 // One file of the change with its findings, comments and (in a guided review) the reviewer's notes at their lines; click a
 // line number to comment there. `guided`: the guided review's right pane, which shows the path itself: no frame, the gap
 // between hunks as "N unmodified lines", and long unchanged runs folded (a click unfolds them).
-const props = defineProps<{ file: DiffFile; findings: ReviewFinding[]; comments: ReviewComment[]; readonly?: boolean; notes?: GuideNote[]; guided?: boolean }>()
+const props = defineProps<{ file: DiffFile; findings: ReviewFinding[]; comments: ReviewComment[]; readonly?: boolean; notes?: GuideNote[]; guided?: boolean; sessionId?: number }>()
 const emit = defineEmits<{
   decide: [n: number, decision: 'kept' | 'dropped' | 'edited', text?: string]
   comment: [line: number, text: string]
@@ -27,6 +29,32 @@ const generated = computed(() => isGenerated(props.file.newPath))
 /** A generated file's diff is hidden until asked, unless the reviewer found something in it. */
 const shown = ref(!generated.value || props.findings.length > 0)
 const draft = ref('')
+
+/**
+ * View file: the whole file at the review's head commit (a deleted file: at its base), with the lines this change
+ * added marked (deleted: the lines it removed), scrolled to the first; Back to the diff returns. Reading is fine on a
+ * sent review too.
+ */
+const whole = ref<ReviewFile | null>(null)
+const viewingFile = ref(false)
+const wholeError = ref<string | null>(null)
+const deleted = computed(() => props.file.status === 'deleted')
+const changedLines = computed(() => new Set(props.file.hunks.flatMap((h) => h.lines
+  .filter((l) => (deleted.value ? l.kind === 'del' : l.kind === 'add'))
+  .map((l) => (deleted.value ? l.oldNo : l.newNo))
+  .filter((n): n is number => n != null))))
+const firstChange = computed(() => Math.min(...changedLines.value, Number.MAX_SAFE_INTEGER))
+async function viewFile(): Promise<void> {
+  viewingFile.value = !viewingFile.value
+  if (!viewingFile.value || whole.value || props.sessionId == null) return
+  try {
+    const path = deleted.value ? props.file.oldPath : props.file.newPath
+    whole.value = await get<ReviewFile>(`/api/reviews/${props.sessionId}/file?path=${encodeURIComponent(path)}&ref=${deleted.value ? 'base' : 'head'}`)
+    wholeError.value = null
+  } catch (err) {
+    wholeError.value = err instanceof ApiError ? err.message : 'The file can\'t be read.'
+  }
+}
 
 /** Findings and comments by the new-side line they're on; ones off the diff go at the top. */
 const byLine = computed(() => {
@@ -120,7 +148,7 @@ function send(kind: 'comment' | 'ask'): void {
     :class="guided ? '' : 'rounded-box border border-base-300'"
   >
     <h3
-      v-if="!guided || generated || !readonly"
+      v-if="!guided || generated || !readonly || sessionId != null"
       class="flex items-center gap-2 font-mono text-xs"
       :class="guided ? '-mt-2 justify-end' : 'border-b border-base-300 px-3 py-2'"
     >
@@ -133,10 +161,22 @@ function send(kind: 'comment' | 'ask'): void {
         class="badge badge-sm font-sans"
       >generated</span>
       <AgButton
-        v-if="!readonly"
+        v-if="sessionId != null && !file.binary"
         size="sm"
         variant="ghost"
         class="ml-auto font-sans"
+        :aria-pressed="viewingFile"
+        data-testid="view-file"
+        @click="viewFile"
+      >
+        {{ viewingFile ? '↩ Back to the diff' : '📄 View file' }}
+      </AgButton>
+      <AgButton
+        v-if="!readonly"
+        size="sm"
+        variant="ghost"
+        class="font-sans"
+        :class="sessionId != null && !file.binary ? '' : 'ml-auto'"
         data-testid="explain-file"
         @click="emit('explainFile')"
       >
@@ -156,8 +196,38 @@ function send(kind: 'comment' | 'ask'): void {
         @explain="emit('explainFinding', f)"
       />
     </div>
+    <div
+      v-if="viewingFile"
+      class="grid gap-1 px-3 pb-3"
+      data-testid="whole-file"
+    >
+      <p class="ag-meta">
+        {{ deleted ? 'The file before this change deleted it (at the base commit); the removed lines are marked.' : 'The whole file at the review\'s commit; the lines this change added are marked.' }}
+      </p>
+      <p
+        v-if="wholeError"
+        class="text-sm text-error"
+        role="alert"
+      >
+        {{ wholeError }}
+      </p>
+      <CommitFileView
+        v-else-if="whole"
+        :text="whole.text"
+        :truncated="whole.truncated"
+        :binary="whole.binary"
+        :highlight="changedLines"
+        :focus="firstChange === Number.MAX_SAFE_INTEGER ? null : firstChange"
+      />
+      <p
+        v-else
+        class="ag-meta"
+      >
+        Loading…
+      </p>
+    </div>
     <p
-      v-if="!shown"
+      v-else-if="!shown"
       class="flex flex-wrap items-center gap-2 px-3 pb-2 text-sm"
       data-testid="generated-hidden"
     >
@@ -177,7 +247,7 @@ function send(kind: 'comment' | 'ask'): void {
       Binary file.
     </p>
     <table
-      v-for="(h, hi) in shown ? file.hunks : []"
+      v-for="(h, hi) in shown && !viewingFile ? file.hunks : []"
       :key="hi"
       class="w-full border-collapse font-mono text-[12px] leading-5"
       :class="guided ? 'overflow-hidden rounded-box bg-base-100' : ''"

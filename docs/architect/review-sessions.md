@@ -81,6 +81,10 @@ Diff · Findings), and the inline cards in the diff.
   names (**Files**) or text (**Text**, **Match case**) across the repository at the head commit. A hit in a changed file
   opens its diff (All files); any other file opens read-only below the box, at the line found. The match is marked as
   text (never HTML).
+- **View file** (added 2026-10-14): every changed file's header (All files and a guided chapter's right pane) has
+  **📄 View file**: the whole file at the head commit, read-only with line numbers, the lines the change added marked
+  and the first one scrolled into view; **↩ Back to the diff** returns. A deleted file shows at the base commit
+  (`ref=base`) with its removed lines marked. Big files are cut (it says so); a sent review can still view.
 - **Resizable left panes** (added 2026-10-14): the All files tree and a guided chapter's left pane resize by dragging
   their right edge (arrow keys when the handle has focus, Shift for bigger steps, double-click for the default width).
   The width is kept per browser (`agentd.pane.review-tree`, `agentd.pane.guide-chapter`).
