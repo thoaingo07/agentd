@@ -1,8 +1,14 @@
 # agentd — Incident monitor (Application Insights)
 
 > Decided 2026-10-14. It replaces the PR Monitor's place: agentd watches **running apps**, not PRs.
-> Built in three PRs. **PR 1 (this one)** detects incidents and alerts on them. **PR 2** investigates and offers
-> **Fix it**. **PR 3** adds the web pages. The PR 2 and PR 3 sections below are marked *next*.
+> Built in steps:
+> - **PR 1 detects incidents and alerts on them.** It's split in two to stay small: **1a** has the incident types,
+>   options, tables, routines and store; **1b** has the monitor pass, the Application Insights source, the worker and
+>   the alerts.
+> - **PR 2** investigates and offers **Fix it**.
+> - **PR 3** adds the web pages.
+>
+> The PR 2 and PR 3 sections below are marked *next*.
 
 agentd reads each configured app's **Application Insights** telemetry for exceptions and failed requests. It groups
 them into **incidents**, one per bug however often it happens, and alerts in a 🚨 thread on the chat channel, or in the
@@ -37,7 +43,7 @@ principal (`AZURE_CLIENT_ID` / `AZURE_TENANT_ID` / `AZURE_CLIENT_SECRET`), then 
 **Reader** (or **Monitoring Reader**) on each component; there are no API keys. The Startup validation rejects a bad
 list (duplicate names, an id that isn't a component, no repository).
 
-## 2. Detecting (PR 1)
+## 2. Detecting (PR 1: 1a store, 1b pass and alerts)
 
 `IncidentMonitorWorker` runs every `PollInterval` while the monitor is enabled, independent of the job scheduler. Each
 pass runs `IncidentMonitor.PassAsync`. For each app, it reads the window `[cursor, now)`, where the first pass uses
