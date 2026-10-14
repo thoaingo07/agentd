@@ -351,6 +351,11 @@ public sealed partial class ReviewService(
                 var main = await pullRequests.CreateThreadAsync(repo, review.PullRequestId, ReviewFindings.MainMessage(postedResult, review.HeadCommit), null, null, ct).ConfigureAwait(false);
                 posted.Add(main);
                 postedResult = postedResult with { MainThread = main };
+                if (ReviewFindings.AllResolved(postedResult))
+                {
+                    // Nothing to fix: the review is done as soon as it's posted.
+                    await pullRequests.SetThreadStatusAsync(repo, review.PullRequestId, main, PullRequestThreadStatus.Fixed, ct).ConfigureAwait(false);
+                }
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -548,6 +553,12 @@ public sealed partial class ReviewService(
             try
             {
                 await pullRequests.UpdateThreadTextAsync(repo, review.PullRequestId, main, ReviewFindings.MainMessage(result, review.HeadCommit), ct).ConfigureAwait(false);
+                var (before, now) = (ReviewFindings.AllResolved(posted), ReviewFindings.AllResolved(result));
+                if (before != now)
+                {
+                    // Everything fixed or closed: the main message is resolved too; a finding open again reopens it.
+                    await pullRequests.SetThreadStatusAsync(repo, review.PullRequestId, main, now ? PullRequestThreadStatus.Fixed : PullRequestThreadStatus.Active, ct).ConfigureAwait(false);
+                }
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {

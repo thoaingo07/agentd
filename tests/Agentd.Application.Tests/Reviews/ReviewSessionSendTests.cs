@@ -36,8 +36,26 @@ public sealed class ReviewSessionSendTests
         Assert.AreEqual(("💬 make the size config", "src/Sync.cs", (int?)58), (threads[2].Text, threads[2].File, threads[2].Line));
         StringAssert.Contains(threads[3].Text, "**Review** · 2 finding(s)");
         Assert.DoesNotContain("agentd checks again after every push", threads[3].Text, "a page's post isn't re-checked");
+        Assert.IsEmpty(_t.PullRequests.ThreadStatus, "findings to fix: every thread stays active");
         Assert.IsTrue(_t.PullRequests.ThreadsAs.All(a => a == s_dev), "every thread under the reviewer's name");
         Assert.AreEqual((ReviewSessionStatus.Sent, "pr:3944"), (_store.Sessions[id].Status, _store.Sessions[id].SentTo));
+    }
+
+    [TestMethod]
+    public async Task A_review_with_nothing_kept_posts_its_main_message_resolved_and_leaves_comments_open()
+    {
+        var id = await ReadyAsync(ReviewTargets.PullRequest, 3944);
+        await _store.DecideAsync(id, 0, FindingDecisions.Dropped, null, default);
+        await _store.DecideAsync(id, 2, FindingDecisions.Dropped, null, default);
+
+        var sent = (await Send().SendAsync(id, ReviewSessionSend.ToPullRequest, default)).Value!;
+
+        var threads = _t.PullRequests.Threads;
+        Assert.AreEqual(2, sent.Posted, "the comment and the main message");
+        StringAssert.StartsWith(threads[0].Text, "💬 make the size config");
+        StringAssert.StartsWith(threads[1].Text, "**Review** · 0 finding(s)");
+        Assert.AreEqual(1, _t.PullRequests.ThreadStatus.Count);
+        Assert.AreEqual(PullRequestThreadStatus.Fixed, _t.PullRequests.ThreadStatus[102], "the main message, resolved; the comment stays active");
     }
 
     [TestMethod]

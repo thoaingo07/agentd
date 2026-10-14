@@ -227,6 +227,11 @@ Who may start one: anyone signed in to the web UI (or allowed in chat), for regi
 The text sent is the same everywhere: the kept and edited findings (worst first, with file:line and the fix), then
 the comments, each with its location.
 
+**Resolving on the PR** (added 2026-10-14): a post with no findings resolves its main message as it's posted (status
+Fixed, "Resolved" in Azure DevOps; your comments stay active). A chat `!review`'s re-check resolves each fixed or
+closed finding's thread, and once none is open it adds "all resolved ✅" to the main message and resolves it too; a
+finding open again in a later re-check sets both active again. A page's Send isn't re-checked after a push yet.
+
 ## 5. `agentd review` on a laptop (the developer's own Claude)
 
 ```bash
