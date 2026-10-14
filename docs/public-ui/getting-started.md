@@ -185,6 +185,10 @@ See [configuration](configuration.md#another-provider-for-a-step-deepseek) for h
 
 ## 6. Chat (optional): Discord
 
+**No chat at all is fine:** skip this step and use the web UI. Its **Inbox** gets every question, plan, result and
+failure, with the answers' buttons, and a finished job closes by itself. See
+[Run agentd standalone](../../README.md#run-agentd-standalone-no-chat).
+
 1. Create a Discord application with a bot and invite it to your server.
 2. Give it permission to read and send messages, create threads, and manage threads.
 3. Configure it:
