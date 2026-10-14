@@ -460,7 +460,40 @@ public sealed class SetupServiceTests
 
         Assert.AreEqual("Reached ermsystem/Portal/sysmin; its default branch is develop.", ok.Message);
         Assert.IsFalse(failed.Ok);
-        Assert.Contains("Git access", failed.Fix!);
+        Assert.Contains("over HTTPS with its Azure DevOps sign-in", failed.Fix!, "Azure DevOps goes over HTTPS by default");
+
+        _config.Values["Git:AzureDevOpsOverHttps"] = "false";
+        var overSsh = await Service().TestRepositoryAsync(RepoUrl, CancellationToken.None);
+        var https = await Service().TestRepositoryAsync("https://dev.azure.com/ermsystem/Portal/_git/sysmin", CancellationToken.None);
+        Assert.Contains("Git access", overSsh.Fix!, "SSH kept: the key");
+        Assert.Contains("Azure DevOps sign-in", https.Fix!, "an HTTPS URL always uses the sign-in");
+    }
+
+    [TestMethod]
+    public async Task The_health_check_needs_no_ssh_key_while_azure_devops_goes_over_https()
+    {
+        var https = (await Service().ReviewAsync(CancellationToken.None)).Single(i => i.Step == "git");
+        _config.Values["Git:AzureDevOpsOverHttps"] = "false";
+        var ssh = (await Service().ReviewAsync(CancellationToken.None)).Single(i => i.Step == "git");
+
+        Assert.IsTrue(https.Check.Ok, https.Check.Message);
+        Assert.Contains("no SSH key needed", https.Check.Message);
+        Assert.IsTrue(Service().GetGitKey() is { OverHttps: false }, "SSH kept");
+        Assert.IsFalse(ssh.Check.Ok);
+    }
+
+    [TestMethod]
+    public async Task The_machines_entra_sign_in_is_saved_with_an_optional_tenant_and_tested_as_such()
+    {
+        var saved = await Service().SaveAzureDevOpsAsync(new AzureDevOpsInput("myorg", "Portal", "entra", null, " contoso.onmicrosoft.com "), "setup", CancellationToken.None);
+        var bad = await Service().SaveAzureDevOpsAsync(new AzureDevOpsInput("myorg", "Portal", "Entra", null, "not a tenant"), "setup", CancellationToken.None);
+        await Service().TestAzureDevOpsAsync(null, CancellationToken.None);
+
+        Assert.IsTrue(saved.IsSuccess, saved.Error?.Message);
+        Assert.AreEqual(("Entra", "contoso.onmicrosoft.com"), (_config.Values["AzureDevOps:Auth"], _config.Values["AzureDevOps:TenantId"]));
+        Assert.AreEqual("validation", bad.Error?.Code);
+        Assert.AreEqual("Entra", Service().GetAzureDevOps().Auth);
+        Assert.AreEqual(new AzureDevOpsConnection("myorg", "Portal", false, null, Entra: true, TenantId: "contoso.onmicrosoft.com"), _azureDevOps.Tested.Single());
     }
 
     [TestMethod]

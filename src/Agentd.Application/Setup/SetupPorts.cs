@@ -71,7 +71,9 @@ public interface IDatabaseProbe
 /// <param name="UsePat">A personal access token; otherwise the server's <c>az login</c>.</param>
 /// <param name="Pat">The token, when <paramref name="UsePat"/>.</param>
 /// <param name="Principal">A Microsoft Entra service principal instead of a PAT or <c>az login</c>.</param>
-public sealed record AzureDevOpsConnection(string Organization, string Project, bool UsePat, string? Pat, ServicePrincipal? Principal = null);
+/// <param name="Entra">The machine's own Entra sign-in (Visual Studio, Azure PowerShell, a managed identity, az, …) instead of <c>az login</c> only.</param>
+/// <param name="TenantId">The directory for <paramref name="Entra"/>, when the sign-in knows several.</param>
+public sealed record AzureDevOpsConnection(string Organization, string Project, bool UsePat, string? Pat, ServicePrincipal? Principal = null, bool Entra = false, string? TenantId = null);
 
 /// <summary>A Microsoft Entra app registration that signs in to Azure DevOps with a client secret.</summary>
 /// <param name="TenantId">The directory (tenant) id, or its domain (<c>contoso.onmicrosoft.com</c>).</param>
