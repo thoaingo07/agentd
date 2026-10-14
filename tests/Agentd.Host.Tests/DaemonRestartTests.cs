@@ -1,5 +1,8 @@
 using Agentd.Application.Setup;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -34,6 +37,25 @@ public sealed class DaemonRestartTests
         StringAssert.Contains(restart.Availability.Reason, "Agentd:Daemon:Supervised");
         await Task.Delay(DaemonRestart.Delay * 2);
         Assert.AreEqual((0, false), (lifetime.Stops, restart.Requested));
+    }
+
+    [TestMethod]
+    public async Task A_restarted_daemon_exits_with_the_restart_code_after_its_host_is_disposed()
+    {
+        // RunAsync disposes the services; asking them afterwards threw "Cannot access a disposed object" and agentd exited 1,
+        // so the supervisor didn't start it again.
+        var builder = WebApplication.CreateSlimBuilder();
+        builder.WebHost.UseUrls("http://127.0.0.1:0");
+        builder.Configuration[DaemonRestart.SupervisedKey] = "true";
+        builder.Services.AddSingleton<ISettingsAudit, Audit>();
+        builder.Services.AddSingleton(TimeProvider.System);
+        builder.Services.AddSingleton<DaemonRestart>();
+        await using var app = builder.Build();
+        Assert.IsTrue(await app.Services.GetRequiredService<DaemonRestart>().RequestAsync("tngo", default));
+
+        var code = await DaemonHost.RunUntilStoppedAsync(app, default).WaitAsync(TimeSpan.FromSeconds(30));
+
+        Assert.AreEqual(Host.Cli.ExitCodes.Restart, code);
     }
 
     private static DaemonRestart Restart(bool supervised, Lifetime lifetime, Audit audit) =>
