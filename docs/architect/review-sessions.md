@@ -248,7 +248,17 @@ the comments, each with its location.
 **Resolving on the PR** (added 2026-10-14): a post with no findings resolves its main message as it's posted (status
 Fixed, "Resolved" in Azure DevOps; your comments stay active). A chat `!review`'s re-check resolves each fixed or
 closed finding's thread, and once none is open it adds "all resolved ✅" to the main message and resolves it too; a
-finding open again in a later re-check sets both active again. A page's Send isn't re-checked after a push yet.
+finding open again in a later re-check sets both active again.
+
+**A page's Send is re-checked too** (added 2026-10-14): a Send to a PR with findings is kept
+(`agentd.review_session_posts`: each finding with its thread and status, the main message's thread, the PR head, the
+replies seen, and the re-checks so far). On each review monitor pass (`ReviewSessionRechecker`), a new PR head or a new
+reply on a finding's thread, while one is open, gets one agent turn on a checkout of the new head (a fresh session, given
+each finding's text and the replies), then the same update of the PR as a chat `!review` (`PostedRechecks`: replies and
+statuses, threads for new findings, the main message edited and resolved or reopened), under the reviewer's own Azure
+DevOps identity when they connected it. A reply without a readable `review-recheck` block is noted and waits for the next
+push. A completed or abandoned PR ends it. The page shows **On PR !n**: each posted finding's status and the re-checks. A
+session started from a chat `!review` is posted and re-checked from its thread, never twice.
 
 ## 5. `agentd review` on a laptop (the developer's own Claude)
 

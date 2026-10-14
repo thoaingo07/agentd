@@ -2125,6 +2125,27 @@ export interface components {
             /** Format: date-time */
             createdAt: string;
         };
+        /** @description A posted finding and its status on the PR. */
+        PostedFindingVm: {
+            severity: string;
+            title: string;
+            file: null | string;
+            /** Format: int32 */
+            line: null | number;
+            status: string;
+        };
+        /**
+         * @description A Send to a PR as it stands: each posted finding's status (`open`, `fixed`, `closed`) and the re-checks after
+         *     pushes, newest last. `done` once the PR completed or was abandoned.
+         */
+        PostedVm: {
+            /** Format: int32 */
+            pullRequestId: number;
+            head: null | string;
+            done: boolean;
+            findings: components["schemas"]["PostedFindingVm"][];
+            rechecks: components["schemas"]["SessionRecheck"][];
+        };
         ProblemDetails: {
             type?: null | string;
             title?: null | string;
@@ -2336,11 +2357,12 @@ export interface components {
             posted: number;
             asPerson: boolean;
         };
-        /** @description A session with its comments and questions, as the review page shows it. */
+        /** @description A session with its comments and questions, as the review page shows it; `onPullRequest` once it was sent to a PR with findings. */
         ReviewSessionDetailVm: {
             session: components["schemas"]["ReviewSessionVm"];
             comments: components["schemas"]["ReviewCommentVm"][];
             asks: components["schemas"]["ReviewAskVm"][];
+            onPullRequest?: null | components["schemas"]["PostedVm"];
         };
         /** @description A review session: what it looks at (pinned commits), its state, the reviewer's summary and findings. */
         ReviewSessionVm: {
@@ -2391,6 +2413,21 @@ export interface components {
         SendRequest: {
             /** @description `pr` (a PR's review: post it there) or `text` (copy it). */
             destination: null | string;
+        };
+        /** @description One re-check of a Send: when, at which PR head, and how the posted findings stood after it (or what went wrong). */
+        SessionRecheck: {
+            /** Format: date-time */
+            at: string;
+            head: null | string;
+            /** Format: int32 */
+            fixed: number;
+            /** Format: int32 */
+            open: number;
+            /** Format: int32 */
+            closed: number;
+            /** Format: int32 */
+            added: number;
+            problem?: null | string;
         };
         /** @description The setup session (the one-time link's cookie): when it ends unless used again (it slides). */
         SetupSessionVm: {
