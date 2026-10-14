@@ -224,9 +224,12 @@ describe('steps', () => {
     expect(JSON.stringify(useSetupStore().$state)).not.toContain('SECRET')
   })
 
-  it('chat: sends a test message and saves you as a user; off hides the Discord fields', async () => {
+  it('chat: opens as saved (off), sends a test message and saves you as a user; off hides the Discord fields', async () => {
     const step = mount(ChatStep, { global: { plugins: [router()] } })
     await flushPromises()
+    expect((step.get('input[type="checkbox"]').element as HTMLInputElement).checked, 'chat is off as saved').toBe(false)
+    expect(step.text()).not.toContain('Bot token')
+    await step.get('input[type="checkbox"]').setValue(true)
     const inputs = step.findAll('input:not([type="checkbox"])')
     await inputs[0]!.setValue('bot-SECRET')
     await inputs[1]!.setValue('770517485715193877')

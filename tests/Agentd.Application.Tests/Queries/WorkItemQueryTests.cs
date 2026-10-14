@@ -36,6 +36,25 @@ public sealed class WorkItemQueryTests
     }
 
     [TestMethod]
+    public async Task A_job_without_a_chat_thread_has_its_side_from_the_inbox()
+    {
+        var history = new History
+        {
+            Events = [Event(11, "DeveloperReplied", s_t0.AddMinutes(2), """{"reply":"v2","from":"tngo"}""")],
+        };
+        var inbox = new Fakes.FakeInbox();
+        await inbox.AddAsync(new Agentd.Application.Inbox.InboxEntry("job", 3, "WI-5613", null, new Agentd.Application.Messaging.OutboundMessage(Agentd.Application.Messaging.MessageKind.Question, "Which endpoint?")), default);
+        await inbox.AddAsync(new Agentd.Application.Inbox.InboxEntry("job", 3, "WI-5613", null, new Agentd.Application.Messaging.OutboundMessage(Agentd.Application.Messaging.MessageKind.Result, "Answered after the merge.")), default);
+        inbox.Created["Which endpoint?"] = s_t0.AddMinutes(1);
+        inbox.Created["Answered after the merge."] = s_t0.AddMinutes(3);
+
+        var entries = await new GetWorkItemConversationHandler(history, inbox).Handle(new GetWorkItemConversation(WorkItemId.From(5613)), default);
+
+        CollectionAssert.AreEqual(new[] { "out|Question|Which endpoint?", "in|reply|v2", "out|Result|Answered after the merge." },
+            entries.Select(e => $"{e.Direction}|{e.Kind}|{e.Text}").ToArray());
+    }
+
+    [TestMethod]
     public async Task Timeline_pages_report_whether_more_exist()
     {
         var history = new History { Events = Enumerable.Range(1, 10).Select(i => Event(i, "phase.set", s_t0, "{}")).ToList() };

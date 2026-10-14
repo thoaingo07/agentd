@@ -16,7 +16,13 @@ internal static class PrWatchNotices
             new OutboundMessage(MessageKind.Info, text)), logger ?? NullLogger.Instance, ct).ConfigureAwait(false);
         if (watch.ThreadId is { } thread)
         {
-            await providers.Resolve(watch.Provider).SendAsync(new ConversationRef(watch.Provider, thread, watch.SpaceId), new OutboundMessage(MessageKind.Info, text), ct).ConfigureAwait(false);
+            // Its chat may have been switched off since: the notice is kept with the watch and in the Inbox all the same.
+            if (providers.TryResolve(watch.Provider) is not { } chat)
+            {
+                return;
+            }
+
+            await chat.SendAsync(new ConversationRef(watch.Provider, thread, watch.SpaceId), new OutboundMessage(MessageKind.Info, text), ct).ConfigureAwait(false);
         }
     }
 }

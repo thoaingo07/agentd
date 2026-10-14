@@ -13,8 +13,12 @@ const busy = ref<'test' | 'save' | null>(null)
 const check = ref<StepCheck | null>(null)
 const error = ref<string | null>(null)
 onMounted(() => void setup.loadChat())
+// The saved state once it loads (and after a save); typing in the form isn't overwritten afterwards.
+let loaded = false
 watch(() => setup.chat, (step) => {
   if (!step) return
+  if (!loaded) form.enabled = step.enabled
+  loaded = true
   form.guildId ||= step.guildId ?? ''
   form.channelId ||= step.channelId ?? ''
 }, { immediate: true })
