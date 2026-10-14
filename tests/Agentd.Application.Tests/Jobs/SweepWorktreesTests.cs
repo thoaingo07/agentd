@@ -98,6 +98,8 @@ public sealed class SweepWorktreesTests
 
         public Task<IReadOnlyList<Review>> ListPostedAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
 
+        public Task<IReadOnlyList<Review>> ListByStatusAsync(string status, CancellationToken cancellationToken) => throw new NotSupportedException();
+
         public Task SaveAsync(Review review, CancellationToken cancellationToken) => throw new NotSupportedException();
 
         public Task AddMessageAsync(long reviewId, string direction, string author, string text, CancellationToken cancellationToken) => throw new NotSupportedException();

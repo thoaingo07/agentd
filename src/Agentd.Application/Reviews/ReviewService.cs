@@ -38,6 +38,7 @@ public sealed partial class ReviewService(
     public const int MaxOpenThreads = 20;
 
     private readonly ConcurrentDictionary<long, Turns> _queues = new();
+    private readonly ConcurrentDictionary<long, byte> _resumed = new();
     private readonly SemaphoreSlim _slots = new(MaxConcurrentReviews, MaxConcurrentReviews);
 
     public void Dispose() => _slots.Dispose();
@@ -102,18 +103,58 @@ public sealed partial class ReviewService(
         await SaveAsync(review, ct).ConfigureAwait(false);
         var page = await OpenSessionAsync(review, thread, instructions, ct).ConfigureAwait(false);
 
-        var prompt = string.Create(CultureInfo.InvariantCulture,
-            $"Review pull request !{id} \"{details.Title}\" by {details.Author} in {repo.Value.Name}: `{details.SourceBranch}` → `{details.TargetBranch}` " +
-            $"(head {details.SourceCommit}; the target is origin/{details.TargetBranch}). Requested by {author}.")
-            + (focus is null ? string.Empty : $" Focus on: {focus}.")
-            + (instructions is null ? string.Empty : $"\n\nInstructions from {author}: {instructions}")
-            + (page is null ? string.Empty : ReviewSessionReviewer.GuideAsk + " The guide goes to the review's page, not this thread.")
-            + (string.IsNullOrWhiteSpace(details.Description) ? string.Empty : $"\n\nPR description:\n{Clip(details.Description, 3000)}")
-            + await WorkItemContextAsync(details, ct).ConfigureAwait(false)
-            + await OpenThreadsContextAsync(repo.Value, id, ct).ConfigureAwait(false);
+        var prompt = await ReviewPromptAsync(repo.Value, details, author, focus, instructions, page is not null, ct).ConfigureAwait(false);
         await reviews.AddMessageAsync(reviewId, "in", author, $"!review {string.Join(' ', args)}", ct).ConfigureAwait(false);
         Enqueue(reviewId, prompt);
         return $"🔍 Started a review thread for PR !{id} (review #{reviewId})." + (page is null ? string.Empty : $" It's also on the Reviews page: {page}");
+    }
+
+    /// <summary>The first turn's prompt: the PR, who asked and how, its description, work items and open threads.</summary>
+    private async Task<string> ReviewPromptAsync(Repository repo, PullRequestDetails details, string author, string? focus, string? instructions, bool page, CancellationToken ct) =>
+        string.Create(CultureInfo.InvariantCulture,
+            $"Review pull request !{details.Id} \"{details.Title}\" by {details.Author} in {repo.Name}: `{details.SourceBranch}` → `{details.TargetBranch}` " +
+            $"(head {details.SourceCommit}; the target is origin/{details.TargetBranch}). Requested by {author}.")
+            + (focus is null ? string.Empty : $" Focus on: {focus}.")
+            + (instructions is null ? string.Empty : $"\n\nInstructions from {author}: {instructions}")
+            + (page ? ReviewSessionReviewer.GuideAsk + " The guide goes to the review's page, not this thread." : string.Empty)
+            + (string.IsNullOrWhiteSpace(details.Description) ? string.Empty : $"\n\nPR description:\n{Clip(details.Description, 3000)}")
+            + await WorkItemContextAsync(details, ct).ConfigureAwait(false)
+            + await OpenThreadsContextAsync(repo, details.Id, ct).ConfigureAwait(false);
+
+    /// <summary>
+    /// Starts again the reviews a restart interrupted before their findings (still Reviewing, nothing running here),
+    /// once per review per process, so a review whose reply had no findings isn't re-run on every poll. Messages sent
+    /// meanwhile were answered without the review; the new turn starts a fresh session from the original request.
+    /// </summary>
+    public async Task ResumeAsync(CancellationToken ct)
+    {
+        foreach (var review in await reviews.ListByStatusAsync(ReviewStatus.Reviewing, ct).ConfigureAwait(false))
+        {
+            if (review.Result is not null || Busy(review.Id) || !_resumed.TryAdd(review.Id, 0))
+            {
+                continue;
+            }
+
+            if (await repositories.GetAsync(RepositoryName.From(review.Repository), ct).ConfigureAwait(false) is not { } repo
+                || await pullRequests.GetAsync(repo, review.PullRequestId, ct).ConfigureAwait(false) is not { Status: PullRequestStatus.Active } details)
+            {
+                continue;   // the monitor closes it once the PR is gone
+            }
+
+            // The original request (`!review <pr> [instructions] [--focus …]`) gives back its instructions.
+            var request = (await reviews.ListMessagesAsync(review.Id, ct).ConfigureAwait(false))
+                .FirstOrDefault(m => m.Direction == "in" && m.Text.StartsWith("!review", StringComparison.OrdinalIgnoreCase));
+            var args = request?.Text["!review".Length..].Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) ?? [];
+            var words = BrainstormSettings.Parse(Unfocus(args, out _)).Text.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            var instructions = words.Length > 1 ? words[1] : null;
+
+            var fresh = review with { Session = null, HeadCommit = details.SourceCommit };
+            await SaveAsync(fresh, ct).ConfigureAwait(false);
+            await PostAsync(fresh, new OutboundMessage(MessageKind.Info,
+                "🔁 agentd restarted while I was reviewing, so I'm starting the review again. Anything you asked meanwhile was answered without it; ask again once the findings are here."), ct).ConfigureAwait(false);
+            Enqueue(review.Id, await ReviewPromptAsync(repo, details, review.Author, review.Focus, instructions, sessions is not null, ct).ConfigureAwait(false));
+            LogResumed(logger, review.Id);
+        }
     }
 
     /// <summary>
@@ -852,6 +893,9 @@ public sealed partial class ReviewService(
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Review {ReviewId}: the review turn failed")]
     private static partial void LogTurnFailed(ILogger logger, Exception exception, long reviewId);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Review {ReviewId}: interrupted by a restart, started again")]
+    private static partial void LogResumed(ILogger logger, long reviewId);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Review {ReviewId}: posting to the thread failed")]
     private static partial void LogPostFailed(ILogger logger, Exception exception, long reviewId);

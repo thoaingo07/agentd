@@ -59,6 +59,12 @@ RETURNS SETOF agentd.pr_reviews
 LANGUAGE sql STABLE
 AS $$ SELECT * FROM agentd.pr_reviews WHERE status = 'Posted' ORDER BY id $$;
 
+-- Reviews in one status, oldest first (Reviewing: the ones a restart may have interrupted).
+CREATE OR REPLACE FUNCTION agentd.pr_review_list_by_status(p_status text)
+RETURNS SETOF agentd.pr_reviews
+LANGUAGE sql STABLE
+AS $$ SELECT * FROM agentd.pr_reviews WHERE status = p_status ORDER BY id $$;
+
 CREATE OR REPLACE FUNCTION agentd.pr_review_list_open_threads(p_provider text)
 RETURNS SETOF text
 LANGUAGE sql STABLE

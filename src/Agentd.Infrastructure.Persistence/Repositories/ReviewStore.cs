@@ -26,6 +26,9 @@ public sealed class ReviewStore(NpgsqlDataSource dataSource) : IReviewStore
     public async Task<IReadOnlyList<Review>> ListPostedAsync(CancellationToken cancellationToken) =>
         await ReadAsync("SELECT * FROM agentd.pr_review_list_posted()", cancellationToken).ConfigureAwait(false);
 
+    public async Task<IReadOnlyList<Review>> ListByStatusAsync(string status, CancellationToken cancellationToken) =>
+        await ReadAsync("SELECT * FROM agentd.pr_review_list_by_status($1)", cancellationToken, T(status)).ConfigureAwait(false);
+
     public async Task<Review?> FindLatestAsync(string repository, int pullRequestId, CancellationToken cancellationToken) =>
         (await ReadAsync("SELECT * FROM agentd.pr_review_find_latest($1, $2)", cancellationToken, T(repository), P(pullRequestId, NpgsqlDbType.Integer)).ConfigureAwait(false)).SingleOrDefault();
 
