@@ -49,6 +49,10 @@ beforeEach(() => {
       return new Response(JSON.stringify([summary(5), summary(4, { status: 'Fixing', workItemId: 9001, app: 'billing' }), summary(3, { status: 'Ignored' })]))
     }
     if (url.pathname === '/api/incidents/5') return new Response(JSON.stringify(current))
+    if (url.pathname === '/api/incidents/5/occurrences') {
+      return new Response(JSON.stringify([{ at: '2026-10-14T09:59:00Z', message: 'boom', stack: 'at Orders.Get()', operation: 'GET /orders', operationId: 'op1',
+        url: '/orders?id=1', resultCode: '500', properties: '{"tenant":"t1"}' }]))
+    }
     if (url.pathname === '/api/inbox/incident/5') return new Response(JSON.stringify([message]))
     return new Response(JSON.stringify({ token: 't' }))
   }))
@@ -105,7 +109,7 @@ describe('Incidents', () => {
     expect(posts.at(-1)).toEqual({ path: '/api/inbox/incident/5/reply', body: { text: 'why only on Mondays?' } })
   })
 
-  it('an ignored one offers reopen; a User sees no actions', async () => {
+  it('an ignored one offers reopen; a User sees no actions and no occurrences', async () => {
     current = detail({ status: 'Ignored' })
     let w = await open('/incidents/5')
     expect(w.get('[aria-label=Actions]').findAll('button').map((b) => b.text())).toEqual(['👀 Reopen'])
@@ -117,6 +121,16 @@ describe('Incidents', () => {
     useSessionStore().user = { name: 'dev', roles: ['User'], provider: 'tailscale' }
     w = await open('/incidents/5')
     expect(w.find('[aria-label=Actions]').exists()).toBe(false)
+    expect(w.find('[aria-label=Occurrences]').exists()).toBe(false)
+  })
+
+  it('reads the latest occurrences from Application Insights only when asked', async () => {
+    const w = await open('/incidents/5')
+    expect(asked).not.toContain('/api/incidents/5/occurrences')
+
+    await w.get('[aria-label=Occurrences] button').trigger('click')
+    await flushPromises()
+    expect(w.findAll('[data-testid=incident-occurrence]').map((o) => o.text())).toEqual([expect.stringContaining('/orders?id=1 500')])
   })
 
   it("re-reads the list and the open incident once per burst of its Inbox messages", async () => {

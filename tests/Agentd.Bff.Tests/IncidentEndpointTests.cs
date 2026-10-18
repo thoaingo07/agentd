@@ -15,6 +15,7 @@ public sealed class IncidentEndpointTests
     private const string Other = "dev@example.com";
     private const string OrdersId = "/subscriptions/s1/resourceGroups/rg/providers/Microsoft.Insights/components/orders-ai";
     private readonly Store _store = new();
+    private readonly Telemetry _telemetry = new();
 
     [TestMethod]
     public async Task The_list_filters_by_status_caps_the_limit_and_refuses_an_unknown_status()
@@ -53,6 +54,23 @@ public sealed class IncidentEndpointTests
         Assert.AreEqual(HttpStatusCode.NotFound, missing.StatusCode);
     }
 
+    [TestMethod]
+    public async Task Occurrences_are_read_live_redacted_for_Operators_and_Admins_and_a_telemetry_failure_is_a_502()
+    {
+        await using var app = await StartAsync();
+
+        using var found = await GetAsync(app, "/api/incidents/7/occurrences", Admin);
+        using var other = await GetAsync(app, "/api/incidents/7/occurrences", Other);
+        _telemetry.Fail = true;
+        using var failed = await GetAsync(app, "/api/incidents/7/occurrences", Admin);
+
+        var body = JsonDocument.Parse(await found.Content.ReadAsStringAsync()).RootElement;
+        Assert.AreEqual(("/orders?id=1", "500"), (body[0].GetProperty("url").GetString(), body[0].GetProperty("resultCode").GetString()));
+        Assert.IsFalse(body[0].GetProperty("properties").GetString()!.Contains("hunter2", StringComparison.Ordinal), "redacted");
+        Assert.AreEqual((7L, IncidentEndpoints.MaxOccurrences), _telemetry.Asked.Single(), "one Azure read, for Operators and Admins only");
+        Assert.AreEqual((HttpStatusCode.Forbidden, HttpStatusCode.BadGateway), (other.StatusCode, failed.StatusCode));
+    }
+
     private static async Task<HttpResponseMessage> GetAsync(WebApplication app, string url, string login)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(url, UriKind.Relative));
@@ -69,6 +87,7 @@ public sealed class IncidentEndpointTests
         builder.Configuration["Agentd:Auth:Tailscale:AdminLogins:0"] = Admin;
         builder.Services.AddBff();
         builder.Services.AddSingleton<IIncidentStore>(_store);
+        builder.Services.AddSingleton<ITelemetrySource>(_telemetry);
         builder.Services.Configure<IncidentMonitorOptions>(o => o.Apps.Add(new MonitoredApp { Name = "orders-api", ResourceId = OrdersId, Repository = "sysmin" }));
         var app = builder.Build();
         app.Use((context, next) =>
@@ -115,5 +134,27 @@ public sealed class IncidentEndpointTests
         public Task<DateTimeOffset?> GetCursorAsync(string app, CancellationToken cancellationToken) => throw new NotSupportedException();
 
         public Task SetCursorAsync(string app, DateTimeOffset checkedUntil, CancellationToken cancellationToken) => throw new NotSupportedException();
+    }
+
+    private sealed class Telemetry : ITelemetrySource
+    {
+        public bool Fail { get; set; }
+
+        public List<(long Id, int Max)> Asked { get; } = [];
+
+        public Task<IReadOnlyList<ErrorGroup>> ErrorsAsync(MonitoredApp app, DateTimeOffset since, DateTimeOffset until, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyList<ErrorOccurrence>> OccurrencesAsync(MonitoredApp app, Incident incident, DateTimeOffset since, int max, CancellationToken cancellationToken)
+        {
+            if (Fail)
+            {
+                throw new InvalidOperationException("Forbidden");
+            }
+
+            Asked.Add((incident.Id, max));
+            return Task.FromResult<IReadOnlyList<ErrorOccurrence>>([new(DateTimeOffset.UnixEpoch, "boom", "at Orders.Get()", "GET /orders", "op1", "/orders?id=1", "500",
+                """{"conn":"Password=hunter2;"}""")]);
+        }
     }
 }
